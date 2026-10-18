@@ -38,3 +38,20 @@ test('failed secure storage write does not prevent a future deletion',async()=>{
  await queue.clear();
  assert.equal(cleared,true);
 });
+
+test('history retains safe summaries of invalid-length inspections',()=>{
+ const entries=[
+  {id:'a',date:'today',kind:'FORMATO DESCONHECIDO',valid:false,digits:46},
+  {id:'b',date:'today',kind:'FORMATO DESCONHECIDO',valid:false,digits:0},
+ ];
+ assert.deepEqual(sanitizeHistory(JSON.stringify(entries)),entries);
+});
+test('history rejects impossible numeric lengths and hidden original values',()=>{
+ const entries=[
+  {id:'invalid',date:'today',kind:'BANK',valid:false,digits:1000},
+  {id:'valid',date:'today',kind:'FORMATO DESCONHECIDO',valid:false,digits:3,originalBoleto:'123'},
+ ];
+ const cleaned=sanitizeHistory(JSON.stringify(entries));
+ assert.equal(cleaned.length,1);
+ assert.equal('originalBoleto' in cleaned[0],false);
+});
