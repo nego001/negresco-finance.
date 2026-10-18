@@ -44,3 +44,10 @@ Open Finance e provedores financeiros autorizados, sujeitos a requisitos legais,
 5. Confirmar recebimento no Samsung. Sem confirmacao, estado = nao validado.
 6. Nao misturar credenciais nem dados financeiros reais em codigo, logs ou prints.
 7. Manter versoes anteriores recuperaveis e documentar mudancas.
+
+## Pacote visual unico V3 - verificacoes
+- Icones vetoriais feitos com primitivas nativas do React Native, sem dependencias externas.
+- Navegacao inferior, cartoes, dashboard, areas vazias e ajustes visuais padronizados.
+- Transicoes com Animated, opcao para reduzir movimento e textos maiores.
+- Pix e IA permanecem somente como previsualizacao, sem pagamentos ou IA conectada.
+- Pendente: compilacao Android CI, verificacao de layout em aparelho e confirmacao OTA no Samsung. Nao declarar V3 concluida ate esses testes.

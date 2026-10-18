@@ -1,19 +1,20 @@
+import { Icon, IconName } from './components/Icon';
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 type Page = 'Início' | 'Pix' | 'Contas' | 'Cartões' | 'Investimentos' | 'Metas' | 'Negresco' | 'Ajustes';
 const C = { bg:'#000000',panel:'#0D111A',raised:'#121A29',line:'#26354B',blue:'#78B5FF',muted:'#99A8BC',white:'#F7FAFF' };
-const sections: {name:Page;glyph:string;description:string}[] = [
-  {name:'Contas',glyph:'▤',description:'Instituições e saldos'},
-  {name:'Pix',glyph:'↗',description:'Pagamentos e recebimentos'},
-  {name:'Cartões',glyph:'▰',description:'Limites e faturas'},
-  {name:'Investimentos',glyph:'⌁',description:'Patrimônio e evolução'},
-  {name:'Metas',glyph:'◎',description:'Objetivos pessoais'},
-  {name:'Negresco',glyph:'✦',description:'Sua assistente financeira'}
+const sections: {name:Page;glyph:IconName;description:string}[] = [
+  {name:'Contas',glyph:'accounts',description:'Instituições e saldos'},
+  {name:'Pix',glyph:'pix',description:'Pagamentos e recebimentos'},
+  {name:'Cartões',glyph:'cards',description:'Limites e faturas'},
+  {name:'Investimentos',glyph:'invest',description:'Patrimônio e evolução'},
+  {name:'Metas',glyph:'goals',description:'Objetivos pessoais'},
+  {name:'Negresco',glyph:'assistant',description:'Sua assistente financeira'}
 ];
-function Tap({title,subtitle,glyph,onPress,style}:{title:string;subtitle?:string;glyph:string;onPress:()=>void;style?:object}) {
+function Tap({title,subtitle,glyph,onPress,style}:{title:string;subtitle?:string;glyph:IconName;onPress:()=>void;style?:object}) {
   return <TouchableOpacity onPress={onPress} accessibilityRole="button" accessibilityLabel={title} activeOpacity={0.72} style={[s.tile,style]}>
-    <View style={s.tileGlyph}><Text style={s.glyph}>{glyph}</Text></View>
+    <View style={s.tileGlyph}><Icon name={glyph} size={25}/></View>
     <Text style={s.tileTitle}>{title}</Text>{subtitle&&<Text style={s.tileSub}>{subtitle}</Text>}
     <Text style={s.tileArrow}>↗</Text>
   </TouchableOpacity>;
@@ -38,7 +39,7 @@ export default function App() {
     <View style={s.header}>
       <View style={[s.logo,{borderColor:blue}]}><Text style={s.logoText}>N</Text></View>
       <View style={s.headerText}><Text style={s.brand}>NEGRESCO <Text style={{color:blue}}>FINANCE</Text></Text><Text style={s.tagline}>SEU UNIVERSO FINANCEIRO</Text></View>
-      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Abrir ajustes" onPress={()=>nav('Ajustes')} style={s.headerButton}><Text style={{fontSize:21,color:blue}}>⚙</Text></TouchableOpacity>
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Abrir ajustes" onPress={()=>nav('Ajustes')} style={s.headerButton}><Icon name="settings" color={blue} size={22}/></TouchableOpacity>
     </View>
     <Animated.View style={[s.animatedPage,{opacity:enter,transform:[{translateY:enter.interpolate({inputRange:[0,1],outputRange:[14,0]})}]}]}><ScrollView key={page} style={s.scroll} contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
       {page==='Início'?<>
@@ -47,14 +48,14 @@ export default function App() {
         <Text style={[s.description,fontLarge&&{fontSize:17,lineHeight:26}]}>Tudo que importa para sua vida financeira, em um só lugar.</Text>
         <View style={s.visualBanner}><View><Text style={s.bannerLabel}>NEGRESCO FINANCE</Text><Text style={s.bannerTitle}>Seu dinheiro.\nSeu ritmo.</Text><Text style={s.bannerText}>Uma nova forma de visualizar suas finanças.</Text></View><View style={s.bannerOrb}><Text style={s.bannerOrbText}>N</Text></View></View>
         <View style={s.balance}>
-          <View style={s.rowBetween}><Text style={s.overline}>PATRIMÔNIO CONSOLIDADO</Text><TouchableOpacity accessibilityRole="button" accessibilityLabel="Alternar visibilidade do saldo" onPress={()=>setShowBalance(!showBalance)}><Text style={[s.eye,{color:blue}]}>{showBalance?'◉':'◎'}</Text></TouchableOpacity></View>
+          <View style={s.rowBetween}><Text style={s.overline}>PATRIMÔNIO CONSOLIDADO</Text><TouchableOpacity accessibilityRole="button" accessibilityLabel="Alternar visibilidade do saldo" onPress={()=>setShowBalance(!showBalance)}><Icon name="eye" color={blue} size={22}/></TouchableOpacity></View>
           <Text style={s.amount}>{showBalance?'Indisponível':'R$ ••••••'}</Text>
           <Text style={[s.balanceHint,{color:blue}]}>●  Nenhuma conta conectada</Text>
           <View style={s.separator}/>
           <View style={s.rowBetween}><Text style={s.balanceFooter}>Seus dados, suas permissões.</Text><Text style={{color:blue,fontSize:22}}>✧</Text></View>
         </View>
         <View style={s.sectionHeading}><Text style={s.sectionTitle}>Acesso rápido</Text><Text style={s.sectionCaption}>SEUS ATALHOS</Text></View>
-        <View style={s.quickRow}>{[{name:'Pix',glyph:'↗'},{name:'Contas',glyph:'▤'},{name:'Cartões',glyph:'▰'},{name:'Metas',glyph:'◎'}].map(x=><TouchableOpacity key={x.name} accessibilityRole="button" accessibilityLabel={'Abrir '+x.name} onPress={()=>nav(x.name as Page)} style={s.quick}><View style={s.quickIcon}><Text style={[s.quickGlyph,{color:blue}]}>{x.glyph}</Text></View><Text style={s.quickText}>{x.name}</Text></TouchableOpacity>)}</View>
+        <View style={s.quickRow}>{[{name:'Pix',glyph:'pix'},{name:'Contas',glyph:'accounts'},{name:'Cartões',glyph:'cards'},{name:'Metas',glyph:'goals'}].map(x=><TouchableOpacity key={x.name} accessibilityRole="button" accessibilityLabel={'Abrir '+x.name} onPress={()=>nav(x.name as Page)} style={s.quick}><View style={s.quickIcon}><Icon name={x.glyph as IconName} size={27} color={blue}/></View><Text style={s.quickText}>{x.name}</Text></TouchableOpacity>)}</View>
         <View style={s.sectionHeading}><Text style={s.sectionTitle}>Explore seu espaço</Text><Text style={s.sectionCaption}>06 MÓDULOS</Text></View>
         <View style={s.grid}>{sections.map(x=><Tap key={x.name} title={x.name} subtitle={compact?undefined:x.description} glyph={x.glyph} onPress={()=>nav(x.name)} style={compact?{minHeight:115}:undefined}/>)}</View>
         <Notice title="Construído para evoluir" body="Prévia segura: sem contas conectadas e sem movimentações financeiras reais."/>
@@ -62,7 +63,7 @@ export default function App() {
         <Text style={s.kicker}>TRANSFERÊNCIAS</Text><Text style={s.heading}>Pix do seu jeito.</Text><Text style={s.description}>Tudo preparado para uma experiência rápida e transparente.</Text>
         <Notice title="Pix em demonstração" body="Nenhuma transferência, cobrança ou QR Code real é gerado nesta versão."/>
         <Text style={s.sectionTitle}>Escolha uma operação</Text>
-        <View style={s.grid}>{[['Enviar Pix','↗'],['Receber Pix','↓'],['Ler QR Code','▦'],['Copia e cola','▤']].map(x=><View key={x[0]} style={s.tile}><View style={s.tileGlyph}><Text style={s.glyph}>{x[1]}</Text></View><Text style={s.tileTitle}>{x[0]}</Text><Text style={s.tileSub}>Em desenvolvimento</Text></View>)}</View>
+        <View style={s.grid}>{[['Enviar Pix','pix'],['Receber Pix','accounts'],['Ler QR Code','cards'],['Copia e cola','accounts']].map(x=><View key={x[0]} style={s.tile}><View style={s.tileGlyph}><Icon name={x[1] as IconName} size={24}/></View><Text style={s.tileTitle}>{x[0]}</Text><Text style={s.tileSub}>Em desenvolvimento</Text></View>)}</View>
         <View style={s.visualFeature}><Text style={s.visualFeatureTitle}>Uma experiência sem atrito</Text><Text style={s.visualFeatureBody}>Uma prévia do futuro fluxo Pix, com revisão clara, segurança e transparência em cada etapa.</Text><View style={s.visualSteps}>{['01  Identificar','02  Conferir','03  Autorizar'].map(t=><View key={t} style={s.visualStep}><Text style={s.visualStepText}>{t}</Text></View>)}</View></View>
       </>:page==='Negresco'?<>
         <Text style={s.kicker}>INTELIGÊNCIA FINANCEIRA</Text><Text style={s.heading}>Conheça a{"\n"}Negresco. ✦</Text><Text style={s.description}>Uma assistente com personalidade, projetada para ajudar você a entender suas finanças.</Text>
@@ -75,17 +76,17 @@ export default function App() {
         <TouchableOpacity accessibilityRole="switch" accessibilityState={{checked:compact}} onPress={()=>setCompact(!compact)} style={s.setting}><Text style={s.settingText}>Cartões compactos</Text><Text style={[s.settingValue,{color:blue}]}>{compact?'Ligado':'Desligado'}  ↔</Text></TouchableOpacity>
         <TouchableOpacity accessibilityRole="switch" accessibilityState={{checked:fontLarge}} onPress={()=>setFontLarge(!fontLarge)} style={s.setting}><Text style={s.settingText}>Textos maiores</Text><Text style={[s.settingValue,{color:blue}]}>{fontLarge?'Ligado':'Desligado'}  ↔</Text></TouchableOpacity>
         <TouchableOpacity accessibilityRole="switch" accessibilityState={{checked:reducedMotion}} onPress={()=>setReducedMotion(!reducedMotion)} style={s.setting}><Text style={s.settingText}>Reduzir animações</Text><Text style={[s.settingValue,{color:blue}]}>{reducedMotion?'Ligado':'Desligado'}  ↔</Text></TouchableOpacity>
-        <Notice title="Tema OLED ativo" body="O fundo preto absoluto foi preservado para telas AMOLED. Preferências são temporárias nesta versão."/>
+        <View style={s.palette}><View style={[s.swatch,{backgroundColor:'#000000',borderColor:'#41536C'}]}/><View style={[s.swatch,{backgroundColor:blue,borderColor:blue}]}/><View style={[s.swatch,{backgroundColor:'#0D111A',borderColor:'#41536C'}]}/><Text style={s.paletteLabel}>PALETA ATIVA</Text></View><Notice title="Tema OLED ativo" body="O fundo preto absoluto foi preservado para telas AMOLED. Preferências são temporárias nesta versão."/>
       </>:<>
         <Text style={s.kicker}>SEU ESPAÇO</Text><Text style={s.heading}>{page}</Text><Text style={s.description}>{active?.description}</Text>
-        <View style={s.empty}><View style={s.emptyGlyph}><Text style={{fontSize:39,color:blue}}>{active?.glyph}</Text></View><Text style={s.emptyTitle}>Um espaço só seu</Text><Text style={s.emptyBody}>Este módulo ganhará recursos próprios quando houver integrações autorizadas. Por enquanto, não exibimos valores inventados.</Text><View style={s.offline}><Text style={s.offlineText}>●  SEM DADOS CONECTADOS</Text></View></View>
-        <Text style={s.sectionTitle}>Explore também</Text><View style={s.grid}>{sections.filter(x=>x.name!==page).map(x=><Tap key={x.name} title={x.name} glyph={x.glyph} onPress={()=>nav(x.name)} style={{minHeight:115}}/>)}</View>
+        <View style={s.empty}><View style={s.emptyGlyph}>{active&&<Icon name={active.glyph} size={45} color={blue}/>}</View><Text style={s.emptyTitle}>Um espaço só seu</Text><Text style={s.emptyBody}>Este módulo ganhará recursos próprios quando houver integrações autorizadas. Por enquanto, não exibimos valores inventados.</Text><View style={s.offline}><Text style={s.offlineText}>●  SEM DADOS CONECTADOS</Text></View></View>
+        <View style={s.visualFeature}><Text style={s.visualFeatureTitle}>Um painel preparado para você</Text><Text style={s.visualFeatureBody}>Visualização de informações, atalhos e indicadores ganhará vida quando você autorizar a conexão de dados.</Text></View><Text style={s.sectionTitle}>Explore também</Text><View style={s.grid}>{sections.filter(x=>x.name!==page).map(x=><Tap key={x.name} title={x.name} glyph={x.glyph} onPress={()=>nav(x.name)} style={{minHeight:115}}/>)}</View>
       </>}
     </ScrollView></Animated.View>
-    <View style={s.bottom}>{[{name:'Início',glyph:'⌂'},{name:'Pix',glyph:'↗'},{name:'Negresco',glyph:'✦'}].map(x=><TouchableOpacity key={x.name} accessibilityRole="tab" accessibilityState={{selected:page===x.name}} onPress={()=>nav(x.name as Page)} style={s.nav}><Text style={[s.navGlyph,page===x.name&&{color:blue}]}>{x.glyph}</Text><Text style={[s.navLabel,page===x.name&&{color:blue}]}>{x.name}</Text>{page===x.name&&<View style={[s.navMark,{backgroundColor:blue}]}/>}</TouchableOpacity>)}</View>
+    <View style={s.bottom}>{[{name:'Início',glyph:'⌂'},{name:'Pix',glyph:'pix'},{name:'Negresco',glyph:'assistant'}].map(x=><TouchableOpacity key={x.name} accessibilityRole="tab" accessibilityState={{selected:page===x.name}} onPress={()=>nav(x.name as Page)} style={s.nav}><Icon name={x.glyph as IconName} size={23} color={page===x.name?blue:'#8898AD'}/><Text style={[s.navLabel,page===x.name&&{color:blue}]}>{x.name}</Text>{page===x.name&&<View style={[s.navMark,{backgroundColor:blue}]}/>}</TouchableOpacity>)}</View>
   </SafeAreaView>;
 }
-const s=StyleSheet.create({
+const s=StyleSheet.create({palette:{flexDirection:'row',alignItems:'center',gap:10,marginVertical:20},swatch:{width:34,height:34,borderRadius:12,borderWidth:1},paletteLabel:{color:'#A4B6CB',fontSize:10,fontWeight:'800',letterSpacing:1.4,marginLeft:5},
  animatedPage:{flex:1},visualBanner:{minHeight:158,borderRadius:25,backgroundColor:'#122C4E',borderWidth:1,borderColor:'#3265A1',marginBottom:17,padding:20,flexDirection:'row',alignItems:'center',justifyContent:'space-between',overflow:'hidden'},bannerLabel:{color:'#8DC5FF',fontSize:9,fontWeight:'900',letterSpacing:2},bannerTitle:{color:'#FFFFFF',fontSize:24,fontWeight:'900',lineHeight:29,marginTop:9},bannerText:{color:'#B8D0EB',fontSize:10,marginTop:10,maxWidth:185},bannerOrb:{height:92,width:92,borderRadius:46,borderWidth:2,borderColor:'#5D9AE0',backgroundColor:'#214E82',alignItems:'center',justifyContent:'center'},bannerOrbText:{fontSize:57,fontWeight:'900',color:'#C6E4FF'},visualFeature:{backgroundColor:'#0C1624',borderRadius:22,borderWidth:1,borderColor:'#27466C',padding:20,marginBottom:20},visualFeatureTitle:{color:'#F7FAFF',fontSize:17,fontWeight:'900'},visualFeatureBody:{color:'#A9BDD6',fontSize:12,lineHeight:20,marginTop:10},visualSteps:{flexDirection:'row',flexWrap:'wrap',marginTop:18,gap:8},visualStep:{backgroundColor:'#162C47',paddingHorizontal:10,paddingVertical:9,borderRadius:12},visualStepText:{color:'#A5D1FF',fontSize:10,fontWeight:'800'},
  formPanel:{backgroundColor:'#0E1726',borderWidth:1,borderColor:'#355783',borderRadius:22,padding:19,marginBottom:20},formTitle:{color:C.white,fontSize:18,fontWeight:'900'},formHelp:{color:C.muted,fontSize:12,lineHeight:19,marginTop:8,marginBottom:16},inputLabel:{color:'#B9CBE1',fontSize:12,fontWeight:'800',marginBottom:8},input:{color:C.white,backgroundColor:'#080E18',borderColor:C.line,borderWidth:1,borderRadius:14,paddingHorizontal:14,paddingVertical:13,fontSize:14,marginBottom:14},actionButton:{padding:15,borderRadius:14,alignItems:'center',marginTop:4},actionText:{color:'#07101D',fontSize:14,fontWeight:'900'},answer:{color:'#D7E5F8',fontSize:13,lineHeight:22,marginTop:17},
  root:{flex:1,backgroundColor:C.bg},scroll:{flex:1},header:{flexDirection:'row',alignItems:'center',paddingHorizontal:20,paddingTop:14,paddingBottom:17,borderBottomWidth:1,borderBottomColor:'#1B2432'},logo:{width:43,height:43,borderRadius:15,borderWidth:1,backgroundColor:'#16365D',alignItems:'center',justifyContent:'center'},logoText:{fontSize:26,fontWeight:'900',color:'#FFFFFF'},headerText:{flex:1,marginLeft:12},brand:{color:C.white,fontSize:15,fontWeight:'900',letterSpacing:.8},tagline:{color:C.muted,fontSize:9,letterSpacing:2,marginTop:5},headerButton:{width:40,height:40,borderRadius:20,backgroundColor:C.panel,borderWidth:1,borderColor:C.line,alignItems:'center',justifyContent:'center'},
