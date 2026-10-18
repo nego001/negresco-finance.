@@ -1,0 +1,14 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {assessDeviceRisk,authorizeRiskyOperation,RiskLevel} from '../packages/security-core/src/risk.mjs';
+test('no reported signals gives low provisional risk',()=>assert.equal(assessDeviceRisk().level,RiskLevel.LOW));
+test('app integrity failure is critical',()=>assert.equal(assessDeviceRisk({appIntegrity:'FAILED'}).level,RiskLevel.CRITICAL));
+test('device integrity failure is high',()=>assert.equal(assessDeviceRisk({deviceIntegrity:'FAILED'}).level,RiskLevel.HIGH));
+test('overlay detected is high',()=>assert.equal(assessDeviceRisk({overlayDetected:true}).level,RiskLevel.HIGH));
+test('capture detected is elevated',()=>assert.equal(assessDeviceRisk({screenCaptureActive:true}).level,RiskLevel.ELEVATED));
+test('untrusted network is elevated, not proof of attack',()=>assert.equal(assessDeviceRisk({untrustedNetwork:true}).level,RiskLevel.ELEVATED));
+test('unknown integrity remains unverified',()=>assert.equal(assessDeviceRisk({appIntegrity:'UNKNOWN'}).level,RiskLevel.ELEVATED));
+test('payments require server verification',()=>assert.equal(authorizeRiskyOperation({assessment:assessDeviceRisk(),operation:'payment'}).reason,'SERVER_VERIFICATION_REQUIRED'));
+test('high risk payment requires review',()=>assert.equal(authorizeRiskyOperation({assessment:assessDeviceRisk({overlayDetected:true}),operation:'payment',serverVerified:true}).reason,'RISK_REVIEW_REQUIRED'));
+test('critical integrity blocks reads',()=>assert.equal(authorizeRiskyOperation({assessment:assessDeviceRisk({appIntegrity:'FAILED'}),operation:'read'}).allowed,false));
+test('unknown operations fail closed',()=>assert.equal(authorizeRiskyOperation({assessment:assessDeviceRisk(),operation:'delete'}).allowed,false));
