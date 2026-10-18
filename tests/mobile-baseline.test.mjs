@@ -29,3 +29,11 @@ test('P0 build produces a standalone APK artifact',()=>{
  assert.match(workflow,/app-release\.apk/);
  assert.match(workflow,/upload-artifact@v4/);
 });
+
+test('V3.1 uses a separate OTA runtime from builds with older native modules',()=>{
+ assert.equal(config.version,'3.1.0');
+ assert.equal(mobile.version,config.version);
+ assert.equal(config.android.versionCode,31);
+ assert.equal(config.runtimeVersion.policy,'appVersion');
+ assert.equal(config.updates.requestHeaders['expo-channel-name'],'preview');
+});
