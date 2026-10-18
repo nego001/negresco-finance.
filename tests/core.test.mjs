@@ -1,0 +1,13 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {authorizeDelegation,voiceForIdentity} from '../packages/agent-core/src/policy.mjs';
+import {modules} from '../packages/module-registry/src/registry.mjs';
+const task={taskId:'1',requestedBy:'cto',targetAgent:'finance',userId:'u1',purpose:'analyze',scopes:['transactions.read'],correlationId:'c1'};
+const context={userId:'u1',sessionValid:true,grantedScopes:['transactions.read']};
+test('six initial modules enabled',()=>assert.deepEqual(Object.entries(modules).filter(([,v])=>v).map(([k])=>k),['ai','open-finance','pix','investments','cards','goals']));
+test('CTO routes authorized read request',()=>assert.equal(authorizeDelegation(task,context).allowed,true));
+test('Negresco cannot bypass CTO',()=>assert.equal(authorizeDelegation({...task,requestedBy:'negresco'},context).allowed,false));
+test('unconsented access blocked',()=>assert.equal(authorizeDelegation({...task,scopes:['cards.read']},context).allowed,false));
+test('payment execution blocked',()=>assert.equal(authorizeDelegation({...task,scopes:['payment.execute']},{...context,grantedScopes:['payment.execute']}).allowed,false));
+test('invalid session blocked',()=>assert.equal(authorizeDelegation(task,{...context,sessionValid:false}).allowed,false));
+test('identity determines voice',()=>{assert.equal(voiceForIdentity('feminine'),'feminine');assert.equal(voiceForIdentity('masculine'),'masculine');assert.equal(voiceForIdentity('neutral'),'neutral');});
