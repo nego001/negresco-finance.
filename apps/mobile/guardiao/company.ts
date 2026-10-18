@@ -7,11 +7,27 @@ export function normalizeCnpj(input:string):string|null{
  if(dv(n.slice(0,13),[6,5,4,3,2,9,8,7,6,5,4,3,2])!==Number(n[13]))return null;
  return n;
 }
-export async function consultCnpj(input:string,fetcher:typeof fetch=fetch):Promise<CompanyResult>{
- const cnpj=normalizeCnpj(input);if(!cnpj)return {status:'unavailable',cnpj:'',message:'CNPJ inválido.'};
+/** Opt-in lookup. Deadline covers both the HTTP request and JSON parsing. */
+export async function consultCnpj(input:string,fetcher:typeof fetch=fetch,timeoutMs=8000):Promise<CompanyResult>{
+ const cnpj=normalizeCnpj(input);
+ if(!cnpj)return {status:'unavailable',cnpj:'',message:'CNPJ inválido.'};
  const source='https://brasilapi.com.br/api/cnpj/v1/'+cnpj;
- try{const r=await fetcher(source,{headers:{Accept:'application/json'}});if(r.status===404)return {status:'not-found',cnpj,source,message:'Não encontrado nesta fonte.'};if(!r.ok)return {status:'unavailable',cnpj,message:'Fonte temporariamente indisponível.'};
- const data=await r.json();if(typeof data?.razao_social!=='string')return {status:'unavailable',cnpj,message:'Resposta inesperada.'};
- return {status:'found',cnpj,legalName:data.razao_social,registration:typeof data.descricao_situacao_cadastral==='string'?data.descricao_situacao_cadastral:undefined,source,checkedAt:new Date().toISOString()};
- }catch{return {status:'unavailable',cnpj,message:'Falha de conexão.'};}
+ const controller=new AbortController();
+ let timer:ReturnType<typeof setTimeout>|undefined;
+ const timeout=new Promise<never>((_,reject)=>{
+  timer=setTimeout(()=>{controller.abort();reject(new Error('lookup-timeout'));},timeoutMs);
+ });
+ try{
+  const lookup=async():Promise<CompanyResult>=>{
+   const r=await fetcher(source,{headers:{Accept:'application/json'},signal:controller.signal});
+   if(r.status===404)return {status:'not-found',cnpj,source,message:'Não encontrado nesta fonte.'};
+   if(!r.ok)return {status:'unavailable',cnpj,message:'Fonte temporariamente indisponível.'};
+   const data=await r.json();
+   if(typeof data?.razao_social!=='string'||!data.razao_social.trim())return {status:'unavailable',cnpj,message:'Resposta inesperada.'};
+   return {status:'found',cnpj,legalName:data.razao_social,registration:typeof data.descricao_situacao_cadastral==='string'?data.descricao_situacao_cadastral:undefined,source,checkedAt:new Date().toISOString()};
+  };
+  return await Promise.race([lookup(),timeout]);
+ }catch(error){
+  return {status:'unavailable',cnpj,message:error instanceof Error&&error.message==='lookup-timeout'?'Tempo limite da consulta excedido.':'Falha de conexão.'};
+ }finally{if(timer!==undefined)clearTimeout(timer);}
 }
