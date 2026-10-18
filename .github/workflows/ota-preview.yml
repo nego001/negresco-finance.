@@ -1,5 +1,10 @@
 name: Publish OTA Preview
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/mobile/App.tsx'
+      - 'apps/mobile/components/**'
   workflow_dispatch:
     inputs:
       message:
@@ -9,7 +14,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: ota-preview
+  group: ota-preview-${{ github.ref }}
   cancel-in-progress: false
 jobs:
   publish:
@@ -49,5 +54,5 @@ jobs:
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
           CI: "1"
-          OTA_MESSAGE: ${{ inputs.message }}
+          OTA_MESSAGE: ${{ inputs.message || format('Preview OTA: {0}', github.sha) }}
         run: npx --yes eas-cli update --branch preview --platform android --message "$OTA_MESSAGE" --non-interactive
