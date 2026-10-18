@@ -15,7 +15,7 @@ export async function consultCnpj(input:string,fetcher:typeof fetch=fetch,timeou
  const controller=new AbortController();
  let timer:ReturnType<typeof setTimeout>|undefined;
  const timeout=new Promise<never>((_,reject)=>{
-  timer=setTimeout(()=>{controller.abort();reject(new Error('lookup-timeout'));},timeoutMs);
+  timer=setTimeout(()=>{reject(new Error('lookup-timeout'));controller.abort();},timeoutMs);
  });
  try{
   const lookup=async():Promise<CompanyResult>=>{
