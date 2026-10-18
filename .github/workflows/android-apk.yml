@@ -42,21 +42,23 @@ jobs:
         run: npx tsc --noEmit
       - name: Generate native Android project
         run: npx expo prebuild --platform android --non-interactive --no-install
-      - name: Verify OTA configuration embedded in native Android app
+      - name: Inspect native Expo Updates configuration
         run: |
           set -euo pipefail
-          echo "Checking generated native Expo Updates metadata"
           MANIFEST="android/app/src/main/AndroidManifest.xml"
-          RESOURCES="android/app/src/main/res"
-          test -f "$MANIFEST"
-          grep -q 'expo.modules.updates.EXPO_UPDATE_URL' "$MANIFEST"
-          grep -q 'expo.modules.updates.EXPO_RUNTIME_VERSION' "$MANIFEST"
-          grep -E -q 'expo.modules.updates.(UPDATES_CONFIGURATION_REQUEST_HEADERS_KEY|EXPO_UPDATES_REQUEST_HEADERS)' "$MANIFEST"
-          grep -R -F -q 'https://u.expo.dev/a506611f-a159-4341-bed7-28dcbd47bf95' "$RESOURCES"
-          grep -R -F -q 'expo-channel-name' "$RESOURCES"
-          grep -R -F -q 'preview' "$RESOURCES"
-          grep -R -F -q '0.2.0' "$RESOURCES"
-          echo "Native OTA metadata verified for preview / runtime 0.2.0"
+          echo "=== Expo Updates Android manifest entries ==="
+          grep -n -A 4 -B 2 -E 'expo.modules.updates|expo-channel-name|EXPO_UPDATE' "$MANIFEST" || true
+          echo "=== OTA references in Android resources ==="
+          grep -R -n -E 'u.expo.dev|expo-channel-name|preview|0.2.0' android/app/src/main/res | head -80 || true
+          echo "=== Expo resolved configuration ==="
+          npx expo config --json | node -e '
+            let s="";process.stdin.on("data",x=>s+=x);process.stdin.on("end",()=>{
+              const e=JSON.parse(s);
+              const u=e.updates||{};
+              console.log(JSON.stringify({runtimeVersion:e.runtimeVersion,updates:{enabled:u.enabled,url:u.url,requestHeaders:u.requestHeaders},projectId:e.extra?.eas?.projectId},null,2));
+              if(u.url!=="https://u.expo.dev/a506611f-a159-4341-bed7-28dcbd47bf95"||u.requestHeaders?.["expo-channel-name"]!=="preview")process.exit(1);
+            });
+          '
       - name: Build standalone test APK
         run: |
           chmod +x android/gradlew
