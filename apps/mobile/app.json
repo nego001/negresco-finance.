@@ -18,7 +18,10 @@
       "enabled": true,
       "checkAutomatically": "ON_LOAD",
       "fallbackToCacheTimeout": 0,
-      "url": "https://u.expo.dev/a506611f-a159-4341-bed7-28dcbd47bf95"
+      "url": "https://u.expo.dev/a506611f-a159-4341-bed7-28dcbd47bf95",
+      "requestHeaders": {
+        "expo-channel-name": "preview"
+      }
     },
     "owner": "negresco-finance",
     "extra": {
