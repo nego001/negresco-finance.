@@ -1,0 +1,14 @@
+{
+  "expo": {
+    "name": "Negresco Finance",
+    "slug": "negresco-finance",
+    "scheme": "negresco",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "android": {
+      "package": "com.negresco.finance"
+    },
+    "plugins": []
+  }
+}
