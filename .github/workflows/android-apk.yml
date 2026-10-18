@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - 'apps/mobile/**'
+      - 'tests/mobile-baseline.test.mjs'
       - '.github/workflows/android-apk.yml'
 permissions:
   contents: read
@@ -24,6 +25,9 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: android-actions/setup-android@v3
+      - name: Validate P0 repository contracts
+        working-directory: .
+        run: npm test
       - name: Install JS dependencies
         run: npm install --no-audit --no-fund
       - name: Validate TypeScript
