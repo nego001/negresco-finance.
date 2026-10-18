@@ -7,7 +7,7 @@ import {inspectBoleto} from '../apps/mobile/guardiao/validator.ts';
 function dv10(s){let sum=0,weight=2;for(let i=s.length-1;i>=0;i--){const p=Number(s[i])*weight;sum+=Math.floor(p/10)+p%10;weight=weight===2?1:2;}return (10-sum%10)%10;}
 function dv11(s){let sum=0,weight=2;for(let i=s.length-1;i>=0;i--){sum+=Number(s[i])*weight;weight=weight===9?2:weight+1;}const r=11-sum%11;return r===0||r===10||r===11?1:r;}
 function bankFixture(){
- const bank='2379', amountAndDate='000000000000000', free='1234567890123456789012345';
+ const bank='2379', amountAndDate='00000000000000', free='1234567890123456789012345';
  const barcodeWithoutDv=bank+amountAndDate+free;
  const general=dv11(barcodeWithoutDv);
  const barcode=bank+general+amountAndDate+free;
