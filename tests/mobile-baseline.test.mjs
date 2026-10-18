@@ -1,0 +1,31 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const load=(path)=>JSON.parse(readFileSync(new URL('../'+path,import.meta.url),'utf8'));
+const mobile=load('apps/mobile/package.json');
+const config=load('apps/mobile/app.json').expo;
+test('mobile is a private Expo application',()=>{
+ assert.equal(mobile.private,true);
+ assert.match(mobile.main,/expo\/AppEntry\.js$/);
+ assert.ok(mobile.dependencies.expo);
+ assert.ok(mobile.dependencies['react-native']);
+});
+test('Android package identifier is stable',()=>{
+ assert.equal(config.android.package,'com.negresco.finance');
+ assert.equal(config.slug,'negresco-finance');
+ assert.equal(config.userInterfaceStyle,'dark');
+});
+test('P0 has a TypeScript configuration',()=>{
+ const ts=load('apps/mobile/tsconfig.json');
+ assert.equal(ts.compilerOptions.strict,true);
+});
+test('P0 source has a React Native entrypoint',()=>{
+ const app=readFileSync(new URL('../apps/mobile/App.tsx',import.meta.url),'utf8');
+ assert.match(app,/export default function App\(/);
+});
+test('P0 build produces a standalone APK artifact',()=>{
+ const workflow=readFileSync(new URL('../.github/workflows/android-apk.yml',import.meta.url),'utf8');
+ assert.match(workflow,/assembleRelease/);
+ assert.match(workflow,/app-release\.apk/);
+ assert.match(workflow,/upload-artifact@v4/);
+});
