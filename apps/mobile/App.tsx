@@ -60,7 +60,7 @@ export default function App() {
         <Text style={s.kicker}>TRANSFERÊNCIAS</Text><Text style={s.heading}>Pix do seu jeito.</Text><Text style={s.description}>Tudo preparado para uma experiência rápida e transparente.</Text>
         <Notice title="Pix em demonstração" body="Nenhuma transferência, cobrança ou QR Code real é gerado nesta versão."/>
         <Text style={s.sectionTitle}>Escolha uma operação</Text>
-        <View style={s.grid}>{[['Enviar Pix','↗'],['Receber Pix','↓'],['Ler QR Code','▦'],['Copia e cola','▤']].map(x=><Tap key={x[0]} title={x[0]} subtitle="Em desenvolvimento" glyph={x[1]} onPress={()=>{}}/>)}</View>
+        <View style={s.grid}>{[['Enviar Pix','↗'],['Receber Pix','↓'],['Ler QR Code','▦'],['Copia e cola','▤']].map(x=><View key={x[0]} style={s.tile}><View style={s.tileGlyph}><Text style={s.glyph}>{x[1]}</Text></View><Text style={s.tileTitle}>{x[0]}</Text><Text style={s.tileSub}>Em desenvolvimento</Text></View>)}</View>
         <View style={s.visualFeature}><Text style={s.visualFeatureTitle}>Uma experiência sem atrito</Text><Text style={s.visualFeatureBody}>Uma prévia do futuro fluxo Pix, com revisão clara, segurança e transparência em cada etapa.</Text><View style={s.visualSteps}>{['01  Identificar','02  Conferir','03  Autorizar'].map(t=><View key={t} style={s.visualStep}><Text style={s.visualStepText}>{t}</Text></View>)}</View></View>
       </>:page==='Negresco'?<>
         <Text style={s.kicker}>INTELIGÊNCIA FINANCEIRA</Text><Text style={s.heading}>Conheça a{"\n"}Negresco. ✦</Text><Text style={s.description}>Uma assistente com personalidade, projetada para ajudar você a entender suas finanças.</Text>
