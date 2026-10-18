@@ -1,6 +1,6 @@
 # Guardião de Boletos | Especificação funcional e de segurança
 
-Status: **planejado / não implementado**. Este documento registra requisitos aprovados para o Negresco Finance. Não representa integração bancária, consulta online ou análise de fraude já operacional.
+Status: **interface e verificação estrutural local em desenvolvimento**; investigação online e monitoramento bancário **não implementados**. Este documento registra requisitos aprovados para o Negresco Finance. Não representa integração bancária, consulta online ou análise de fraude já operacional.
 
 ## Objetivo
 

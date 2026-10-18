@@ -1,8 +1,9 @@
+import { inspectBoleto } from './guardiao/validator';
 import { Icon, IconName } from './components/Icon';
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, SafeAreaView, ScrollView, StatusBar, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
-type Page = 'Início' | 'Pix' | 'Contas' | 'Cartões' | 'Investimentos' | 'Metas' | 'Negresco' | 'Ajustes';
+type Page = 'Início' | 'Pix' | 'Contas' | 'Cartões' | 'Investimentos' | 'Metas' | 'Negresco' | 'Guardião' | 'Ajustes';
 const C = { bg:'#000000',panel:'#0D111A',raised:'#121A29',line:'#26354B',blue:'#78B5FF',muted:'#99A8BC',white:'#F7FAFF' };
 const sections: {name:Page;glyph:IconName;description:string}[] = [
   {name:'Contas',glyph:'accounts',description:'Instituições e saldos'},
@@ -10,7 +11,8 @@ const sections: {name:Page;glyph:IconName;description:string}[] = [
   {name:'Cartões',glyph:'cards',description:'Limites e faturas'},
   {name:'Investimentos',glyph:'invest',description:'Patrimônio e evolução'},
   {name:'Metas',glyph:'goals',description:'Objetivos pessoais'},
-  {name:'Negresco',glyph:'assistant',description:'Sua assistente financeira'}
+  {name:'Negresco',glyph:'assistant',description:'Sua assistente financeira'},
+  {name:'Guardião',glyph:'eye',description:'Investigação de boletos'}
 ];
 function Tap({title,subtitle,glyph,onPress,style}:{title:string;subtitle?:string;glyph:IconName;onPress:()=>void;style?:object}) {
   return <TouchableOpacity onPress={onPress} accessibilityRole="button" accessibilityLabel={title} activeOpacity={0.72} style={[s.tile,style]}>
@@ -24,6 +26,8 @@ function Notice({title,body}:{title:string;body:string}) {
 }
 export default function App() {
   const [page,setPage]=useState<Page>('Início');
+  const [boletoLine,setBoletoLine]=useState('');
+  const [boletoResult,setBoletoResult]=useState<ReturnType<typeof inspectBoleto>|null>(null);
   const [showBalance,setShowBalance]=useState(false);
   const [compact,setCompact]=useState(false);
   const [accent,setAccent]=useState(false);
@@ -59,7 +63,7 @@ export default function App() {
         </View>
         <View style={s.sectionHeading}><Text style={s.sectionTitle}>Acesso rápido</Text><Text style={s.sectionCaption}>SEUS ATALHOS</Text></View>
         <View style={s.quickRow}>{[{name:'Pix',glyph:'pix'},{name:'Contas',glyph:'accounts'},{name:'Cartões',glyph:'cards'},{name:'Metas',glyph:'goals'}].map(x=><TouchableOpacity key={x.name} accessibilityRole="button" accessibilityLabel={'Abrir '+x.name} onPress={()=>nav(x.name as Page)} style={s.quick}><View style={s.quickIcon}><Icon name={x.glyph as IconName} size={27} color={blue}/></View><Text style={s.quickText}>{x.name}</Text></TouchableOpacity>)}</View>
-        <View style={s.sectionHeading}><Text style={s.sectionTitle}>Explore seu espaço</Text><Text style={s.sectionCaption}>06 MÓDULOS</Text></View>
+        <View style={s.sectionHeading}><Text style={s.sectionTitle}>Explore seu espaço</Text><Text style={s.sectionCaption}>07 MÓDULOS</Text></View>
         <View style={s.grid}>{sections.map(x=><Tap key={x.name} title={x.name} subtitle={compact?undefined:x.description} glyph={x.glyph} onPress={()=>nav(x.name)} style={compact?{minHeight:115}:undefined}/>)}</View>
         <Notice title="Construído para evoluir" body="Prévia segura: sem contas conectadas e sem movimentações financeiras reais."/>
       </>:page==='Pix'?<>
@@ -91,6 +95,21 @@ export default function App() {
         </View>
         <View style={s.visualFeature}><Text style={s.visualFeatureTitle}>Personalidade visual</Text><Text style={s.visualFeatureBody}>Experimente como a Negresco poderá se apresentar. Isso altera apenas a prévia, não ativa respostas inteligentes.</Text><View style={s.personalityRow}>{(['acolhedora','objetiva'] as const).map(t=><TouchableOpacity key={t} accessibilityRole="button" accessibilityState={{selected:assistantStyle===t}} onPress={()=>setAssistantStyle(t)} style={[s.personalityButton,assistantStyle===t&&{borderColor:blue,backgroundColor:'#1C3452'}]}><Text style={[s.personalityText,assistantStyle===t&&{color:blue}]}>{t==='acolhedora'?'✦ Acolhedora':'◈ Objetiva'}</Text></TouchableOpacity>)}</View><Text style={s.personalitySample}>{assistantStyle==='acolhedora'?'“Vamos organizar tudo com calma e clareza.”':'“Vamos aos números, prioridades e próximos passos.”'}</Text></View>
         <Notice title="Privacidade em primeiro lugar" body="A Negresco real e os agentes especializados ainda não estão conectados. A CTO coordenará consultas autorizadas quando essa funcionalidade for implementada."/>
+      </>:page==='Guardião'?<>
+        <View style={s.eyebrow}><View style={[s.dot,{backgroundColor:blue}]}/><Text style={[s.eyebrowText,{color:blue}]}>SEGURANÇA FINANCEIRA</Text><Text style={s.preview}>ANÁLISE LOCAL</Text></View>
+        <Text style={s.heading}>Guardião de{"\n"}Boletos.</Text>
+        <Text style={s.description}>Confira a estrutura de uma linha digitável antes de pagar. A investigação de empresas e compras exige integrações futuras.</Text>
+        <View style={s.formPanel}><Text style={s.formTitle}>Verificar linha digitável</Text><Text style={s.formHelp}>Cole os números de um boleto bancário (47 dígitos) ou de arrecadação (48 dígitos). Não cole dados em sites desconhecidos.</Text>
+          <Text style={s.inputLabel}>LINHA DIGITÁVEL</Text>
+          <TextInput accessibilityLabel="Linha digitável do boleto" style={s.input} value={boletoLine} onChangeText={v=>{setBoletoLine(v);setBoletoResult(null);}} placeholder="Digite ou cole os números" placeholderTextColor="#8195AE" keyboardType="number-pad" multiline maxLength={80}/>
+          <TouchableOpacity accessibilityRole="button" onPress={()=>setBoletoResult(inspectBoleto(boletoLine))} style={[s.actionButton,{backgroundColor:blue}]}><Text style={s.actionText}>Analisar estrutura</Text></TouchableOpacity>
+        </View>
+        {boletoResult&&<View style={s.visualFeature}><Text style={s.visualFeatureTitle}>{boletoResult.valid?'Estrutura consistente':'Verificação inconclusiva ou inválida'}</Text><Text style={s.visualFeatureBody}>{boletoResult.explanation}</Text><Text style={[s.visualFeatureBody,{color:'#E3C38C'}]}>Mesmo uma linha digitável válida pode pertencer a uma cobrança fraudulenta. Não pague sem confirmar o beneficiário no banco.</Text><View style={s.visualSteps}><View style={s.visualStep}><Text style={s.visualStepText}>{boletoResult.kind}</Text></View><View style={s.visualStep}><Text style={s.visualStepText}>{boletoResult.digits} DÍGITOS</Text></View></View></View>}
+        <View style={s.visualFeature}><Text style={s.visualFeatureTitle}>Quem está cobrando?</Text><Text style={s.visualFeatureBody}>A linha digitável não revela de forma confiável a empresa, o beneficiário final ou a compra que gerou a cobrança. Para isso, precisaremos consultar o registro bancário e cruzar documentos autorizados.</Text>
+          {([['Banco que notificou','Não informado'],['Empresa emissora','Não identificada'],['Beneficiário final','Não identificado'],['Banco registrador','Não consultado'],['Compra ou contrato','Origem não identificada']] as const).map(([label,value])=><View key={label} style={[s.rowBetween,{paddingTop:13}]}><Text style={{color:C.muted,fontSize:11,flex:1}}>{label}</Text><Text style={{color:C.white,fontSize:11,fontWeight:'800',flex:1,textAlign:'right'}}>{value}</Text></View>)}
+        </View>
+        <View style={s.visualFeature}><Text style={s.visualFeatureTitle}>Investigação na internet</Text><Text style={s.visualFeatureBody}>Receita Federal, Reclame Aqui, notícias e denúncias.</Text>{['Receita Federal · Não consultada','Reclame Aqui · Não consultado','Notícias e alertas · Não consultados'].map(t=><View key={t} style={s.visualStep}><Text style={s.visualStepText}>{t}</Text></View>)}<Text style={s.visualFeatureBody}>Nenhuma pesquisa online ou consulta bancária é realizada nesta versão.</Text></View>
+        <Notice title="Atenção antes de pagar" body="Verificar dígitos não comprova que a cobrança seja sua. Confira o nome e CNPJ do beneficiário exibidos no aplicativo oficial do banco e confirme a compra por canais independentes."/>
       </>:page==='Ajustes'?<>
         <Text style={s.kicker}>PERSONALIZAÇÃO</Text><Text style={s.heading}>Do seu jeito.</Text><Text style={s.description}>Ajuste a aparência desta prévia sem alterar seus dados.</Text>
         <TouchableOpacity accessibilityRole="switch" accessibilityState={{checked:accent}} onPress={()=>setAccent(!accent)} style={s.setting}><Text style={s.settingText}>Cor de destaque</Text><Text style={[s.settingValue,{color:blue}]}>{accent?'Violeta':'Azul'}  ↔</Text></TouchableOpacity>
