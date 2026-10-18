@@ -1,13 +1,5 @@
-name: Publish OTA Preview
+name: Publish OTA Preview (manual, native compatibility required)
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'apps/mobile/App.tsx'
-      - 'apps/mobile/components/**'
-      - 'apps/mobile/guardiao/**'
-      - 'apps/mobile/preferences.ts'
-      - '.github/workflows/ota-preview.yml'
   workflow_dispatch:
     inputs:
       message:
