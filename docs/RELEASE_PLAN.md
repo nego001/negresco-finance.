@@ -51,3 +51,11 @@ Open Finance e provedores financeiros autorizados, sujeitos a requisitos legais,
 - Transicoes com Animated, opcao para reduzir movimento e textos maiores.
 - Pix e IA permanecem somente como previsualizacao, sem pagamentos ou IA conectada.
 - Pendente: compilacao Android CI, verificacao de layout em aparelho e confirmacao OTA no Samsung. Nao declarar V3 concluida ate esses testes.
+
+### V3 OLED - pacote de acabamento (OTA)
+- Corrigir barra de status Android com espaco reservado ao cabecalho.
+- Corrigir quebra de linha real do banner e impedir sobreposicao do selo com o texto.
+- Redesenhar o icone de Inicio e realcar a aba ativa.
+- Melhorar o comportamento do titulo em larguras pequenas e o acabamento da navegacao.
+- Sem mudanca nativa nem alteracao de runtime; publicar no canal preview apos TypeScript/CI.
+- Confirmacao no Samsung e revisao visual continuam necessarias apos publicacao.
