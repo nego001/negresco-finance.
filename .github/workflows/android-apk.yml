@@ -51,7 +51,7 @@ jobs:
           test -f "$MANIFEST"
           grep -q 'expo.modules.updates.EXPO_UPDATE_URL' "$MANIFEST"
           grep -q 'expo.modules.updates.EXPO_RUNTIME_VERSION' "$MANIFEST"
-          grep -q 'expo.modules.updates.UPDATES_CONFIGURATION_REQUEST_HEADERS_KEY' "$MANIFEST"
+          grep -E -q 'expo.modules.updates.(UPDATES_CONFIGURATION_REQUEST_HEADERS_KEY|EXPO_UPDATES_REQUEST_HEADERS)' "$MANIFEST"
           grep -R -F -q 'https://u.expo.dev/a506611f-a159-4341-bed7-28dcbd47bf95' "$RESOURCES"
           grep -R -F -q 'expo-channel-name' "$RESOURCES"
           grep -R -F -q 'preview' "$RESOURCES"
