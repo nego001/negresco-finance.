@@ -3,6 +3,7 @@ export type BoletoInspection = {valid:boolean;kind:string;digits:number;explanat
 const mod10=(s:string)=>{let sum=0,m=2;for(let i=s.length-1;i>=0;i--){let n=Number(s[i])*m;sum+=Math.floor(n/10)+n%10;m=m===2?1:2;}return (10-sum%10)%10;};
 const mod11=(s:string)=>{let sum=0,m=2;for(let i=s.length-1;i>=0;i--){sum+=Number(s[i])*m;m=m===9?2:m+1;}const r=11-sum%11;return r===0||r===10||r===11?1:r;};
 export function inspectBoleto(input:string):BoletoInspection{
+ if(typeof input!=='string'||input.length>80)return {kind:'FORMATO DESCONHECIDO',digits:0,valid:false,explanation:'Entrada inválida ou muito longa.'};
  const digits=input.replace(/[.\s-]/g,'');
  const base={kind:'FORMATO DESCONHECIDO',digits:digits.length};
  if(!/^\d+$/.test(digits))return {...base,valid:false,explanation:'Use somente números, espaços, pontos ou hífens.'};
