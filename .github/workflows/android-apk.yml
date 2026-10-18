@@ -7,7 +7,7 @@ on:
       - 'tests/mobile-baseline.test.mjs'
       - '.github/workflows/android-apk.yml'
 permissions:
-  contents: read
+  contents: write
 jobs:
   build-test-apk:
     runs-on: ubuntu-latest
@@ -66,3 +66,57 @@ jobs:
             apps/mobile/android-apk.sha256
           if-no-files-found: error
           retention-days: 7
+
+      - name: Package downloadable ZIP and release notes
+        run: |
+          set -euo pipefail
+          mkdir -p release-package
+          cp android/app/build/outputs/apk/release/app-release.apk release-package/Negresco-Finance-P0-v0.1.0.apk
+          cp android-apk.sha256 release-package/SHA256-original-apk.txt
+          cat > release-package/LEIA-ME.txt <<'EOF'
+          NEGRESCO FINANCE - P0 v0.1.0 (TESTE)
+          Android package: com.negresco.finance
+          Instalacao: extraia o APK ou baixe o APK separado no GitHub Releases.
+          Estado: interface inicial experimental; sem operacoes bancarias reais.
+          Integridade: confira o SHA256 publicado nos detalhes da versao.
+          EOF
+          cp release-package/Negresco-Finance-P0-v0.1.0.apk Negresco-Finance-P0-v0.1.0.apk
+          (cd release-package && zip -q -9 -r ../Negresco-Finance-P0-v0.1.0.zip .)
+          sha256sum Negresco-Finance-P0-v0.1.0.apk Negresco-Finance-P0-v0.1.0.zip > SHA256-release.txt
+          cat > RELEASE_NOTES.md <<'EOF'
+          ## Negresco Finance v0.1.0 - P0 (versao de testes)
+
+          Primeira compilacao Android para instalacao e validacao no celular.
+
+          ### Arquivos para baixar
+          1. **Negresco-Finance-P0-v0.1.0.apk**: instalador Android separado, sem precisar extrair ZIP.
+          2. **Negresco-Finance-P0-v0.1.0.zip**: pacote com APK, orientacoes e hash original.
+          3. **SHA256-release.txt**: verificacao de integridade dos dois arquivos.
+
+          ### Incluido nesta versao
+          - Interface inicial em tema escuro e navegacao basica.
+          - Identificador Android `com.negresco.finance`.
+          - Build de teste com verificacao de estrutura e assinatura no CI.
+
+          ### Limitacoes e cuidados
+          - **P0 experimental**: ainda nao validado por instalacao manual no Samsung.
+          - Sem integracao bancaria, Pix real, contas ou transacoes financeiras.
+          - Nao utilizar dados financeiros reais nesta versao.
+          - APK de teste: nao e uma versao de producao nem distribuicao Play Store.
+
+          ### Instalacao
+          Baixe o APK separado, abra-o no Android e autorize a instalacao da fonte caso solicitado.
+          EOF
+      - name: Publish APK first, ZIP second in GitHub Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          TAG="v0.1.0-p0"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --title "Negresco Finance v0.1.0 - P0 (Teste)" --notes-file RELEASE_NOTES.md --prerelease --latest=false
+          else
+            gh release create "$TAG" --target "${GITHUB_SHA}" --title "Negresco Finance v0.1.0 - P0 (Teste)" --notes-file RELEASE_NOTES.md --prerelease --latest=false
+          fi
+          gh release upload "$TAG" Negresco-Finance-P0-v0.1.0.apk Negresco-Finance-P0-v0.1.0.zip SHA256-release.txt --clobber
