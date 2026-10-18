@@ -42,6 +42,21 @@ jobs:
         run: npx tsc --noEmit
       - name: Generate native Android project
         run: npx expo prebuild --platform android --non-interactive --no-install
+      - name: Verify OTA configuration embedded in native Android app
+        run: |
+          set -euo pipefail
+          echo "Checking generated native Expo Updates metadata"
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          RESOURCES="android/app/src/main/res"
+          test -f "$MANIFEST"
+          grep -q 'expo.modules.updates.EXPO_UPDATE_URL' "$MANIFEST"
+          grep -q 'expo.modules.updates.EXPO_RUNTIME_VERSION' "$MANIFEST"
+          grep -q 'expo.modules.updates.UPDATES_CONFIGURATION_REQUEST_HEADERS_KEY' "$MANIFEST"
+          grep -R -F -q 'https://u.expo.dev/a506611f-a159-4341-bed7-28dcbd47bf95' "$RESOURCES"
+          grep -R -F -q 'expo-channel-name' "$RESOURCES"
+          grep -R -F -q 'preview' "$RESOURCES"
+          grep -R -F -q '0.2.0' "$RESOURCES"
+          echo "Native OTA metadata verified for preview / runtime 0.2.0"
       - name: Build standalone test APK
         run: |
           chmod +x android/gradlew
