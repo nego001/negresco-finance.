@@ -59,3 +59,11 @@ Open Finance e provedores financeiros autorizados, sujeitos a requisitos legais,
 - Melhorar o comportamento do titulo em larguras pequenas e o acabamento da navegacao.
 - Sem mudanca nativa nem alteracao de runtime; publicar no canal preview apos TypeScript/CI.
 - Confirmacao no Samsung e revisao visual continuam necessarias apos publicacao.
+
+### V3 - Negresco: acabamento visual e prototipo local
+- Novo avatar vetorial com monograma N, halo e assinatura visual.
+- Layout compacto, identificacao do modo demonstracao e hierarquia tipografica.
+- Compositor e baloes locais de conversa (nao enviam dados nem consultam IA).
+- Seletor de apresentacao visual acolhedora/objetiva (temporario).
+- Estados e acessibilidade nos controles; nenhuma mudanca nativa.
+- Testes de CI, Android e recebimento OTA no Samsung ainda devem ser confirmados.
