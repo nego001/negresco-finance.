@@ -13,3 +13,18 @@ type SecureStoreApi={getItemAsync:(key:string)=>Promise<string|null>;setItemAsyn
 export async function loadHistory(store:SecureStoreApi){return sanitizeHistory(await store.getItemAsync(KEY));}
 export async function storeHistory(entries:HistoryEntry[],store:SecureStoreApi){await store.setItemAsync(KEY,JSON.stringify(sanitizeHistory(JSON.stringify(entries))));}
 export async function eraseHistory(store:SecureStoreApi){await store.deleteItemAsync(KEY);}
+
+/** Serialize SecureStore writes so a slow save cannot restore a cleared history. */
+export function createHistoryWriteQueue(store:SecureStoreApi){
+ let tail:Promise<void>=Promise.resolve();
+ const enqueue=(operation:()=>Promise<void>):Promise<void>=>{
+  const pending=tail.then(operation);
+  // A failed operation must not block later saves or deletions.
+  tail=pending.catch(()=>{});
+  return pending;
+ };
+ return {
+  save:(entries:HistoryEntry[])=>enqueue(()=>storeHistory(entries,store)),
+  clear:()=>enqueue(()=>eraseHistory(store)),
+ };
+}
