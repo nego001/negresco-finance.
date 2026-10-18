@@ -1,0 +1,17 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {evaluateSession,authorizeSensitiveAction,AuthState,SensitiveAction} from '../packages/auth-core/src/session.mjs';
+const now=1_000_000;
+const session={authenticated:true,userId:'user-1',expiresAt:now+300000};
+const check=(action,extra={})=>authorizeSensitiveAction({session,action,...extra},now);
+test('valid session unlocks',()=>assert.equal(evaluateSession(session,now).state,AuthState.UNLOCKED));
+test('missing session locks',()=>assert.equal(evaluateSession(null,now).state,AuthState.LOCKED));
+test('expired session is rejected',()=>assert.equal(evaluateSession({...session,expiresAt:now},now).state,AuthState.EXPIRED));
+test('unknown action fails closed',()=>assert.equal(check('admin.override').allowed,false));
+test('view private data requires valid session',()=>assert.equal(check(SensitiveAction.VIEW_PRIVATE_DATA).allowed,true));
+test('Pix confirmation requires step-up',()=>assert.equal(check(SensitiveAction.CONFIRM_PIX,{consent:true}).reason,'STEP_UP_REQUIRED'));
+test('Pix confirmation requires explicit consent',()=>assert.equal(check(SensitiveAction.CONFIRM_PIX,{stepUp:{verified:true,userId:'user-1',verifiedAt:now}}).reason,'EXPLICIT_CONSENT_REQUIRED'));
+test('Pix confirmation with consent and fresh step-up passes policy',()=>assert.equal(check(SensitiveAction.CONFIRM_PIX,{consent:true,stepUp:{verified:true,userId:'user-1',verifiedAt:now}}).allowed,true));
+test('step-up for different user rejected',()=>assert.equal(check(SensitiveAction.EXPORT_DATA,{stepUp:{verified:true,userId:'other',verifiedAt:now}}).allowed,false));
+test('old step-up rejected',()=>assert.equal(check(SensitiveAction.EXPORT_DATA,{stepUp:{verified:true,userId:'user-1',verifiedAt:now-120001}}).allowed,false));
+test('future step-up rejected',()=>assert.equal(check(SensitiveAction.EXPORT_DATA,{stepUp:{verified:true,userId:'user-1',verifiedAt:now+1}}).allowed,false));
