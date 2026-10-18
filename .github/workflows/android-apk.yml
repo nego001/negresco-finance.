@@ -35,10 +35,22 @@ jobs:
           chmod +x android/gradlew
           cd android
           ./gradlew assembleRelease --no-daemon
+      - name: Verify APK structure and signature
+        run: |
+          set -euo pipefail
+          APK="android/app/build/outputs/apk/release/app-release.apk"
+          test -s "$APK"
+          unzip -t "$APK" >/dev/null
+          BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+          "$BUILD_TOOLS/aapt" dump badging "$APK" | grep -F "package: name='com.negresco.finance'"
+          "$BUILD_TOOLS/apksigner" verify --verbose "$APK"
+          sha256sum "$APK" | tee android-apk.sha256
       - name: Upload standalone APK
         uses: actions/upload-artifact@v4
         with:
           name: negresco-finance-p0-test-apk
-          path: apps/mobile/android/app/build/outputs/apk/release/app-release.apk
+          path: |
+            apps/mobile/android/app/build/outputs/apk/release/app-release.apk
+            apps/mobile/android-apk.sha256
           if-no-files-found: error
           retention-days: 7
