@@ -1,19 +1,22 @@
 # Atualizacoes OTA - Negresco Finance
 
 ## Estado atual
-A dependencia `expo-updates` foi adicionada e o runtime foi vinculado a versao do aplicativo. **OTA remoto ainda nao esta operacional**: falta conectar o projeto a um provedor de atualizacoes e publicar uma build nativa contendo a URL/canal corretos. O APK P0 ja instalado nao recebe OTA retroativamente.
+Projeto Expo ID: `a506611f-a159-4341-bed7-28dcbd47bf95`.
+O aplicativo Android v0.2.0 esta configurado para `https://u.expo.dev/a506611f-a159-4341-bed7-28dcbd47bf95`, runtime pela versao do app e canal `preview`.
+**Ainda nao ha confirmacao de APK OTA instalado, canal ligado a branch ou atualizacao recebida no dispositivo.**
 
-## Configuracao antes de distribuir uma nova build
-1. Criar ou selecionar um projeto no Expo/EAS, com autorizacao do proprietario.
-2. Executar `npx eas-cli update:configure` em `apps/mobile` com a conta correta. Conferir as mudancas geradas, inclusive `expo.extra.eas.projectId` e `expo.updates.url`.
-3. Configurar canais separados, como `preview` e `production`, e vincular o canal desejado ao binario.
-4. Gerar e instalar uma **nova build Android** com essas configuracoes nativas.
-5. Publicar atualizacoes compativeis com `npx eas-cli update --channel preview --message "descricao"` apos revisao.
-6. Testar entrega, reinicio, rollback e compatibilidade em dispositivo real antes de habilitar distribuicao ampla.
+## Preparacao segura
+1. Confirmar no painel Expo que o proprietario da organizacao em `app.json` corresponde ao slug real da organizacao. Se diferente, corrigir `expo.owner` antes de publicar.
+2. Em Expo > Updates, configurar o canal `preview` para a branch `preview`. Canal e branch sao objetos distintos.
+3. Criar um token de acesso Expo de escopo minimo apropriado. Adiciona-lo **somente** como secret `EXPO_TOKEN` no repositorio GitHub (Settings > Secrets and variables > Actions). Nunca colocar o token no codigo, prints ou chat.
+4. Acessar Actions > Android APK (P0), verificar se a build Android v0.2.0 com configuracao Expo foi concluida e publicada. Instalar essa build no Samsung e confirmar abertura e compatibilidade de assinatura. O APK antigo nao tem OTA.
+5. Quando estiver pronto para testar uma alteracao JS, executar Actions > Publish OTA Preview > Run workflow, fornecendo mensagem de alteracao.
+6. Abrir o app, reiniciar conforme necessario, conferir se recebeu a atualizacao, e testar recuperacao. So depois considerar outros canais.
 
-## Regras
-- Mudancas nativas, permissoes, SDK ou bibliotecas com codigo nativo exigem novo APK.
-- A politica `runtimeVersion: appVersion` exige aumentar `expo.version` quando houver alteracao nativa incompativel; versoes diferentes nao devem compartilhar runtime por engano.
-- Nao publicar segredos ou credenciais nos bundles OTA.
-- Mudancas financeiras sensiveis precisam de testes, controles de autorizacao e liberacao gradual.
-- Em ausencia de atualizacao remota, a versao embarcada deve continuar funcionando.
+## Limites e protecoes
+- O workflow de OTA e manual, exige `EXPO_TOKEN`, verifica ID/URL/runtime/canal e publica **apenas Android na branch preview**.
+- A branch `preview` deve estar vinculada ao canal `preview` no EAS.
+- Mudancas nativas exigem novo APK e incremento de versao/runtime quando incompativeis.
+- A assinatura digital e a origem de atualizacoes devem ser verificadas antes de distribuir amplamente.
+- Nao usar dados bancarios reais neste prototipo.
+- GitHub Actions e EAS tem cotas gratuitas sujeitas a alteracao.
