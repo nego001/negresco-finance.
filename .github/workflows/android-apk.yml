@@ -97,33 +97,30 @@ jobs:
           Estado: interface inicial experimental; sem operacoes bancarias reais.
           Integridade: confira o SHA256 publicado nos detalhes da versao.
           EOF
-          cp release-package/Negresco-Finance-P0-v0.2.0.apk Negresco-Finance-P0-v0.2.0.apk
-          (cd release-package && zip -q -9 -r ../Negresco-Finance-P0-v0.2.0.zip .)
-          sha256sum Negresco-Finance-P0-v0.2.0.apk Negresco-Finance-P0-v0.2.0.zip > SHA256-release.txt
+          cp release-package/Negresco-Finance-V3.1-candidate.apk Negresco-Finance-V3.1-candidate.apk
+          (cd release-package && zip -q -9 -r ../Negresco-Finance-V3.1-candidate.zip .)
+          sha256sum Negresco-Finance-V3.1-candidate.apk Negresco-Finance-V3.1-candidate.zip > SHA256-release.txt
           cat > RELEASE_NOTES.md <<'EOF'
-          ## Negresco Finance v0.2.0 - P0 (versao de testes)
+          ## Negresco Finance V3.1 - Candidato de testes
 
-          Build de teste V3.1: interface OLED, Guardiao local e preferencias persistentes. Requer instalacao no Samsung e validacao manual.
+          APK experimental Android, ainda sem validacao manual em dispositivo.
 
-          ### Arquivos para baixar
-          1. **Negresco-Finance-P0-v0.2.0.apk**: instalador Android separado, sem precisar extrair ZIP.
-          2. **Negresco-Finance-P0-v0.2.0.zip**: pacote com APK, orientacoes e hash original.
-          3. **SHA256-release.txt**: verificacao de integridade dos dois arquivos.
+          ### Arquivos
+          - Negresco-Finance-V3.1-candidate.apk: instalador Android.
+          - Negresco-Finance-V3.1-candidate.zip: pacote com instalador, instrucoes e hash.
+          - SHA256-release.txt: verificacao de integridade dos downloads.
 
-          ### Incluido nesta versao
-          - Interface OLED com Guardiao local, validacao estrutural de boletos e preferencias visuais persistentes.\n          - Sem consulta online a empresas, Reclame Aqui ou bancos. Sem monitoramento bancario, historico permanente ou PDF.
-          - Identificador Android `com.negresco.finance`.
-          - Build de teste com verificacao de estrutura e assinatura no CI.
+          ### Recursos incluidos
+          - Interface OLED e preferencias visuais.
+          - Guardiao: verificacao matematica de linhas digitaveis, PDF local e historico resumido em armazenamento seguro.
+          - Consulta opcional de cadastro CNPJ via BrasilAPI, servico de terceiros.
+          - Indicadores transparentes de integracoes indisponiveis.
 
-          ### Limitacoes e cuidados
-          - **P0 experimental**: ainda nao validado por instalacao manual no Samsung.
-          - Sem integracao bancaria, Pix real, contas ou transacoes financeiras.
-          - Nao utilizar dados financeiros reais nesta versao.
-          - OTA preview exige runtime nativo compativel. Instale este APK para ter a dependencia de preferencias locais.
-          - APK de teste: nao e uma versao de producao nem distribuicao Play Store.
-
-          ### Instalacao
-          Baixe o APK separado, abra-o no Android e autorize a instalacao da fonte caso solicitado.
+          ### Limitacoes
+          - A verificacao matematica e o cadastro de empresa nao comprovam legitimidade de boleto.
+          - Sem acesso real a bancos, Pix, Reclame Aqui ou monitoramento automatico.
+          - Nao usar para operacoes financeiras reais.
+          - A instalacao de uma nova versao nativa e necessaria para novas dependencias.
           EOF
       - name: Publish APK first, ZIP second in GitHub Releases
         env:
@@ -135,6 +132,6 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release edit "$TAG" --title "Negresco Finance V3.1 - Candidato de testes" --notes-file RELEASE_NOTES.md --prerelease --latest=false
           else
-            gh release create "$TAG" --target "${GITHUB_SHA}" --title "Negresco Finance v0.2.0 - P0 (Teste)" --notes-file RELEASE_NOTES.md --prerelease --latest=false
+            gh release create "$TAG" --target "${GITHUB_SHA}" --title "Negresco Finance V3.1 - Candidato de testes" --notes-file RELEASE_NOTES.md --prerelease --latest=false
           fi
-          gh release upload "$TAG" Negresco-Finance-P0-v0.2.0.apk Negresco-Finance-P0-v0.2.0.zip SHA256-release.txt --clobber
+          gh release upload "$TAG" Negresco-Finance-V3.1-candidate.apk Negresco-Finance-V3.1-candidate.zip SHA256-release.txt --clobber
