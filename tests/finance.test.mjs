@@ -1,0 +1,12 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {validatePixDraft,PaymentStatus,IntegrationMode} from '../packages/contracts/src/finance.mjs';
+import {supportsCapability} from '../packages/contracts/src/agents.mjs';
+const draft={amountMinor:20000,currency:'BRL',recipientKey:'example@example.com',idempotencyKey:'request-000001'};
+test('Pix draft accepts safe input',()=>assert.equal(validatePixDraft(draft).valid,true));
+test('Pix draft rejects negative amount',()=>assert.equal(validatePixDraft({...draft,amountMinor:-1}).valid,false));
+test('Pix draft rejects absent idempotency',()=>assert.equal(validatePixDraft({...draft,idempotencyKey:''}).valid,false));
+test('Pix has unknown settlement status',()=>assert.equal(PaymentStatus.UNKNOWN,'UNKNOWN'));
+test('integration defaults can be mock',()=>assert.equal(IntegrationMode.MOCK,'mock'));
+test('Negresco cannot execute payment',()=>assert.equal(supportsCapability('negresco','payment.execute'),false));
+test('Pix specialist only prepares payment',()=>assert.equal(supportsCapability('pix','payment.prepare'),true));
