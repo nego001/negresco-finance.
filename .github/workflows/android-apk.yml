@@ -1,4 +1,4 @@
-name: Android APK (P0)
+name: Android APK (V3.1 candidate)
 on:
   workflow_dispatch:
   push:
@@ -88,10 +88,10 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p release-package
-          cp android/app/build/outputs/apk/release/app-release.apk release-package/Negresco-Finance-P0-v0.2.0.apk
+          cp android/app/build/outputs/apk/release/app-release.apk release-package/Negresco-Finance-V3.1-candidate.apk
           cp android-apk.sha256 release-package/SHA256-original-apk.txt
           cat > release-package/LEIA-ME.txt <<'EOF'
-          NEGRESCO FINANCE - P0 v0.2.0 (TESTE)
+          NEGRESCO FINANCE - V3.1 (CANDIDATO DE TESTES)
           Android package: com.negresco.finance
           Instalacao: extraia o APK ou baixe o APK separado no GitHub Releases.
           Estado: interface inicial experimental; sem operacoes bancarias reais.
@@ -103,7 +103,7 @@ jobs:
           cat > RELEASE_NOTES.md <<'EOF'
           ## Negresco Finance v0.2.0 - P0 (versao de testes)
 
-          Primeira compilacao Android para instalacao e validacao no celular.
+          Build de teste V3.1: interface OLED, Guardiao local e preferencias persistentes. Requer instalacao no Samsung e validacao manual.
 
           ### Arquivos para baixar
           1. **Negresco-Finance-P0-v0.2.0.apk**: instalador Android separado, sem precisar extrair ZIP.
@@ -111,7 +111,7 @@ jobs:
           3. **SHA256-release.txt**: verificacao de integridade dos dois arquivos.
 
           ### Incluido nesta versao
-          - Interface inicial em tema escuro e navegacao basica.
+          - Interface OLED com Guardiao local, validacao estrutural de boletos e preferencias visuais persistentes.\n          - Sem consulta online a empresas, Reclame Aqui ou bancos. Sem monitoramento bancario, historico permanente ou PDF.
           - Identificador Android `com.negresco.finance`.
           - Build de teste com verificacao de estrutura e assinatura no CI.
 
@@ -119,7 +119,7 @@ jobs:
           - **P0 experimental**: ainda nao validado por instalacao manual no Samsung.
           - Sem integracao bancaria, Pix real, contas ou transacoes financeiras.
           - Nao utilizar dados financeiros reais nesta versao.
-          - OTA remoto ainda depende da vinculacao a um projeto Expo/EAS e de uma nova build configurada.
+          - OTA preview exige runtime nativo compativel. Instale este APK para ter a dependencia de preferencias locais.
           - APK de teste: nao e uma versao de producao nem distribuicao Play Store.
 
           ### Instalacao
@@ -131,9 +131,9 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          TAG="v0.2.0-p0"
+          TAG="v3.1-candidate-${GITHUB_SHA:0:7}"
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release edit "$TAG" --title "Negresco Finance v0.2.0 - P0 (Teste)" --notes-file RELEASE_NOTES.md --prerelease --latest=false
+            gh release edit "$TAG" --title "Negresco Finance V3.1 - Candidato de testes" --notes-file RELEASE_NOTES.md --prerelease --latest=false
           else
             gh release create "$TAG" --target "${GITHUB_SHA}" --title "Negresco Finance v0.2.0 - P0 (Teste)" --notes-file RELEASE_NOTES.md --prerelease --latest=false
           fi
