@@ -9,6 +9,14 @@
     "android": {
       "package": "com.negresco.finance"
     },
-    "plugins": []
+    "plugins": [],
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
+    }
   }
 }
