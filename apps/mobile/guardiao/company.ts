@@ -1,0 +1,17 @@
+/** Public third-party company registry lookup. Never proof of a boleto's authenticity. */
+export type CompanyResult={status:'found'|'not-found'|'unavailable';cnpj:string;legalName?:string;registration?:string;source?:string;checkedAt?:string;message?:string};
+export function normalizeCnpj(input:string):string|null{
+ const n=input.replace(/\D/g,'');if(n.length!==14||/^(\d)\1{13}$/.test(n))return null;
+ const dv=(s:string,w:number[])=>{const r=w.reduce((a,v,i)=>a+v*Number(s[i]),0)%11;return r<2?0:11-r;};
+ if(dv(n.slice(0,12),[5,4,3,2,9,8,7,6,5,4,3,2])!==Number(n[12]))return null;
+ if(dv(n.slice(0,13),[6,5,4,3,2,9,8,7,6,5,4,3,2])!==Number(n[13]))return null;
+ return n;
+}
+export async function consultCnpj(input:string,fetcher:typeof fetch=fetch):Promise<CompanyResult>{
+ const cnpj=normalizeCnpj(input);if(!cnpj)return {status:'unavailable',cnpj:'',message:'CNPJ inválido.'};
+ const source='https://brasilapi.com.br/api/cnpj/v1/'+cnpj;
+ try{const r=await fetcher(source,{headers:{Accept:'application/json'}});if(r.status===404)return {status:'not-found',cnpj,source,message:'Não encontrado nesta fonte.'};if(!r.ok)return {status:'unavailable',cnpj,message:'Fonte temporariamente indisponível.'};
+ const data=await r.json();if(typeof data?.razao_social!=='string')return {status:'unavailable',cnpj,message:'Resposta inesperada.'};
+ return {status:'found',cnpj,legalName:data.razao_social,registration:typeof data.descricao_situacao_cadastral==='string'?data.descricao_situacao_cadastral:undefined,source,checkedAt:new Date().toISOString()};
+ }catch{return {status:'unavailable',cnpj,message:'Falha de conexão.'};}
+}
