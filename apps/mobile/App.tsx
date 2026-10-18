@@ -1,77 +1,82 @@
 import React, { useState } from 'react';
 import { SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-type Tab = 'Início' | 'Contas' | 'Pix' | 'Cartões' | 'Investimentos' | 'Metas' | 'Negresco';
-const modules: { name: Exclude<Tab,'Início'>; icon: string; caption: string }[] = [
-  {name:'Contas',icon:'▤',caption:'Tudo em um lugar'},
-  {name:'Pix',icon:'◇',caption:'Transferências'},
-  {name:'Cartões',icon:'▰',caption:'Limites e faturas'},
-  {name:'Investimentos',icon:'↗',caption:'Sua carteira'},
-  {name:'Metas',icon:'◎',caption:'Seus objetivos'},
-  {name:'Negresco',icon:'✦',caption:'Inteligência financeira'}
+type Page = 'Início' | 'Pix' | 'Contas' | 'Cartões' | 'Investimentos' | 'Metas' | 'Negresco' | 'Ajustes';
+const C = { bg:'#000000',panel:'#0D111A',raised:'#121A29',line:'#26354B',blue:'#78B5FF',muted:'#99A8BC',white:'#F7FAFF' };
+const sections: {name:Page;glyph:string;description:string}[] = [
+  {name:'Contas',glyph:'▤',description:'Instituições e saldos'},
+  {name:'Pix',glyph:'↗',description:'Pagamentos e recebimentos'},
+  {name:'Cartões',glyph:'▰',description:'Limites e faturas'},
+  {name:'Investimentos',glyph:'⌁',description:'Patrimônio e evolução'},
+  {name:'Metas',glyph:'◎',description:'Objetivos pessoais'},
+  {name:'Negresco',glyph:'✦',description:'Sua assistente financeira'}
 ];
-const descriptions: Record<Tab,string> = {
-  'Início':'Seu painel financeiro pessoal',
-  'Contas':'Suas contas poderão aparecer aqui após uma conexão autorizada.',
-  'Pix':'Em breve você poderá preparar e revisar transferências. Nenhum pagamento é realizado nesta versão.',
-  'Cartões':'Consulte seus cartões, limites e faturas quando a integração estiver disponível.',
-  'Investimentos':'Visualize sua carteira e acompanhe resultados quando houver dados autorizados.',
-  'Metas':'Organize seus objetivos e acompanhe cada conquista.',
-  'Negresco':'Uma experiência de inteligência financeira em construção. A conversa com IA ainda não está disponível.'
-};
-function Action({label,icon,onPress}:{label:string;icon:string;onPress:()=>void}) {
-  return <TouchableOpacity accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={s.action}><View style={s.actionIcon}><Text style={s.actionGlyph}>{icon}</Text></View><Text style={s.actionLabel}>{label}</Text></TouchableOpacity>;
+function Tap({title,subtitle,glyph,onPress,style}:{title:string;subtitle?:string;glyph:string;onPress:()=>void;style?:object}) {
+  return <TouchableOpacity onPress={onPress} accessibilityRole="button" accessibilityLabel={title} activeOpacity={0.72} style={[s.tile,style]}>
+    <View style={s.tileGlyph}><Text style={s.glyph}>{glyph}</Text></View>
+    <Text style={s.tileTitle}>{title}</Text>{subtitle&&<Text style={s.tileSub}>{subtitle}</Text>}
+    <Text style={s.tileArrow}>↗</Text>
+  </TouchableOpacity>;
 }
-export default function App(){
-  const [tab,setTab]=useState<Tab>('Início');
-  const [visible,setVisible]=useState(false);
-  const home=tab==='Início';
+function Notice({title,body}:{title:string;body:string}) {
+  return <View style={s.notice}><Text style={s.noticeTitle}>{title}</Text><Text style={s.noticeBody}>{body}</Text></View>;
+}
+export default function App() {
+  const [page,setPage]=useState<Page>('Início');
+  const [showBalance,setShowBalance]=useState(false);
+  const [compact,setCompact]=useState(false);
+  const [accent,setAccent]=useState(false);
+  const blue=accent?'#A28BFF':C.blue;
+  const nav=(p:Page)=>setPage(p);
+  const active=sections.find(x=>x.name===page);
   return <SafeAreaView style={s.root}>
-    <StatusBar barStyle="light-content" backgroundColor="#000000"/>
-    <View style={s.top}>
-      <View style={s.brandMark}><Text style={s.brandMarkText}>N</Text></View>
-      <View style={s.brandBox}><Text style={s.brand}>NEGRESCO <Text style={s.blue}>FINANCE</Text></Text><Text style={s.brandSub}>SEU UNIVERSO FINANCEIRO</Text></View>
-      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Abrir Negresco" onPress={()=>setTab('Negresco')} style={s.profile}><Text style={s.profileText}>✦</Text></TouchableOpacity>
+    <StatusBar backgroundColor="#000000" barStyle="light-content"/>
+    <View style={s.header}>
+      <View style={[s.logo,{borderColor:blue}]}><Text style={s.logoText}>N</Text></View>
+      <View style={s.headerText}><Text style={s.brand}>NEGRESCO <Text style={{color:blue}}>FINANCE</Text></Text><Text style={s.tagline}>SEU UNIVERSO FINANCEIRO</Text></View>
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Abrir ajustes" onPress={()=>nav('Ajustes')} style={s.headerButton}><Text style={{fontSize:21,color:blue}}>⚙</Text></TouchableOpacity>
     </View>
-    <ScrollView style={s.scroll} contentContainerStyle={s.body} showsVerticalScrollIndicator={false}>
-      <View style={s.kickerRow}><View style={s.liveDot}/><Text style={s.kicker}>{home?'VISÃO GERAL': 'ÁREA FINANCEIRA'}</Text><View style={s.demoPill}><Text style={s.demoText}>PRÉVIA</Text></View></View>
-      <Text style={s.headline}>{home?'O controle está\nnas suas mãos.':tab}</Text>
-      <Text style={s.lead}>{home?'Tudo o que importa, com mais clareza e menos complicação.':descriptions[tab]}</Text>
-      {home ? <>
-        <View style={s.hero}>
-          <View style={s.heroTop}><Text style={s.heroLabel}>SALDO TOTAL</Text><TouchableOpacity accessibilityRole="button" accessibilityLabel={visible?'Ocultar saldo':'Mostrar estado do saldo'} onPress={()=>setVisible(!visible)} style={s.eye}><Text style={s.eyeText}>{visible?'◉':'◎'}</Text></TouchableOpacity></View>
-          <Text style={s.heroAmount}>{visible?'Sem contas conectadas':'R$ ••••••'}</Text>
-          <Text style={s.heroNote}>●  Nenhuma instituição vinculada</Text>
-          <View style={s.heroLine}/>
-          <View style={s.heroFoot}><Text style={s.heroFootText}>Seus dados permanecem sob seu controle</Text><Text style={s.heroFootIcon}>✧</Text></View>
+    <ScrollView key={page} style={s.scroll} contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
+      {page==='Início'?<>
+        <View style={s.eyebrow}><View style={[s.dot,{backgroundColor:blue}]}/><Text style={[s.eyebrowText,{color:blue}]}>PAINEL PRINCIPAL</Text><Text style={s.preview}>MODO PRÉVIA</Text></View>
+        <Text style={s.heading}>Seu universo,{"\n"}suas escolhas.</Text>
+        <Text style={s.description}>Tudo que importa para sua vida financeira, em um só lugar.</Text>
+        <View style={s.balance}>
+          <View style={s.rowBetween}><Text style={s.overline}>PATRIMÔNIO CONSOLIDADO</Text><TouchableOpacity accessibilityRole="button" accessibilityLabel="Alternar visibilidade do saldo" onPress={()=>setShowBalance(!showBalance)}><Text style={[s.eye,{color:blue}]}>{showBalance?'◉':'◎'}</Text></TouchableOpacity></View>
+          <Text style={s.amount}>{showBalance?'Indisponível':'R$ ••••••'}</Text>
+          <Text style={[s.balanceHint,{color:blue}]}>●  Nenhuma conta conectada</Text>
+          <View style={s.separator}/>
+          <View style={s.rowBetween}><Text style={s.balanceFooter}>Seus dados, suas permissões.</Text><Text style={{color:blue,fontSize:22}}>✧</Text></View>
         </View>
-        <Text style={s.groupTitle}>Acesso rápido</Text>
-        <View style={s.actions}>
-          <Action label="Pix" icon="◇" onPress={()=>setTab('Pix')}/>
-          <Action label="Contas" icon="▤" onPress={()=>setTab('Contas')}/>
-          <Action label="Cartões" icon="▰" onPress={()=>setTab('Cartões')}/>
-          <Action label="Metas" icon="◎" onPress={()=>setTab('Metas')}/>
-        </View>
-        <View style={s.sectionRow}><Text style={s.groupTitle}>Seu espaço</Text><Text style={s.sectionHint}>EXPLORE</Text></View>
-        <View style={s.grid}>{modules.map(m=><TouchableOpacity accessibilityRole="button" accessibilityLabel={'Abrir '+m.name} key={m.name} onPress={()=>setTab(m.name)} style={s.module}>
-          <View style={s.moduleIcon}><Text style={s.moduleGlyph}>{m.icon}</Text></View>
-          <Text style={s.moduleName}>{m.name}</Text><Text style={s.moduleCaption}>{m.caption}</Text><Text style={s.moduleArrow}>↗</Text>
-        </TouchableOpacity>)}</View>
-        <View style={s.notice}><Text style={s.noticeIcon}>✦</Text><View style={s.noticeText}><Text style={s.noticeTitle}>Feito para evoluir com você</Text><Text style={s.noticeBody}>Esta é uma prévia. Integrações financeiras ainda não estão disponíveis.</Text></View></View>
-      </> : <>
-        <View style={s.feature}><View style={s.featureIcon}><Text style={s.featureGlyph}>{modules.find(m=>m.name===tab)?.icon}</Text></View><Text style={s.featureTitle}>{tab==='Negresco'?'Conheça a Negresco':'Seu espaço de '+tab.toLowerCase()}</Text><Text style={s.featureBody}>{descriptions[tab]}</Text><View style={s.status}><View style={s.statusDot}/><Text style={s.statusText}>Em desenvolvimento · nenhuma operação real</Text></View></View>
-        <Text style={s.groupTitle}>Outras áreas</Text>
-        <View style={s.grid}>{modules.filter(m=>m.name!==tab).map(m=><TouchableOpacity accessibilityRole="button" accessibilityLabel={'Abrir '+m.name} key={m.name} onPress={()=>setTab(m.name)} style={s.moduleSmall}><Text style={s.smallIcon}>{m.icon}</Text><Text style={s.smallName}>{m.name}</Text><Text style={s.moduleArrow}>↗</Text></TouchableOpacity>)}</View>
+        <View style={s.sectionHeading}><Text style={s.sectionTitle}>Acesso rápido</Text><Text style={s.sectionCaption}>SEUS ATALHOS</Text></View>
+        <View style={s.quickRow}>{[{name:'Pix',glyph:'↗'},{name:'Contas',glyph:'▤'},{name:'Cartões',glyph:'▰'},{name:'Metas',glyph:'◎'}].map(x=><TouchableOpacity key={x.name} accessibilityRole="button" accessibilityLabel={'Abrir '+x.name} onPress={()=>nav(x.name as Page)} style={s.quick}><View style={s.quickIcon}><Text style={[s.quickGlyph,{color:blue}]}>{x.glyph}</Text></View><Text style={s.quickText}>{x.name}</Text></TouchableOpacity>)}</View>
+        <View style={s.sectionHeading}><Text style={s.sectionTitle}>Explore seu espaço</Text><Text style={s.sectionCaption}>06 MÓDULOS</Text></View>
+        <View style={s.grid}>{sections.map(x=><Tap key={x.name} title={x.name} subtitle={compact?undefined:x.description} glyph={x.glyph} onPress={()=>nav(x.name)} style={compact?{minHeight:115}:undefined}/>)}</View>
+        <Notice title="Construído para evoluir" body="Prévia segura: sem contas conectadas e sem movimentações financeiras reais."/>
+      </>:page==='Pix'?<>
+        <Text style={s.kicker}>TRANSFERÊNCIAS</Text><Text style={s.heading}>Pix do seu jeito.</Text><Text style={s.description}>Tudo preparado para uma experiência rápida e transparente.</Text>
+        <Notice title="Pix em demonstração" body="Nenhuma transferência, cobrança ou QR Code real é gerado nesta versão."/>
+        <Text style={s.sectionTitle}>O que você poderá fazer</Text>
+        <View style={s.grid}>{[['Enviar Pix','↗'],['Receber Pix','↓'],['Ler QR Code','▦'],['Copia e cola','▤']].map(x=><Tap key={x[0]} title={x[0]} subtitle="Em desenvolvimento" glyph={x[1]} onPress={()=>{}}/>)}</View>
+      </>:page==='Negresco'?<>
+        <Text style={s.kicker}>INTELIGÊNCIA FINANCEIRA</Text><Text style={s.heading}>Conheça a{"\n"}Negresco. ✦</Text><Text style={s.description}>Uma assistente com personalidade, projetada para ajudar você a entender suas finanças.</Text>
+        <View style={s.assistant}><View style={s.assistantOrb}><Text style={{color:blue,fontSize:39}}>✦</Text></View><Text style={s.assistantTitle}>Sua assistente, seu estilo.</Text><Text style={s.assistantBody}>No futuro, a Negresco poderá consultar agentes especializados sob coordenação da CTO, respeitando suas autorizações.</Text><View style={s.offline}><Text style={s.offlineText}>●  CONVERSA AINDA NÃO CONECTADA</Text></View></View>
+        <Notice title="Privacidade primeiro" body="A IA não está ativa nesta prévia. Nenhum dado financeiro é enviado para uma conversa."/>
+      </>:page==='Ajustes'?<>
+        <Text style={s.kicker}>PERSONALIZAÇÃO</Text><Text style={s.heading}>Do seu jeito.</Text><Text style={s.description}>Ajuste a aparência desta prévia sem alterar seus dados.</Text>
+        <TouchableOpacity accessibilityRole="switch" accessibilityState={{checked:accent}} onPress={()=>setAccent(!accent)} style={s.setting}><Text style={s.settingText}>Cor de destaque</Text><Text style={[s.settingValue,{color:blue}]}>{accent?'Violeta':'Azul'}  ↔</Text></TouchableOpacity>
+        <TouchableOpacity accessibilityRole="switch" accessibilityState={{checked:compact}} onPress={()=>setCompact(!compact)} style={s.setting}><Text style={s.settingText}>Cartões compactos</Text><Text style={[s.settingValue,{color:blue}]}>{compact?'Ligado':'Desligado'}  ↔</Text></TouchableOpacity>
+        <Notice title="Tema OLED ativo" body="O fundo preto absoluto foi preservado para telas AMOLED. Preferências são temporárias nesta versão."/>
+      </>:<>
+        <Text style={s.kicker}>SEU ESPAÇO</Text><Text style={s.heading}>{page}</Text><Text style={s.description}>{active?.description}</Text>
+        <View style={s.empty}><View style={s.emptyGlyph}><Text style={{fontSize:39,color:blue}}>{active?.glyph}</Text></View><Text style={s.emptyTitle}>Um espaço só seu</Text><Text style={s.emptyBody}>Este módulo ganhará recursos próprios quando houver integrações autorizadas. Por enquanto, não exibimos valores inventados.</Text><View style={s.offline}><Text style={s.offlineText}>●  SEM DADOS CONECTADOS</Text></View></View>
+        <Text style={s.sectionTitle}>Explore também</Text><View style={s.grid}>{sections.filter(x=>x.name!==page).map(x=><Tap key={x.name} title={x.name} glyph={x.glyph} onPress={()=>nav(x.name)} style={{minHeight:115}}/>)}</View>
       </>}
     </ScrollView>
-    <View style={s.bottom}>{([{name:'Início',icon:'⌂'},{name:'Pix',icon:'◇'},{name:'Negresco',icon:'✦'}] as const).map(item=><TouchableOpacity key={item.name} accessibilityRole="tab" accessibilityState={{selected:tab===item.name}} onPress={()=>setTab(item.name)} style={s.navItem}><Text style={[s.navIcon,tab===item.name&&s.navActive]}>{item.icon}</Text><Text style={[s.navText,tab===item.name&&s.navActive]}>{item.name}</Text>{tab===item.name&&<View style={s.navIndicator}/>}</TouchableOpacity>)}</View>
+    <View style={s.bottom}>{[{name:'Início',glyph:'⌂'},{name:'Pix',glyph:'↗'},{name:'Negresco',glyph:'✦'}].map(x=><TouchableOpacity key={x.name} accessibilityRole="tab" accessibilityState={{selected:page===x.name}} onPress={()=>nav(x.name as Page)} style={s.nav}><Text style={[s.navGlyph,page===x.name&&{color:blue}]}>{x.glyph}</Text><Text style={[s.navLabel,page===x.name&&{color:blue}]}>{x.name}</Text>{page===x.name&&<View style={[s.navMark,{backgroundColor:blue}]}/>}</TouchableOpacity>)}</View>
   </SafeAreaView>;
 }
 const s=StyleSheet.create({
- root:{flex:1,backgroundColor:'#000'},scroll:{flex:1},top:{paddingHorizontal:21,paddingVertical:17,flexDirection:'row',alignItems:'center',borderBottomWidth:1,borderBottomColor:'#161A22'},brandMark:{height:39,width:39,borderRadius:13,backgroundColor:'#2661AE',alignItems:'center',justifyContent:'center'},brandMarkText:{color:'#fff',fontSize:23,fontWeight:'900'},brandBox:{flex:1,marginLeft:11},brand:{fontSize:15,color:'#fff',fontWeight:'900',letterSpacing:1},blue:{color:'#64AAFF'},brandSub:{fontSize:8,color:'#8894A5',letterSpacing:2,marginTop:4},profile:{width:39,height:39,borderRadius:20,borderWidth:1,borderColor:'#2A3546',backgroundColor:'#111722',alignItems:'center',justifyContent:'center'},profileText:{fontSize:22,color:'#80B8FF'},
- body:{paddingHorizontal:21,paddingTop:26,paddingBottom:32},kickerRow:{flexDirection:'row',alignItems:'center',gap:8},liveDot:{width:7,height:7,borderRadius:4,backgroundColor:'#64AAFF'},kicker:{color:'#82B8FF',fontSize:10,fontWeight:'800',letterSpacing:2},demoPill:{marginLeft:'auto',borderRadius:20,borderWidth:1,borderColor:'#26374D',paddingHorizontal:9,paddingVertical:4},demoText:{color:'#8197B4',fontSize:9,fontWeight:'800',letterSpacing:1},headline:{color:'#fff',fontSize:32,fontWeight:'900',lineHeight:39,letterSpacing:-0.8,marginTop:19},lead:{color:'#9AA6B7',fontSize:13,lineHeight:21,marginTop:9,marginBottom:25},
- hero:{borderRadius:26,borderWidth:1,borderColor:'#304D75',backgroundColor:'#101C2D',padding:23,marginBottom:28},heroTop:{flexDirection:'row',justifyContent:'space-between',alignItems:'center'},heroLabel:{color:'#9DAFC5',fontSize:11,fontWeight:'800',letterSpacing:2},eye:{padding:4},eyeText:{color:'#7FB4F5',fontSize:21},heroAmount:{fontSize:32,fontWeight:'900',color:'#fff',marginTop:15,letterSpacing:-0.5},heroNote:{color:'#84B7F1',fontSize:11,marginTop:12},heroLine:{height:1,backgroundColor:'#30445D',marginTop:25,marginBottom:16},heroFoot:{flexDirection:'row',justifyContent:'space-between',alignItems:'center'},heroFootText:{color:'#A3B3C8',fontSize:11},heroFootIcon:{color:'#75B4FF',fontSize:20},
- groupTitle:{fontSize:18,fontWeight:'900',color:'#F5F8FF',marginBottom:16},actions:{flexDirection:'row',justifyContent:'space-between',marginBottom:30},action:{alignItems:'center',width:'24%'},actionIcon:{height:60,width:60,borderRadius:19,borderWidth:1,borderColor:'#27354B',backgroundColor:'#111B29',alignItems:'center',justifyContent:'center'},actionGlyph:{fontSize:27,color:'#86BEFF'},actionLabel:{color:'#C5CFDE',fontSize:11,fontWeight:'700',marginTop:9},sectionRow:{flexDirection:'row',justifyContent:'space-between',alignItems:'center'},sectionHint:{color:'#668BB8',fontSize:9,letterSpacing:2,fontWeight:'800',marginBottom:16},grid:{flexDirection:'row',flexWrap:'wrap',justifyContent:'space-between'},module:{width:'48%',minHeight:153,backgroundColor:'#0F141D',borderWidth:1,borderColor:'#222D3D',borderRadius:21,padding:16,marginBottom:13},moduleIcon:{height:38,width:38,borderRadius:12,backgroundColor:'#172840',justifyContent:'center',alignItems:'center',marginBottom:14},moduleGlyph:{fontSize:23,color:'#83B9FF'},moduleName:{color:'#fff',fontSize:14,fontWeight:'800'},moduleCaption:{color:'#8392A6',fontSize:10,marginTop:5},moduleArrow:{color:'#68A9FC',fontSize:17,position:'absolute',right:14,bottom:13},notice:{flexDirection:'row',backgroundColor:'#10151D',borderRadius:19,borderWidth:1,borderColor:'#232B38',padding:17,marginTop:13},noticeIcon:{fontSize:23,color:'#7EB5FF',marginRight:13},noticeText:{flex:1},noticeTitle:{color:'#fff',fontWeight:'800',fontSize:13},noticeBody:{color:'#92A0B3',fontSize:11,lineHeight:17,marginTop:5},
- feature:{backgroundColor:'#101823',borderColor:'#27394F',borderWidth:1,borderRadius:25,padding:24,marginBottom:28,minHeight:230},featureIcon:{height:56,width:56,borderRadius:18,backgroundColor:'#1B3352',alignItems:'center',justifyContent:'center'},featureGlyph:{fontSize:30,color:'#8BC0FF'},featureTitle:{fontSize:23,fontWeight:'900',color:'#fff',marginTop:19},featureBody:{color:'#B3C0D1',fontSize:13,lineHeight:21,marginTop:10},status:{flexDirection:'row',alignItems:'center',marginTop:22},statusDot:{height:7,width:7,borderRadius:4,backgroundColor:'#E3B766',marginRight:8},statusText:{fontSize:10,color:'#C6AE80'},moduleSmall:{width:'48%',height:91,backgroundColor:'#11161F',borderRadius:17,borderWidth:1,borderColor:'#26303E',padding:14,marginBottom:12},smallIcon:{color:'#78B4FC',fontSize:22},smallName:{color:'#fff',fontWeight:'800',fontSize:12,marginTop:7},
- bottom:{height:70,flexDirection:'row',borderTopWidth:1,borderTopColor:'#1B2635',backgroundColor:'#070A10',justifyContent:'space-around',alignItems:'center'},navItem:{height:'100%',width:'30%',alignItems:'center',justifyContent:'center'},navIcon:{color:'#8794A6',fontSize:24},navText:{color:'#8794A6',fontSize:10,fontWeight:'700',marginTop:3},navActive:{color:'#7DB8FF'},navIndicator:{position:'absolute',top:0,height:2,width:36,backgroundColor:'#70AFFF',borderBottomLeftRadius:3,borderBottomRightRadius:3}
+ root:{flex:1,backgroundColor:C.bg},scroll:{flex:1},header:{flexDirection:'row',alignItems:'center',paddingHorizontal:20,paddingTop:14,paddingBottom:17,borderBottomWidth:1,borderBottomColor:'#1B2432'},logo:{width:43,height:43,borderRadius:15,borderWidth:1,backgroundColor:'#16365D',alignItems:'center',justifyContent:'center'},logoText:{fontSize:26,fontWeight:'900',color:'#FFFFFF'},headerText:{flex:1,marginLeft:12},brand:{color:C.white,fontSize:15,fontWeight:'900',letterSpacing:.8},tagline:{color:C.muted,fontSize:9,letterSpacing:2,marginTop:5},headerButton:{width:40,height:40,borderRadius:20,backgroundColor:C.panel,borderWidth:1,borderColor:C.line,alignItems:'center',justifyContent:'center'},
+ content:{paddingHorizontal:20,paddingTop:26,paddingBottom:42},eyebrow:{flexDirection:'row',alignItems:'center',marginBottom:20},dot:{height:8,width:8,borderRadius:4,marginRight:9},eyebrowText:{fontSize:11,fontWeight:'900',letterSpacing:2},preview:{color:C.muted,fontSize:9,fontWeight:'800',marginLeft:'auto',borderWidth:1,borderColor:C.line,borderRadius:16,paddingHorizontal:10,paddingVertical:6},heading:{fontSize:35,lineHeight:42,letterSpacing:-1,color:C.white,fontWeight:'900',marginBottom:12},description:{fontSize:14,lineHeight:23,color:C.muted,marginBottom:25},balance:{borderRadius:27,backgroundColor:'#101A2A',borderWidth:1,borderColor:'#355783',padding:23,marginBottom:30},rowBetween:{flexDirection:'row',alignItems:'center',justifyContent:'space-between'},overline:{fontSize:10,fontWeight:'900',color:'#A5B6CC',letterSpacing:1.6},eye:{fontSize:24},amount:{fontSize:32,fontWeight:'900',color:C.white,marginTop:20},balanceHint:{fontSize:12,marginTop:12},separator:{height:1,backgroundColor:'#30455F',marginTop:24,marginBottom:15},balanceFooter:{color:'#B1C0D0',fontSize:11},sectionHeading:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',marginBottom:16},sectionTitle:{fontSize:19,fontWeight:'900',color:C.white,marginBottom:15},sectionCaption:{color:'#7188A8',fontSize:9,fontWeight:'800',letterSpacing:1.5},quickRow:{flexDirection:'row',justifyContent:'space-between',marginBottom:34},quick:{width:'24%',alignItems:'center'},quickIcon:{width:62,height:62,backgroundColor:C.raised,borderRadius:21,borderWidth:1,borderColor:C.line,justifyContent:'center',alignItems:'center'},quickGlyph:{fontSize:29},quickText:{fontSize:11,fontWeight:'800',color:'#CED9E8',marginTop:10},grid:{flexDirection:'row',flexWrap:'wrap',justifyContent:'space-between',marginBottom:16},tile:{width:'48%',minHeight:150,borderRadius:22,borderWidth:1,borderColor:C.line,backgroundColor:C.panel,padding:16,marginBottom:13},tileGlyph:{width:36,height:36,borderRadius:12,backgroundColor:'#172B45',justifyContent:'center',alignItems:'center',marginBottom:13},glyph:{fontSize:22,color:C.blue},tileTitle:{color:C.white,fontWeight:'900',fontSize:14},tileSub:{color:C.muted,fontSize:10,marginTop:6,paddingRight:12},tileArrow:{position:'absolute',bottom:12,right:15,color:C.blue,fontSize:18},notice:{backgroundColor:'#0D141F',borderRadius:21,borderWidth:1,borderColor:C.line,padding:19,marginTop:5,marginBottom:16},noticeTitle:{fontSize:14,fontWeight:'900',color:C.white},noticeBody:{fontSize:12,lineHeight:20,color:C.muted,marginTop:8},kicker:{color:C.blue,fontWeight:'900',letterSpacing:2,fontSize:11,marginBottom:17},assistant:{backgroundColor:'#0E1726',borderWidth:1,borderColor:'#36567B',borderRadius:27,padding:25,alignItems:'center',marginBottom:18},assistantOrb:{width:96,height:96,borderRadius:48,backgroundColor:'#1A3150',borderWidth:1,borderColor:'#3A6596',alignItems:'center',justifyContent:'center',marginBottom:20},assistantTitle:{color:C.white,fontSize:22,fontWeight:'900'},assistantBody:{color:C.muted,fontSize:13,lineHeight:22,textAlign:'center',marginTop:13},offline:{backgroundColor:'#1C2431',borderRadius:20,paddingHorizontal:13,paddingVertical:10,marginTop:23},offlineText:{color:'#D3B67F',fontWeight:'800',fontSize:9,letterSpacing:.7},empty:{minHeight:290,borderRadius:26,borderWidth:1,borderColor:C.line,backgroundColor:C.panel,padding:24,alignItems:'center',justifyContent:'center',marginBottom:28},emptyGlyph:{width:78,height:78,borderRadius:24,backgroundColor:'#172A42',alignItems:'center',justifyContent:'center',marginBottom:20},emptyTitle:{fontSize:21,color:C.white,fontWeight:'900'},emptyBody:{fontSize:13,lineHeight:21,color:C.muted,textAlign:'center',marginTop:11},setting:{borderRadius:17,borderWidth:1,borderColor:C.line,backgroundColor:C.panel,padding:20,flexDirection:'row',justifyContent:'space-between',marginBottom:13},settingText:{color:C.white,fontSize:14,fontWeight:'800'},settingValue:{fontSize:12,fontWeight:'900'},bottom:{height:68,backgroundColor:'#080C13',borderTopWidth:1,borderTopColor:'#243044',flexDirection:'row',justifyContent:'space-around'},nav:{width:'30%',alignItems:'center',justifyContent:'center'},navGlyph:{fontSize:24,color:'#8898AD'},navLabel:{fontSize:10,color:'#8898AD',fontWeight:'800',marginTop:3},navMark:{position:'absolute',top:0,width:38,height:3,borderBottomLeftRadius:4,borderBottomRightRadius:4}
 });
