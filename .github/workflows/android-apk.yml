@@ -8,7 +8,7 @@ on:
 permissions:
   contents: read
 jobs:
-  build-debug-apk:
+  build-test-apk:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     defaults:
@@ -30,15 +30,15 @@ jobs:
         run: npx tsc --noEmit
       - name: Generate native Android project
         run: npx expo prebuild --platform android --non-interactive --no-install
-      - name: Build debug APK
+      - name: Build standalone test APK
         run: |
           chmod +x android/gradlew
           cd android
-          ./gradlew assembleDebug --no-daemon
-      - name: Upload debug APK
+          ./gradlew assembleRelease --no-daemon
+      - name: Upload standalone APK
         uses: actions/upload-artifact@v4
         with:
-          name: negresco-finance-p0-debug-apk
-          path: apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          name: negresco-finance-p0-test-apk
+          path: apps/mobile/android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 7
