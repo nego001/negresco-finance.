@@ -72,7 +72,7 @@ export function renderReportHtml(report:LocalReport):string{
  <div class="status">${status}</div>
  <p>Esta verificação analisa apenas a estrutura e os dígitos verificadores da linha digitável.</p></div>
  <div class="card"><h2>2. Consulta de cadastro empresarial</h2>
- <p><strong>Fontes externas consultadas:</strong> ${report.sourcesConsulted}</p>
+ <p>Fontes externas consultadas: ${report.sourcesConsulted}</p>
  ${companyHtml}</div>
  <div class="card"><h2>3. O que continua desconhecido</h2>
  <p>Beneficiário: não identificado no banco</p>
