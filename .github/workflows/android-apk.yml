@@ -24,7 +24,15 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
+      # ubuntu-latest runners include Android SDK; avoid setup-android initialization failure.
+      - name: Locate Android SDK
+        run: |
+          set -euo pipefail
+          echo "ANDROID_HOME=${ANDROID_HOME:-unset}"
+          test -d "${ANDROID_HOME:?Android SDK not available on runner}"
+          test -x "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --version
+
       - name: Validate P0 repository contracts
         working-directory: .
         run: npm test
