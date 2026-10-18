@@ -1,26 +1,40 @@
 # Negresco Finance
 
-Plataforma financeira modular em desenvolvimento. **Protótipo inicial: sem APK, sem integração bancária real e sem movimentação de dinheiro.**
+Aplicativo financeiro modular em desenvolvimento. **V3.1 é uma versão candidata para testes**, não um aplicativo bancário pronto para operações reais.
 
-## Componentes
-- **Negresco**: assistente pessoal personalizável (voz vinculada à identidade escolhida).
-- **CTO**: coordenação de agentes, sempre submetida às políticas determinísticas.
-- **Guardião**: especialista em segurança e criptografia.
-- **Especialistas**: Open Finance, Pix, Investimentos, Cartões, Metas e auditoria.
+## Estado atual
 
-## Módulos iniciais
-IA, Open Finance, Pix, Investimentos, Cartões e Metas. Outros recursos permanecem opcionais.
+- **APK Android V3.1:** o instalador é produzido pelo workflow [Android APK](.github/workflows/android-apk.yml), com checagem de assinatura e publicação em [Releases](https://github.com/nego001/negresco-finance./releases).
+- **Guardião:** verificação matemática local de linhas digitáveis, histórico resumido no armazenamento seguro, PDF local e consulta **opcional** de CNPJ via BrasilAPI.
+- **Interface:** tema OLED, preferências visuais e módulos de demonstração (Pix, Contas, Cartões, Metas, Investimentos e Negresco).
+- **OTA:** fluxo de publicação manual; novas dependências Android exigem novo APK. A V3.1 usa runtime `3.1.0` para não receber atualizações destinadas a APKs `0.2.0`.
+- **Integrações não disponíveis:** acesso bancário, pagamentos Pix reais, Reclame Aqui, classificação automática de fraude e IA conversacional remota.
 
-## Executar testes
-Requer Node.js 22 ou superior.
+> Uma linha digitável matematicamente correta e um CNPJ cadastrado **não comprovam a legitimidade de um boleto**. Não utilize o protótipo para decidir pagamentos ou enviar informações bancárias.
+
+## Componentes planejados
+
+- **Negresco:** assistente pessoal personalizável.
+- **CTO:** coordenação de agentes subordinada a permissões determinísticas.
+- **Guardião:** segurança financeira e análise de evidências.
+- **Especialistas:** Open Finance, Pix, Investimentos, Cartões, Metas e auditoria.
+
+Esses agentes e integrações estão previstos na arquitetura, mas **não estão ativos** no APK atual.
+
+## Testes
+
+Requer Node.js 22 ou superior:
 
 ```bash
 npm test
 ```
 
+Para gerar o aplicativo Android, consulte [GitHub Actions](https://github.com/nego001/negresco-finance./actions). Um CI aprovado não substitui os testes em aparelho físico.
+
 ## Documentação
+
 - [Arquitetura](docs/ARCHITECTURE.md)
 - [Segurança](docs/SECURITY.md)
 - [Roadmap](docs/ROADMAP.md)
 
-**Importante:** não adicione credenciais bancárias nem segredos ao repositório. Criptografia, React Native, NestJS e provedores bancários ainda precisam ser implementados e auditados.
+**Segurança:** não adicione credenciais bancárias, senhas, tokens nem outros segredos ao repositório.
