@@ -6,7 +6,7 @@ export function sanitizeHistory(raw:string|null):HistoryEntry[]{
  try{
   const rows:unknown=JSON.parse(raw||'[]');
   if(!Array.isArray(rows))return [];
-  return rows.filter((r):r is HistoryEntry=>!!r&&typeof r==='object'&&typeof r.id==='string'&&typeof r.date==='string'&&typeof r.kind==='string'&&typeof r.valid==='boolean'&&Number.isInteger(r.digits)&&r.digits>=0&&r.digits<=80).slice(0,MAX_HISTORY_ENTRIES).map(r=>({id:r.id.slice(0,50),date:r.date.slice(0,60),kind:r.kind.slice(0,60),valid:r.valid,digits:r.digits}));
+  return rows.filter((r):r is HistoryEntry=>!!r&&typeof r==='object'&&typeof r.id==='string'&&typeof r.date==='string'&&typeof r.kind==='string'&&typeof r.valid==='boolean'&&typeof r.digits==='number'&&Number.isInteger(r.digits)&&r.digits>=0&&r.digits<=80).slice(0,MAX_HISTORY_ENTRIES).map(r=>({id:r.id.slice(0,50),date:r.date.slice(0,60),kind:r.kind.slice(0,60),valid:r.valid,digits:r.digits}));
  }catch{return [];}
 }
 type SecureStoreApi={getItemAsync:(key:string)=>Promise<string|null>;setItemAsync:(key:string,value:string)=>Promise<void>;deleteItemAsync:(key:string)=>Promise<void>};
