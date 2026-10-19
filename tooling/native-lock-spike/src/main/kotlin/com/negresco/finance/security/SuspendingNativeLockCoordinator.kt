@@ -20,8 +20,8 @@ internal fun interface SuspendedStrongBiometry {
 
 internal class SuspendingNativeLockCoordinator(
   private val repository: DataStoreLockRecordRepository,
-  private val biometric: SuspendedStrongBiometry,
-  private val requireLiveObservation: Boolean = false
+  private val requireLiveObservation: Boolean = false,
+  private val biometric: SuspendedStrongBiometry
 ) {
   private val requestMutex = Mutex()
   private val lifecycleGuard = Any()
