@@ -1,5 +1,3 @@
-import {isStrongBiometryAvailable} from './localLockPolicy';
-
 /**
  * Android-only non-sensitive SecureStore / Android Keystore smoke test.
  * This cannot certify hardware-backed keys, SQLCipher, E2EE or zero-knowledge.
@@ -42,7 +40,7 @@ export async function runKeystoreProbe(
   const [available,hardware,enrolled,level]=await Promise.all([
    store.isAvailableAsync(),auth.hasHardwareAsync(),auth.isEnrolledAsync(),auth.getEnrolledLevelAsync()
   ]);
-  if(!available||!isStrongBiometryAvailable(hardware,enrolled,level))return {
+  if(!available||!hardware||!enrolled||level!==3)return {
    status:'unavailable',
    message:'SecureStore ou biometria forte indisponível. Nenhum teste foi gravado.'
   };
