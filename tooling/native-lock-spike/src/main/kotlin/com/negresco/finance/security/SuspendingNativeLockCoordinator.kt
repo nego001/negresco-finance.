@@ -27,6 +27,7 @@ internal class SuspendingNativeLockCoordinator(
   private var generation = 0L
   private var foreground = false
   private var unlocked = false
+  private var unlockedRevision: Long? = null
 
   /** Called synchronously by Android lifecycle callbacks, never delayed. */
   fun onForeground() = synchronized(lifecycleGuard) {
@@ -39,11 +40,13 @@ internal class SuspendingNativeLockCoordinator(
     generation++
     foreground = false
     unlocked = false
+    unlockedRevision = null
   }
 
   fun lockNow() = synchronized(lifecycleGuard) {
     generation++
     unlocked = false
+    unlockedRevision = null
   }
 
   private fun beginTicket(): Long? = synchronized(lifecycleGuard) {
@@ -55,23 +58,47 @@ internal class SuspendingNativeLockCoordinator(
   }
 
   /** No suspend point is allowed between final validation and unlock. */
-  private fun finishUnlocked(ticket: Long): LockResult = synchronized(lifecycleGuard) {
+  private fun finishUnlocked(ticket: Long, revision: Long): LockResult = synchronized(lifecycleGuard) {
     if (!foreground || generation != ticket) LockResult.STALE
     else {
+      unlockedRevision = revision
       unlocked = true
       LockResult.SUCCESS
     }
   }
 
+  /**
+   * A successful prompt belongs to one DataStore revision. Any modification,
+   * invalid record or storage failure revokes that session, not just the UI
+   * returned by this read. Recovery requires a fresh native authentication.
+   */
   suspend fun snapshot(): LockSnapshot {
-    val record = try { repository.read() } catch (cancelled: CancellationException) { throw cancelled }
+    val record = try { repository.read() }
+      catch (cancelled: CancellationException) { throw cancelled }
       catch (_: Exception) {
-      return LockSnapshot(true, false, -1L, false, true)
-    }
+        return synchronized(lifecycleGuard) {
+          generation++
+          unlocked = false
+          unlockedRevision = null
+          LockSnapshot(true, false, -1L, false, true)
+        }
+      }
     return synchronized(lifecycleGuard) {
-      if (record == null) LockSnapshot(true, false, -1L, true, false)
-      else LockSnapshot(record.enabled, foreground && unlocked && record.enabled,
-        record.revision, false, false)
+      if (record == null) {
+        generation++
+        unlocked = false
+        unlockedRevision = null
+        LockSnapshot(true, false, -1L, true, false)
+      } else {
+        if (!record.enabled || (unlocked && unlockedRevision != record.revision)) {
+          generation++
+          unlocked = false
+          unlockedRevision = null
+        }
+        LockSnapshot(record.enabled,
+          foreground && unlocked && unlockedRevision == record.revision && record.enabled,
+          record.revision, false, false)
+      }
     }
   }
 
@@ -99,7 +126,7 @@ internal class SuspendingNativeLockCoordinator(
     } ?: return@withLock LockResult.MIGRATION_REQUIRED
     if (!after.enabled || after.revision != before.revision)
       return@withLock LockResult.STALE
-    finishUnlocked(ticket)
+    finishUnlocked(ticket, after.revision)
   }
 
   /**
@@ -124,7 +151,7 @@ internal class SuspendingNativeLockCoordinator(
       catch (_: Exception) { return@withLock LockResult.STORAGE_ERROR }
     if (!committed.enabled || committed.revision != before.revision + 1L)
       return@withLock LockResult.STORAGE_ERROR
-    finishUnlocked(ticket)
+    finishUnlocked(ticket, committed.revision)
   }
 
   /** Remains unavailable until commit and lifecycle revocation are linearizable. */
