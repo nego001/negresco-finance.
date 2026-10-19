@@ -55,6 +55,16 @@ internal object SyntheticSqlCipherDatabase {
       if (!cursor.moveToFirst()) throw Unavailable()
       cursor.getLong(0)
     }
+    // SQLCipher reports a row for EACH page authentication error.
+    // An intact database returns ZERO rows, NOT a single "ok" row.
+    db.rawQuery("PRAGMA cipher_integrity_check", null).use { cursor ->
+      if (cursor.moveToFirst()) throw Unavailable()
+    }
+    // Standard SQLite logical integrity is a different check and returns "ok".
+    db.rawQuery("PRAGMA integrity_check", null).use { cursor ->
+      if (!cursor.moveToFirst() || cursor.getString(0) != "ok" ||
+          cursor.moveToNext()) throw Unavailable()
+    }
   }
 
   private fun nativeOpen(
