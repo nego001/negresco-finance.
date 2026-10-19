@@ -39,6 +39,8 @@ Status: **em andamento**. Esta fase é pré-requisito para iniciar a Fase 2 (con
 
 - [x] Núcleo Kotlin experimental do bloqueio criado fora do app, com políticas de sessão e 10 cenários JVM, sem adaptadores de persistência/biometria e sem integração Expo. **Não é módulo Android nativo homologado, não habilita SQLCipher ou chaves reais.**
 
+- [x] Laboratório JVM DataStore: repositório com `updateData` atômico e testes de persistência em arquivo, corrupção, revisão e concorrência. **Não incorporado ao APK; validação final de CI e homologação Android ainda exigidas.**
+
 ## Ainda pendente para concluir a Fase 1
 - [ ] **Homologação no Samsung:** executar [roteiro de QA da V3.1](ANDROID_QA_V3.1.md), registrar falhas e corrigi-las. Sem execução física não declarar aprovado.
   - [x] Ferramenta **somente leitura** de pré-diagnóstico ADB/versão/hash preparada para Windows; sem validação física até o usuário executar no Samsung.
