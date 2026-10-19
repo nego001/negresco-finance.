@@ -60,14 +60,22 @@ segredos reais, nem mudar o status da auditoria CP-0163 do Security Black.
 - [ ] Revisão criptográfica independente e liberação formal antes de qualquer
   dado pessoal/financeiro real.
 
-## Reutilização do Security Black
+## Escopo exclusivo do Negresco Finance
 
-O ramo experimental `audit/sqlcipher-cp0163-readiness-20261018`
-do repositório `nego001/personal-security-ai` contém protótipos Rust
-de E2EE e SQLCipher, ambos **não aprovados para produção**.
-Reutilizar somente componentes com licenças compatíveis, testes
-reproduzíveis e revisão de dependências. **Não importar/ativar
-`sqlcipher-bundled` no APK V3.1 apenas por existir código experimental.**
+**SQLCipher nativo e zero-knowledge serão desenvolvidos exclusivamente neste
+repositório**, de forma independente. Não é necessário modificar, importar
+módulos experimentais ou alterar o cronograma do Security Black.
+
+A arquitetura do Negresco Finance deve manter módulos independentes para:
+- armazenamento SQLCipher nativo Android, com testes isolados e sem fallback plaintext;
+- proteção das chaves via Android Keystore e política de autenticação local;
+- criptografia E2EE dos registros financeiros e recuperação protegida;
+- sincronização cifrada futura, sem acesso do backend às chaves ou conteúdo.
+
+Nenhum desses itens está aprovado para dados reais. A implementação deve
+usar dependências diretamente auditadas e testadas **neste projeto**.
+Não ativar bibliotecas nativas no APK V3.1 sem builds reproduzíveis,
+mecanismo de chaves seguro, recuperação e testes no Samsung.
 
 A prioridade segue: estabilizar V3.1, homologar Samsung,
 concluir gestão de chaves/recovery e compilar/testar SQLCipher nativo,
