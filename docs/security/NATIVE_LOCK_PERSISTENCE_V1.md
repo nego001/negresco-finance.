@@ -1,6 +1,6 @@
 # Negresco Finance | Contrato de persistência nativa do bloqueio (proposta V1)
 
-**Status: projeto de arquitetura e critérios de aceite, NÃO implementado.**
+**Status: arquitetura definida; um núcleo Kotlin experimental sem adaptadores Android foi criado em `tooling/native-lock-spike`. A persistência nativa e a autenticação Android seguem NÃO implementadas.**
 O APK 3.1.2 continua usando AsyncStorage e autenticação de interface.
 Este arquivo **não** autoriza migração automática, dados financeiros reais,
 assinatura de produção, alegação de transação nativa ou uso do Keystore como
@@ -103,3 +103,19 @@ criptográficas.
 - Android BiometricPrompt CryptoObject e autorização de chave:
   https://developer.android.com/reference/android/hardware/biometrics/BiometricPrompt.CryptoObject
 - Expo Modules API: https://docs.expo.dev/modules/get-started/
+
+
+## Protótipo de política Kotlin (não integrado)
+
+O núcleo `tooling/native-lock-spike/src/main/kotlin/com/negresco/finance/security/NativeLockCoordinator.kt`
+implementa lógica de geração de sessão, revogação no background, rejeição de
+versões e revisões inválidas e serialização de solicitações de prompts.
+A interface `AtomicLockStore` é **somente um contrato**, sem código DataStore.
+A interface `NativeBiometricVerifier` é **somente um contrato**, sem BiometricPrompt.
+
+Foram executados 10 cenários Kotlin locais no compilador JVM; o job
+`native-lock-spike` no CI deverá compilar e executá-los a cada alteração.
+O protótipo fica deliberadamente **fora de `apps/mobile/modules`**, para não
+ser descoberto pelo autolinking nem alterar o APK 3.1.2. Sua existência não
+aprova os gates de implementação nativa, persistência atômica, migração,
+assinatura, segurança bancária ou QA físico.
