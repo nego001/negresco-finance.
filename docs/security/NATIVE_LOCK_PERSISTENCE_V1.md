@@ -253,3 +253,18 @@ implementada**. Simulação JVM e compilação Android não comprovam a
 linearização do ciclo de vida contra uma gravação durável. É necessária
 uma revisão específica desse protocolo antes de testes físicos e
 integração com Expo.
+
+
+## Detecção local de retrocesso do DataStore
+
+O coordenador agora rejeita um registro com revisão menor do que a já
+observada pela Activity, bem como conteúdo diferente usando a **mesma**
+revisão. A detecção revoga a sessão e trava a observação até nova inicialização.
+Ela também é aplicada nas leituras antes e depois da biometria, evitando
+que uma notificação tardia permita autenticar um estado persistido antigo.
+
+**Limite explícito:** esse mecanismo verifica apenas a consistência dentro
+do processo atual. Não impede que alguém restaure um arquivo antigo antes de
+iniciar a Activity. A proteção contra rollback persistente exigiria uma
+âncora confiável fora do DataStore, integração criptográfica apropriada e
+validação Android física. A desativação final permanece não implementada.
