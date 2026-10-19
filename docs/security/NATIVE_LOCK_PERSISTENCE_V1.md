@@ -232,3 +232,24 @@ durável do DataStore precisam de um protocolo linearizável. Esse método de
 preparação nem sequer é exportado pelo adaptador Android e, portanto,
 não participa do APK 3.1.2. SQLCipher, Keystore com chaves reais,
 assinatura e homologação no Samsung continuam pendentes.
+
+## Auditoria de bypass legado e gravações interrompidas
+
+Além do coordenador coroutine, existia um coordenador Kotlin síncrono de
+laboratório que ainda permitia `DISABLE` com um armazenamento simulado.
+Essa via foi **fechada**: os dois coordenadores recusam a desativação final.
+O caminho síncrono também revoga desbloqueios antigos após alteração na
+revisão do registro ou falha de leitura.
+
+Três testes sintéticos controlam a suspensão da gravação (1) antes da
+persistência do marcador `disablePending`, (2) após persistir e antes do
+retorno de `updateData`, e (3) cancelamento depois de persistir.
+O estado permanece sempre `enabled=true`, e a recuperação também mantém
+o bloqueio. Uma conclusão tardia após `onStop` não pode ser informada como
+preparação bem-sucedida: o resultado é `STALE`.
+
+A confirmação final que gravaria `enabled=false` permanece **não
+implementada**. Simulação JVM e compilação Android não comprovam a
+linearização do ciclo de vida contra uma gravação durável. É necessária
+uma revisão específica desse protocolo antes de testes físicos e
+integração com Expo.
