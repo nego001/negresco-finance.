@@ -6,6 +6,10 @@ on:
       - 'apps/mobile/**'
       - 'tests/mobile-baseline.test.mjs'
       - '.github/workflows/android-apk.yml'
+# Keep only the newest candidate compiling when multiple source commits arrive.
+concurrency:
+  group: android-candidate-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: write
 jobs:
@@ -145,6 +149,20 @@ jobs:
           - A identidade de assinatura entre compilacoes de teste ainda nao foi estabilizada. Compare APK-SIGNATURE.txt antes de tentar atualizar sobre instalacoes antigas.
           - Nunca desinstale uma versao existente sem antes decidir como preservar os dados locais.
           EOF
+      # Always upload a complete candidate independently of GitHub Releases write access.
+      - name: Preserve full release bundle as Actions artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: negresco-finance-v31-distribution
+          path: |
+            apps/mobile/Negresco-Finance-V3.1-candidate.apk
+            apps/mobile/Negresco-Finance-V3.1-candidate.zip
+            apps/mobile/SHA256-release.txt
+            apps/mobile/APK-SIGNATURE.txt
+            apps/mobile/RELEASE_NOTES.md
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Publish APK first, ZIP second in GitHub Releases
         env:
           GH_TOKEN: ${{ github.token }}
@@ -157,4 +175,9 @@ jobs:
           else
             gh release create "$TAG" --target "${GITHUB_SHA}" --title "Negresco Finance V3.1 - Candidato de testes" --notes-file RELEASE_NOTES.md --prerelease --latest=false
           fi
-          gh release upload "$TAG" Negresco-Finance-V3.1-candidate.apk Negresco-Finance-V3.1-candidate.zip SHA256-release.txt APK-SIGNATURE.txt --clobber
+          # A 403 is a GitHub repository permissions issue, not an Android build failure.
+          # Leave the complete ZIP/APK available as an Actions artifact when this step fails.
+          if ! gh release upload "$TAG" Negresco-Finance-V3.1-candidate.apk Negresco-Finance-V3.1-candidate.zip SHA256-release.txt APK-SIGNATURE.txt --clobber; then
+            echo "::error::GitHub Releases upload failed. The APK is preserved in the Actions distribution artifact. Confirm GitHub Actions workflow permissions for this repository."
+            exit 1
+          fi
