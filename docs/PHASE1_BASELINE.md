@@ -44,7 +44,7 @@ Status: **em andamento**. Esta fase é pré-requisito para iniciar a Fase 2 (con
 - [x] Classificação conservadora das preferências biométricas antigas e migração inicial transacional apenas para **bloqueado**, preservando estado nativo previamente existente. Cenários `null`/`disabled` exigem configuração explícita antes da integração. Sem migração real do APK.
 - [x] Laboratório `tooling/native-lock-android-lab` com singleton DataStore e adaptador BiometricPrompt forte; compilação Android controlada por job separado. **Não existe ponte Expo nem coordenador que vincule autenticação ao commit.**
 
-- [x] Coordenador Kotlin suspendido de laboratório para desbloqueio e ativação, com verificação de época/revisão, revogação sincrônica no background e serialização de prompts. A desativação fica negada. **Não integrado ao APK, sem validação no Samsung e sem transação de opt-out segura.**
+- [x] Coordenador Kotlin suspendido de laboratório para desbloqueio e ativação, com verificação de época/revisão, revogação síncrona no background, vínculo do desbloqueio à revisão do DataStore e serialização de prompts. A desativação fica negada. **Não integrado ao APK, sem validação no Samsung e sem transação de opt-out segura.**
 
 ## Ainda pendente para concluir a Fase 1
 - [ ] **Homologação no Samsung:** executar [roteiro de QA da V3.1](ANDROID_QA_V3.1.md), registrar falhas e corrigi-las. Sem execução física não declarar aprovado.
