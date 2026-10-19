@@ -81,7 +81,7 @@ test('overlapping preference retries are versioned and stale failures ignored',(
 
 test('biometric authentication cannot overlap with SecureStore prompt or background',()=>{
  const hook=readFileSync(new URL('../apps/mobile/security/useLocalAppLock.ts',import.meta.url),'utf8');
- assert.match(hook,/if\(authenticating\.current\|\|protectedNativePrompt\.current\|\|!active\.current\|\|appState\.current!=='active'\)return false;/);
+ assert.match(hook,/if\(authenticating\.current\|\|protectedNativePrompt\.current\|\|preferenceMutation\.current\|\|!active\.current\|\|appState\.current!=='active'\)return false;/);
 });
 
 test('biometric opt-out commits only after a valid two-stage write',async()=>{
@@ -135,4 +135,12 @@ test('opt-out uses a pending state instead of deleting legacy preference',()=>{
  const hook=readFileSync(new URL('../apps/mobile/security/useLocalAppLock.ts',import.meta.url),'utf8');
  assert.match(hook,/await persistBiometricOptOut\(AsyncStorage,valid\)/);
  assert.doesNotMatch(hook,/removeItem\(LOCAL_LOCK_PREF_KEY\)/);
+});
+
+test('preference writes serialize against further biometrics and SecureStore probes',()=>{
+ const hook=readFileSync(new URL('../apps/mobile/security/useLocalAppLock.ts',import.meta.url),'utf8');
+ assert.match(hook,/const preferenceMutation=useRef\(false\)/);
+ assert.match(hook,/if\(preferenceMutation\.current\)return;\s*preferenceMutation\.current=true;/);
+ assert.match(hook,/if\(!active\.current\|\|protectedNativePrompt\.current\|\|authenticating\.current\|\|preferenceMutation\.current\|\|appState\.current!=='active'\)/);
+ assert.equal((hook.match(/preferenceMutation\.current=false;/g)||[]).length,2);
 });
