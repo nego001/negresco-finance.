@@ -49,7 +49,7 @@ internal class SuspendingNativeLockCoordinator(
       val record = (event as? NativeLockObservation.Record)?.value
       // Error or missing data latches failure. No later observation can
       // silently resurrect authentication after a broken stream.
-      if (record == null || !record.enabled ||
+      if (record == null ||
           record.version != LOCK_RECORD_VERSION || record.revision < 0L) {
         observationReady = false
         observationFailed = true
@@ -58,7 +58,7 @@ internal class SuspendingNativeLockCoordinator(
       }
 
       val changed = lastObservedRecord != null && lastObservedRecord != record
-      val invalid = !observationReady ||
+      val invalid = !observationReady || record?.enabled == false ||
         (unlocked && unlockedRevision != record?.revision)
       val wasUnlocked = unlocked
       if (changed || invalid) {
