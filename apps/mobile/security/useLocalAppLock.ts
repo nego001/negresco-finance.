@@ -33,9 +33,10 @@ export function useLocalAppLock(){
    if(active.current){
     // A preference read started before backgrounding or a manual lock is stale.
     // Fail closed instead of allowing an old null preference to set UI to off.
-    if(attemptEpoch!==epoch.current){
-     setStatus(prev=>prev==='loading'?'error':prev);
-     setMessage('O estado do aplicativo mudou durante a leitura da proteção. Tente verificar novamente.');
+    if(attemptEpoch!==epoch.current)return;
+    if(appState.current!=='active'){
+     setStatus('error');
+     setMessage('Não foi possível confirmar a proteção com o aplicativo em segundo plano. Verifique novamente.');
      return;
     }
     setStatus(enabled?'locked':'off');
