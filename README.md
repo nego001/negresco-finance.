@@ -16,6 +16,8 @@ Aplicativo financeiro modular em desenvolvimento. **V3.1 é uma versão candidat
 
 O banco **SQLCipher nativo** e a arquitetura **zero-knowledge** serão implementados **somente no Negresco Finance**, sem alterar nem depender do projeto Security Black. **Não estão ativos na V3.1**. A [decisão de arquitetura](docs/decisions/0001-sqlcipher-zero-knowledge-negresco-only.md) registra o compromisso e os requisitos verificáveis, preservando a ordem da [Fase 1](docs/PHASE1_BASELINE.md).
 
+**Proteção local 3.1.1 (candidata):** bloqueio da interface por biometria forte, opcional em Ajustes, com bloqueio quando o app perde primeiro plano. Requer **novo APK nativo**, não funciona em builds `3.1.0` por OTA. Não equivale a Android Keystore protegendo chaves nem a SQLCipher. [Autenticação](docs/AUTHENTICATION.md) · [Teste no Samsung](docs/ANDROID_QA_V3.1.md).
+
 ## Componentes planejados
 
 - **Negresco:** assistente pessoal personalizável.
