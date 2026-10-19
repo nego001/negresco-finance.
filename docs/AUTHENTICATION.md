@@ -34,9 +34,15 @@ O diagnóstico SecureStore também descarta seu resultado visual se o usuário s
 
 ## Desativação biométrica interrompida (prévia)
 
-A desativação agora grava um estado transitório `disable-pending` antes de confirmar o marcador `disabled`. Ao reiniciar com `disable-pending`, o aplicativo continua bloqueado e solicita biometria; instalações anteriores sem preferência continuam com bloqueio opcional desativado, preservando compatibilidade. Se a sessão for revogada após o marcador final ser gravado e o app permanecer em execução, a rotina tenta restaurar `enabled`. Falhas de armazenamento são exibidas como estado indeterminado e a interface é coberta.
+Para reduzir o risco de desligamento inesperado após uma interrupção, o opt-out usa agora **dois registros persistentes** no AsyncStorage:
 
-**Limite importante:** gravações do AsyncStorage não são transações nativas atômicas ou canceláveis. Encerrar abruptamente o processo durante a *última* gravação ainda pode deixar `disabled` persistido, mesmo após a sessão ter sido invalidada. Portanto este ajuste é uma mitigação testável, **não** uma garantia criptográfica ou recuperação transacional. Até existir persistência nativa transacional com política de sessão, não confiar dados financeiros reais ao protótipo.
+1. Primeiro grava o diário de operação `negresco.local_lock.optout.v1=pending`. Se existir, o início do app permanece bloqueado, **mesmo** com a preferência principal em `disabled`.
+2. Depois escreve `disable-pending` e `disabled` na preferência principal. Interrupções ainda conservam o diário, então o aplicativo volta bloqueado.
+3. Somente após revalidar a sessão tenta excluir o diário. A ausência dele permite respeitar a preferência `disabled`. Se a exclusão falhar ou a sessão for revogada, o app tenta recriar o diário e restaurar `enabled`.
+
+Leituras de armazenamento e alterações simultâneas de preferência são isoladas. O diário é uma **mitigação de consistência**, não uma chave criptográfica ou confirmação de autenticação. Não se devem apagar manualmente as preferências do app.
+
+**Risco residual:** AsyncStorage não garante transação atômica entre esses registros. Se o processo morrer **durante a exclusão final do diário** ou a perda de foco ocorrer no intervalo entre a validação e o término da exclusão, o marcador `disabled` ainda pode persistir sem o diário. A correção definitiva exige um serviço Android nativo que serialize autenticação, ciclo de vida e commit transacional. Este APK não o possui e não está homologado para dados financeiros reais.
 
 ## Homologação no Samsung
 
