@@ -48,7 +48,7 @@ internal class StrongBiometricPrompt(private val activity: FragmentActivity) {
 
       val callback = object : BiometricPrompt.AuthenticationCallback() {
         override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-          complete(activity.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED))
+          complete(activity.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED))
         }
 
         override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
