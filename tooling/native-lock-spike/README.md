@@ -33,7 +33,7 @@ gradle -p tooling/native-lock-spike policyCheck --no-daemon
 ```
 
 The CI job `native-lock-spike` compiles the Kotlin project and executes the
-16 policy scenarios plus 23 DataStore/migration scenarios plus 33 coroutine coordinator scenarios, plus 3 deterministic interrupted-write scenarios. Passing this job is **not** an Android APK compile or device QA. DataStore returns after durable write, but using it alone does not prove that a biometric request remains valid until commit.
+16 policy scenarios plus 23 DataStore/migration scenarios plus 33 coroutine coordinator scenarios, plus 3 deterministic interrupted-write scenarios and 15 synthetic HMAC integrity scenarios. Passing this job is **not** an Android APK compile or device QA. DataStore returns after durable write, but using it alone does not prove that a biometric request remains valid until commit.
 
 ## Non-negotiable gates before Expo integration
 
@@ -94,3 +94,16 @@ This catches **in-process** rollback or inconsistent mutations only. It
 cannot detect a file restored to an old valid revision before a new process
 starts. Hardware-backed anti-rollback, key-bound authentication and real
 Android QA remain separate security gates.
+
+
+## Bitwarden-level target is NOT a present capability
+
+`LockRecordIntegrity` provides deterministic canonicalization and synthetic
+HMAC-SHA256 verification, including tests for missing keys, altered records
+and an explicit replay acceptance vector. It **does not encrypt user data**, bind
+a KeyStore key to biometrics, prevent inter-process rollback or meet the
+Bitwarden zero-knowledge design. The separate AndroidKeyStore lab adapter is
+also not wired to any data or application installation.
+
+See `docs/security/BITWARDEN_GRADE_SECURITY_GATES.md` for threat modeling,
+crypto/key management, independent auditing and release gates.
