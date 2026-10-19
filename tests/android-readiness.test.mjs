@@ -121,3 +121,18 @@ test('native coroutine coordinator is lifecycle-gated and cannot disable protect
  assert.doesNotMatch(host,/suspend fun disable/);
  assert.doesNotMatch(app,/NativeLockAndroidLabSession|SuspendingNativeLockCoordinator/);
 });
+
+test('native DataStore observation revokes sessions but cannot grant access',()=>{
+ const store=read('tooling/native-lock-spike/src/main/kotlin/com/negresco/finance/security/DataStoreLockRecordRepository.kt');
+ const coordinator=read('tooling/native-lock-spike/src/main/kotlin/com/negresco/finance/security/SuspendingNativeLockCoordinator.kt');
+ const host=read('tooling/native-lock-android-lab/src/main/kotlin/com/negresco/finance/security/NativeLockAndroidLabSession.kt');
+ assert.match(store,/fun observe\(\): Flow<NativeLockObservation>/);
+ assert.match(store,/NativeLockObservation\.StorageError/);
+ assert.match(store,/\.distinctUntilChanged\(\)/);
+ assert.match(coordinator,/fun onPersistentStateChanged\(event: NativeLockObservation\)/);
+ assert.match(coordinator,/unlockedRevision != record\.revision/);
+ assert.match(host,/\.observe\(\)\.collect/);
+ assert.match(host,/coordinator\.onPersistentStateChanged\(event\)/);
+ assert.match(host,/observationScope\.cancel\(\)/);
+ assert.match(coordinator,/suspend fun disable\(\): LockResult = LockResult\.DENIED/);
+});
