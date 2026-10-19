@@ -74,3 +74,8 @@ test('overlapping preference retries are versioned and stale failures ignored',(
  assert.match(hook,/const attemptEpoch=\+\+epoch\.current;/);
  assert.match(hook,/if\(active\.current&&attemptEpoch===epoch\.current\)\{/);
 });
+
+test('biometric authentication cannot overlap with SecureStore prompt or background',()=>{
+ const hook=readFileSync(new URL('../apps/mobile/security/useLocalAppLock.ts',import.meta.url),'utf8');
+ assert.match(hook,/if\(authenticating\.current\|\|protectedNativePrompt\.current\|\|!active\.current\|\|appState\.current!=='active'\)return false;/);
+});
