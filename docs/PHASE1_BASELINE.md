@@ -35,6 +35,8 @@ Status: **em andamento**. Esta fase é pré-requisito para iniciar a Fase 2 (con
 - [x] Recuperação da leitura inicial da preferência após background: ao retornar ao primeiro plano, um novo carregamento substitui o resultado invalidado. Teste de regressão no CI, **QA-40 físico pendente**.
 - [x] [Contrato nativo de persistência do bloqueio](security/NATIVE_LOCK_PERSISTENCE_V1.md) documentado com critérios de transação, migração e homologação. **É somente arquitetura: módulo Kotlin/DataStore ainda não implementado.**
 
+- [x] Gate do GitHub Actions reforçado: builds de push/feature branch geram somente artefatos; GitHub Release candidato exige disparo manual em `main` com `publish_release=true`. Política testada no CI; **não revoga releases antigos automaticamente**.
+
 ## Ainda pendente para concluir a Fase 1
 - [ ] **Homologação no Samsung:** executar [roteiro de QA da V3.1](ANDROID_QA_V3.1.md), registrar falhas e corrigi-las. Sem execução física não declarar aprovado.
   - [x] Ferramenta **somente leitura** de pré-diagnóstico ADB/versão/hash preparada para Windows; sem validação física até o usuário executar no Samsung.
