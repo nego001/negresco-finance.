@@ -58,6 +58,9 @@ Status: **em andamento**. Esta fase é pré-requisito para iniciar a Fase 2 (con
 
 - [x] Detecção de retrocesso de revisão DataStore no laboratório: revisão menor ou alteração com mesma revisão encerra autenticação pela vida da Activity; leituras pré/pós-biometria também verificam. **Não detecta rollback entre processos, sem Keystore nem QA físico.**
 
+- [x] Protótipo HMAC-SHA256 de integridade do estado nativo, codificação canônica e verificação constante de MAC. Adaptador Android Keystore independente com provisão explícita somente sintética; 15 cenários JVM testam adulteração, chave ausente e reprodução de registro antigo (que **ainda é aceito**). **Não protege o banco financeiro nem equivale ao Bitwarden.**
+- [ ] Meta Bitwarden ou superior: requisitos e bloqueios de release documentados em `docs/security/BITWARDEN_GRADE_SECURITY_GATES.md`. Exige criptografia real, gestão de chaves, auditoria externa e testes móveis antes de qualquer alegação de equivalência.
+
 ## Ainda pendente para concluir a Fase 1
 - [ ] **Homologação no Samsung:** executar [roteiro de QA da V3.1](ANDROID_QA_V3.1.md), registrar falhas e corrigi-las. Sem execução física não declarar aprovado.
   - [x] Ferramenta **somente leitura** de pré-diagnóstico ADB/versão/hash preparada para Windows; sem validação física até o usuário executar no Samsung.
