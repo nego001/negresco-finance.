@@ -35,7 +35,12 @@ internal class NativeLockAndroidLabSession(
       try {
         // Observe the SAME process-scoped DataStore instance used for writes.
         // No event here can grant access, only revoke a stale UI session.
-        NativeLockAndroidStore.get(activity).observe().collect { event ->
+        val repository = NativeLockAndroidStore.get(activity)
+        // On process restart, a PREPARED marker is rearmed to enabled=true
+        // BEFORE the first healthy observer event can allow authentication.
+        // This does not finalize opt-out or remove the user's legacy settings.
+        repository.recoverPreparedDisable()
+        repository.observe().collect { event ->
           coordinator.onPersistentStateChanged(event)
         }
         // Even a clean (unexpected) stream completion means monitoring ended.
