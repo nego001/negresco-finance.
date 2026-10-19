@@ -2,15 +2,15 @@
 
 ## Estado atual
 Projeto Expo ID: `a506611f-a159-4341-bed7-28dcbd47bf95`.
-O aplicativo Android v0.2.0 esta configurado para `https://u.expo.dev/a506611f-a159-4341-bed7-28dcbd47bf95`, runtime pela versao do app e canal `preview`.
+O aplicativo Android V3.1.0 esta configurado para `https://u.expo.dev/a506611f-a159-4341-bed7-28dcbd47bf95`, runtime pela versao do app e canal `preview`.
 **Ainda nao ha confirmacao de APK OTA instalado, canal ligado a branch ou atualizacao recebida no dispositivo.**
 
 ## Preparacao segura
 1. Confirmar no painel Expo que o proprietario da organizacao em `app.json` corresponde ao slug real da organizacao. Se diferente, corrigir `expo.owner` antes de publicar.
 2. Em Expo > Updates, configurar o canal `preview` para a branch `preview`. Canal e branch sao objetos distintos.
 3. Criar um token de acesso Expo de escopo minimo apropriado. Adiciona-lo **somente** como secret `EXPO_TOKEN` no repositorio GitHub (Settings > Secrets and variables > Actions). Nunca colocar o token no codigo, prints ou chat.
-4. Acessar Actions > Android APK (P0), verificar se a build Android v0.2.0 com configuracao Expo foi concluida e publicada. Instalar essa build no Samsung e confirmar abertura e compatibilidade de assinatura. O APK antigo nao tem OTA.
-5. Quando estiver pronto para testar uma alteracao JS, executar Actions > Publish OTA Preview > Run workflow, fornecendo mensagem de alteracao.
+4. Acessar Actions > Android APK (V3.1 candidate) e verificar se a compilação publicada corresponde ao APK de teste desejado. Conferir **certificado e versionCode** antes de instalar sobre qualquer app existente; assinatura Debug pode ser incompatível com o APK atual. Consulte [assinatura Android](ANDROID_SIGNING_V3_1.md).
+5. Somente depois de confirmar runtime `3.1.0`, conta Expo, canal e instalação compatível no Samsung, executar Actions > Publish OTA Preview > Run workflow, fornecendo mensagem de alteração. Não tentar usar OTA para adicionar bibliotecas Android nativas.
 6. Abrir o app, reiniciar conforme necessario, conferir se recebeu a atualizacao, e testar recuperacao. So depois considerar outros canais.
 
 ## Limites e protecoes

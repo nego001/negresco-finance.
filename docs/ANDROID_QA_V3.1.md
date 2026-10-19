@@ -38,6 +38,10 @@
 | QA-20 | Abrir o alternador de apps e voltar ao Negresco Finance | Valores e textos temporários são apagados; o app não bloqueia capturas de tela nem substitui autenticação |
 | QA-21 | Rodar o diagnóstico ADB somente leitura antes da homologação | Detecta modelo, Android e versão instalada; não instala nem apaga dados do aparelho |
 | QA-22 | Verificar SHA-256 do APK baixado contra o Release | Hash do APK corresponde ao arquivo publicado; caso haja assinatura incompatível, não forçar reinstalação |
+| QA-23 | Consultar **APK-SIGNATURE.txt** de um candidato normal | Certificado é identificado como Android Debug, nunca anunciado como release definitiva |
+| QA-24 | Depois de configurar uma chave permanente, compilar duas versões de teste com a **mesma** assinatura | Certificado SHA-256 correspondente à variável protegida, versões compatíveis e atualização sem perder dados fictícios. Ainda pendente até a configuração real. |
+
+Para saber como preparar a assinatura permanente sem divulgar segredos, consulte [Assinatura Android V3.1](ANDROID_SIGNING_V3_1.md). **Não marcar QA-24 como aprovado por existir apenas código ou documentação.**
 
 ## Como registrar problemas
 
