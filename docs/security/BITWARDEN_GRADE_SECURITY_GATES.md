@@ -59,3 +59,17 @@ pelo adversário.
 2. Modelo de chaves/criptografia do banco e migração sem perda de dados, com revisão de especialistas antes de implementar.
 3. Protótipo Android instrumentado com dados descartáveis: biometria, lifecycle, KeyStore, StrongBox quando suportado, troca de inscrição biométrica, recuperação e integridade.
 4. Auditoria OWASP MASVS/MASTG e avaliação independente antes de chamar o sistema de pronto.
+
+## Atualização do laboratório: AES-GCM por registro
+
+Foi adicionado `FinancialRecordEnvelopeV1.kt` com AES-256-GCM sintético e um
+adaptador Android Keystore `AndroidKeystoreFinancialEnvelopeLab.kt`. Seu
+escopo é unicamente a cifragem autenticada de **conteúdo descartável** em
+memória; a versão 3.1.2 não tem banco financeiro persistente e o protótipo
+não está integrado no Expo. O laboratório usa uma chave sem exigência de
+biometria, de propósito, para testar isoladamente o primitive AEAD. Ele
+não satisfaz G02 (banco/WAL/backups), G03 (gerência completa de chaves),
+G04 (CryptoObject), G06 (rollback confiável), G08 (E2EE) ou G12 (auditoria).
+Nenhum gate mudou de BLOQUEADO para aprovado.
+
+Ver `FINANCIAL_RECORD_ENVELOPE_LAB_V1.md` para riscos residuais e testes.
