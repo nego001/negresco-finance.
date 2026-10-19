@@ -165,5 +165,6 @@ fun main() {
     runSuspendingCoordinatorScenarios()
     runOptOutInterleavingScenarios()
     runLockIntegrityScenarios()
+    runFinancialEnvelopeScenarios()
   }
 }
