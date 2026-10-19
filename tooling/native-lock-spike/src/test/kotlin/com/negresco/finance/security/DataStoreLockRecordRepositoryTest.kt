@@ -217,5 +217,103 @@ internal suspend fun runDataStoreScenarios() {
     } finally { h.close() }
   }
 
-  println("PASS: 15 real DataStore and legacy migration scenarios (isolated JVM only)")
+  // 16. A prepared opt-out NEVER commits disabled, and blocks later state writes.
+  checkOne { file ->
+    val h = DataStoreHarness(file)
+    try {
+      seedSyntheticRecord(h)
+      val prepared = h.repository.prepareDisable(3L)
+      check(prepared == LockRecord(1, true, 4L, disablePending = true))
+      check(h.repository.read() == prepared)
+      check(runCatching { h.repository.compareAndSet(4L, false) }
+        .exceptionOrNull() is PendingNativeLockDisable)
+    } finally { h.close() }
+  }
+
+  // 17. A crash/reopen with pending opt-out ALWAYS retains the lock.
+  checkOne { file ->
+    val first = DataStoreHarness(file)
+    try {
+      seedSyntheticRecord(first, 11L)
+      check(first.repository.prepareDisable(11L) ==
+        LockRecord(1, true, 12L, disablePending = true))
+    } finally { first.close() }
+    val reopened = DataStoreHarness(file)
+    try {
+      check(reopened.repository.read() == LockRecord(1, true, 12L, disablePending = true))
+      check(reopened.repository.recoverPreparedDisable() == LockRecord(1, true, 13L))
+    } finally { reopened.close() }
+    val again = DataStoreHarness(file)
+    try { check(again.repository.read() == LockRecord(1, true, 13L)) }
+    finally { again.close() }
+  }
+
+  // 18. Recovery is idempotent and does not rewrite a healthy record.
+  checkOne { file ->
+    val h = DataStoreHarness(file)
+    try {
+      seedSyntheticRecord(h)
+      check(h.repository.recoverPreparedDisable() == LockRecord(1, true, 3L))
+      check(h.repository.prepareDisable(3L).disablePending)
+      check(h.repository.recoverPreparedDisable() == LockRecord(1, true, 5L))
+      check(h.repository.recoverPreparedDisable() == LockRecord(1, true, 5L))
+    } finally { h.close() }
+  }
+
+  // 19. Two racing preparations cannot create a second opt-out commit.
+  checkOne { file ->
+    val h = DataStoreHarness(file)
+    try {
+      seedSyntheticRecord(h)
+      val outcome = coroutineScope {
+        val a = async { runCatching { h.repository.prepareDisable(3L) } }
+        val b = async { runCatching { h.repository.prepareDisable(3L) } }
+        listOf(a.await(), b.await())
+      }
+      check(outcome.count { it.isSuccess } == 1)
+      check(outcome.count { it.exceptionOrNull() is StaleNativeLockRevision } == 1)
+      check(h.repository.read() == LockRecord(1, true, 4L, disablePending = true))
+    } finally { h.close() }
+  }
+
+  // 20. A disabled record carrying pending=true is corrupt, not opted out.
+  checkOne { file ->
+    val h = DataStoreHarness(file)
+    try {
+      h.raw.updateData {
+        mutablePreferencesOf(
+          NativeLockDataStoreKeys.version to LOCK_RECORD_VERSION,
+          NativeLockDataStoreKeys.enabled to false,
+          NativeLockDataStoreKeys.revision to 2L,
+          NativeLockDataStoreKeys.disablePending to true
+        )
+      }
+      check(runCatching { h.repository.read() }.exceptionOrNull() is InvalidNativeLockRecord)
+      check(runCatching { h.repository.recoverPreparedDisable() }
+        .exceptionOrNull() is InvalidNativeLockRecord)
+    } finally { h.close() }
+  }
+
+  // 21. Legacy migration does not overwrite an existing pending native state.
+  checkOne { file ->
+    val h = DataStoreHarness(file)
+    try {
+      seedSyntheticRecord(h)
+      val pending = h.repository.prepareDisable(3L)
+      check(h.repository.migrateLegacyLocked("disabled", "bad-journal") == pending)
+    } finally { h.close() }
+  }
+
+  // 22. Already disabled protection cannot stage a second opt-out.
+  checkOne { file ->
+    val h = DataStoreHarness(file)
+    try {
+      seedSyntheticRecord(h)
+      h.repository.compareAndSet(3L, false)
+      check(runCatching { h.repository.prepareDisable(4L) }
+        .exceptionOrNull() is PendingNativeLockDisable)
+      check(h.repository.read() == LockRecord(1, false, 4L))
+    } finally { h.close() }
+  }
+  println("PASS: 22 real DataStore and legacy migration scenarios (isolated JVM only)")
 }
