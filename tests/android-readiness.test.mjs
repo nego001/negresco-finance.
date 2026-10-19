@@ -231,3 +231,27 @@ test('Bitwarden-grade release target stays explicitly unverified and lab cryptog
  assert.match(runner,/runLockIntegrityScenarios\(\)/);
  assert.doesNotMatch(mobile,/AndroidKeystoreLockIntegrity|LockRecordIntegrity/);
 });
+
+test('financial AES-GCM envelope is isolated, authenticated, and not shipped in Expo',()=>{
+ const core=read('tooling/native-lock-spike/src/main/kotlin/com/negresco/finance/security/FinancialRecordEnvelopeV1.kt');
+ const lab=read('tooling/native-lock-android-lab/src/main/kotlin/com/negresco/finance/security/AndroidKeystoreFinancialEnvelopeLab.kt');
+ const test=read('tooling/native-lock-spike/src/test/kotlin/com/negresco/finance/security/FinancialRecordEnvelopeV1Test.kt');
+ const runner=read('tooling/native-lock-spike/src/test/kotlin/com/negresco/finance/security/NativeLockCoordinatorTest.kt');
+ const mobile=read('apps/mobile/app.json');
+ assert.match(core,/AES\/GCM\/NoPadding/);
+ assert.match(core,/TAG_SIZE = 16/);
+ assert.match(core,/NONCE_SIZE = 12/);
+ assert.match(core,/writeUtf8\(out, context\.logicalId\)/);
+ assert.match(core,/out\.writeLong\(context\.revision\)/);
+ assert.match(core,/input\.available\(\) != length/);
+ assert.match(core,/FinancialEnvelopeKeyUnavailable/);
+ assert.match(lab,/KeyProperties\.KEY_ALGORITHM_AES/);
+ assert.match(lab,/setKeySize\(256\)/);
+ assert.match(lab,/setBlockModes\(KeyProperties\.BLOCK_MODE_GCM\)/);
+ assert.match(lab,/setRandomizedEncryptionRequired\(true\)/);
+ assert.match(lab,/provisionForSyntheticLabOnly/);
+ assert.match(lab,/getKey\(KEY_ALIAS, null\)/);
+ assert.match(test,/Explicit replay limit/);
+ assert.match(runner,/runFinancialEnvelopeScenarios\(\)/);
+ assert.doesNotMatch(mobile,/FinancialRecordEnvelopeV1|AndroidKeystoreFinancialEnvelopeLab/);
+});
