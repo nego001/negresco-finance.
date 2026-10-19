@@ -3,7 +3,14 @@ plugins {
 }
 
 repositories {
+  google()
   mavenCentral()
+}
+
+dependencies {
+  // Portable (Android-free) DataStore contract. Not linked into apps/mobile.
+  implementation("androidx.datastore:datastore-preferences-core:1.2.1")
+  implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
 }
 
 tasks.register<JavaExec>("policyCheck") {
