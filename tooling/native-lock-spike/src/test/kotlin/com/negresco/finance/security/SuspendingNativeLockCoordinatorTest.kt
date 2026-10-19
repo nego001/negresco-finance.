@@ -506,5 +506,32 @@ internal suspend fun runSuspendingCoordinatorScenarios() {
     check(!c.snapshot().unlocked)
     check(c.unlock() == LockResult.DENIED)
   }
-  println("PASS: 31 suspending native lock coordinator scenarios (isolated JVM only)")
+  // 32. An old read cannot start a new biometric prompt while Flow lags.
+  withCoordinatorStore { repo, raw ->
+    var prompts = 0
+    val c = SuspendingNativeLockCoordinator(
+      repo, requireLiveObservation = true,
+      biometric = SuspendedStrongBiometry { prompts++; true })
+    c.onForeground()
+    check(!c.onPersistentStateChanged(NativeLockObservation.Record(repo.read()!!)))
+    setSyntheticRecord(raw, revision = 2L, enabled = true)
+    check(c.unlock() == LockResult.STORAGE_ERROR)
+    check(prompts == 0)
+    check(c.snapshot().storageError)
+  }
+  // 33. An old AFTER-prompt read cannot complete an unlock.
+  withCoordinatorStore { repo, raw ->
+    lateinit var c: SuspendingNativeLockCoordinator
+    c = SuspendingNativeLockCoordinator(
+      repo, requireLiveObservation = true,
+      biometric = SuspendedStrongBiometry {
+        setSyntheticRecord(raw, revision = 2L, enabled = true)
+        true
+      })
+    c.onForeground()
+    check(!c.onPersistentStateChanged(NativeLockObservation.Record(repo.read()!!)))
+    check(c.unlock() == LockResult.STORAGE_ERROR)
+    check(c.snapshot().storageError && !c.snapshot().unlocked)
+  }
+  println("PASS: 33 suspending native lock coordinator scenarios (isolated JVM only)")
 }
