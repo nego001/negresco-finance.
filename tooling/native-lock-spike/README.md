@@ -19,7 +19,7 @@ the test verifier into a shipped app.
 - Rejection of delayed biometric completions after a session generation change.
 - Refusal of concurrent/reentrant biometric prompts.
 - A typed atomic-update store contract for later integration with DataStore.
-- 10 offline JVM scenarios in `NativeLockCoordinatorTest.kt`.
+- 16 offline JVM scenarios in `NativeLockCoordinatorTest.kt`; the older synchronous coordinator now refuses DISABLE before any prompt and revokes old grants on storage failure.
 - A separate `DataStoreLockRecordRepository` uses the real AndroidX DataStore API (`datastore-preferences-core:1.2.1`) for atomic compare-and-set of version, enabled and revision in one transactional snapshot.
 - 22 persistent DataStore, opt-out preparation/recovery and legacy-migration JVM scenarios, including restart, races, corrupt records, one-time locked migration and refusal to migrate legacy off/null silently.
 - 28 coroutine coordinator scenarios, including revocation on externally changed revisions, missing/corrupt DataStore records, background events, cancellation and overlapping prompts. The Android adapters exist only in the separate, non-Expo lab.
@@ -33,7 +33,7 @@ gradle -p tooling/native-lock-spike policyCheck --no-daemon
 ```
 
 The CI job `native-lock-spike` compiles the Kotlin project and executes the
-10 policy scenarios plus 22 DataStore/migration scenarios plus 28 coroutine coordinator scenarios. Passing this job is **not** an Android APK compile or device QA. DataStore returns after durable write, but using it alone does not prove that a biometric request remains valid until commit.
+16 policy scenarios plus 22 DataStore/migration scenarios plus 28 coroutine coordinator scenarios, plus 3 deterministic interrupted-write scenarios. Passing this job is **not** an Android APK compile or device QA. DataStore returns after durable write, but using it alone does not prove that a biometric request remains valid until commit.
 
 ## Non-negotiable gates before Expo integration
 
@@ -64,3 +64,19 @@ The lab's actual `disable()` still returns `DENIED`. This phase is not
 exposed by the Android Activity adapter, is not included in any APK, and
 is not authorization for financial-data access. The final opt-out commit
 requires a separate lifecycle-linearization and cryptographic review.
+
+
+## Legacy bypass closed and interrupt matrix
+
+The older synchronous `NativeLockCoordinator` used to accept DISABLE in its
+synthetic store, despite the Android coroutine coordinator returning DENIED.
+Both policy coordinators now deny final opt-out. The synchronous path also
+binds unlocked sessions to record revisions and revokes on failed storage.
+
+`OptOutInterleavingTest.kt` models interrupted DataStore updates on both
+sides of persistence, plus cancellation after a pending write. All three
+scenarios preserve `enabled=true` and allow safe rearming. An Activity
+that expires mid-write no longer receives a misleading `PREPARED` result.
+
+These synthetic JVM scenarios do not prove linearizable Android `onStop` or
+make a safe `enabled=false` commit possible. Final opt-out stays blocked.
