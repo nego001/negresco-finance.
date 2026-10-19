@@ -107,9 +107,17 @@ test('native coroutine coordinator is lifecycle-gated and cannot disable protect
  assert.match(policy,/suspend fun enable\(\): LockResult = requestMutex\.withLock/);
  assert.match(policy,/suspend fun unlock\(\): LockResult = requestMutex\.withLock/);
  assert.match(policy,/suspend fun disable\(\): LockResult = LockResult\.DENIED/);
+ assert.match(policy,/private var unlockedRevision: Long\? = null/);
+ assert.match(policy,/unlockedRevision != record\.revision/);
+ assert.match(policy,/unlockedRevision == record\.revision/);
+ assert.match(policy,/unlockedRevision = null/);
+
  assert.match(host,/StrongBiometricPrompt\(activity\)/);
  assert.match(host,/SuspendingNativeLockCoordinator\(/);
  assert.match(host,/override fun onStop\(owner: LifecycleOwner\)/);
+ assert.match(read('tooling/native-lock-android-lab/src/main/kotlin/com/negresco/finance/security/StrongBiometricPrompt.kt'),
+   /complete\(activity\.lifecycle\.currentState\.isAtLeast\(Lifecycle\.State\.RESUMED\)\)/);
+
  assert.doesNotMatch(host,/suspend fun disable/);
  assert.doesNotMatch(app,/NativeLockAndroidLabSession|SuspendingNativeLockCoordinator/);
 });
