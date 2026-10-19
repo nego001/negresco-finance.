@@ -30,7 +30,7 @@ Status: **em andamento**. Esta fase é pré-requisito para iniciar a Fase 2 (con
   - [ ] [Issue #5](https://github.com/nego001/negresco-finance./issues/5): executar QA-35/QA-36 para screenshot, gravação e miniatura no Samsung. Ainda sem confirmação de proteção real em hardware.
   - [ ] [Issue #3](https://github.com/nego001/negresco-finance./issues/3): homologar autenticação Android real, e depois vincular chaves ao Keystore e ao futuro SQLCipher. Não declarar liberado apenas com CI verde.
 
-- [x] Mitigação de desativação interrompida: marcador persistente `disable-pending`, tratamento de sessão revogada, tentativa de restauração e testes de falha. **Não é transação atômica: fechamento abrupto durante gravação final continua risco residual de opt-out inesperado.**
+- [x] Mitigação de desativação interrompida: diário independente `optout.v1=pending` com prioridade no boot, marcador `disable-pending`, tentativas de restauração e testes simulados de morte do processo. **Ainda não é transação atômica: encerramento durante a exclusão final do diário permanece risco residual de opt-out inesperado.**
 
 ## Ainda pendente para concluir a Fase 1
 - [ ] **Homologação no Samsung:** executar [roteiro de QA da V3.1](ANDROID_QA_V3.1.md), registrar falhas e corrigi-las. Sem execução física não declarar aprovado.
