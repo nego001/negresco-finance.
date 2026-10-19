@@ -4,7 +4,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as LocalAuthentication from 'expo-local-authentication';
 import {
  LOCAL_LOCK_PREF_KEY,parseLocalLockPreference,isStrongBiometryAvailable,
- canFinishAuthentication,shouldCoverAndLockOnState,shouldInvalidateLocalSession,type LocalLockStatus
+ canFinishAuthentication,shouldCoverAndLockOnState,shouldInvalidateLocalSession,
+ persistBiometricOptOut,type LocalLockStatus
 } from './localLockPolicy';
 
 /**
@@ -133,13 +134,17 @@ export function useLocalAppLock(){
   const ticket=epoch.current;
   if(!await verifyStrong('Desativar bloqueio biométrico'))return;
   if(!canFinishAuthentication(true,ticket,epoch.current,appState.current))return;
-  try{
-   await AsyncStorage.removeItem(LOCAL_LOCK_PREF_KEY);
-   // Do not reopen UI after a background transition during storage I/O.
-   if(active.current&&canFinishAuthentication(true,ticket,epoch.current,appState.current))setStatus('off');
-   else if(active.current)setStatus('error');
-  }catch{
-   if(active.current)setMessage('Falha ao desativar a proteção. O bloqueio permanece habilitado.');
+  const valid=()=>active.current&&canFinishAuthentication(true,ticket,epoch.current,appState.current);
+  const outcome=await persistBiometricOptOut(AsyncStorage,valid);
+  if(!active.current)return;
+  if(outcome==='disabled'&&valid()){
+   setStatus('off');
+  }else if(outcome==='failed'){
+   setStatus('error');
+   setMessage('O estado salvo da proteção não pôde ser confirmado. O acesso foi bloqueado; tente verificar novamente.');
+  }else{
+   setStatus('locked');
+   setMessage('A desativação foi interrompida. Confirme a biometria novamente antes de desativar.');
   }
  },[status,verifyStrong]);
 
