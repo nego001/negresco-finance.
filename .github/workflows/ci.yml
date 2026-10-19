@@ -58,4 +58,4 @@ jobs:
       - name: Verify Android SDK
         run: test -d "${ANDROID_HOME:?Android SDK unavailable}" && test -d "$ANDROID_HOME/platforms/android-35"
       - name: Compile pinned SQLCipher Android library (no APK, no emulator)
-        run: gradle -p tooling/sqlcipher-android-lab compileDebugKotlin --no-daemon
+        run: gradle -p tooling/sqlcipher-android-lab compileDebugKotlin compileDebugAndroidTestKotlin --no-daemon
