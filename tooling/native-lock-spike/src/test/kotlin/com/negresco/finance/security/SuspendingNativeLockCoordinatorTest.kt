@@ -8,6 +8,10 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.collect
 import java.io.File
 import java.nio.file.Files
 import kotlinx.coroutines.CoroutineScope
@@ -244,5 +248,68 @@ internal suspend fun runSuspendingCoordinatorScenarios() {
     check(!c.snapshot().unlocked)
     check(c.unlock() == LockResult.SUCCESS)
   }
-  println("PASS: 15 suspending native lock coordinator scenarios (isolated JVM only)")
+  // 16. Live persisted revision change revokes a grant WITHOUT a snapshot read.
+  withCoordinatorStore { repo, _ ->
+    val c = SuspendingNativeLockCoordinator(repo) { true }
+    c.onForeground()
+    coroutineScope {
+      val signals = Channel<Boolean>(Channel.UNLIMITED)
+      val watch = launch {
+        repo.observe().collect { event ->
+          signals.send(c.onPersistentStateChanged(event))
+        }
+      }
+      try {
+        check(!withTimeout(5000L) { signals.receive() }) // Initial record.
+        check(c.unlock() == LockResult.SUCCESS)
+        repo.compareAndSet(3L, true)
+        check(withTimeout(5000L) { signals.receive() }) // Revision change revoked.
+        check(!c.snapshot().unlocked)
+        check(c.unlock() == LockResult.SUCCESS)
+      } finally { watch.cancelAndJoin() }
+    }
+  }
+
+  // 17. A malformed native record emits a fail-closed event and revokes.
+  withCoordinatorStore { repo, raw ->
+    val c = SuspendingNativeLockCoordinator(repo) { true }
+    c.onForeground()
+    coroutineScope {
+      val signals = Channel<Pair<NativeLockObservation, Boolean>>(Channel.UNLIMITED)
+      val watch = launch {
+        repo.observe().collect { event ->
+          signals.send(event to c.onPersistentStateChanged(event))
+        }
+      }
+      try {
+        check(withTimeout(5000L) { signals.receive() }.first is NativeLockObservation.Record)
+        check(c.unlock() == LockResult.SUCCESS)
+        raw.updateData { mutablePreferencesOf(NativeLockDataStoreKeys.enabled to false) }
+        val (event, revoked) = withTimeout(5000L) { signals.receive() }
+        check(event == NativeLockObservation.StorageError && revoked)
+      } finally { watch.cancelAndJoin() }
+    }
+  }
+
+  // 18. A deleted persisted record also revokes an existing grant immediately.
+  withCoordinatorStore { repo, raw ->
+    val c = SuspendingNativeLockCoordinator(repo) { true }
+    c.onForeground()
+    coroutineScope {
+      val signals = Channel<Pair<NativeLockObservation, Boolean>>(Channel.UNLIMITED)
+      val watch = launch {
+        repo.observe().collect { event ->
+          signals.send(event to c.onPersistentStateChanged(event))
+        }
+      }
+      try {
+        check(withTimeout(5000L) { signals.receive() }.first is NativeLockObservation.Record)
+        check(c.unlock() == LockResult.SUCCESS)
+        raw.updateData { mutablePreferencesOf() }
+        val (event, revoked) = withTimeout(5000L) { signals.receive() }
+        check(event == NativeLockObservation.Missing && revoked)
+      } finally { watch.cancelAndJoin() }
+    }
+  }
+  println("PASS: 18 suspending native lock coordinator scenarios (isolated JVM only)")
 }
