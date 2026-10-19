@@ -48,6 +48,8 @@ Status: **em andamento**. Esta fase é pré-requisito para iniciar a Fase 2 (con
 
 - [x] Observação reativa do DataStore no laboratório Android: alterações de revisão, registro inválido ou ausente revogam a sessão de interface quando recebidas; verificação por leitura direta permanece como segunda barreira. **Não integrado ao APK, sem prova criptográfica ou QA físico.**
 
+- [x] Gate de saúde do observador DataStore no laboratório Android: sem primeira emissão válida não há autenticação; observação ausente, corrompida ou interrompida trava a autorização pela vida da Activity. Preferência válida `enabled=false` segue habilitável mediante biometria. Testes JVM adicionais; **sem integração com APK 3.1.2 ou QA Samsung**.
+
 ## Ainda pendente para concluir a Fase 1
 - [ ] **Homologação no Samsung:** executar [roteiro de QA da V3.1](ANDROID_QA_V3.1.md), registrar falhas e corrigi-las. Sem execução física não declarar aprovado.
   - [x] Ferramenta **somente leitura** de pré-diagnóstico ADB/versão/hash preparada para Windows; sem validação física até o usuário executar no Samsung.
