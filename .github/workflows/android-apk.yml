@@ -88,7 +88,7 @@ jobs:
           unzip -t "$APK" >/dev/null
           BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
           "$BUILD_TOOLS/aapt" dump badging "$APK" | grep -F "package: name='com.negresco.finance'"
-          "$BUILD_TOOLS/apksigner" verify --verbose "$APK"
+          "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK" | tee APK-SIGNATURE.txt
           sha256sum "$APK" | tee android-apk.sha256
       - name: Upload standalone APK
         uses: actions/upload-artifact@v4
@@ -97,6 +97,7 @@ jobs:
           path: |
             apps/mobile/android/app/build/outputs/apk/release/app-release.apk
             apps/mobile/android-apk.sha256
+            apps/mobile/APK-SIGNATURE.txt
           if-no-files-found: error
           retention-days: 7
 
@@ -106,16 +107,19 @@ jobs:
           mkdir -p release-package
           cp android/app/build/outputs/apk/release/app-release.apk release-package/Negresco-Finance-V3.1-candidate.apk
           cp android-apk.sha256 release-package/SHA256-original-apk.txt
+          cp APK-SIGNATURE.txt release-package/APK-SIGNATURE.txt
           cat > release-package/LEIA-ME.txt <<'EOF'
           NEGRESCO FINANCE - V3.1 (CANDIDATO DE TESTES)
           Android package: com.negresco.finance
           Instalacao: extraia o APK ou baixe o APK separado no GitHub Releases.
           Estado: interface inicial experimental; sem operacoes bancarias reais.
           Integridade: confira o SHA256 publicado nos detalhes da versao.
+          Identidade de assinatura: compare APK-SIGNATURE.txt entre versoes.
+          Esta e uma assinatura de teste; atualizacao sobre APK anterior nao e garantida.
           EOF
           cp release-package/Negresco-Finance-V3.1-candidate.apk Negresco-Finance-V3.1-candidate.apk
           (cd release-package && zip -q -9 -r ../Negresco-Finance-V3.1-candidate.zip .)
-          sha256sum Negresco-Finance-V3.1-candidate.apk Negresco-Finance-V3.1-candidate.zip > SHA256-release.txt
+          sha256sum Negresco-Finance-V3.1-candidate.apk Negresco-Finance-V3.1-candidate.zip APK-SIGNATURE.txt > SHA256-release.txt
           cat > RELEASE_NOTES.md <<'EOF'
           ## Negresco Finance V3.1 - Candidato de testes
 
@@ -125,6 +129,7 @@ jobs:
           - Negresco-Finance-V3.1-candidate.apk: instalador Android.
           - Negresco-Finance-V3.1-candidate.zip: pacote com instalador, instrucoes e hash.
           - SHA256-release.txt: verificacao de integridade dos downloads.
+          - APK-SIGNATURE.txt: identidade publica do certificado usado para assinar o APK.
 
           ### Recursos incluidos
           - Interface OLED e preferencias visuais.
@@ -137,6 +142,8 @@ jobs:
           - Sem acesso real a bancos, Pix, Reclame Aqui ou monitoramento automatico.
           - Nao usar para operacoes financeiras reais.
           - A instalacao de uma nova versao nativa e necessaria para novas dependencias.
+          - A identidade de assinatura entre compilacoes de teste ainda nao foi estabilizada. Compare APK-SIGNATURE.txt antes de tentar atualizar sobre instalacoes antigas.
+          - Nunca desinstale uma versao existente sem antes decidir como preservar os dados locais.
           EOF
       - name: Publish APK first, ZIP second in GitHub Releases
         env:
@@ -150,4 +157,4 @@ jobs:
           else
             gh release create "$TAG" --target "${GITHUB_SHA}" --title "Negresco Finance V3.1 - Candidato de testes" --notes-file RELEASE_NOTES.md --prerelease --latest=false
           fi
-          gh release upload "$TAG" Negresco-Finance-V3.1-candidate.apk Negresco-Finance-V3.1-candidate.zip SHA256-release.txt --clobber
+          gh release upload "$TAG" Negresco-Finance-V3.1-candidate.apk Negresco-Finance-V3.1-candidate.zip SHA256-release.txt APK-SIGNATURE.txt --clobber
