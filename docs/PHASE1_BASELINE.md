@@ -25,6 +25,7 @@ Status: **em andamento**. Esta fase é pré-requisito para iniciar a Fase 2 (con
 - [x] Configuração **opcional** de certificado Android persistente via Secrets implementada e protegida por testes; builds padrões continuam assinados como Debug e não são produção.
 - [x] Bloqueio visual **opt-in** por biometria forte implementado em código e com testes de política; requer o APK nativo `3.1.1` (versionCode `32`). **Ainda não validado no Samsung, não protege o banco nem os arquivos criptograficamente.**
 - [x] Diagnóstico opcional do SecureStore com `requireAuthentication=true` implementado com marcador **sintético**, leitura autenticada e tentativa de limpeza. **Não comprova hardware dedicado, Android Keystore suficiente para SQLCipher, recuperação ou E2EE**.
+- [x] Diferenciação entre prompt nativo transitório (`inactive`) e saída real (`background`), invalidando desbloqueios e resultados atrasados do diagnóstico; testes de política no CI e QA físico pendente.
 - [x] Proteção **nativa de tela** preparada com `expo-screen-capture` somente para o Guardião ou quando bloqueio biométrico estiver ativo. APK `3.1.2` / versionCode `33` pendente de homologação no Samsung; não protege PDFs exportados, telas externas nem dados armazenados.
   - [ ] [Issue #5](https://github.com/nego001/negresco-finance./issues/5): executar QA-35/QA-36 para screenshot, gravação e miniatura no Samsung. Ainda sem confirmação de proteção real em hardware.
   - [ ] [Issue #3](https://github.com/nego001/negresco-finance./issues/3): homologar autenticação Android real, e depois vincular chaves ao Keystore e ao futuro SQLCipher. Não declarar liberado apenas com CI verde.
@@ -32,7 +33,7 @@ Status: **em andamento**. Esta fase é pré-requisito para iniciar a Fase 2 (con
 ## Ainda pendente para concluir a Fase 1
 - [ ] **Homologação no Samsung:** executar [roteiro de QA da V3.1](ANDROID_QA_V3.1.md), registrar falhas e corrigi-las. Sem execução física não declarar aprovado.
   - [x] Ferramenta **somente leitura** de pré-diagnóstico ADB/versão/hash preparada para Windows; sem validação física até o usuário executar no Samsung.
-  - [ ] Executar QA-01 a QA-36 no aparelho e anexar relatório sem informações privadas (inclui biometria forte, Keystore e política de capturas).
+  - [ ] Executar QA-01 a QA-37 no aparelho e anexar relatório sem informações privadas (inclui biometria forte, Keystore, captura e concorrência de prompts).
 - [ ] **Identidade de assinatura estável:** configurar keystore de distribuição administrado com segurança fora do Git, com segredos no GitHub Actions; confirmar atualização sobre APK anterior **sem perder dados**. Nunca publicar chave privada no repositório.
   - [x] [Procedimento de configuração e migração documentado](ANDROID_SIGNING_V3_1.md), com exigência de hash SHA-256 do certificado.
   - [ ] Criar/provisionar chave permanente fora do GitHub, executar build opt-in e testar atualização entre duas versões com a mesma assinatura.

@@ -26,6 +26,12 @@ Na tela Ajustes, depois de ativar e desbloquear a proteção da interface, é po
 5. Não existe integração de chaves reais ao Android Keystore, `setAuthenticationRequired`, SQLCipher, WebAuthn, backend, tokens de banco ou fluxo Samsung Pass.
 6. Alterações do módulo biométrico são **nativas**. Por isso o versionamento subiu para `3.1.1`/`versionCode 32` e requer novo APK; OTA para o runtime `3.1.0` não instala essa dependência.
 
+## Segurança de concorrência entre prompts e segundo plano
+
+Os prompts biométricos nativos podem produzir um estado Android `inactive` transitório. Enquanto um prompt controlado está em andamento, esse estado não é interpretado como abandono da aplicação; já `background` sempre revoga a autorização de interface. Um resultado de desbloqueio pendente é aceito apenas se a mesma tentativa ainda estiver vigente e o Android tiver retornado para `active`.
+
+O diagnóstico SecureStore também descarta seu resultado visual se o usuário sair dos Ajustes ou colocar o app em segundo plano. A limpeza do marcador fictício continua sendo tratada pelo diagnóstico, mesmo quando seu resultado não pode mais ser exibido. O teste não cria autorização para usar chaves reais.
+
 ## Homologação no Samsung
 
 Usar apenas dados fictícios: verificar primeira abertura sem bloqueio, ativação mediante digital forte, reinício bloqueado, cancelamento, impressão errada, envio para segundo plano, retorno, bloqueio manual e desativação autenticada. Testar aparelho sem impressão cadastrada e reconhecer mensagem clara, sem abrir indevidamente após tentativas falhas.

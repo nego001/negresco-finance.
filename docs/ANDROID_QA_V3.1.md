@@ -52,6 +52,7 @@
 | QA-34 | Conferir logs e armazenamento temporário após o diagnóstico | Nenhum segredo financeiro gravado; mensagem não afirma SQLCipher, StrongBox nem zero-knowledge |
 | QA-35 | No Android, abrir Guardião e tentar capturar print, gravar tela ou abrir o alternador de apps | O conteúdo do Guardião não deve aparecer na captura/gravação nem na miniatura dos aplicativos recentes |
 | QA-36 | Ativar biometria forte, testar captura nas demais telas e depois desativar o bloqueio | Com proteção ativa o app não deve ser capturável; após desativá-la, a tela Início pode ser capturada normalmente. O Guardião continua protegido |
+| QA-37 | Durante o prompt biométrico do desbloqueio ou Keystore, alternar de app e retornar | Estado `inactive` temporário do prompt não gera aprovação falsa; `background` invalida autenticação e o resultado do diagnóstico não reaparece como válido |
 
 O QA-35 e QA-36 só podem ser aprovados com teste físico no Samsung, verificando inclusive as miniaturas do Android. A proteção nativa depende da aplicação efetiva do `FLAG_SECURE`; capturas anteriores e PDFs já compartilhados não são protegidos retroativamente.
 

@@ -87,7 +87,11 @@ test('failed write attempts cleanup without leaking a false pass',async()=>{
 test('keystore test is manual from unlocked settings and does not run on startup',()=>{
  const app=readFileSync(new URL('../apps/mobile/App.tsx',import.meta.url),'utf8');
  assert.match(app,/runKeystoreProbe\(SecureStore,LocalAuthentication,Platform\.OS\)/);
- assert.match(app,/if\(localLock\.status!=='unlocked'\|\|keystoreProbeBusy\)return/);
+ assert.match(app,/localLock\.withProtectedNativePrompt/);
+ assert.match(app,/const ticket=\+\+keystoreProbeEpoch\.current/);
+ assert.match(app,/next==='background'/);
+ assert.match(app,/ticket===keystoreProbeEpoch\.current&&AppState\.currentState==='active'/);
+ assert.match(app,/if\(localLock\.status!=='unlocked'\|\|keystoreProbeRunning\.current\|\|AppState\.currentState!=='active'\)return/);
  assert.match(app,/onPress=\{checkKeystore\}/);
  assert.doesNotMatch(app,/useEffect\(\(\)=>\{\s*runKeystoreProbe/);
 });

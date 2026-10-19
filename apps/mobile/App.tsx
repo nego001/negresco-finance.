@@ -59,16 +59,44 @@ export default function App() {
   const localLock=useLocalAppLock();
   const [keystoreProbeBusy,setKeystoreProbeBusy]=useState(false);
   const [keystoreProbeResult,setKeystoreProbeResult]=useState<KeystoreProbeResult|null>(null);
+  const keystoreProbeEpoch=useRef(0);
+  const keystoreProbeRunning=useRef(false);
   const checkKeystore=async()=>{
-    if(localLock.status!=='unlocked'||keystoreProbeBusy)return;
+    if(localLock.status!=='unlocked'||keystoreProbeRunning.current||AppState.currentState!=='active')return;
+    const ticket=++keystoreProbeEpoch.current;
+    keystoreProbeRunning.current=true;
     setKeystoreProbeBusy(true);
     setKeystoreProbeResult(null);
     try{
-      setKeystoreProbeResult(await runKeystoreProbe(SecureStore,LocalAuthentication,Platform.OS));
+      // A SecureStore authentication prompt may temporarily mark Android inactive.
+      const result=await localLock.withProtectedNativePrompt(
+        ()=>runKeystoreProbe(SecureStore,LocalAuthentication,Platform.OS));
+      if(ticket===keystoreProbeEpoch.current&&AppState.currentState==='active')
+        setKeystoreProbeResult(result);
     }catch{
-      setKeystoreProbeResult({status:'failed',message:'Falha inesperada no teste local. Nenhuma chave financeira foi criada.'});
-    }finally{setKeystoreProbeBusy(false);}
+      if(ticket===keystoreProbeEpoch.current&&AppState.currentState==='active')
+        setKeystoreProbeResult({status:'failed',message:'Falha inesperada no teste local. Nenhuma chave financeira foi criada.'});
+    }finally{
+      keystoreProbeRunning.current=false;
+      if(ticket===keystoreProbeEpoch.current)setKeystoreProbeBusy(false);
+    }
   };
+  useEffect(()=>{
+    const listener=AppState.addEventListener('change',next=>{
+      if(next==='background'){
+        keystoreProbeEpoch.current++;
+        setKeystoreProbeResult(null);
+        setKeystoreProbeBusy(false);
+      }
+    });
+    return()=>listener.remove();
+  },[]);
+  useEffect(()=>{
+    if(page!=='Ajustes'){
+      keystoreProbeEpoch.current++;
+      setKeystoreProbeResult(null);
+    }
+  },[page]);
   const [boletoLine,setBoletoLine]=useState('');
   const [boletoResult,setBoletoResult]=useState<ReturnType<typeof inspectBoleto>|null>(null);
   const [reportExportStatus,setReportExportStatus]=useState('');
