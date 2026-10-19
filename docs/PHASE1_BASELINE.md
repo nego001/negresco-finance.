@@ -46,6 +46,8 @@ Status: **em andamento**. Esta fase é pré-requisito para iniciar a Fase 2 (con
 
 - [x] Coordenador Kotlin suspendido de laboratório para desbloqueio e ativação, com verificação de época/revisão, revogação síncrona no background, vínculo do desbloqueio à revisão do DataStore e serialização de prompts. A desativação fica negada. **Não integrado ao APK, sem validação no Samsung e sem transação de opt-out segura.**
 
+- [x] Observação reativa do DataStore no laboratório Android: alterações de revisão, registro inválido ou ausente revogam a sessão de interface quando recebidas; verificação por leitura direta permanece como segunda barreira. **Não integrado ao APK, sem prova criptográfica ou QA físico.**
+
 ## Ainda pendente para concluir a Fase 1
 - [ ] **Homologação no Samsung:** executar [roteiro de QA da V3.1](ANDROID_QA_V3.1.md), registrar falhas e corrigi-las. Sem execução física não declarar aprovado.
   - [x] Ferramenta **somente leitura** de pré-diagnóstico ADB/versão/hash preparada para Windows; sem validação física até o usuário executar no Samsung.
