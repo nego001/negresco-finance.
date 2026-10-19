@@ -60,3 +60,10 @@ test('unlock and lock removal must re-check epoch after the native prompt and pe
  assert.match(hook,/await AsyncStorage\.removeItem\(LOCAL_LOCK_PREF_KEY\)/);
  assert.match(hook,/if\(active\.current&&canFinishAuthentication\(true,ticket,epoch\.current,appState\.current\)\)setStatus\('off'\)/);
 });
+
+test('stale preference reads fail closed rather than resetting lock to off',()=>{
+ const hook=readFileSync(new URL('../apps/mobile/security/useLocalAppLock.ts',import.meta.url),'utf8');
+ assert.match(hook,/if\(attemptEpoch!==epoch\.current\)\{[\s\S]*?setStatus\(prev=>prev==='loading'\?'error':prev\)/);
+ assert.match(hook,/setStatus\(enabled\?'locked':'off'\)/);
+ assert.doesNotMatch(hook,/setStatus\(enabled\?'locked':'off'\);\s*if\(attemptEpoch!==epoch\.current/);
+});
