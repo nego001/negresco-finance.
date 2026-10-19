@@ -82,6 +82,27 @@ internal class SuspendingNativeLockCoordinator(
       wasUnlocked && !unlocked
     }
 
+  /**
+   * Reads may race a delayed Flow emission. A committed revision observed by
+   * this Activity cannot legitimately move backwards or mutate in-place.
+   * This check can only DENY; a direct read never initializes the observer.
+   */
+  private fun rejectContradictoryRead(record: LockRecord): Boolean =
+    synchronized(lifecycleGuard) {
+      val last = lastObservedRecord
+      val contradiction = last != null &&
+        (record.revision < last.revision ||
+         (record.revision == last.revision && record != last))
+      if (contradiction) {
+        observationReady = false
+        observationFailed = true
+        generation++
+        unlocked = false
+        unlockedRevision = null
+      }
+      contradiction
+    }
+
   /** Called synchronously by Android lifecycle callbacks, never delayed. */
   fun onForeground() = synchronized(lifecycleGuard) {
     foreground = true
@@ -181,6 +202,8 @@ internal class SuspendingNativeLockCoordinator(
       catch (_: Exception) {
       return@withLock LockResult.STORAGE_ERROR
     } ?: return@withLock LockResult.MIGRATION_REQUIRED
+    if (rejectContradictoryRead(before)) return@withLock LockResult.STORAGE_ERROR
+    if (rejectContradictoryRead(before)) return@withLock LockResult.STORAGE_ERROR
     if (!before.enabled || before.disablePending) return@withLock LockResult.DENIED
 
     val authenticated = try { biometric.authenticate(LockAction.UNLOCK) }
@@ -193,6 +216,7 @@ internal class SuspendingNativeLockCoordinator(
       catch (_: Exception) {
       return@withLock LockResult.STORAGE_ERROR
     } ?: return@withLock LockResult.MIGRATION_REQUIRED
+    if (rejectContradictoryRead(after)) return@withLock LockResult.STORAGE_ERROR
     if (!after.enabled || after.disablePending || after.revision != before.revision)
       return@withLock LockResult.STALE
     finishUnlocked(ticket, after.revision)
@@ -208,6 +232,7 @@ internal class SuspendingNativeLockCoordinator(
       catch (_: Exception) {
       return@withLock LockResult.STORAGE_ERROR
     } ?: return@withLock LockResult.MIGRATION_REQUIRED
+    if (rejectContradictoryRead(before)) return@withLock LockResult.STORAGE_ERROR
     if (before.enabled || before.disablePending) return@withLock LockResult.DENIED
     val authenticated = try { biometric.authenticate(LockAction.ENABLE) }
       catch (cancelled: CancellationException) { throw cancelled }
