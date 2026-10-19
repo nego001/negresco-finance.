@@ -1,5 +1,6 @@
 package com.negresco.finance.security
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -63,7 +64,8 @@ internal class SuspendingNativeLockCoordinator(
   }
 
   suspend fun snapshot(): LockSnapshot {
-    val record = try { repository.read() } catch (_: Exception) {
+    val record = try { repository.read() } catch (cancelled: CancellationException) { throw cancelled }
+      catch (_: Exception) {
       return LockSnapshot(true, false, -1L, false, true)
     }
     return synchronized(lifecycleGuard) {
@@ -79,17 +81,20 @@ internal class SuspendingNativeLockCoordinator(
    */
   suspend fun unlock(): LockResult = requestMutex.withLock {
     val ticket = beginTicket() ?: return@withLock LockResult.DENIED
-    val before = try { repository.read() } catch (_: Exception) {
+    val before = try { repository.read() } catch (cancelled: CancellationException) { throw cancelled }
+      catch (_: Exception) {
       return@withLock LockResult.STORAGE_ERROR
     } ?: return@withLock LockResult.MIGRATION_REQUIRED
     if (!before.enabled) return@withLock LockResult.DENIED
 
     val authenticated = try { biometric.authenticate(LockAction.UNLOCK) }
+      catch (cancelled: CancellationException) { throw cancelled }
       catch (_: Exception) { false }
     if (!authenticated) return@withLock LockResult.DENIED
     if (!stillValid(ticket)) return@withLock LockResult.STALE
 
-    val after = try { repository.read() } catch (_: Exception) {
+    val after = try { repository.read() } catch (cancelled: CancellationException) { throw cancelled }
+      catch (_: Exception) {
       return@withLock LockResult.STORAGE_ERROR
     } ?: return@withLock LockResult.MIGRATION_REQUIRED
     if (!after.enabled || after.revision != before.revision)
@@ -103,16 +108,19 @@ internal class SuspendingNativeLockCoordinator(
    */
   suspend fun enable(): LockResult = requestMutex.withLock {
     val ticket = beginTicket() ?: return@withLock LockResult.DENIED
-    val before = try { repository.read() } catch (_: Exception) {
+    val before = try { repository.read() } catch (cancelled: CancellationException) { throw cancelled }
+      catch (_: Exception) {
       return@withLock LockResult.STORAGE_ERROR
     } ?: return@withLock LockResult.MIGRATION_REQUIRED
     if (before.enabled) return@withLock LockResult.DENIED
     val authenticated = try { biometric.authenticate(LockAction.ENABLE) }
+      catch (cancelled: CancellationException) { throw cancelled }
       catch (_: Exception) { false }
     if (!authenticated) return@withLock LockResult.DENIED
     if (!stillValid(ticket)) return@withLock LockResult.STALE
     val committed = try { repository.compareAndSet(before.revision, true) }
       catch (_: StaleNativeLockRevision) { return@withLock LockResult.STALE }
+      catch (cancelled: CancellationException) { throw cancelled }
       catch (_: Exception) { return@withLock LockResult.STORAGE_ERROR }
     if (!committed.enabled || committed.revision != before.revision + 1L)
       return@withLock LockResult.STORAGE_ERROR
