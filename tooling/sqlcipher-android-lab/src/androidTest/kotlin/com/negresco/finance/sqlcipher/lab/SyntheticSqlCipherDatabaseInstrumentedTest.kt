@@ -123,4 +123,56 @@ class SyntheticSqlCipherDatabaseInstrumentedTest {
     }
     assertTrue(result.exceptionOrNull() is SyntheticSqlCipherDatabase.Unavailable)
   }
+
+  @Test
+  fun nativeCipherIntegrityCheckReportsHealthyPages() {
+    fixtureOwned = true
+    SyntheticSqlCipherDatabase.createFreshSynthetic(context, passphrase).use { db ->
+      db.execSQL("INSERT INTO lab_probe(id, marker) VALUES (1, 'integrity-fixture')")
+      db.rawQuery("PRAGMA cipher_integrity_check", null).use { cursor ->
+        assertTrue("Missing integrity result from native SQLCipher", cursor.moveToFirst())
+        assertEquals("ok", cursor.getString(0))
+      }
+    }
+  }
+
+  @Test
+  fun rolledBackTransactionDoesNotReappearAfterKeyedReopen() {
+    fixtureOwned = true
+    SyntheticSqlCipherDatabase.createFreshSynthetic(context, passphrase).use { db ->
+      db.beginTransaction()
+      try {
+        db.execSQL("INSERT INTO lab_probe(id, marker) VALUES (1, 'never-commit')")
+        // Deliberately do NOT mark transaction successful.
+      } finally {
+        db.endTransaction()
+      }
+    }
+    SyntheticSqlCipherDatabase.openExistingSynthetic(context, passphrase).use { reopened ->
+      reopened.rawQuery("SELECT count(*) FROM lab_probe", null).use { cursor ->
+        assertTrue(cursor.moveToFirst())
+        assertEquals(0L, cursor.getLong(0))
+      }
+    }
+  }
+
+  @Test
+  fun encryptedWalDoesNotRevealSyntheticMarkerAsPlaintext() {
+    fixtureOwned = true
+    val marker = "this-is-not-a-financial-record-WAL-sentinel-928"
+    SyntheticSqlCipherDatabase.createFreshSynthetic(context, passphrase).use { db ->
+      db.rawQuery("PRAGMA journal_mode=WAL", null).use { cursor ->
+        assertTrue(cursor.moveToFirst())
+        assertEquals("wal", cursor.getString(0))
+      }
+      db.execSQL("INSERT INTO lab_probe(id, marker) VALUES (1, '$marker')")
+      val wal = File(syntheticFile.path + "-wal")
+      assertTrue("WAL was not created during synthetic write", wal.isFile)
+      assertFalse("Plaintext marker found in WAL bytes",
+        wal.readBytes().toString(Charsets.ISO_8859_1).contains(marker))
+      assertFalse("Plaintext marker found in main DB bytes",
+        syntheticFile.readBytes().toString(Charsets.ISO_8859_1).contains(marker))
+    }
+  }
 }
+
