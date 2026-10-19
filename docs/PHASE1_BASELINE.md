@@ -23,6 +23,7 @@ Status: **em andamento**. Esta fase é pré-requisito para iniciar a Fase 2 (con
 - [x] Android Auto Backup desabilitado enquanto não houver backup criptografado e recuperação segura. Reinstalar o app pode eliminar o histórico e as preferências locais.
 - [x] Decisão ADR 0001 de escopo exclusivo documentada e vinculada aos gates; **somente documentação, não implementação nativa**.
 - [x] Configuração **opcional** de certificado Android persistente via Secrets implementada e protegida por testes; builds padrões continuam assinados como Debug e não são produção.
+- [x] Bloqueio visual **opt-in** por biometria forte implementado em código e com testes de política; requer o APK nativo `3.1.1` (versionCode `32`). **Ainda não validado no Samsung, não protege o banco nem os arquivos criptograficamente.**
 
 ## Ainda pendente para concluir a Fase 1
 - [ ] **Homologação no Samsung:** executar [roteiro de QA da V3.1](ANDROID_QA_V3.1.md), registrar falhas e corrigi-las. Sem execução física não declarar aprovado.
@@ -32,7 +33,7 @@ Status: **em andamento**. Esta fase é pré-requisito para iniciar a Fase 2 (con
   - [x] [Procedimento de configuração e migração documentado](ANDROID_SIGNING_V3_1.md), com exigência de hash SHA-256 do certificado.
   - [ ] Criar/provisionar chave permanente fora do GitHub, executar build opt-in e testar atualização entre duas versões com a mesma assinatura.
   - [ ] Tratar a instalação anterior Debug como migração separada. **Não desinstalar uma cópia com dados sem plano de backup/restauração validado.**
-- [ ] **Autenticação e proteção local:** escolher e implementar bloqueio do app, recuperação e gestão de sessão compatíveis com Android. Não chamar o protótipo de aplicativo bancário seguro.
+- [ ] **Autenticação e proteção local:** o bloqueio visual por biometria forte é apenas um protótipo. Validar o BiometricPrompt no Samsung, implementar vínculo real de chaves ao Android Keystore, recuperação e gestão de sessão antes de aceitar dados financeiros. Não chamar o protótipo de aplicativo bancário seguro.
 - [ ] **Banco nativo + zero-knowledge:** cumprir [gates SQLCipher e E2EE](security/SQLCIPHER_ZERO_KNOWLEDGE_GATE.md) antes de habilitar qualquer biblioteca nativa, integração bancária ou armazenamento sensível real.
 - [ ] **Ciclo de vida dos dados:** testar armazenamento, exclusão, backup/migração, integridade e recuperação após falhas.
 - [ ] **Teste de exposição de dados e permissões:** garantir que informações pessoais não apareçam em logs, relatórios ou interfaces sem ação do usuário.

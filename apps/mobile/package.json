@@ -1,6 +1,6 @@
 {
   "name": "@negresco/mobile",
-  "version": "3.1.0",
+  "version": "3.1.1",
   "private": true,
   "main": "node_modules/expo/AppEntry.js",
   "scripts": {
@@ -17,7 +17,8 @@
     "@react-native-async-storage/async-storage": "2.2.0",
     "expo-print": "~15.0.7",
     "expo-sharing": "~14.0.7",
-    "expo-secure-store": "~15.0.7"
+    "expo-secure-store": "~15.0.7",
+    "expo-local-authentication": "~17.0.9"
   },
   "devDependencies": {
     "typescript": "~5.9.2",

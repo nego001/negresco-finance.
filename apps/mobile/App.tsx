@@ -12,6 +12,8 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { decodePreferences, createPreferenceWriteQueue, PREFERENCES_STORAGE_KEY } from './preferences';
 import { shouldClearSensitiveOnNavigation, shouldClearSensitiveOnAppState } from './guardiao/privacy';
+import {useLocalAppLock} from './security/useLocalAppLock';
+import {LocalLockScreen} from './components/LocalLockScreen';
 import { Animated, AppState, Easing, SafeAreaView, ScrollView, StatusBar, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 type Page = 'Início' | 'Pix' | 'Contas' | 'Cartões' | 'Investimentos' | 'Metas' | 'Negresco' | 'Guardião' | 'Ajustes';
@@ -51,6 +53,7 @@ function Notice({title,body}:{title:string;body:string}) {
 }
 export default function App() {
   const [page,setPage]=useState<Page>('Início');
+  const localLock=useLocalAppLock();
   const [boletoLine,setBoletoLine]=useState('');
   const [boletoResult,setBoletoResult]=useState<ReturnType<typeof inspectBoleto>|null>(null);
   const [reportExportStatus,setReportExportStatus]=useState('');
@@ -125,6 +128,7 @@ export default function App() {
   const evidenceReview=buildEvidenceReview(boletoResult,cnpjResult);
   return <SafeAreaView style={[s.root,{paddingTop:Platform.OS==='android'?(StatusBar.currentHeight??24):0}]}>
     <StatusBar backgroundColor="#000000" barStyle="light-content"/>
+    {localLock.status==='off'||localLock.status==='unlocked'?<>
     <View style={s.header}>
       <View style={[s.logo,{borderColor:blue}]}><Text style={s.logoText}>N</Text></View>
       <View style={s.headerText}><Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={s.brand}>NEGRESCO <Text style={{color:blue}}>FINANCE</Text></Text><Text numberOfLines={1} style={s.tagline}>SEU UNIVERSO FINANCEIRO</Text></View>
@@ -229,6 +233,18 @@ export default function App() {
         <TouchableOpacity accessibilityRole="switch" accessibilityState={{checked:compact}} onPress={()=>setCompact(!compact)} style={s.setting}><Text style={s.settingText}>Cartões compactos</Text><Text style={[s.settingValue,{color:blue}]}>{compact?'Ligado':'Desligado'}  ↔</Text></TouchableOpacity>
         <TouchableOpacity accessibilityRole="switch" accessibilityState={{checked:fontLarge}} onPress={()=>setFontLarge(!fontLarge)} style={s.setting}><Text style={s.settingText}>Textos maiores</Text><Text style={[s.settingValue,{color:blue}]}>{fontLarge?'Ligado':'Desligado'}  ↔</Text></TouchableOpacity>
         <TouchableOpacity accessibilityRole="switch" accessibilityState={{checked:reducedMotion}} onPress={()=>setReducedMotion(!reducedMotion)} style={s.setting}><Text style={s.settingText}>Reduzir animações</Text><Text style={[s.settingValue,{color:blue}]}>{reducedMotion?'Ligado':'Desligado'}  ↔</Text></TouchableOpacity>
+        <View style={s.visualFeature}>
+          <Text style={s.visualFeatureTitle}>Bloqueio biométrico · prévia</Text>
+          <Text style={s.visualFeatureBody}>Opcional. Exige biometria forte cadastrada no Android e bloqueia a interface ao sair do app. Não criptografa o banco, não protege capturas de tela e não é autenticação bancária.</Text>
+          <Text style={[s.visualFeatureBody,{color:localLock.enabled?'#9DD9C8':'#E3C28B'}]}>Proteção local: {localLock.enabled?'Ativada':'Desativada'}</Text>
+          {localLock.status==='off'?
+            <TouchableOpacity accessibilityRole="button" disabled={localLock.busy} onPress={localLock.enable} style={[s.actionButton,{backgroundColor:blue,marginTop:15}]}><Text style={s.actionText}>{localLock.busy?'Verificando...':'Ativar bloqueio com biometria forte'}</Text></TouchableOpacity>
+          :localLock.status==='unlocked'?<>
+            <TouchableOpacity accessibilityRole="button" disabled={localLock.busy} onPress={localLock.lockNow} style={[s.actionButton,{backgroundColor:'#254F83',marginTop:15}]}><Text style={s.actionText}>Bloquear agora</Text></TouchableOpacity>
+            <TouchableOpacity accessibilityRole="button" disabled={localLock.busy} onPress={localLock.disable} style={[s.actionButton,{backgroundColor:'#22334A',marginTop:11}]}><Text style={s.actionText}>{localLock.busy?'Verificando...':'Desativar bloqueio (confirmar biometria)'}</Text></TouchableOpacity>
+          </>:null}
+          {!!localLock.message&&<Text style={[s.visualFeatureBody,{color:'#E8C393'}]}>{localLock.message}</Text>}
+        </View>
         <View style={s.palette}><View style={[s.swatch,{backgroundColor:'#000000',borderColor:'#41536C'}]}/><View style={[s.swatch,{backgroundColor:blue,borderColor:blue}]}/><View style={[s.swatch,{backgroundColor:'#0D111A',borderColor:'#41536C'}]}/><Text style={s.paletteLabel}>PALETA ATIVA</Text></View><Notice title="Tema OLED ativo" body="O fundo preto absoluto foi preservado para telas AMOLED. Preferências visuais e personalidade são salvas neste aparelho. Não armazene dados financeiros nas opções de aparência."/>
       </>:<>
         <Text style={s.kicker}>SEU ESPAÇO</Text><Text style={s.heading}>{page}</Text><Text style={s.description}>{active?.description}</Text>
@@ -237,6 +253,7 @@ export default function App() {
       </>}
     </ScrollView></Animated.View>
     <View style={s.bottom}>{[{name:'Início',glyph:'home'},{name:'Pix',glyph:'pix'},{name:'Negresco',glyph:'assistant'}].map(x=><TouchableOpacity key={x.name} accessibilityRole="tab" accessibilityState={{selected:page===x.name}} onPress={()=>nav(x.name as Page)} style={[s.nav,page===x.name&&s.navSelected]}><Icon name={x.glyph as IconName} size={23} color={page===x.name?blue:'#8898AD'}/><Text style={[s.navLabel,page===x.name&&{color:blue}]}>{x.name}</Text>{page===x.name&&<View style={[s.navMark,{backgroundColor:blue}]}/>}</TouchableOpacity>)}</View>
+    </>:<LocalLockScreen status={localLock.status} busy={localLock.busy} message={localLock.message} onUnlock={localLock.unlock} onRetry={localLock.retry}/>}
   </SafeAreaView>;
 }
 const s=StyleSheet.create({

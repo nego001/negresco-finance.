@@ -40,6 +40,12 @@
 | QA-22 | Verificar SHA-256 do APK baixado contra o Release | Hash do APK corresponde ao arquivo publicado; caso haja assinatura incompatível, não forçar reinstalação |
 | QA-23 | Consultar **APK-SIGNATURE.txt** de um candidato normal | Certificado é identificado como Android Debug, nunca anunciado como release definitiva |
 | QA-24 | Depois de configurar uma chave permanente, compilar duas versões de teste com a **mesma** assinatura | Certificado SHA-256 correspondente à variável protegida, versões compatíveis e atualização sem perder dados fictícios. Ainda pendente até a configuração real. |
+| QA-25 | Primeiro uso após instalar 3.1.1 | Bloqueio opcional inicialmente desligado, sem impedir uso da prévia |
+| QA-26 | Ativar bloqueio com impressão digital forte cadastrada | Android abre autenticação nativa; preferência só é salva após confirmação |
+| QA-27 | Fechar e reabrir app depois de ativar bloqueio | Conteúdo protegido até o desbloqueio biométrico com sucesso |
+| QA-28 | Cancelar autenticação e tentar impressão incorreta | Conteúdo permanece indisponível e usuário pode tentar novamente |
+| QA-29 | Desbloquear, bloquear manualmente, colocar app em segundo plano e retornar | Interface volta bloqueada; nenhum resultado tardio pode desbloquear uma sessão anterior |
+| QA-30 | Desativar em Ajustes e testar aparelho sem biometria forte cadastrada | Desativação exige autenticação; falta de biometria forte impede habilitação, sem bypass silencioso |
 
 Para saber como preparar a assinatura permanente sem divulgar segredos, consulte [Assinatura Android V3.1](ANDROID_SIGNING_V3_1.md). **Não marcar QA-24 como aprovado por existir apenas código ou documentação.**
 
@@ -72,3 +78,5 @@ powershell.exe -NoProfile -File $arquivo
 ```
 
 **Atenção:** este diagnóstico não confirma a compatibilidade do certificado de um APK com a instalação existente e não garante migração de dados. Comparar `APK-SIGNATURE.txt` dos dois builds antes de instalar. Não compartilhar número de série de dispositivo nem dados pessoais em logs públicos.
+
+**Atenção ao novo APK:** a inclusão de `expo-local-authentication` exige a versão `3.1.1`/`versionCode 32`, com runtime OTA novo. Sem chave permanente, builds Debug anteriores podem ter assinatura diferente. **Não desinstalar instalações com dados locais** para fazer estes testes.

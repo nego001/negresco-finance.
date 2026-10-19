@@ -4,11 +4,11 @@
 
 ## Entregue em código e CI
 
-- APK Android Expo/React Native `com.negresco.finance`, `3.1.0` (`versionCode 31`), com atualização OTA manual em canal `preview`.
+- APK Android Expo/React Native `com.negresco.finance`, `3.1.1` (`versionCode 32`), com atualização OTA manual em canal `preview`.
 - Interface OLED, navegação e preferências visuais locais.
 - Guardião com inspeção **matemática** de linhas digitáveis, histórico resumido em SecureStore, PDF local e CNPJ **opcional** por BrasilAPI.
 - Mapa de evidências com fontes explícitas, resultados inconclusivos e limites de consulta bancária.
-- Proteção de dados temporários ao sair de páginas ou colocar o app em segundo plano; **ainda não bloqueia screenshots nem autentica o usuário**.
+- Bloqueio opcional da **interface** por biometria forte do Android, além de proteção dos campos temporários. **Não protege chaves criptográficas, não bloqueia screenshots nem autentica pagamentos.**
 - Android Auto Backup desativado temporariamente. **Desinstalação pode causar perda permanente do histórico e das preferências**.
 - CI, TypeScript e geração de APK automatizados; hash SHA-256 do APK e identificação pública do certificado.
 - Fluxo **opt-in** de assinatura Android persistente implementado, mas **sem chave configurada e sem teste de atualização no aparelho**. Por padrão o APK continua com certificado Android Debug.
@@ -25,7 +25,7 @@
 
 - Pagamentos Pix reais, Open Finance, monitoramento bancário, Reclame Aqui e consultas diretas à Receita Federal.
 - IA Negresco/CTO remota funcional, voz conversacional e ações bancárias.
-- SQLCipher nativo ativo, sincronização zero-knowledge, recuperação segura de chave ou autenticação biométrica.
+- SQLCipher nativo ativo, sincronização zero-knowledge, recuperação segura de chaves ou autenticação bancária. A biometria local de prévia **não valida transações**.
 - Assinatura Android de distribuição validada, testes de migração e auditoria de segurança independente.
 
 ## Critério para anunciar V3.1 homologada

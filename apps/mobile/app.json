@@ -3,15 +3,22 @@
     "name": "Negresco Finance",
     "slug": "negresco-finance",
     "scheme": "negresco",
-    "version": "3.1.0",
+    "version": "3.1.1",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "android": {
       "package": "com.negresco.finance",
-      "versionCode": 31,
+      "versionCode": 32,
       "allowBackup": false
     },
-    "plugins": [],
+    "plugins": [
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Permitir que o Negresco Finance use Face ID para desbloquear a prévia."
+        }
+      ]
+    ],
     "runtimeVersion": {
       "policy": "appVersion"
     },
