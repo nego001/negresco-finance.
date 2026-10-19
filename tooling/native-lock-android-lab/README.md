@@ -78,3 +78,22 @@ biometric tests have been run.
 with synthetic data; then design a safe native commit protocol for disabling
 protection, native-only migration and durable key authorization. No unguarded
 `compareAndSet` method in any JS bridge.
+
+## Disable preparation gate (JVM-only, not wired to Activity)
+
+The portable DataStore record now supports `disablePending` as a protected
+intermediate state. `prepareDisable()` writes `enabled=true` and
+`disablePending=true` **in one DataStore transaction** after the isolated
+coordinator's simulated native biometric prompt. It returns `PREPARED`,
+never `SUCCESS` or disabled. The actual `disable()` remains `DENIED`.
+
+An interrupted or restarted preparation is always protected.
+`recoverPreparedDisable()` clears the pending bit and increments the revision
+without ever writing `enabled=false`. The repository refuses ordinary state
+changes while pending; malformed `disabled+pending` records fail closed.
+
+The preparation helper is **not exposed** by `NativeLockAndroidLabSession`
+and does not reach Expo or the APK. Neither a complete opt-out transaction nor
+Android Keystore-backed cryptographic authorization exists yet. The future
+second phase needs to linearize lifecycle revocation against the durable
+commit, plus physical-device tests.
