@@ -32,6 +32,12 @@ Os prompts biométricos nativos podem produzir um estado Android `inactive` tran
 
 O diagnóstico SecureStore também descarta seu resultado visual se o usuário sair dos Ajustes ou colocar o app em segundo plano. A limpeza do marcador fictício continua sendo tratada pelo diagnóstico, mesmo quando seu resultado não pode mais ser exibido. O teste não cria autorização para usar chaves reais.
 
+## Desativação biométrica interrompida (prévia)
+
+A desativação agora grava um estado transitório `disable-pending` antes de confirmar o marcador `disabled`. Ao reiniciar com `disable-pending`, o aplicativo continua bloqueado e solicita biometria; instalações anteriores sem preferência continuam com bloqueio opcional desativado, preservando compatibilidade. Se a sessão for revogada após o marcador final ser gravado e o app permanecer em execução, a rotina tenta restaurar `enabled`. Falhas de armazenamento são exibidas como estado indeterminado e a interface é coberta.
+
+**Limite importante:** gravações do AsyncStorage não são transações nativas atômicas ou canceláveis. Encerrar abruptamente o processo durante a *última* gravação ainda pode deixar `disabled` persistido, mesmo após a sessão ter sido invalidada. Portanto este ajuste é uma mitigação testável, **não** uma garantia criptográfica ou recuperação transacional. Até existir persistência nativa transacional com política de sessão, não confiar dados financeiros reais ao protótipo.
+
 ## Homologação no Samsung
 
 Usar apenas dados fictícios: verificar primeira abertura sem bloqueio, ativação mediante digital forte, reinício bloqueado, cancelamento, impressão errada, envio para segundo plano, retorno, bloqueio manual e desativação autenticada. Testar aparelho sem impressão cadastrada e reconhecer mensagem clara, sem abrir indevidamente após tentativas falhas.
