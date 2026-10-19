@@ -14,6 +14,7 @@ jobs:
     steps:
       # Windows runners cannot reliably create checkout workspace directories when
       # the GitHub repository name ends with a dot ("negresco-finance.").
+      # Use percent-encoded trailing dot in the REST URL (Windows URI path normalization).
       # Fetch two pinned files by commit SHA, parse them in RUNNER_TEMP instead.
       - name: Parse original scripts in Windows PowerShell 5.1 by immutable Git SHA
         shell: powershell
@@ -33,7 +34,7 @@ jobs:
             'tooling/windows/compare-installed-apk.ps1'
           )
           foreach ($repositoryPath in $files) {
-            $api = "https://api.github.com/repos/nego001/negresco-finance./contents/$repositoryPath" + "?ref=$env:GITHUB_SHA"
+            $api = "https://api.github.com/repos/nego001/negresco-finance%2E/contents/$repositoryPath" + "?ref=$env:GITHUB_SHA"
             $response = Invoke-RestMethod -Method Get -Uri $api -Headers $headers
             if ($response.sha -notmatch '^[0-9a-f]{40}$' -or $response.encoding -ne 'base64') {
               throw "Unexpected GitHub content response for $repositoryPath"
