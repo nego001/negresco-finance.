@@ -14,11 +14,14 @@ export function createInvestigation(id:string,createdAt:string):Investigation{
  return {id,createdAt,notificationBank:unknown(),registrationBank:unknown(),issuer:unknown(),beneficiary:unknown(),commercialOrigin:unknown(),evidence:[],result:'inconclusive'};
 }
 export function validateInvestigation(i:Investigation):string[]{
- const errors:string[]=[];const ids=new Set(i.evidence.map(e=>e.id));
+ const errors:string[]=[];const evidenceById=new Map(i.evidence.map(e=>[e.id,e] as const));const ids=new Set(evidenceById.keys());
+ if(ids.size!==i.evidence.length)errors.push('identificador de evidência duplicado');
  for(const [field,claim] of Object.entries({notificationBank:i.notificationBank,registrationBank:i.registrationBank,issuer:i.issuer,beneficiary:i.beneficiary,commercialOrigin:i.commercialOrigin})){
   if(claim.status==='confirmed'&&(!claim.value||claim.evidenceIds.length===0))errors.push(field+': confirmação sem evidência');
   if(claim.status==='unknown'&&(claim.value!==null||claim.evidenceIds.length!==0))errors.push(field+': desconhecido deve permanecer vazio');
   if(claim.evidenceIds.some(id=>!ids.has(id)))errors.push(field+': evidência inexistente');
+  // A public CNPJ record, news article or complaint cannot establish who issued a boleto.
+  if(claim.status==='confirmed'&&claim.evidenceIds.some(id=>evidenceById.get(id)?.source!=='bank-authorized'))errors.push(field+': confirmação exige evidência bancária autorizada');
  }
  for(const e of i.evidence){
   if(!e.id||!e.title||!e.checkedAt||!e.summary)errors.push('evidência incompleta');
