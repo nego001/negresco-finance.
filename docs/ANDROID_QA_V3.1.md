@@ -27,6 +27,9 @@
 | QA-12 | Gerar PDF após consulta CNPJ opcional | PDF distingue consulta independente; não inclui CNPJ completo, linha digitável ou URL com CNPJ |
 | QA-13 | Verificar blocos Pix, Negresco e integrações | Não apresenta operações reais, IA online ou dados bancários inexistentes |
 | QA-14 | Testar com e sem internet, alternar telas e reabrir | O app não deve travar; consulta externa informa indisponibilidade quando falha |
+| QA-15 | Consultar CNPJ, depois modificar a linha digitável | A consulta anterior desaparece; o mapa e o PDF não reutilizam evidência de outro boleto |
+| QA-16 | Preencher dados e usar **Limpar dados da análise atual** | Linha digitável, CNPJ, resultados e estado de consulta são removidos da tela; histórico protegido e PDFs já compartilhados não são apagados |
+| QA-17 | Conferir o resultado CNPJ na interface | Exibe BrasilAPI como fonte sem mostrar a URL contendo o CNPJ completo |
 
 ## Como registrar problemas
 
