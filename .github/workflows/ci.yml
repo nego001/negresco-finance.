@@ -64,3 +64,50 @@ jobs:
           test -d "$ANDROID_HOME/platforms/android-36"
       - name: Compile pinned SQLCipher Android library (no APK, no emulator)
         run: gradle -p tooling/sqlcipher-android-lab compileDebugKotlin compileDebugAndroidTestKotlin --no-daemon
+
+  sqlcipher-android-emulator:
+    # Execute JNI tests only once per PR; push events still compile the lab.
+    if: github.event_name == 'pull_request'
+    needs: sqlcipher-android-lab
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Enable hardware accelerated emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-negresco-kvm.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Install compile SDK 36 (temporary runner)
+        run: |
+          test -d "${ANDROID_HOME:?Android SDK unavailable}"
+          if [ ! -d "$ANDROID_HOME/platforms/android-36" ]; then
+            yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" || test -d "$ANDROID_HOME/platforms/android-36"
+          fi
+          test -d "$ANDROID_HOME/platforms/android-36"
+      - name: Run disposable SQLCipher JNI tests in an isolated Android emulator
+        # Pinned commit behind upstream v2 tag. No user device or production data.
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
+        with:
+          api-level: 35
+          target: default
+          arch: x86_64
+          profile: pixel_6
+          emulator-boot-timeout: 600
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          script: gradle -p tooling/sqlcipher-android-lab connectedDebugAndroidTest --no-daemon --stacktrace
+      - name: Upload synthetic instrumentation reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sqlcipher-emulator-test-reports
+          path: tooling/sqlcipher-android-lab/build/outputs/androidTest-results/connected/
+          if-no-files-found: ignore
+          retention-days: 3
