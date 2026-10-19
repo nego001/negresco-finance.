@@ -31,6 +31,9 @@
 | QA-15 | Consultar CNPJ, depois modificar a linha digitável | A consulta anterior desaparece; o mapa e o PDF não reutilizam evidência de outro boleto |
 | QA-16 | Preencher dados e usar **Limpar dados da análise atual** | Linha digitável, CNPJ, resultados e estado de consulta são removidos da tela; histórico protegido e PDFs já compartilhados não são apagados |
 | QA-17 | Conferir o resultado CNPJ na interface | Exibe BrasilAPI como fonte sem mostrar a URL contendo o CNPJ completo |
+| QA-18 | Preencher boleto e CNPJ e pressionar Início/Ajustes | Ao voltar ao Guardião, campos e resultados temporários desaparecem; histórico resumido permanece |
+| QA-19 | Escrever mensagem de demonstração na Negresco e mudar de aba | A mensagem temporária some ao voltar; nenhuma mensagem é enviada a um servidor |
+| QA-20 | Abrir o alternador de apps e voltar ao Negresco Finance | Valores e textos temporários são apagados; o app não bloqueia capturas de tela nem substitui autenticação |
 
 ## Como registrar problemas
 

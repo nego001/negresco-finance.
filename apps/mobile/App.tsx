@@ -8,10 +8,11 @@ import { createLocalReport, renderReportHtml } from './guardiao/report';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { Icon, IconName } from './components/Icon';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { decodePreferences, createPreferenceWriteQueue, PREFERENCES_STORAGE_KEY } from './preferences';
-import { Animated, Easing, SafeAreaView, ScrollView, StatusBar, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { shouldClearSensitiveOnNavigation, shouldClearSensitiveOnAppState } from './guardiao/privacy';
+import { Animated, AppState, Easing, SafeAreaView, ScrollView, StatusBar, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 type Page = 'Início' | 'Pix' | 'Contas' | 'Cartões' | 'Investimentos' | 'Metas' | 'Negresco' | 'Guardião' | 'Ajustes';
 const C = { bg:'#000000',panel:'#0D111A',raised:'#121A29',line:'#26354B',blue:'#78B5FF',muted:'#99A8BC',white:'#F7FAFF' };
@@ -57,9 +58,26 @@ export default function App() {
   const [cnpjResult,setCnpjResult]=useState<CompanyResult|null>(null);
   const [cnpjLoading,setCnpjLoading]=useState(false);
   const cnpjRequestId=useRef(0);
+  const reportRequestId=useRef(0);
   const [historyQuery,setHistoryQuery]=useState('');
-  const clearCurrentAnalysis=()=>{cnpjRequestId.current++;setBoletoLine('');setBoletoResult(null);setCnpj('');setCnpjResult(null);setCnpjLoading(false);setReportExportStatus('');};
-  const exportLocalPdf=async()=>{if(!boletoResult)return;setReportExportStatus('Gerando PDF local...');try{const html=renderReportHtml(createLocalReport(boletoResult,new Date().toLocaleString('pt-BR'),cnpjResult));const pdf=await Print.printToFileAsync({html});if(await Sharing.isAvailableAsync()){await Sharing.shareAsync(pdf.uri,{mimeType:'application/pdf',dialogTitle:'Compartilhar relatório do Guardião'});setReportExportStatus('PDF gerado. Escolha onde salvar ou compartilhar.');}else{setReportExportStatus('PDF gerado no armazenamento temporário, mas o compartilhamento não está disponível.');}}catch{setReportExportStatus('Não foi possível gerar ou compartilhar o PDF.');}};
+  const clearCurrentAnalysis=useCallback(()=>{cnpjRequestId.current++;reportRequestId.current++;setBoletoLine('');setBoletoResult(null);setCnpj('');setCnpjResult(null);setCnpjLoading(false);setReportExportStatus('');setHistoryQuery('');},[]);
+  const exportLocalPdf=async()=>{
+    if(!boletoResult)return;
+    const requestId=++reportRequestId.current;
+    setReportExportStatus('Gerando PDF local...');
+    try{
+      const html=renderReportHtml(createLocalReport(boletoResult,new Date().toLocaleString('pt-BR'),cnpjResult));
+      const pdf=await Print.printToFileAsync({html});
+      if(await Sharing.isAvailableAsync()){
+        await Sharing.shareAsync(pdf.uri,{mimeType:'application/pdf',dialogTitle:'Compartilhar relatório do Guardião'});
+        if(reportRequestId.current===requestId)setReportExportStatus('PDF gerado. Escolha onde salvar ou compartilhar.');
+      }else if(reportRequestId.current===requestId){
+        setReportExportStatus('PDF gerado no armazenamento temporário, mas o compartilhamento não está disponível.');
+      }
+    }catch{
+      if(reportRequestId.current===requestId)setReportExportStatus('Não foi possível gerar ou compartilhar o PDF.');
+    }
+  };
   const [guardiaoHistory,setGuardiaoHistory]=useState<{id:string;date:string;kind:string;valid:boolean;digits:number}[]>([]);
   const [historyLoaded,setHistoryLoaded]=useState(false);
   const [historyStorageError,setHistoryStorageError]=useState('');
@@ -75,6 +93,17 @@ export default function App() {
   const [reducedMotion,setReducedMotion]=useState(false);
   const [demoMessage,setDemoMessage]=useState('');
   const [demoMessages,setDemoMessages]=useState<string[]>([]);
+  const clearAssistantPreview=useCallback(()=>{setDemoMessage('');setDemoMessages([]);},[]);
+  useEffect(()=>{
+    const subscription=AppState.addEventListener('change',nextState=>{
+      if(shouldClearSensitiveOnAppState(nextState)){
+        clearCurrentAnalysis();
+        clearAssistantPreview();
+        setShowBalance(false);
+      }
+    });
+    return()=>subscription.remove();
+  },[clearCurrentAnalysis,clearAssistantPreview]);
   const [assistantStyle,setAssistantStyle]=useState<'acolhedora'|'objetiva'>('acolhedora');
   const [preferencesLoaded,setPreferencesLoaded]=useState(false);
   const [preferencesCanSave,setPreferencesCanSave]=useState(true);
@@ -85,7 +114,13 @@ export default function App() {
   const enter=useRef(new Animated.Value(0)).current;
   useEffect(()=>{enter.setValue(0);Animated.timing(enter,{toValue:1,duration:reducedMotion?0:380,easing:Easing.out(Easing.cubic),useNativeDriver:true}).start();},[page,enter,reducedMotion]);
   const blue=accent?'#A28BFF':C.blue;
-  const nav=(p:Page)=>setPage(p);
+  const nav=(p:Page)=>{
+    if(shouldClearSensitiveOnNavigation(page,p)){
+      if(page==='Guardião')clearCurrentAnalysis();
+      if(page==='Negresco')clearAssistantPreview();
+    }
+    setPage(p);
+  };
   const active=sections.find(x=>x.name===page);
   const evidenceReview=buildEvidenceReview(boletoResult,cnpjResult);
   return <SafeAreaView style={[s.root,{paddingTop:Platform.OS==='android'?(StatusBar.currentHeight??24):0}]}>
@@ -148,7 +183,7 @@ export default function App() {
         <Text style={s.description}>Confira a estrutura de uma linha digitável antes de pagar. A investigação de empresas e compras exige integrações futuras.</Text>
         <View style={s.formPanel}><Text style={s.formTitle}>Verificar linha digitável</Text><Text style={s.formHelp}>Cole os números de um boleto bancário (47 dígitos) ou de arrecadação (48 dígitos). Não cole dados em sites desconhecidos.</Text>
           <Text style={s.inputLabel}>LINHA DIGITÁVEL</Text>
-          <TextInput accessibilityLabel="Linha digitável do boleto" style={s.input} value={boletoLine} onChangeText={v=>{cnpjRequestId.current++;setBoletoLine(v);setBoletoResult(null);setCnpj('');setCnpjResult(null);setCnpjLoading(false);setReportExportStatus('');}} placeholder="Digite ou cole os números" placeholderTextColor="#8195AE" keyboardType="number-pad" multiline maxLength={80}/>
+          <TextInput accessibilityLabel="Linha digitável do boleto" style={s.input} value={boletoLine} onChangeText={v=>{cnpjRequestId.current++;reportRequestId.current++;setBoletoLine(v);setBoletoResult(null);setCnpj('');setCnpjResult(null);setCnpjLoading(false);setReportExportStatus('');}} placeholder="Digite ou cole os números" placeholderTextColor="#8195AE" keyboardType="number-pad" multiline maxLength={80}/>
           <TouchableOpacity accessibilityRole="button" disabled={!historyLoaded} onPress={()=>{const result=inspectBoleto(boletoLine);setBoletoResult(result);setReportExportStatus('');const id=String(Date.now())+'-'+String(++historySequence.current);setGuardiaoHistory(h=>[{id,date:new Date().toLocaleString('pt-BR'),kind:result.kind,valid:result.valid,digits:result.digits},...h].slice(0,12));}} style={[s.actionButton,{backgroundColor:historyLoaded?blue:'#233951'}]}><Text style={s.actionText}>{historyLoaded?'Analisar estrutura':'Preparando histórico seguro...'}</Text></TouchableOpacity>
         </View>
         {(!!boletoLine||!!cnpj||!!cnpjResult||!!boletoResult)&&<TouchableOpacity accessibilityRole="button" accessibilityLabel="Limpar campos e resultados da análise atual" onPress={clearCurrentAnalysis} style={[s.actionButton,{marginBottom:15,backgroundColor:'#223A59'}]}><Text style={s.actionText}>Limpar dados da análise atual</Text></TouchableOpacity>}
