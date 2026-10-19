@@ -207,3 +207,27 @@ test('in-process DataStore revision rollback and split reads fail closed',()=>{
  assert.match(tests,/A contradictory enabled state at the SAME revision/);
  assert.match(tests,/An old AFTER-prompt read cannot complete an unlock/);
 });
+
+test('Bitwarden-grade release target stays explicitly unverified and lab cryptography isolated',()=>{
+ const policy=read('docs/security/BITWARDEN_GRADE_SECURITY_GATES.md');
+ const integrity=read('tooling/native-lock-spike/src/main/kotlin/com/negresco/finance/security/LockRecordIntegrity.kt');
+ const android=read('tooling/native-lock-android-lab/src/main/kotlin/com/negresco/finance/security/AndroidKeystoreLockIntegrity.kt');
+ const tests=read('tooling/native-lock-spike/src/test/kotlin/com/negresco/finance/security/LockRecordIntegrityTest.kt');
+ const runner=read('tooling/native-lock-spike/src/test/kotlin/com/negresco/finance/security/NativeLockCoordinatorTest.kt');
+ const mobile=read('apps/mobile/app.json');
+ assert.match(policy,/NÃO ATENDIDO/);
+ assert.match(policy,/G12 Auditoria externa/);
+ assert.match(policy,/G02 Criptografia em repouso/);
+ assert.match(policy,/G04 Autorização criptográfica/);
+ assert.match(policy,/G06 Anti-rollback/);
+ assert.match(policy,/G13 Compatibilidade/);
+ assert.match(integrity,/MessageDigest\.isEqual\(expected, tag\)/);
+ assert.match(integrity,/fun canonical\(record: LockRecord\)/);
+ assert.match(android,/KeyProperties\.KEY_ALGORITHM_HMAC_SHA256/);
+ assert.match(android,/KeyStore\.getInstance\(PROVIDER\)/);
+ assert.match(android,/provisionForSyntheticLabOnly/);
+ assert.match(android,/verifyWithExistingKey/);
+ assert.match(tests,/A previously sealed record remains valid if replayed/);
+ assert.match(runner,/runLockIntegrityScenarios\(\)/);
+ assert.doesNotMatch(mobile,/AndroidKeystoreLockIntegrity|LockRecordIntegrity/);
+});
