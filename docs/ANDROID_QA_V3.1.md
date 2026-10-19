@@ -35,7 +35,7 @@
 | QA-17 | Conferir o resultado CNPJ na interface | Exibe BrasilAPI como fonte sem mostrar a URL contendo o CNPJ completo |
 | QA-18 | Preencher boleto e CNPJ e pressionar Início/Ajustes | Ao voltar ao Guardião, campos e resultados temporários desaparecem; histórico resumido permanece |
 | QA-19 | Escrever mensagem de demonstração na Negresco e mudar de aba | A mensagem temporária some ao voltar; nenhuma mensagem é enviada a um servidor |
-| QA-20 | Abrir o alternador de apps e voltar ao Negresco Finance | Valores e textos temporários são apagados; o app não bloqueia capturas de tela nem substitui autenticação |
+| QA-20 | Abrir o alternador de apps e voltar ao Negresco Finance | Valores e textos temporários são apagados. Guardião e interface com biometria ativada devem ocultar conteúdo na miniatura; outros módulos sem bloqueio podem aparecer |
 | QA-21 | Rodar o diagnóstico ADB somente leitura antes da homologação | Detecta modelo, Android e versão instalada; não instala nem apaga dados do aparelho |
 | QA-22 | Verificar SHA-256 do APK baixado contra o Release | Hash do APK corresponde ao arquivo publicado; caso haja assinatura incompatível, não forçar reinstalação |
 | QA-23 | Consultar **APK-SIGNATURE.txt** de um candidato normal | Certificado é identificado como Android Debug, nunca anunciado como release definitiva |
@@ -50,6 +50,8 @@
 | QA-32 | Cancelar o prompt durante o teste Keystore | App não declara sucesso, não abre conteúdo protegido indevidamente e tenta excluir marcador fictício |
 | QA-33 | Desabilitar biometria forte ou adicionar outra impressão após habilitar o teste | Acesso autenticado pode ser invalidado; não fazer reset forçado ou alegar recuperação segura |
 | QA-34 | Conferir logs e armazenamento temporário após o diagnóstico | Nenhum segredo financeiro gravado; mensagem não afirma SQLCipher, StrongBox nem zero-knowledge |
+| QA-35 | No Android, abrir Guardião e tentar capturar print, gravar tela ou abrir o alternador de apps | O conteúdo do Guardião não deve aparecer na captura/gravação nem na miniatura dos aplicativos recentes |
+| QA-36 | Ativar biometria forte, testar captura nas demais telas e depois desativar o bloqueio | Com proteção ativa o app não deve ser capturável; após desativá-la, a tela Início pode ser capturada normalmente. O Guardião continua protegido |
 
 
 Para saber como preparar a assinatura permanente sem divulgar segredos, consulte [Assinatura Android V3.1](ANDROID_SIGNING_V3_1.md). **Não marcar QA-24 como aprovado por existir apenas código ou documentação.**
@@ -84,4 +86,4 @@ powershell.exe -NoProfile -File $arquivo
 
 **Atenção:** este diagnóstico não confirma a compatibilidade do certificado de um APK com a instalação existente e não garante migração de dados. Comparar `APK-SIGNATURE.txt` dos dois builds antes de instalar. Não compartilhar número de série de dispositivo nem dados pessoais em logs públicos.
 
-**Atenção ao novo APK:** a inclusão de `expo-local-authentication` exige a versão `3.1.1`/`versionCode 32`, com runtime OTA novo. Sem chave permanente, builds Debug anteriores podem ter assinatura diferente. **Não desinstalar instalações com dados locais** para fazer estes testes.
+**Atenção aos novos APKs:** `expo-local-authentication` entrou em `3.1.1` e `expo-screen-capture` entra em `3.1.2`/`versionCode 33`. Ambas são dependências **nativas** e exigem APK próprio. Sem chave permanente, builds Debug anteriores podem ser incompatíveis. **Não desinstalar instalações com dados locais** para fazer estes testes.

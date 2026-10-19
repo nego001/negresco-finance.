@@ -16,6 +16,7 @@ import {useLocalAppLock} from './security/useLocalAppLock';
 import {runKeystoreProbe, type KeystoreProbeResult} from './security/keystoreProbe';
 import * as LocalAuthentication from 'expo-local-authentication';
 import {LocalLockScreen} from './components/LocalLockScreen';
+import {ProtectedScreenCapture,shouldProtectScreenCapture} from './components/ProtectedScreenCapture';
 import { Animated, AppState, Easing, SafeAreaView, ScrollView, StatusBar, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 type Page = 'Início' | 'Pix' | 'Contas' | 'Cartões' | 'Investimentos' | 'Metas' | 'Negresco' | 'Guardião' | 'Ajustes';
@@ -141,6 +142,7 @@ export default function App() {
   const active=sections.find(x=>x.name===page);
   const evidenceReview=buildEvidenceReview(boletoResult,cnpjResult);
   return <SafeAreaView style={[s.root,{paddingTop:Platform.OS==='android'?(StatusBar.currentHeight??24):0}]}>
+    {shouldProtectScreenCapture(page,localLock.status)&&<ProtectedScreenCapture/>}
     <StatusBar backgroundColor="#000000" barStyle="light-content"/>
     {localLock.status==='off'||localLock.status==='unlocked'?<>
     <View style={s.header}>
@@ -258,6 +260,11 @@ export default function App() {
             <TouchableOpacity accessibilityRole="button" disabled={localLock.busy} onPress={localLock.disable} style={[s.actionButton,{backgroundColor:'#22334A',marginTop:11}]}><Text style={s.actionText}>{localLock.busy?'Verificando...':'Desativar bloqueio (confirmar biometria)'}</Text></TouchableOpacity>
           </>:null}
           {!!localLock.message&&<Text style={[s.visualFeatureBody,{color:'#E8C393'}]}>{localLock.message}</Text>}
+        </View>
+        <View style={s.visualFeature}>
+          <Text style={s.visualFeatureTitle}>Privacidade de capturas · Android</Text>
+          <Text style={s.visualFeatureBody}>Proteção automática quando você abre o Guardião ou mantém o bloqueio biométrico ativado. O Android deve impedir prints, gravações e miniaturas do aplicativo protegido. Outras telas da prévia continuam capturáveis se o bloqueio estiver desligado.</Text>
+          <Text style={[s.visualFeatureBody,{color:'#D9BD8D'}]}>Use o botão de compartilhar do Guardião para exportar relatórios. O bloqueio da tela não protege PDFs fora do aplicativo.</Text>
         </View>
         <View style={s.visualFeature}>
           <Text style={s.visualFeatureTitle}>Diagnóstico Android Keystore · experimental</Text>

@@ -123,7 +123,7 @@ jobs:
           unzip -t "$APK" >/dev/null
           BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
           "$BUILD_TOOLS/aapt" dump badging "$APK" | grep -F "package: name='com.negresco.finance'"
-          "$BUILD_TOOLS/aapt" dump badging "$APK" | grep -F "versionCode='32' versionName='3.1.1'"
+          "$BUILD_TOOLS/aapt" dump badging "$APK" | grep -F "versionCode='33' versionName='3.1.2'"
           "$BUILD_TOOLS/aapt" dump permissions "$APK" | grep -F 'android.permission.USE_BIOMETRIC'
           "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK" | tee APK-SIGNATURE.txt
           CERT_HASH="$(sed -nE 's/.*certificate SHA-256 digest: ([0-9a-fA-F]{64}).*/\1/p' APK-SIGNATURE.txt | head -n 1 | tr '[:upper:]' '[:lower:]')"
@@ -190,6 +190,7 @@ jobs:
           - Interface OLED e preferencias visuais.
           - Bloqueio de interface por biometria forte, opcional nos Ajustes; requer nova instalacao nativa 3.1.1.
           - Diagnostico manual de SecureStore autenticado, com somente marcador ficticio e tentativa de limpeza.
+          - Bloqueio Android de capturas de tela no Guardiao e em areas protegidas pelo bloqueio biometrico; exige novo APK 3.1.2.
           - Guardiao: verificacao matematica de linhas digitaveis, PDF local e historico resumido em armazenamento seguro.
           - Consulta opcional de cadastro CNPJ via BrasilAPI, servico de terceiros.
           - Indicadores transparentes de integracoes indisponiveis.
@@ -198,7 +199,8 @@ jobs:
           - A verificacao matematica e o cadastro de empresa nao comprovam legitimidade de boleto.
           - Sem acesso real a bancos, Pix, Reclame Aqui ou monitoramento automatico.
           - Nao usar para operacoes financeiras reais.
-          - O bloqueio biometrico protege apenas a interface; nao criptografa o banco nem aplica um bloqueio nativo de screenshots.
+          - Bloqueio biometrico e protecao de capturas nao criptografam dados nem impedem fotografia externa da tela.
+          - PDFs compartilhados ficam sujeitos as protecoes do aplicativo de destino.
           - A instalacao de uma nova versao nativa e necessaria para novas dependencias.
           - Por padrao, APKs ainda sao assinados com certificado Android Debug. Assinatura permanente e opcional e exige credenciais + fingerprint configurados.
           - Assinatura verificada nao comprova atualizacao possivel sobre qualquer instalacao antiga. Compare certificados e versionCode.
