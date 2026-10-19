@@ -211,3 +211,24 @@ possível ativar biometria com autenticação forte.
 Essa política limita a janela de uso sem monitoramento nativo; eventos ainda
 podem atrasar e não constituem proteção criptográfica dos dados. Não está
 integrada ao APK instalado, e não autoriza desativação biométrica.
+
+## Fase 1 do opt-out transacional (laboratório, não operacional)
+
+O DataStore experimental agora armazena `disablePending=true` como fase de
+preparação **ainda protegida**, numa transação junto de `enabled=true` e da
+revisão monotônica. `prepareDisableForLab()` solicita autenticação forte
+pelo contrato nativo e, após validação de geração, retorna exclusivamente
+`PREPARED`. **Nunca afirma que o bloqueio foi desativado.**
+
+Se o processo ou a Activity forem interrompidos, o estado persistente
+continua habilitado. `recoverPreparedDisable()` rearma a proteção,
+rejeita corrupção e é idempotente. Durante a fase pendente, consultas ao
+coordenador não desbloqueiam a interface e atualizações genéricas da
+preferência são recusadas. A migração anterior não sobrescreve a fase pendente.
+
+**Importante:** a fase final `enabled=false` ainda NÃO foi implementada
+nem autorizada, porque a revogação síncrona do ciclo de vida e a conclusão
+durável do DataStore precisam de um protocolo linearizável. Esse método de
+preparação nem sequer é exportado pelo adaptador Android e, portanto,
+não participa do APK 3.1.2. SQLCipher, Keystore com chaves reais,
+assinatura e homologação no Samsung continuam pendentes.
