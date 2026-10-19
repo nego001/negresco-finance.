@@ -33,7 +33,7 @@ gradle -p tooling/native-lock-spike policyCheck --no-daemon
 ```
 
 The CI job `native-lock-spike` compiles the Kotlin project and executes the
-16 policy scenarios plus 23 DataStore/migration scenarios plus 33 coroutine coordinator scenarios, plus 3 deterministic interrupted-write scenarios and 15 synthetic HMAC integrity scenarios. Passing this job is **not** an Android APK compile or device QA. DataStore returns after durable write, but using it alone does not prove that a biometric request remains valid until commit.
+16 policy scenarios plus 23 DataStore/migration scenarios plus 33 coroutine coordinator scenarios, plus 3 deterministic interrupted-write scenarios, 15 synthetic HMAC integrity scenarios and 23 synthetic AES-GCM envelope scenarios. Passing this job is **not** an Android APK compile or device QA. DataStore returns after durable write, but using it alone does not prove that a biometric request remains valid until commit.
 
 ## Non-negotiable gates before Expo integration
 
@@ -107,3 +107,19 @@ also not wired to any data or application installation.
 
 See `docs/security/BITWARDEN_GRADE_SECURITY_GATES.md` for threat modeling,
 crypto/key management, independent auditing and release gates.
+
+
+## AES-256-GCM record envelope (synthetic, NOT a database)
+
+`FinancialRecordEnvelopeV1.kt` authenticates fictional individual records
+using AES-256-GCM. External type, record ID and revision become associated
+data; headers and cipher output use a versioned bounded binary format.
+An unknown key, malformed payload, forged nonce, altered context or wrong tag
+fails instead of falling back to plaintext. JCA chooses a fresh IV for each
+call. The 23 JVM vectors include an explicit valid replay example: AEAD by
+itself cannot detect an old signed record restored along with its context.
+
+A separate AndroidKeyStore provider exists for **disposable laboratory
+records only**. Its key does NOT require biometric authorization, and it is
+not connected to the app, SQLCipher, financial storage or recovery.
+See `docs/security/FINANCIAL_RECORD_ENVELOPE_LAB_V1.md` for limitations.
