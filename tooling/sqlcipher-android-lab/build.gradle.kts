@@ -1,11 +1,11 @@
 plugins {
-  id("com.android.library") version "8.8.2"
+  id("com.android.library") version "8.10.1"
   kotlin("android") version "2.2.10"
 }
 
 android {
   namespace = "com.negresco.finance.sqlcipher.lab"
-  compileSdk = 35
+  compileSdk = 36
   defaultConfig {
     minSdk = 26
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
