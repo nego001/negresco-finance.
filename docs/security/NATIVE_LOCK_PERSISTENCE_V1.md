@@ -1,6 +1,6 @@
 # Negresco Finance | Contrato de persistência nativa do bloqueio (proposta V1)
 
-**Status: arquitetura definida; núcleo Kotlin e implementação experimental das transações Jetpack DataStore compiláveis na JVM foram adicionados a `tooling/native-lock-spike`. A integração Android, o provedor DataStore por processo, a autenticação BiometricPrompt e a migração continuam NÃO implementados.**
+**Status: núcleo Kotlin/JVM com DataStore e política de migração experimental; laboratório Android com provedores DataStore/BiometricPrompt fora do Expo. Ainda NÃO há coordenador Android ligando autenticação ao commit, leitura real das preferências legadas no aparelho, integração Expo ou homologação no Samsung.**
 O APK 3.1.2 continua usando AsyncStorage e autenticação de interface.
 Este arquivo **não** autoriza migração automática, dados financeiros reais,
 assinatura de produção, alegação de transação nativa ou uso do Keystore como
@@ -126,3 +126,37 @@ assinatura, segurança bancária ou QA físico.
 `DataStoreLockRecordRepository.kt` usa a API real `androidx.datastore:datastore-preferences-core:1.2.1` em um projeto JVM isolado. A revisão do registro usa um único `updateData` transacional para versão de protocolo, estado habilitado e número de revisão. Não há operação de inicialização permissiva: registro ausente exige migração, registro parcial/versão desconhecida falha fechado.
 
 Os testes do laboratório usam um arquivo `.preferences_pb` temporário e verificam reabertura, revisão obsoleta, escritas concorrentes, corrupção e versões futuras. **Isso não é integração Android nem garante autenticação nativa.** A API `compareAndSet` só poderá ser chamada sob controle de uma operação nativa autenticada, jamais diretamente pelo JavaScript.
+
+
+## Adaptação Android isolada (sem integração com o aplicativo)
+
+O diretório `tooling/native-lock-android-lab` compila uma biblioteca Android
+independente. `NativeLockAndroidStore.kt` mantém uma única instância DataStore
+por processo e arquivo; `StrongBiometricPrompt.kt` usa a dependência estável
+AndroidX Biometric 1.1.0, exige `BIOMETRIC_STRONG`, não permite fallback de
+credencial de dispositivo e tenta cancelar a autenticação em `onStop`.
+
+**Limite crítico:** o retorno Boolean do prompt não prova autorização para
+alterar o DataStore, e NÃO é exposto à ponte JS. Ainda falta um coordenador
+suspenso que valide geração de sessão, transição de Activity e revisão do
+registro no commit. Não chamar um prompt bem-sucedido de autorização de chave
+Keystore ou transação bancária. A compilação do laboratório no CI somente
+confirma tipos/dependências, não o comportamento em aparelhos reais.
+
+### Migração compatível, conservadora
+
+`LegacyLockMigrationPolicy.kt` diferencia os registros antigos:
+
+- `enabled`, `disable-pending` ou diário `pending`: migrar **somente
+  para bloqueado**;
+- `disabled` ou ausência de preferência e diário: exigir decisão explícita
+  de configuração, sem criar registro nativo desligado automaticamente;
+- valores inesperados, diário malformado: recusar;
+- registro nativo existente: preservá-lo sem substituí-lo pela origem legada.
+
+`migrateLegacyLocked` faz o registro inicial bloqueado com `updateData`
+idempotente. A extração dos dados legados no dispositivo, o consentimento
+para quem tinha opt-in desligado e a seleção transacional da origem ainda
+não foram implementados. O CI JVM exercita **10 cenários de política +
+15 de DataStore/migração**, mas não substitui QA em Samsung ou análise
+de segurança independente.
