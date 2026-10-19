@@ -61,6 +61,8 @@ Status: **em andamento**. Esta fase é pré-requisito para iniciar a Fase 2 (con
 - [x] Protótipo HMAC-SHA256 de integridade do estado nativo, codificação canônica e verificação constante de MAC. Adaptador Android Keystore independente com provisão explícita somente sintética; 15 cenários JVM testam adulteração, chave ausente e reprodução de registro antigo (que **ainda é aceito**). **Não protege o banco financeiro nem equivale ao Bitwarden.**
 - [ ] Meta Bitwarden ou superior: requisitos e bloqueios de release documentados em `docs/security/BITWARDEN_GRADE_SECURITY_GATES.md`. Exige criptografia real, gestão de chaves, auditoria externa e testes móveis antes de qualquer alegação de equivalência.
 
+- [x] Envelope AEAD AES-256-GCM sintético para registros financeiros com AAD vinculando tipo, ID lógico e revisão, 23 cenários JVM e laboratório separado de chave AES no Android Keystore. **Não há banco financeiro persistente ou SQLCipher, uso biométrico criptográfico, zero-knowledge real ou integração ao APK.** Detalhes: `docs/security/FINANCIAL_RECORD_ENVELOPE_LAB_V1.md`.
+
 ## Ainda pendente para concluir a Fase 1
 - [ ] **Homologação no Samsung:** executar [roteiro de QA da V3.1](ANDROID_QA_V3.1.md), registrar falhas e corrigi-las. Sem execução física não declarar aprovado.
   - [x] Ferramenta **somente leitura** de pré-diagnóstico ADB/versão/hash preparada para Windows; sem validação física até o usuário executar no Samsung.
