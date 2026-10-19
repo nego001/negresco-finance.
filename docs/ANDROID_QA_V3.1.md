@@ -53,6 +53,8 @@
 | QA-35 | No Android, abrir Guardião e tentar capturar print, gravar tela ou abrir o alternador de apps | O conteúdo do Guardião não deve aparecer na captura/gravação nem na miniatura dos aplicativos recentes |
 | QA-36 | Ativar biometria forte, testar captura nas demais telas e depois desativar o bloqueio | Com proteção ativa o app não deve ser capturável; após desativá-la, a tela Início pode ser capturada normalmente. O Guardião continua protegido |
 
+O QA-35 e QA-36 só podem ser aprovados com teste físico no Samsung, verificando inclusive as miniaturas do Android. A proteção nativa depende da aplicação efetiva do `FLAG_SECURE`; capturas anteriores e PDFs já compartilhados não são protegidos retroativamente.
+
 
 Para saber como preparar a assinatura permanente sem divulgar segredos, consulte [Assinatura Android V3.1](ANDROID_SIGNING_V3_1.md). **Não marcar QA-24 como aprovado por existir apenas código ou documentação.**
 

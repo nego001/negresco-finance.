@@ -13,6 +13,8 @@
 - CI, TypeScript e geração de APK automatizados; hash SHA-256 do APK e identificação pública do certificado.
 - Fluxo **opt-in** de assinatura Android persistente implementado, mas **sem chave configurada e sem teste de atualização no aparelho**. Por padrão o APK continua com certificado Android Debug.
 
+**Contrato de chaves:** o projeto passou a ter [política separada](security/KEY_LIFECYCLE_V1.md) para aliases SQLCipher, E2EE e recuperação, com testes unitários. Isso **não gera chaves**, não desbloqueia um banco e não representa uma implementação zero-knowledge.
+
 ## Pendências obrigatórias da Fase 1
 
 1. Homologar no Samsung todos os cenários do [roteiro Android](ANDROID_QA_V3.1.md).

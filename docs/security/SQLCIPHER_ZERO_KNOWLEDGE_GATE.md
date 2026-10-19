@@ -7,6 +7,8 @@ segredos reais, nem mudar o status da auditoria CP-0163 do Security Black.
 
 **Diagnóstico preparatório:** existe um teste opcional no Android usando SecureStore com `requireAuthentication:true`, somente com marcador sintético e sem chaves de produção. **Esse diagnóstico não satisfaz nenhum dos gates listados abaixo** até que o suporte nativo seja testado e auditado no Samsung.
 
+**Política preparatória:** [Key Lifecycle V1](KEY_LIFECYCLE_V1.md) define aliases separados, bloqueio ao perder a biometria e veto a SQLite sem criptografia em regras puras aprovadas no CI. **Não há chave de banco gerada, banco SQLCipher integrado, recuperação funcional ou auditoria nativa**. Nenhum gate abaixo é considerado cumprido.
+
 ## Propriedades obrigatórias
 
 1. **Banco local:** SQLCipher nativo para as páginas e os índices locais,

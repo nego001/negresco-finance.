@@ -9,7 +9,7 @@ Status: **em andamento**. Esta fase é pré-requisito para iniciar a Fase 2 (con
 ## Implementado e verificado no CI
 - [x] Compilação Android automatizada com assinatura técnica verificada e SHA256 do APK.
 - [x] Limites de memória do Gradle para compilar módulos Kotlin/Expo.
-- [x] Identificação nativa `3.1.0`, com runtime OTA distinto da versão `0.2.0`.
+- [x] Identificação nativa da versão atual `3.1.2` (`versionCode 33`), com runtime OTA separado dos APKs `3.1.0` e `3.1.1`.
 - [x] Publicação OTA manual, sem instalar módulos nativos pela rede.
 - [x] Guardião: histórico resumido em SecureStore, gravações e exclusões serializadas.
 - [x] Proteção contra respostas atrasadas da consulta opcional de CNPJ; limite de espera.
@@ -26,6 +26,7 @@ Status: **em andamento**. Esta fase é pré-requisito para iniciar a Fase 2 (con
 - [x] Bloqueio visual **opt-in** por biometria forte implementado em código e com testes de política; requer o APK nativo `3.1.1` (versionCode `32`). **Ainda não validado no Samsung, não protege o banco nem os arquivos criptograficamente.**
 - [x] Diagnóstico opcional do SecureStore com `requireAuthentication=true` implementado com marcador **sintético**, leitura autenticada e tentativa de limpeza. **Não comprova hardware dedicado, Android Keystore suficiente para SQLCipher, recuperação ou E2EE**.
 - [x] Proteção **nativa de tela** preparada com `expo-screen-capture` somente para o Guardião ou quando bloqueio biométrico estiver ativo. APK `3.1.2` / versionCode `33` pendente de homologação no Samsung; não protege PDFs exportados, telas externas nem dados armazenados.
+  - [ ] [Issue #5](https://github.com/nego001/negresco-finance./issues/5): executar QA-35/QA-36 para screenshot, gravação e miniatura no Samsung. Ainda sem confirmação de proteção real em hardware.
   - [ ] [Issue #3](https://github.com/nego001/negresco-finance./issues/3): homologar autenticação Android real, e depois vincular chaves ao Keystore e ao futuro SQLCipher. Não declarar liberado apenas com CI verde.
 
 ## Ainda pendente para concluir a Fase 1
@@ -37,6 +38,7 @@ Status: **em andamento**. Esta fase é pré-requisito para iniciar a Fase 2 (con
   - [ ] Criar/provisionar chave permanente fora do GitHub, executar build opt-in e testar atualização entre duas versões com a mesma assinatura.
   - [ ] Tratar a instalação anterior Debug como migração separada. **Não desinstalar uma cópia com dados sem plano de backup/restauração validado.**
 - [ ] **Autenticação e proteção local:** o bloqueio visual por biometria forte é apenas um protótipo. Validar o BiometricPrompt no Samsung, implementar vínculo real de chaves ao Android Keystore, recuperação e gestão de sessão antes de aceitar dados financeiros. Não chamar o protótipo de aplicativo bancário seguro.
+- [x] Política **lógica e testada** de separação de chaves SQLCipher, E2EE e recuperação offline ([Key Lifecycle V1](security/KEY_LIFECYCLE_V1.md)); **não cria nem armazena chaves reais**, não aprova zero-knowledge.
 - [ ] **Banco nativo + zero-knowledge:** cumprir [gates SQLCipher e E2EE](security/SQLCIPHER_ZERO_KNOWLEDGE_GATE.md) antes de habilitar qualquer biblioteca nativa, integração bancária ou armazenamento sensível real.
   - [ ] Executar no Samsung o diagnóstico Keystore com digital cadastrada, cancelamento e alteração de digitais; registrar resultado sem dados privados.
   - [ ] Projetar chaves independentes de SQLCipher e E2EE, provisionamento, rotação e recuperação offline antes de guardar informações financeiras reais.
