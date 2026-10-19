@@ -164,3 +164,21 @@ test('opt-out preparation never commits native disabled state or exposes a JS br
  assert.match(androidHost,/repository\.recoverPreparedDisable\(\)/);
  assert.doesNotMatch(androidHost,/prepareDisableForLab|suspend fun disable/);
 });
+
+test('legacy Kotlin policy cannot bypass native opt-out denial',()=>{
+ const sync=read('tooling/native-lock-spike/src/main/kotlin/com/negresco/finance/security/NativeLockCoordinator.kt');
+ const asyncPolicy=read('tooling/native-lock-spike/src/main/kotlin/com/negresco/finance/security/SuspendingNativeLockCoordinator.kt');
+ const faults=read('tooling/native-lock-spike/src/test/kotlin/com/negresco/finance/security/OptOutInterleavingTest.kt');
+ const runner=read('tooling/native-lock-spike/src/test/kotlin/com/negresco/finance/security/NativeLockCoordinatorTest.kt');
+ assert.match(sync,/if \(action == LockAction\.DISABLE\) return LockResult\.DENIED/);
+ assert.doesNotMatch(sync,/val enabled = action == LockAction\.ENABLE/);
+ assert.match(sync,/private var unlockedRevision: Long\? = null/);
+ assert.match(sync,/record\.revision != unlockedRevision/);
+ assert.match(asyncPolicy,/suspend fun disable\(\): LockResult = LockResult\.DENIED/);
+ assert.match(asyncPolicy,/val sessionStillValid = stillValid\(ticket\)/);
+ assert.match(asyncPolicy,/if \(!sessionStillValid\) return@withLock LockResult\.STALE/);
+ assert.match(faults,/pauseAfterCommit = false/);
+ assert.match(faults,/pauseAfterCommit = true/);
+ assert.match(faults,/attempt\.cancelAndJoin\(\)/);
+ assert.match(runner,/runOptOutInterleavingScenarios\(\)/);
+});
