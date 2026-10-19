@@ -1,5 +1,5 @@
 # Negresco Finance V3.1 - Windows PowerShell 5.1 read-only Samsung preflight.
-# No adb install, uninstall, clear, or device mutations. Never requests bank data.
+# Strictly read-only: no package changes or device mutations. Never requests bank data.
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $false)]
