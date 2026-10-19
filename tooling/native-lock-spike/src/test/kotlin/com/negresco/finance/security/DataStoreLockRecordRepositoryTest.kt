@@ -23,11 +23,15 @@ private class DataStoreHarness(private val file: File) {
   }
 }
 
-private suspend fun seedSyntheticRecord(harness: DataStoreHarness, revision: Long = 3L) {
+private suspend fun seedSyntheticRecord(
+  harness: DataStoreHarness,
+  revision: Long = 3L,
+  enabled: Boolean = true
+) {
   harness.raw.updateData {
     mutablePreferencesOf(
       NativeLockDataStoreKeys.version to LOCK_RECORD_VERSION,
-      NativeLockDataStoreKeys.enabled to true,
+      NativeLockDataStoreKeys.enabled to enabled,
       NativeLockDataStoreKeys.revision to revision
     )
   }
@@ -45,19 +49,19 @@ internal suspend fun runDataStoreScenarios() {
     val h = DataStoreHarness(file)
     try {
       check(h.repository.read() == null)
-      val result = runCatching { h.repository.compareAndSet(0L, false) }
+      val result = runCatching { h.repository.enableIfCurrent(0L) }
       check(result.exceptionOrNull() is MissingNativeLockRecord)
     } finally { h.close() }
   }
 
-  // Full record updated as one transaction; a stale revision cannot disable it.
+  // An enable-only atomic transaction preserves revision checks.
   checkOne { file ->
     val h = DataStoreHarness(file)
     try {
-      seedSyntheticRecord(h)
-      check(h.repository.compareAndSet(3L, false) == LockRecord(1, false, 4L))
-      check(h.repository.read() == LockRecord(1, false, 4L))
-      val stale = runCatching { h.repository.compareAndSet(3L, false) }
+      seedSyntheticRecord(h, enabled = false)
+      check(h.repository.enableIfCurrent(3L) == LockRecord(1, true, 4L))
+      check(h.repository.read() == LockRecord(1, true, 4L))
+      val stale = runCatching { h.repository.enableIfCurrent(3L) }
       check(stale.exceptionOrNull() is StaleNativeLockRevision)
     } finally { h.close() }
   }
@@ -66,11 +70,11 @@ internal suspend fun runDataStoreScenarios() {
   checkOne { file ->
     val first = DataStoreHarness(file)
     try {
-      seedSyntheticRecord(first, 11L)
-      check(first.repository.compareAndSet(11L, false) == LockRecord(1, false, 12L))
+      seedSyntheticRecord(first, 11L, enabled = false)
+      check(first.repository.enableIfCurrent(11L) == LockRecord(1, true, 12L))
     } finally { first.close() }
     val reopened = DataStoreHarness(file)
-    try { check(reopened.repository.read() == LockRecord(1, false, 12L)) }
+    try { check(reopened.repository.read() == LockRecord(1, true, 12L)) }
     finally { reopened.close() }
   }
 
@@ -78,15 +82,15 @@ internal suspend fun runDataStoreScenarios() {
   checkOne { file ->
     val h = DataStoreHarness(file)
     try {
-      seedSyntheticRecord(h)
+      seedSyntheticRecord(h, enabled = false)
       val outcomes = coroutineScope {
-        val first = async { runCatching { h.repository.compareAndSet(3L, false) } }
-        val second = async { runCatching { h.repository.compareAndSet(3L, false) } }
+        val first = async { runCatching { h.repository.enableIfCurrent(3L) } }
+        val second = async { runCatching { h.repository.enableIfCurrent(3L) } }
         listOf(first.await(), second.await())
       }
       check(outcomes.count { it.isSuccess } == 1)
       check(outcomes.count { it.exceptionOrNull() is StaleNativeLockRevision } == 1)
-      check(h.repository.read() == LockRecord(1, false, 4L))
+      check(h.repository.read() == LockRecord(1, true, 4L))
     } finally { h.close() }
   }
 
@@ -113,7 +117,7 @@ internal suspend fun runDataStoreScenarios() {
         )
       }
       check(runCatching { h.repository.read() }.exceptionOrNull() is InvalidNativeLockRecord)
-      check(runCatching { h.repository.compareAndSet(0L, false) }.exceptionOrNull()
+      check(runCatching { h.repository.enableIfCurrent(0L) }.exceptionOrNull()
         is InvalidNativeLockRecord)
     } finally { h.close() }
   }
@@ -187,7 +191,8 @@ internal suspend fun runDataStoreScenarios() {
     val h = DataStoreHarness(file)
     try {
       check(h.repository.migrateLegacyLocked("enabled", null) == LockRecord(1, true, 0L))
-      check(h.repository.compareAndSet(0L, false) == LockRecord(1, false, 1L))
+      // Simulate a pre-existing legacy off state without exposing a writer.
+      seedSyntheticRecord(h, revision = 1L, enabled = false)
       check(h.repository.migrateLegacyLocked("enabled", "bad-journal") == LockRecord(1, false, 1L))
       check(h.repository.read() == LockRecord(1, false, 1L))
     } finally { h.close() }
@@ -225,7 +230,7 @@ internal suspend fun runDataStoreScenarios() {
       val prepared = h.repository.prepareDisable(3L)
       check(prepared == LockRecord(1, true, 4L, disablePending = true))
       check(h.repository.read() == prepared)
-      check(runCatching { h.repository.compareAndSet(4L, false) }
+      check(runCatching { h.repository.enableIfCurrent(4L) }
         .exceptionOrNull() is PendingNativeLockDisable)
     } finally { h.close() }
   }
@@ -308,8 +313,7 @@ internal suspend fun runDataStoreScenarios() {
   checkOne { file ->
     val h = DataStoreHarness(file)
     try {
-      seedSyntheticRecord(h)
-      h.repository.compareAndSet(3L, false)
+      seedSyntheticRecord(h, revision = 4L, enabled = false)
       check(runCatching { h.repository.prepareDisable(4L) }
         .exceptionOrNull() is PendingNativeLockDisable)
       check(h.repository.read() == LockRecord(1, false, 4L))
