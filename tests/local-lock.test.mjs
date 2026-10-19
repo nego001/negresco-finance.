@@ -203,3 +203,14 @@ test('hook checks both persisted lock state and journal before showing the UI',(
  assert.match(hook,/parseLocalLockWithJournal\(saved,journal\)/);
  assert.match(hook,/const load=useCallback\(async\(\)=>\{\s*if\(preferenceMutation\.current\)return;/);
 });
+
+test('foreground retries an interrupted preference read instead of leaving loading forever',()=>{
+ const hook=readFileSync(new URL('../apps/mobile/security/useLocalAppLock.ts',import.meta.url),'utf8');
+ assert.match(hook,/const pendingReadEpoch=useRef<number\|null>\(null\);/);
+ assert.match(hook,/const reloadOnForeground=useRef\(false\);/);
+ assert.match(hook,/pendingReadEpoch\.current=attemptEpoch;/);
+ assert.match(hook,/if\(pendingReadEpoch\.current===attemptEpoch\)pendingReadEpoch\.current=null;/);
+ assert.match(hook,/if\(pendingReadEpoch\.current!==null\)reloadOnForeground\.current=true;/);
+ assert.match(hook,/if\(next==='active'&&reloadOnForeground\.current\)\{\s*reloadOnForeground\.current=false;\s*void load\(\);/);
+ assert.match(hook,/reloadOnForeground\.current=false;\s*epoch\.current\+\+;\s*sub\.remove\(\);/);
+});
