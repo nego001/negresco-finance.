@@ -24,7 +24,7 @@ project. It is never linked from `apps/mobile`. Its file path is fixed to
 
 - `openExistingSynthetic(...)`: refuses missing, empty, truncated, symbolic-link and known plaintext SQLite files before native open; uses `SQLiteDatabase.OPEN_READWRITE` without `CREATE_IF_NECESSARY`. A random-looking header is not proof of encryption.
 - `createFreshSynthetic(...)`: requires an explicit call and exclusive file creation. It refuses an existing file, even corrupted or empty. It does not overwrite or delete existing data.
-- Both: expect a disposable random **32-byte synthetic passphrase**, load `sqlcipher` explicitly, use **only** `net.zetetic.database.sqlcipher.SQLiteDatabase`, verify `PRAGMA cipher_version` and perform an actual keyed `sqlite_master` read. Wrong key, missing native library and invalid DB cause an error, never a fallback to platform SQLite.
+- Both: expect a disposable random **32-byte synthetic passphrase**, load `sqlcipher` explicitly, use **only** `net.zetetic.database.sqlcipher.SQLiteDatabase`, verify `PRAGMA cipher_version` and perform an actual keyed `sqlite_master` read. The native open additionally checks **`PRAGMA cipher_integrity_check` (zero rows when intact)** and **`PRAGMA integrity_check` (one `ok` row)**. Wrong key, missing native library and invalid DB cause an error, never a fallback to platform SQLite.
 - Only an extra passphrase copy is wiped. Native buffers and caller-owned arrays are beyond the helper's guarantee. `byte[]` SQLCipher passphrase input does **not** automatically constitute a raw random page key or secure AndroidKeyStore integration.
 
 The shared portable `SqlCipherLabGuard` carries **12 JVM-only** input and header policy tests. These are not actual SQLCipher database tests: that requires a running Android runtime with native `.so` support.
@@ -48,3 +48,19 @@ GitHub Actions has a separate `sqlcipher-android-lab` job that compiles Kotlin a
 5. Android physical Samsung QA and independent cryptographic review before any real transactions.
 
 Reference `docs/security/SQLCIPHER_ZERO_KNOWLEDGE_GATE.md`, `docs/security/BITWARDEN_GRADE_SECURITY_GATES.md` and ADR 0001.
+
+
+## Emulator bug diagnosed and corrected
+
+The first actual emulated Android execution reached all nine JNI tests:
+**eight passed and one failed**. The failing test incorrectly expected
+`cipher_integrity_check` to emit `ok`. Per the [official SQLCipher API](https://www.zetetic.net/sqlcipher/sqlcipher-api/),
+**zero rows** means no HMAC/page errors; one row is emitted **for each error**.
+The test now requires zero rows. The separate standard SQLite
+`integrity_check` must return exactly one `ok`. The native open helper
+was strengthened to reject either page-level or logical integrity problems.
+
+This is a test expectation correction plus a stricter native read, **not a
+waiver, skipped test or automatic corruption recovery**. The first 8/9
+result is not treated as approval: the full Android emulator suite must
+pass again on the new commit. No Samsung, Expo or user data is involved.
