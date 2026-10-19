@@ -143,3 +143,23 @@ test('native DataStore observation revokes sessions but cannot grant access',()=
  assert.match(host,/observationScope\.cancel\(\)/);
  assert.match(coordinator,/suspend fun disable\(\): LockResult = LockResult\.DENIED/);
 });
+
+test('opt-out preparation never commits native disabled state or exposes a JS bridge',()=>{
+ const policy=read('tooling/native-lock-spike/src/main/kotlin/com/negresco/finance/security/NativeLockCoordinator.kt');
+ const store=read('tooling/native-lock-spike/src/main/kotlin/com/negresco/finance/security/DataStoreLockRecordRepository.kt');
+ const coordinator=read('tooling/native-lock-spike/src/main/kotlin/com/negresco/finance/security/SuspendingNativeLockCoordinator.kt');
+ const androidHost=read('tooling/native-lock-android-lab/src/main/kotlin/com/negresco/finance/security/NativeLockAndroidLabSession.kt');
+ assert.match(policy,/disablePending: Boolean = false/);
+ assert.match(policy,/PREPARED/);
+ assert.match(store,/val disablePending = booleanPreferencesKey/);
+ assert.match(store,/suspend fun prepareDisable\(expectedRevision: Long\)/);
+ assert.match(store,/suspend fun recoverPreparedDisable\(\)/);
+ assert.match(store,/this\[NativeLockDataStoreKeys\.enabled\] = true/);
+ assert.match(store,/this\[NativeLockDataStoreKeys\.disablePending\] = true/);
+ assert.match(store,/if \(previous\.disablePending\) throw PendingNativeLockDisable\(\)/);
+ assert.match(coordinator,/suspend fun prepareDisableForLab\(\): LockResult = requestMutex\.withLock/);
+ assert.match(coordinator,/biometric\.authenticate\(LockAction\.DISABLE\)/);
+ assert.match(coordinator,/LockResult\.PREPARED/);
+ assert.match(coordinator,/suspend fun disable\(\): LockResult = LockResult\.DENIED/);
+ assert.doesNotMatch(androidHost,/prepareDisableForLab|suspend fun disable/);
+});
