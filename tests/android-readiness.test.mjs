@@ -161,5 +161,6 @@ test('opt-out preparation never commits native disabled state or exposes a JS br
  assert.match(coordinator,/biometric\.authenticate\(LockAction\.DISABLE\)/);
  assert.match(coordinator,/LockResult\.PREPARED/);
  assert.match(coordinator,/suspend fun disable\(\): LockResult = LockResult\.DENIED/);
+ assert.match(androidHost,/repository\.recoverPreparedDisable\(\)/);
  assert.doesNotMatch(androidHost,/prepareDisableForLab|suspend fun disable/);
 });
