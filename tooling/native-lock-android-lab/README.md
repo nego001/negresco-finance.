@@ -28,11 +28,29 @@ registers no Expo module, installs nothing and does not migrate anyone's
 settings. Dependency versions are explicit in the laboratory Gradle file.
 The AndroidX Biometric library is pinned to the stable `1.1.0`.
 
+## Native coroutine coordinator (experimental, not linked to Expo)
+
+`NativeLockAndroidLabSession` now wires `StrongBiometricPrompt` and the
+process-scoped DataStore to `SuspendingNativeLockCoordinator`. It observes
+`onResume`/`onStop`, invalidates generations synchronously, serializes
+biometric requests with a coroutine Mutex and rechecks the DataStore revision
+before granting an unlocked UI session.
+
+The new native coordinator supports **unlock and enable** in the isolated
+laboratory. It **refuses disable**: the final transaction of removing local
+protection is not yet linearizable with Android lifecycle revocation and must
+not be exposed through a JS bridge. A successful BiometricPrompt result is
+not a Keystore-protected cryptographic key authorization.
+
+11 additional JVM scenarios cover cancellation, revoked sessions, stale
+revisions, serialized prompts, enabled commit and explicit disable denial.
+No real-device biometric tests have been run.
+
 ## Not implemented and security limits
 
-- No connected coordinator authorizes DataStore writes based on a biometrically
-  authenticated **native** operation; the prompt returns only a candidate
-  response that still needs session generation and revision validation.
+- A lab-only coordinator now connects native biometrics and DataStore for
+  **unlock/enable** with generation/revision guards. It does not permit
+  disabling protection or authorize any real SQLCipher/Keystore key.
 - No user-facing setup flow for legacy `null`/`disabled` preferences.
   The current migration policy deliberately refuses to initialize those as
   `off`; preserving access requires a separate verified UX decision.
@@ -44,6 +62,7 @@ The AndroidX Biometric library is pinned to the stable `1.1.0`.
   with synthetic data, including prompt cancellation, app switching,
   fingerprint changes and process death.
 
-**Next implementation gate:** a suspend-aware native coordinator that owns
-biometric authentication, guards lifecycle invalidation, and serializes the
-DataStore commit. No unguarded `compareAndSet` method in the JS bridge.
+**Next implementation gate:** verify native prompt lifecycle on a Samsung
+with synthetic data; then design a safe native commit protocol for disabling
+protection, native-only migration and durable key authorization. No unguarded
+`compareAndSet` method in any JS bridge.
