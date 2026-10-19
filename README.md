@@ -37,6 +37,8 @@ npm test
 
 Para gerar o aplicativo Android, consulte [GitHub Actions](https://github.com/nego001/negresco-finance./actions). Um CI aprovado não substitui os testes em aparelho físico.
 
+**Diagnóstico experimental Android Keystore:** opção manual em Ajustes para testar gravação, leitura autenticada e limpeza de um marcador fictício via SecureStore. Não usa chaves financeiras reais nem prova segurança criptográfica do futuro SQLCipher. Teste ainda **não executado no Samsung**.
+
 **Assinatura Android:** os APKs automáticos continuam Debug. A [configuração opcional de assinatura permanente](docs/ANDROID_SIGNING_V3_1.md) foi preparada, mas sua chave e a migração segura ainda não foram validadas.
 
 ## Documentação

@@ -13,6 +13,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { decodePreferences, createPreferenceWriteQueue, PREFERENCES_STORAGE_KEY } from './preferences';
 import { shouldClearSensitiveOnNavigation, shouldClearSensitiveOnAppState } from './guardiao/privacy';
 import {useLocalAppLock} from './security/useLocalAppLock';
+import {runKeystoreProbe, type KeystoreProbeResult} from './security/keystoreProbe';
+import * as LocalAuthentication from 'expo-local-authentication';
 import {LocalLockScreen} from './components/LocalLockScreen';
 import { Animated, AppState, Easing, SafeAreaView, ScrollView, StatusBar, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
@@ -54,6 +56,18 @@ function Notice({title,body}:{title:string;body:string}) {
 export default function App() {
   const [page,setPage]=useState<Page>('Início');
   const localLock=useLocalAppLock();
+  const [keystoreProbeBusy,setKeystoreProbeBusy]=useState(false);
+  const [keystoreProbeResult,setKeystoreProbeResult]=useState<KeystoreProbeResult|null>(null);
+  const checkKeystore=async()=>{
+    if(localLock.status!=='unlocked'||keystoreProbeBusy)return;
+    setKeystoreProbeBusy(true);
+    setKeystoreProbeResult(null);
+    try{
+      setKeystoreProbeResult(await runKeystoreProbe(SecureStore,LocalAuthentication,Platform.OS));
+    }catch{
+      setKeystoreProbeResult({status:'failed',message:'Falha inesperada no teste local. Nenhuma chave financeira foi criada.'});
+    }finally{setKeystoreProbeBusy(false);}
+  };
   const [boletoLine,setBoletoLine]=useState('');
   const [boletoResult,setBoletoResult]=useState<ReturnType<typeof inspectBoleto>|null>(null);
   const [reportExportStatus,setReportExportStatus]=useState('');
@@ -244,6 +258,16 @@ export default function App() {
             <TouchableOpacity accessibilityRole="button" disabled={localLock.busy} onPress={localLock.disable} style={[s.actionButton,{backgroundColor:'#22334A',marginTop:11}]}><Text style={s.actionText}>{localLock.busy?'Verificando...':'Desativar bloqueio (confirmar biometria)'}</Text></TouchableOpacity>
           </>:null}
           {!!localLock.message&&<Text style={[s.visualFeatureBody,{color:'#E8C393'}]}>{localLock.message}</Text>}
+        </View>
+        <View style={s.visualFeature}>
+          <Text style={s.visualFeatureTitle}>Diagnóstico Android Keystore · experimental</Text>
+          <Text style={s.visualFeatureBody}>Somente para testar no Samsung: grava, lê e apaga um marcador fictício com autenticação exigida pelo Android. Nenhuma chave de banco é criada. O resultado não comprova hardware dedicado nem zero-knowledge.</Text>
+          {localLock.status==='unlocked'?
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Testar SecureStore com biometria e dados fictícios" disabled={keystoreProbeBusy} onPress={checkKeystore} style={[s.actionButton,{backgroundColor:'#244876',marginTop:13}]}>
+              <Text style={s.actionText}>{keystoreProbeBusy?'Testando proteção...':'Testar proteção do Keystore'}</Text>
+            </TouchableOpacity>
+            :<Text style={[s.visualFeatureBody,{color:'#DAB882'}]}>Primeiro ative e desbloqueie a proteção biométrica da prévia para executar este diagnóstico.</Text>}
+          {keystoreProbeResult&&<Text style={[s.visualFeatureBody,{marginTop:10,color:keystoreProbeResult.status==='passed'?'#9DD9C8':'#E4C18E'}]}>{keystoreProbeResult.message}</Text>}
         </View>
         <View style={s.palette}><View style={[s.swatch,{backgroundColor:'#000000',borderColor:'#41536C'}]}/><View style={[s.swatch,{backgroundColor:blue,borderColor:blue}]}/><View style={[s.swatch,{backgroundColor:'#0D111A',borderColor:'#41536C'}]}/><Text style={s.paletteLabel}>PALETA ATIVA</Text></View><Notice title="Tema OLED ativo" body="O fundo preto absoluto foi preservado para telas AMOLED. Preferências visuais e personalidade são salvas neste aparelho. Não armazene dados financeiros nas opções de aparência."/>
       </>:<>

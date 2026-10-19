@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
 import {runKeystoreProbe,KEYSTORE_PROBE_KEY,KEYSTORE_PROBE_SERVICE} from '../apps/mobile/security/keystoreProbe.ts';
 
 const auth={
@@ -81,4 +82,12 @@ test('failed write attempts cleanup without leaking a false pass',async()=>{
  const result=await runKeystoreProbe(store,auth,'android');
  assert.equal(result.status,'failed');
  assert.deepEqual(calls.map(c=>c[0]),['delete']);
+});
+
+test('keystore test is manual from unlocked settings and does not run on startup',()=>{
+ const app=readFileSync(new URL('../apps/mobile/App.tsx',import.meta.url),'utf8');
+ assert.match(app,/runKeystoreProbe\(SecureStore,LocalAuthentication,Platform\.OS\)/);
+ assert.match(app,/if\(localLock\.status!=='unlocked'\|\|keystoreProbeBusy\)return/);
+ assert.match(app,/onPress=\{checkKeystore\}/);
+ assert.doesNotMatch(app,/useEffect\(\(\)=>\{\s*runKeystoreProbe/);
 });

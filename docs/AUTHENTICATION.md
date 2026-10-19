@@ -11,6 +11,12 @@
 - Ao perder primeiro plano, volta à tela de bloqueio e descarta autenticações anteriores. Erro na leitura da preferência falha fechado em tela de recuperação/retry.
 - `apps/mobile/security/localLockPolicy.ts` contém regras unitárias de privacidade, força biométrica e validade de sessão de interface.
 
+## Diagnóstico experimental de armazenamento autenticado
+
+Na tela Ajustes, depois de ativar e desbloquear a proteção da interface, é possível executar **Testar proteção do Keystore**. Usa o módulo já integrado `expo-secure-store` no Android com `requireAuthentication: true` para escrever e ler **somente um marcador fictício**, depois tenta apagá-lo. Esse teste é manual e a confirmação exige o Samsung real. Cancelamento, falha de leitura e falha na exclusão não geram aprovação.
+
+**Escopo:** o diagnóstico verifica o caminho de armazenamento autenticado do SDK, não a existência de hardware StrongBox, chaves E2EE, banco SQLCipher, backup nem proteção contra aparelho comprometido. Mudar as digitais pode invalidar entradas autenticadas, e dados do Android SecureStore não sobrevivem a desinstalações. 
+
 ## Limites fundamentais
 
 1. O marcador em AsyncStorage pode ser adulterado em aparelho comprometido. **Não é barreira criptográfica.**

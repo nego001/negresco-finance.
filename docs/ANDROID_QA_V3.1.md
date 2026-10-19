@@ -46,6 +46,11 @@
 | QA-28 | Cancelar autenticação e tentar impressão incorreta | Conteúdo permanece indisponível e usuário pode tentar novamente |
 | QA-29 | Desbloquear, bloquear manualmente, colocar app em segundo plano e retornar | Interface volta bloqueada; nenhum resultado tardio pode desbloquear uma sessão anterior |
 | QA-30 | Desativar em Ajustes e testar aparelho sem biometria forte cadastrada | Desativação exige autenticação; falta de biometria forte impede habilitação, sem bypass silencioso |
+| QA-31 | Ativar biometria e executar **Testar proteção do Keystore** em Ajustes | Android solicita autenticação ao acessar o marcador fictício; teste somente aprovado após gravar, ler e apagar |
+| QA-32 | Cancelar o prompt durante o teste Keystore | App não declara sucesso, não abre conteúdo protegido indevidamente e tenta excluir marcador fictício |
+| QA-33 | Desabilitar biometria forte ou adicionar outra impressão após habilitar o teste | Acesso autenticado pode ser invalidado; não fazer reset forçado ou alegar recuperação segura |
+| QA-34 | Conferir logs e armazenamento temporário após o diagnóstico | Nenhum segredo financeiro gravado; mensagem não afirma SQLCipher, StrongBox nem zero-knowledge |
+
 
 Para saber como preparar a assinatura permanente sem divulgar segredos, consulte [Assinatura Android V3.1](ANDROID_SIGNING_V3_1.md). **Não marcar QA-24 como aprovado por existir apenas código ou documentação.**
 

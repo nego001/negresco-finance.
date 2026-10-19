@@ -189,6 +189,7 @@ jobs:
           ### Recursos incluidos
           - Interface OLED e preferencias visuais.
           - Bloqueio de interface por biometria forte, opcional nos Ajustes; requer nova instalacao nativa 3.1.1.
+          - Diagnostico manual de SecureStore autenticado, com somente marcador ficticio e tentativa de limpeza.
           - Guardiao: verificacao matematica de linhas digitaveis, PDF local e historico resumido em armazenamento seguro.
           - Consulta opcional de cadastro CNPJ via BrasilAPI, servico de terceiros.
           - Indicadores transparentes de integracoes indisponiveis.

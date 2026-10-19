@@ -5,6 +5,8 @@ O APK V3.1 atual **não usa SQLCipher** nem oferece zero-knowledge completo.
 Este documento não autoriza armazenar credenciais, transações bancárias ou
 segredos reais, nem mudar o status da auditoria CP-0163 do Security Black.
 
+**Diagnóstico preparatório:** existe um teste opcional no Android usando SecureStore com `requireAuthentication:true`, somente com marcador sintético e sem chaves de produção. **Esse diagnóstico não satisfaz nenhum dos gates listados abaixo** até que o suporte nativo seja testado e auditado no Samsung.
+
 ## Propriedades obrigatórias
 
 1. **Banco local:** SQLCipher nativo para as páginas e os índices locais,
