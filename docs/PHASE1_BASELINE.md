@@ -50,6 +50,8 @@ Status: **em andamento**. Esta fase é pré-requisito para iniciar a Fase 2 (con
 
 - [x] Gate de saúde do observador DataStore no laboratório Android: sem primeira emissão válida não há autenticação; observação ausente, corrompida ou interrompida trava a autorização pela vida da Activity. Preferência válida `enabled=false` segue habilitável mediante biometria. Testes JVM adicionais; **sem integração com APK 3.1.2 ou QA Samsung**.
 
+- [x] Pré-fase transacional de desativação no laboratório Kotlin: `disablePending` preserva `enabled=true` e a revisão DataStore; reabertura e recuperação atômica rearma o bloqueio. O resultado `PREPARED` não é opt-out concluído; `disable()` permanece recusado, e a preparação não é exportada no Android nem ao Expo. **Sem migração instalada nem QA físico**.
+
 ## Ainda pendente para concluir a Fase 1
 - [ ] **Homologação no Samsung:** executar [roteiro de QA da V3.1](ANDROID_QA_V3.1.md), registrar falhas e corrigi-las. Sem execução física não declarar aprovado.
   - [x] Ferramenta **somente leitura** de pré-diagnóstico ADB/versão/hash preparada para Windows; sem validação física até o usuário executar no Samsung.
