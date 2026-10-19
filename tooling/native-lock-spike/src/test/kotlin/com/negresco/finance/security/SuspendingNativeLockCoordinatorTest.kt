@@ -44,15 +44,31 @@ private suspend fun withCoordinatorStore(
   }
 }
 
+/** Test-only fixture: simulates external or older installations without any
+ * production repository API that can write enabled=false. */
+private suspend fun setSyntheticRecord(
+  raw: DataStore<Preferences>,
+  revision: Long,
+  enabled: Boolean
+) {
+  raw.updateData {
+    mutablePreferencesOf(
+      NativeLockDataStoreKeys.version to LOCK_RECORD_VERSION,
+      NativeLockDataStoreKeys.enabled to enabled,
+      NativeLockDataStoreKeys.revision to revision
+    )
+  }
+}
+
 internal suspend fun runSuspendingCoordinatorScenarios() {
   // 1. Fresh instance starts sealed until Android onResume.
-  withCoordinatorStore { repo, _ ->
+  withCoordinatorStore { repo, raw ->
     val c = SuspendingNativeLockCoordinator(repo) { true }
     check(c.unlock() == LockResult.DENIED)
     check(!c.snapshot().unlocked)
   }
   // 2. Strong native response unlocks only for current foreground generation.
-  withCoordinatorStore { repo, _ ->
+  withCoordinatorStore { repo, raw ->
     val c = SuspendingNativeLockCoordinator(repo) { true }
     c.onForeground()
     check(c.unlock() == LockResult.SUCCESS)
@@ -63,7 +79,7 @@ internal suspend fun runSuspendingCoordinatorScenarios() {
     check(!c.snapshot().unlocked)
   }
   // 3. Background + return DURING prompt invalidates the old response.
-  withCoordinatorStore { repo, _ ->
+  withCoordinatorStore { repo, raw ->
     lateinit var c: SuspendingNativeLockCoordinator
     c = SuspendingNativeLockCoordinator(repo) {
       c.onBackground()
@@ -75,16 +91,16 @@ internal suspend fun runSuspendingCoordinatorScenarios() {
     check(!c.snapshot().unlocked)
   }
   // 4. Cancelled/failed prompt grants no session.
-  withCoordinatorStore { repo, _ ->
+  withCoordinatorStore { repo, raw ->
     val c = SuspendingNativeLockCoordinator(repo) { false }
     c.onForeground()
     check(c.unlock() == LockResult.DENIED)
     check(!c.snapshot().unlocked)
   }
   // 5. Changed DataStore revision while prompt is visible invalidates unlock.
-  withCoordinatorStore { repo, _ ->
+  withCoordinatorStore { repo, raw ->
     val c = SuspendingNativeLockCoordinator(repo) {
-      repo.compareAndSet(3L, true)
+      setSyntheticRecord(raw, revision = 4L, enabled = true)
       true
     }
     c.onForeground()
@@ -92,7 +108,7 @@ internal suspend fun runSuspendingCoordinatorScenarios() {
     check(!c.snapshot().unlocked)
   }
   // 6. Native prompt requests serialize; one cannot overlap another.
-  withCoordinatorStore { repo, _ ->
+  withCoordinatorStore { repo, raw ->
     val gate = CompletableDeferred<Unit>()
     var active = 0
     var maxActive = 0
@@ -115,8 +131,8 @@ internal suspend fun runSuspendingCoordinatorScenarios() {
     check(maxActive == 1)
   }
   // 7. Native enable is an authenticated one-record atomic commit.
-  withCoordinatorStore { repo, _ ->
-    repo.compareAndSet(3L, false)
+  withCoordinatorStore { repo, raw ->
+    setSyntheticRecord(raw, revision = 4L, enabled = false)
     var lastAction: LockAction? = null
     val c = SuspendingNativeLockCoordinator(repo) { action ->
       lastAction = action
@@ -128,8 +144,8 @@ internal suspend fun runSuspendingCoordinatorScenarios() {
     check(repo.read() == LockRecord(1, true, 5L))
   }
   // 8. onStop during enable prompt never commits a disabled->enabled write.
-  withCoordinatorStore { repo, _ ->
-    repo.compareAndSet(3L, false)
+  withCoordinatorStore { repo, raw ->
+    setSyntheticRecord(raw, revision = 4L, enabled = false)
     lateinit var c: SuspendingNativeLockCoordinator
     c = SuspendingNativeLockCoordinator(repo) {
       c.onBackground()
@@ -140,7 +156,7 @@ internal suspend fun runSuspendingCoordinatorScenarios() {
     check(repo.read() == LockRecord(1, false, 4L))
   }
   // 9. Opt-out cannot be invoked through the experimental coordinator.
-  withCoordinatorStore { repo, _ ->
+  withCoordinatorStore { repo, raw ->
     var promptCount = 0
     val c = SuspendingNativeLockCoordinator(repo) {
       promptCount++
@@ -152,15 +168,15 @@ internal suspend fun runSuspendingCoordinatorScenarios() {
     check(repo.read() == LockRecord(1, true, 3L))
   }
   // 10. Invalid native data and absent record never unlock.
-  withCoordinatorStore { repo, _ ->
-    repo.compareAndSet(3L, false)
+  withCoordinatorStore { repo, raw ->
+    setSyntheticRecord(raw, revision = 4L, enabled = false)
     val c = SuspendingNativeLockCoordinator(repo) { true }
     c.onForeground()
     check(c.unlock() == LockResult.DENIED)
     check(!c.snapshot().unlocked)
   }
   // 11. Cancelling a suspended biometric prompt cannot grant access.
-  withCoordinatorStore { repo, _ ->
+  withCoordinatorStore { repo, raw ->
     val promptStarted = CompletableDeferred<Unit>()
     val waiting = CompletableDeferred<Boolean>()
     var blockPrompt = true
@@ -181,19 +197,19 @@ internal suspend fun runSuspendingCoordinatorScenarios() {
     }
   }
   // 12. A change in the persisted revision revokes an existing unlocked session.
-  withCoordinatorStore { repo, _ ->
+  withCoordinatorStore { repo, raw ->
     val c = SuspendingNativeLockCoordinator(repo) { true }
     c.onForeground()
     check(c.unlock() == LockResult.SUCCESS)
     check(c.snapshot().unlocked)
-    repo.compareAndSet(3L, true)
+    setSyntheticRecord(raw, revision = 4L, enabled = true)
     check(!c.snapshot().unlocked)
     check(c.snapshot().revision == 4L)
     check(c.unlock() == LockResult.SUCCESS) // Only a fresh prompt reopens.
     check(c.snapshot().unlocked)
   }
   // 13. Disabling from another writer and re-enabling never restores old unlock.
-  withCoordinatorStore { repo, _ ->
+  withCoordinatorStore { repo, raw ->
     var authentications = 0
     val c = SuspendingNativeLockCoordinator(repo) {
       authentications++
@@ -201,10 +217,10 @@ internal suspend fun runSuspendingCoordinatorScenarios() {
     }
     c.onForeground()
     check(c.unlock() == LockResult.SUCCESS)
-    repo.compareAndSet(3L, false)
+    setSyntheticRecord(raw, revision = 4L, enabled = false)
     check(!c.snapshot().unlocked)
     check(!c.snapshot().enabled)
-    repo.compareAndSet(4L, true)
+    setSyntheticRecord(raw, revision = 5L, enabled = true)
     check(!c.snapshot().unlocked)
     check(c.unlock() == LockResult.SUCCESS)
     check(authentications == 2)
@@ -249,7 +265,7 @@ internal suspend fun runSuspendingCoordinatorScenarios() {
     check(c.unlock() == LockResult.SUCCESS)
   }
   // 16. Live persisted revision change revokes a grant WITHOUT a snapshot read.
-  withCoordinatorStore { repo, _ ->
+  withCoordinatorStore { repo, raw ->
     val c = SuspendingNativeLockCoordinator(repo) { true }
     c.onForeground()
     coroutineScope {
@@ -262,7 +278,7 @@ internal suspend fun runSuspendingCoordinatorScenarios() {
       try {
         check(!withTimeout(5000L) { signals.receive() }) // Initial record.
         check(c.unlock() == LockResult.SUCCESS)
-        repo.compareAndSet(3L, true)
+        setSyntheticRecord(raw, revision = 4L, enabled = true)
         check(withTimeout(5000L) { signals.receive() }) // Revision change revoked.
         check(!c.snapshot().unlocked)
         check(c.unlock() == LockResult.SUCCESS)
@@ -312,7 +328,7 @@ internal suspend fun runSuspendingCoordinatorScenarios() {
     }
   }
   // 19. Android bridge must not authenticate before first healthy observation.
-  withCoordinatorStore { repo, _ ->
+  withCoordinatorStore { repo, raw ->
     var prompts = 0
     val c = SuspendingNativeLockCoordinator(repo, requireLiveObservation = true, biometric = SuspendedStrongBiometry {
       prompts++
@@ -325,7 +341,7 @@ internal suspend fun runSuspendingCoordinatorScenarios() {
   }
 
   // 20. First valid DataStore event opens the auth gate, but never unlocks.
-  withCoordinatorStore { repo, _ ->
+  withCoordinatorStore { repo, raw ->
     var prompts = 0
     val c = SuspendingNativeLockCoordinator(repo, requireLiveObservation = true, biometric = SuspendedStrongBiometry {
       prompts++
@@ -339,7 +355,7 @@ internal suspend fun runSuspendingCoordinatorScenarios() {
   }
 
   // 21. A terminated observer latches failure even after later healthy records.
-  withCoordinatorStore { repo, _ ->
+  withCoordinatorStore { repo, raw ->
     val c = SuspendingNativeLockCoordinator(
       repo, requireLiveObservation = true, biometric = SuspendedStrongBiometry { true })
     c.onForeground()
@@ -356,8 +372,9 @@ internal suspend fun runSuspendingCoordinatorScenarios() {
   }
 
   // 22. An initially valid disabled preference can be enabled with biometrics.
-  withCoordinatorStore { repo, _ ->
-    check(repo.compareAndSet(3L, false).revision == 4L)
+  withCoordinatorStore { repo, raw ->
+    setSyntheticRecord(raw, revision = 4L, enabled = false)
+    check(repo.read()?.revision == 4L)
     var prompts = 0
     val c = SuspendingNativeLockCoordinator(repo, requireLiveObservation = true, biometric = SuspendedStrongBiometry {
       prompts++
@@ -373,7 +390,7 @@ internal suspend fun runSuspendingCoordinatorScenarios() {
   }
 
   // 23. Missing native data can never be treated as successful monitoring.
-  withCoordinatorStore { repo, _ ->
+  withCoordinatorStore { repo, raw ->
     val c = SuspendingNativeLockCoordinator(
       repo, requireLiveObservation = true, biometric = SuspendedStrongBiometry { true })
     c.onForeground()
@@ -384,7 +401,7 @@ internal suspend fun runSuspendingCoordinatorScenarios() {
   }
 
   // 24. Biometric authorization stages opt-out but NEVER disables the lock.
-  withCoordinatorStore { repo, _ ->
+  withCoordinatorStore { repo, raw ->
     var prompted: LockAction? = null
     val c = SuspendingNativeLockCoordinator(repo) { action ->
       prompted = action
@@ -400,7 +417,7 @@ internal suspend fun runSuspendingCoordinatorScenarios() {
   }
 
   // 25. Cancelled authentication never leaves a pending opt-out marker.
-  withCoordinatorStore { repo, _ ->
+  withCoordinatorStore { repo, raw ->
     val c = SuspendingNativeLockCoordinator(repo) { false }
     c.onForeground()
     check(c.prepareDisableForLab() == LockResult.DENIED)
@@ -408,7 +425,7 @@ internal suspend fun runSuspendingCoordinatorScenarios() {
   }
 
   // 26. Background while strong biometric prompt is active blocks staging.
-  withCoordinatorStore { repo, _ ->
+  withCoordinatorStore { repo, raw ->
     lateinit var c: SuspendingNativeLockCoordinator
     c = SuspendingNativeLockCoordinator(repo) {
       c.onBackground()
@@ -421,7 +438,7 @@ internal suspend fun runSuspendingCoordinatorScenarios() {
   }
 
   // 27. An interrupted prepared operation is only recoverable to ENABLED.
-  withCoordinatorStore { repo, _ ->
+  withCoordinatorStore { repo, raw ->
     val c = SuspendingNativeLockCoordinator(repo) { true }
     c.onForeground()
     check(c.prepareDisableForLab() == LockResult.PREPARED)
@@ -435,7 +452,7 @@ internal suspend fun runSuspendingCoordinatorScenarios() {
   }
 
   // 28. Live pending observations revoke any earlier in-memory unlock.
-  withCoordinatorStore { repo, _ ->
+  withCoordinatorStore { repo, raw ->
     val c = SuspendingNativeLockCoordinator(repo) { true }
     c.onForeground()
     check(c.unlock() == LockResult.SUCCESS)
