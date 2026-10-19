@@ -4,6 +4,8 @@ Status: **em andamento**. Esta fase é pré-requisito para iniciar a Fase 2 (con
 
 **Escopo formal:** [ADR 0001](decisions/0001-sqlcipher-zero-knowledge-negresco-only.md): SQLCipher nativo e zero-knowledge exclusivos do Negresco Finance. Não fazer alterações no Security Black para entregar estes requisitos. A V3.1 ainda não usa SQLCipher.
 
+**Rastreamento GitHub:** [Issue #1 — SQLCipher nativo e zero-knowledge exclusivos](https://github.com/nego001/negresco-finance./issues/1). Critérios pendentes ficam registrados ali e não são considerados concluídos sem testes reais.
+
 ## Implementado e verificado no CI
 - [x] Compilação Android automatizada com assinatura técnica verificada e SHA256 do APK.
 - [x] Limites de memória do Gradle para compilar módulos Kotlin/Expo.
