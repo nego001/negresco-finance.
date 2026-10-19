@@ -90,5 +90,17 @@ fun main() {
     coordinator.lockNow()
     check(!coordinator.snapshot().unlocked)
   }
-  println("PASS: 9 Kotlin native lock policy scenarios (offline JVM only)")
+  run {
+    val storage = MemoryAtomicStore()
+    lateinit var coordinator: NativeLockCoordinator
+    coordinator = NativeLockCoordinator(storage) { action ->
+      if (action == LockAction.UNLOCK) {
+        assertResult(LockResult.DENIED, coordinator.request(LockAction.DISABLE))
+      }
+      true
+    }
+    assertResult(LockResult.SUCCESS, coordinator.request(LockAction.UNLOCK))
+    check(storage.record!!.enabled)
+  }
+  println("PASS: 10 Kotlin native lock policy scenarios (offline JVM only)")
 }
