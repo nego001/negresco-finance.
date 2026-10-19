@@ -54,3 +54,17 @@ test('PowerShell 5.1 parser audit covers both read-only Windows tools',()=>{
  assert.match(workflow,/windows\/android-v31-readonly-preflight\.ps1/);
  assert.match(workflow,/Parser\]::ParseFile/);
 });
+
+test('native lock Kotlin spike is isolated from APK and checked in CI',()=>{
+ const path='tooling/native-lock-spike/src/main/kotlin/com/negresco/finance/security/NativeLockCoordinator.kt';
+ const source=read(path);
+ const nativeCheck=read('.github/workflows/ci.yml');
+ const config=read('apps/mobile/app.json');
+ assert.match(source,/internal interface AtomicLockStore/);
+ assert.match(source,/internal fun interface NativeBiometricVerifier/);
+ assert.match(source,/private var promptInFlight = false/);
+ assert.match(source,/generation\+\+/);
+ assert.match(nativeCheck,/native-lock-spike:/);
+ assert.match(nativeCheck,/gradle -p tooling\/native-lock-spike policyCheck --no-daemon/);
+ assert.doesNotMatch(config,/NegrescoNativeLock|NativeLockCoordinator/);
+});
