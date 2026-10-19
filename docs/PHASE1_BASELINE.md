@@ -54,6 +54,8 @@ Status: **em andamento**. Esta fase é pré-requisito para iniciar a Fase 2 (con
 
 - [x] Removido bypass de desativação no coordenador Kotlin síncrono de laboratório; as duas políticas recusam opt-out final. Três testes de interrupção simulada antes/depois da gravação e cancelamento verificam que a preparação conserva `enabled=true`. **São testes sintéticos, sem liberação de APK ou QA físico.**
 
+- [x] API DataStore experimental restrita a `enableIfCurrent(expectedRevision)`, sem argumento Boolean que possa gravar `enabled=false`. Cenários com preferência desativada usam somente fixtures sintéticas dos testes; ativação repetida falha sem alterar revisão. **Não foi integrada ao APK nem homologada em Samsung.**
+
 ## Ainda pendente para concluir a Fase 1
 - [ ] **Homologação no Samsung:** executar [roteiro de QA da V3.1](ANDROID_QA_V3.1.md), registrar falhas e corrigi-las. Sem execução física não declarar aprovado.
   - [x] Ferramenta **somente leitura** de pré-diagnóstico ADB/versão/hash preparada para Windows; sem validação física até o usuário executar no Samsung.
