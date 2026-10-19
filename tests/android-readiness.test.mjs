@@ -65,6 +65,13 @@ test('native lock Kotlin spike is isolated from APK and checked in CI',()=>{
  assert.match(source,/private var promptInFlight = false/);
  assert.match(source,/generation\+\+/);
  assert.match(nativeCheck,/native-lock-spike:/);
+ const datastore=read('tooling/native-lock-spike/src/main/kotlin/com/negresco/finance/security/DataStoreLockRecordRepository.kt');
+ const gradle=read('tooling/native-lock-spike/build.gradle.kts');
+ assert.match(datastore,/class DataStoreLockRecordRepository/);
+ assert.match(datastore,/dataStore\.updateData/);
+ assert.match(datastore,/throw MissingNativeLockRecord\(\)/);
+ assert.match(datastore,/throw InvalidNativeLockRecord\(\)/);
+ assert.match(gradle,/datastore-preferences-core:1\.2\.1/);
  assert.match(nativeCheck,/gradle -p tooling\/native-lock-spike policyCheck --no-daemon/);
  assert.doesNotMatch(config,/NegrescoNativeLock|NativeLockCoordinator/);
 });
