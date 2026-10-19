@@ -27,3 +27,19 @@ jobs:
           gradle-version: '8.10.2'
       - name: Compile Kotlin policy and run isolated scenarios
         run: gradle -p tooling/native-lock-spike policyCheck --no-daemon
+  native-lock-android-lab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+      - name: Verify Android SDK
+        run: test -d "${ANDROID_HOME:?Android SDK unavailable}" && test -d "$ANDROID_HOME/platforms/android-35"
+      - name: Compile isolated native Android adapters (not an APK)
+        run: gradle -p tooling/native-lock-android-lab compileDebugKotlin --no-daemon
