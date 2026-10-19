@@ -314,10 +314,10 @@ internal suspend fun runSuspendingCoordinatorScenarios() {
   // 19. Android bridge must not authenticate before first healthy observation.
   withCoordinatorStore { repo, _ ->
     var prompts = 0
-    val c = SuspendingNativeLockCoordinator(repo, SuspendedStrongBiometry {
+    val c = SuspendingNativeLockCoordinator(repo, requireLiveObservation = true, biometric = SuspendedStrongBiometry {
       prompts++
       true
-    }, requireLiveObservation = true)
+    })
     c.onForeground()
     check(c.unlock() == LockResult.DENIED)
     check(c.snapshot().storageError)
@@ -327,10 +327,10 @@ internal suspend fun runSuspendingCoordinatorScenarios() {
   // 20. First valid DataStore event opens the auth gate, but never unlocks.
   withCoordinatorStore { repo, _ ->
     var prompts = 0
-    val c = SuspendingNativeLockCoordinator(repo, SuspendedStrongBiometry {
+    val c = SuspendingNativeLockCoordinator(repo, requireLiveObservation = true, biometric = SuspendedStrongBiometry {
       prompts++
       true
-    }, requireLiveObservation = true)
+    })
     c.onForeground()
     check(!c.onPersistentStateChanged(NativeLockObservation.Record(repo.read()!!)))
     check(!c.snapshot().unlocked)
@@ -341,7 +341,7 @@ internal suspend fun runSuspendingCoordinatorScenarios() {
   // 21. A terminated observer latches failure even after later healthy records.
   withCoordinatorStore { repo, _ ->
     val c = SuspendingNativeLockCoordinator(
-      repo, SuspendedStrongBiometry { true }, requireLiveObservation = true)
+      repo, requireLiveObservation = true, biometric = SuspendedStrongBiometry { true })
     c.onForeground()
     check(!c.onPersistentStateChanged(NativeLockObservation.Record(repo.read()!!)))
     check(c.unlock() == LockResult.SUCCESS)
@@ -359,10 +359,10 @@ internal suspend fun runSuspendingCoordinatorScenarios() {
   withCoordinatorStore { repo, _ ->
     check(repo.compareAndSet(3L, false).revision == 4L)
     var prompts = 0
-    val c = SuspendingNativeLockCoordinator(repo, SuspendedStrongBiometry {
+    val c = SuspendingNativeLockCoordinator(repo, requireLiveObservation = true, biometric = SuspendedStrongBiometry {
       prompts++
       true
-    }, requireLiveObservation = true)
+    })
     c.onForeground()
     check(!c.onPersistentStateChanged(NativeLockObservation.Record(repo.read()!!)))
     check(!c.snapshot().storageError)
@@ -375,7 +375,7 @@ internal suspend fun runSuspendingCoordinatorScenarios() {
   // 23. Missing native data can never be treated as successful monitoring.
   withCoordinatorStore { repo, _ ->
     val c = SuspendingNativeLockCoordinator(
-      repo, SuspendedStrongBiometry { true }, requireLiveObservation = true)
+      repo, requireLiveObservation = true, biometric = SuspendedStrongBiometry { true })
     c.onForeground()
     check(!c.onPersistentStateChanged(NativeLockObservation.Missing))
     check(c.snapshot().storageError)
