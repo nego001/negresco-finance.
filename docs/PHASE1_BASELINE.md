@@ -37,6 +37,8 @@ Status: **em andamento**. Esta fase é pré-requisito para iniciar a Fase 2 (con
 
 - [x] Gate do GitHub Actions reforçado: builds de push/feature branch geram somente artefatos; GitHub Release candidato exige disparo manual em `main` com `publish_release=true`. Política testada no CI; **não revoga releases antigos automaticamente**.
 
+- [x] Núcleo Kotlin experimental do bloqueio criado fora do app, com políticas de sessão e 10 cenários JVM, sem adaptadores de persistência/biometria e sem integração Expo. **Não é módulo Android nativo homologado, não habilita SQLCipher ou chaves reais.**
+
 ## Ainda pendente para concluir a Fase 1
 - [ ] **Homologação no Samsung:** executar [roteiro de QA da V3.1](ANDROID_QA_V3.1.md), registrar falhas e corrigi-las. Sem execução física não declarar aprovado.
   - [x] Ferramenta **somente leitura** de pré-diagnóstico ADB/versão/hash preparada para Windows; sem validação física até o usuário executar no Samsung.
