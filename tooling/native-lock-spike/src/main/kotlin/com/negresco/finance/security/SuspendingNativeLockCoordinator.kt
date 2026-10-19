@@ -231,11 +231,15 @@ internal class SuspendingNativeLockCoordinator(
       catch (_: Exception) { return@withLock LockResult.STORAGE_ERROR }
 
     // Revokes the old UI grant regardless of later observer scheduling.
+    // An onStop while updateData was suspended must not be acknowledged as
+    // successfully prepared, even though the durable marker stays PROTECTED.
+    val sessionStillValid = stillValid(ticket)
     lockNow()
     if (!prepared.enabled || !prepared.disablePending ||
         prepared.revision != before.revision + 1L)
       return@withLock LockResult.STORAGE_ERROR
-    // No call ever reports a completed opt-out, even after a durable write.
+    if (!sessionStillValid) return@withLock LockResult.STALE
+    // Never report a completed opt-out, even after a durable preparation.
     LockResult.PREPARED
   }
 
