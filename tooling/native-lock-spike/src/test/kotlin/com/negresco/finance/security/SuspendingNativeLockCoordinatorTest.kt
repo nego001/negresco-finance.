@@ -4,6 +4,7 @@ import androidx.datastore.preferences.core.mutablePreferencesOf
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import java.io.File
 import java.nio.file.Files
@@ -152,5 +153,26 @@ internal suspend fun runSuspendingCoordinatorScenarios() {
     check(c.unlock() == LockResult.DENIED)
     check(!c.snapshot().unlocked)
   }
-  println("PASS: 10 suspending native lock coordinator scenarios (isolated JVM only)")
+  // 11. Cancelling a suspended biometric prompt cannot grant access.
+  withCoordinatorStore { repo ->
+    val promptStarted = CompletableDeferred<Unit>()
+    val waiting = CompletableDeferred<Boolean>()
+    var blockPrompt = true
+    val c = SuspendingNativeLockCoordinator(repo) {
+      if (blockPrompt) {
+        promptStarted.complete(Unit)
+        waiting.await()
+      } else true
+    }
+    c.onForeground()
+    coroutineScope {
+      val pending = async { c.unlock() }
+      promptStarted.await()
+      pending.cancelAndJoin()
+      check(!c.snapshot().unlocked)
+      blockPrompt = false
+      check(c.unlock() == LockResult.SUCCESS)
+    }
+  }
+  println("PASS: 11 suspending native lock coordinator scenarios (isolated JVM only)")
 }
