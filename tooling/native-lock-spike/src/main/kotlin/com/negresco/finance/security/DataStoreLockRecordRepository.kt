@@ -5,7 +5,12 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 
 /**
  * Real Jetpack DataStore transaction logic, compiled on JVM without Android.
@@ -25,6 +30,16 @@ internal class MissingNativeLockRecord : IllegalStateException("Native lock requ
 internal class InvalidNativeLockRecord : IllegalStateException("Invalid native lock record")
 internal class StaleNativeLockRevision : IllegalStateException("Native lock revision changed")
 
+/**
+ * An observation is a hint to REVOKE in-memory access, never an authorization.
+ * Missing, malformed and unreadable records all close existing sessions.
+ */
+internal sealed interface NativeLockObservation {
+  data class Record(val value: LockRecord) : NativeLockObservation
+  data object Missing : NativeLockObservation
+  data object StorageError : NativeLockObservation
+}
+
 internal class DataStoreLockRecordRepository(private val dataStore: DataStore<Preferences>) {
   private fun decode(prefs: Preferences): LockRecord? {
     val version = prefs[NativeLockDataStoreKeys.version]
@@ -37,6 +52,24 @@ internal class DataStoreLockRecordRepository(private val dataStore: DataStore<Pr
     }
     return LockRecord(version, enabled, revision)
   }
+
+  /**
+   * Emits persisted changes for the native Activity observer. A decoding/I/O
+   * failure becomes StorageError, not enabled=false or a silently empty record.
+   * A failed stream terminates after the error; the host must keep access
+   * revoked and perform explicit recovery before trying to observe again.
+   */
+  fun observe(): Flow<NativeLockObservation> = dataStore.data
+    .map { prefs ->
+      val record = decode(prefs)
+      if (record == null) NativeLockObservation.Missing
+      else NativeLockObservation.Record(record)
+    }
+    .catch { error ->
+      if (error is CancellationException) throw error
+      emit(NativeLockObservation.StorageError)
+    }
+    .distinctUntilChanged()
 
   /** A missing record is NOT interpreted as disabled or authenticated. */
   suspend fun read(): LockRecord? = decode(dataStore.data.first())
