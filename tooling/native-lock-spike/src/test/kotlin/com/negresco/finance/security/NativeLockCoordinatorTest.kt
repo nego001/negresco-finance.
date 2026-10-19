@@ -164,5 +164,6 @@ fun main() {
     runDataStoreScenarios()
     runSuspendingCoordinatorScenarios()
     runOptOutInterleavingScenarios()
+    runLockIntegrityScenarios()
   }
 }
