@@ -20,7 +20,8 @@ internal fun interface SuspendedStrongBiometry {
 
 internal class SuspendingNativeLockCoordinator(
   private val repository: DataStoreLockRecordRepository,
-  private val biometric: SuspendedStrongBiometry
+  private val biometric: SuspendedStrongBiometry,
+  private val requireLiveObservation: Boolean = false
 ) {
   private val requestMutex = Mutex()
   private val lifecycleGuard = Any()
@@ -29,6 +30,11 @@ internal class SuspendingNativeLockCoordinator(
   private var unlocked = false
   private var unlockedRevision: Long? = null
   private var lastObservedRecord: LockRecord? = null
+  // In the Android lab, the first healthy Flow emission is mandatory before
+  // authentication. A terminal Flow error permanently fails closed for the
+  // Activity lifetime. Only constructing a new Activity owner can restart.
+  private var observationReady = !requireLiveObservation
+  private var observationFailed = false
 
   /**
    * A synchronous, revocation-only sink for the DataStore Flow collector.
@@ -41,10 +47,19 @@ internal class SuspendingNativeLockCoordinator(
   internal fun onPersistentStateChanged(event: NativeLockObservation): Boolean =
     synchronized(lifecycleGuard) {
       val record = (event as? NativeLockObservation.Record)?.value
-      val previous = lastObservedRecord
-      val changed = previous != null && previous != record
-      val invalid = record == null || !record.enabled ||
-        (unlocked && unlockedRevision != record.revision)
+      // Error or missing data latches failure. No later observation can
+      // silently resurrect authentication after a broken stream.
+      if (record == null || !record.enabled ||
+          record.version != LOCK_RECORD_VERSION || record.revision < 0L) {
+        observationReady = false
+        observationFailed = true
+      } else if (!observationFailed) {
+        observationReady = true
+      }
+
+      val changed = lastObservedRecord != null && lastObservedRecord != record
+      val invalid = !observationReady ||
+        (unlocked && unlockedRevision != record?.revision)
       val wasUnlocked = unlocked
       if (changed || invalid) {
         generation++
@@ -76,16 +91,16 @@ internal class SuspendingNativeLockCoordinator(
   }
 
   private fun beginTicket(): Long? = synchronized(lifecycleGuard) {
-    if (foreground) generation else null
+    if (foreground && observationReady && !observationFailed) generation else null
   }
 
   private fun stillValid(ticket: Long): Boolean = synchronized(lifecycleGuard) {
-    foreground && generation == ticket
+    foreground && observationReady && !observationFailed && generation == ticket
   }
 
   /** No suspend point is allowed between final validation and unlock. */
   private fun finishUnlocked(ticket: Long, revision: Long): LockResult = synchronized(lifecycleGuard) {
-    if (!foreground || generation != ticket) LockResult.STALE
+    if (!foreground || !observationReady || observationFailed || generation != ticket) LockResult.STALE
     else {
       unlockedRevision = revision
       unlocked = true
@@ -110,7 +125,12 @@ internal class SuspendingNativeLockCoordinator(
         }
       }
     return synchronized(lifecycleGuard) {
-      if (record == null) {
+      if (!observationReady || observationFailed) {
+        generation++
+        unlocked = false
+        unlockedRevision = null
+        LockSnapshot(true, false, -1L, false, true)
+      } else if (record == null) {
         generation++
         unlocked = false
         unlockedRevision = null
