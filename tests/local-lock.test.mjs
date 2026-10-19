@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {
  LOCAL_LOCK_PREF_KEY,LOCAL_LOCK_ENABLED,LOCAL_LOCK_DISABLE_PENDING,LOCAL_LOCK_DISABLED,
- parseLocalLockPreference,persistBiometricOptOut,isStrongBiometryAvailable,
+ LOCAL_LOCK_OPTOUT_JOURNAL_KEY,LOCAL_LOCK_OPTOUT_PENDING,
+ parseLocalLockPreference,parseLocalLockWithJournal,persistBiometricOptOut,isStrongBiometryAvailable,
  canFinishAuthentication,shouldCoverAndLockOnState,shouldInvalidateLocalSession
 } from '../apps/mobile/security/localLockPolicy.ts';
 
@@ -84,51 +85,102 @@ test('biometric authentication cannot overlap with SecureStore prompt or backgro
  assert.match(hook,/if\(authenticating\.current\|\|protectedNativePrompt\.current\|\|preferenceMutation\.current\|\|!active\.current\|\|appState\.current!=='active'\)return false;/);
 });
 
-test('biometric opt-out commits only after a valid two-stage write',async()=>{
- const written=[];
- const store={setItem:async(key,value)=>{
-  assert.equal(key,LOCAL_LOCK_PREF_KEY);
-  written.push(value);
- }};
+function preferenceStore(initial=LOCAL_LOCK_ENABLED){
+ const values=new Map([[LOCAL_LOCK_PREF_KEY,initial]]);
+ const writes=[];
+ return {
+  values,writes,
+  async setItem(key,value){writes.push(['set',key,value]); values.set(key,value);},
+  async removeItem(key){writes.push(['remove',key]); values.delete(key);}
+ };
+}
+const reloadOptOut=(store)=>parseLocalLockWithJournal(
+ store.values.get(LOCAL_LOCK_PREF_KEY)??null,
+ store.values.get(LOCAL_LOCK_OPTOUT_JOURNAL_KEY)??null
+);
+
+test('opt-out journal takes precedence over disabled preference across process restart',()=>{
+ assert.equal(parseLocalLockWithJournal(LOCAL_LOCK_DISABLED,LOCAL_LOCK_OPTOUT_PENDING),true);
+ assert.equal(parseLocalLockWithJournal(LOCAL_LOCK_DISABLE_PENDING,null),true);
+ assert.equal(parseLocalLockWithJournal(LOCAL_LOCK_DISABLED,null),false);
+ assert.equal(parseLocalLockWithJournal(null,null),false);
+ assert.throws(()=>parseLocalLockWithJournal(LOCAL_LOCK_DISABLED,'corrupted'),/journal/);
+});
+
+test('successful opt-out commits by removing journal last',async()=>{
+ const store=preferenceStore();
  assert.equal(await persistBiometricOptOut(store,()=>true),'disabled');
- assert.deepEqual(written,[LOCAL_LOCK_DISABLE_PENDING,LOCAL_LOCK_DISABLED]);
+ assert.deepEqual(store.writes,[
+  ['set',LOCAL_LOCK_OPTOUT_JOURNAL_KEY,LOCAL_LOCK_OPTOUT_PENDING],
+  ['set',LOCAL_LOCK_PREF_KEY,LOCAL_LOCK_DISABLE_PENDING],
+  ['set',LOCAL_LOCK_PREF_KEY,LOCAL_LOCK_DISABLED],
+  ['remove',LOCAL_LOCK_OPTOUT_JOURNAL_KEY]
+ ]);
+ assert.equal(reloadOptOut(store),false);
 });
 
-test('interrupt after opt-out intent leaves locked marker on disk',async()=>{
- let current=LOCAL_LOCK_ENABLED;
- let valid=true;
- const store={setItem:async(_key,value)=>{
-  current=value;
-  if(value===LOCAL_LOCK_DISABLE_PENDING)valid=false;
- }};
- assert.equal(await persistBiometricOptOut(store,()=>valid),'interrupted');
- assert.equal(current,LOCAL_LOCK_DISABLE_PENDING);
- assert.equal(parseLocalLockPreference(current),true);
+test('interruption after journal or pending preference fails closed after restart',async()=>{
+ for(const interruptedAt of [1,2]){
+  const store=preferenceStore();
+  let valid=true;
+  const original=store.setItem.bind(store);
+  store.setItem=async(key,value)=>{
+   await original(key,value);
+   if(store.writes.length===interruptedAt)valid=false;
+  };
+  assert.equal(await persistBiometricOptOut(store,()=>valid),'interrupted');
+  assert.equal(reloadOptOut(store),true);
+ }
 });
 
-test('interrupt during final opt-out write restores enabled marker',async()=>{
- let current=LOCAL_LOCK_ENABLED;
+test('interrupt during final disabled write rearms the journal and preference',async()=>{
+ const store=preferenceStore();
  let valid=true;
- const store={setItem:async(_key,value)=>{
-  current=value;
+ const original=store.setItem.bind(store);
+ store.setItem=async(key,value)=>{
+  await original(key,value);
   if(value===LOCAL_LOCK_DISABLED)valid=false;
- }};
+ };
  assert.equal(await persistBiometricOptOut(store,()=>valid),'interrupted');
- assert.equal(current,LOCAL_LOCK_ENABLED);
+ assert.equal(store.values.get(LOCAL_LOCK_PREF_KEY),LOCAL_LOCK_ENABLED);
+ assert.equal(reloadOptOut(store),true);
 });
 
-test('ambiguous failed opt-out write attempts rearm; failed rearm is reported',async()=>{
- let current=LOCAL_LOCK_ENABLED;
- const store={setItem:async(_key,value)=>{
-  current=value;
-  if(value===LOCAL_LOCK_DISABLED)throw new Error('write acknowledged as failed after persistence');
- }};
+test('simulated process death at the final disabled write leaves journal locked',()=>{
+ const store=preferenceStore();
+ store.values.set(LOCAL_LOCK_OPTOUT_JOURNAL_KEY,LOCAL_LOCK_OPTOUT_PENDING);
+ store.values.set(LOCAL_LOCK_PREF_KEY,LOCAL_LOCK_DISABLED);
+ assert.equal(reloadOptOut(store),true);
+});
+
+test('failed final write attempts to re-arm, even if backend persisted it',async()=>{
+ const store=preferenceStore();
+ const original=store.setItem.bind(store);
+ store.setItem=async(key,value)=>{
+  await original(key,value);
+  if(key===LOCAL_LOCK_PREF_KEY&&value===LOCAL_LOCK_DISABLED)
+   throw new Error('reported write failure after disk commit');
+ };
  assert.equal(await persistBiometricOptOut(store,()=>true),'interrupted');
- assert.equal(current,LOCAL_LOCK_ENABLED);
- const brokenStore={setItem:async(_key,value)=>{
-  if(value===LOCAL_LOCK_DISABLED||value===LOCAL_LOCK_ENABLED)throw new Error('I/O failure');
- }};
- assert.equal(await persistBiometricOptOut(brokenStore,()=>true),'failed');
+ assert.equal(reloadOptOut(store),true);
+});
+
+test('failed final journal removal attempts recovery and retains locked state',async()=>{
+ const store=preferenceStore();
+ const original=store.removeItem.bind(store);
+ store.removeItem=async(key)=>{
+  await original(key);
+  throw new Error('reported deletion failure after disk commit');
+ };
+ assert.equal(await persistBiometricOptOut(store,()=>true),'interrupted');
+ assert.equal(reloadOptOut(store),true);
+});
+
+test('unrecoverable journal writes fail rather than claiming opt-out success',async()=>{
+ const store=preferenceStore();
+ store.setItem=async()=>{throw new Error('storage unavailable');};
+ assert.equal(await persistBiometricOptOut(store,()=>true),'failed');
+ assert.equal(reloadOptOut(store),true);
 });
 
 test('opt-out uses a pending state instead of deleting legacy preference',()=>{
@@ -143,4 +195,11 @@ test('preference writes serialize against further biometrics and SecureStore pro
  assert.match(hook,/if\(preferenceMutation\.current\)return;\s*preferenceMutation\.current=true;/);
  assert.match(hook,/if\(!active\.current\|\|protectedNativePrompt\.current\|\|authenticating\.current\|\|preferenceMutation\.current\|\|appState\.current!=='active'\)/);
  assert.equal((hook.match(/preferenceMutation\.current=false;/g)||[]).length,2);
+});
+
+test('hook checks both persisted lock state and journal before showing the UI',()=>{
+ const hook=readFileSync(new URL('../apps/mobile/security/useLocalAppLock.ts',import.meta.url),'utf8');
+ assert.match(hook,/AsyncStorage\.getItem\(LOCAL_LOCK_OPTOUT_JOURNAL_KEY\)/);
+ assert.match(hook,/parseLocalLockWithJournal\(saved,journal\)/);
+ assert.match(hook,/const load=useCallback\(async\(\)=>\{\s*if\(preferenceMutation\.current\)return;/);
 });
