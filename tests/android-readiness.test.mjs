@@ -308,3 +308,14 @@ test('SQLCipher emulator CI is isolated, pinned and includes real JNI instrument
  assert.match(testSource,/noBackupFilesDir/);
  assert.doesNotMatch(workflow,/adb install .*apps\/mobile|eas build/);
 });
+
+test('SQLCipher distinguishes HMAC page integrity from SQLite logical integrity',()=>{
+ const database=read('tooling/sqlcipher-android-lab/src/main/kotlin/com/negresco/finance/sqlcipher/lab/SyntheticSqlCipherDatabase.kt');
+ const instrumented=read('tooling/sqlcipher-android-lab/src/androidTest/kotlin/com/negresco/finance/sqlcipher/lab/SyntheticSqlCipherDatabaseInstrumentedTest.kt');
+ assert.match(database,/db\.rawQuery\("PRAGMA cipher_integrity_check"/);
+ assert.match(database,/if \(cursor\.moveToFirst\(\)\) throw Unavailable\(\)/);
+ assert.match(database,/db\.rawQuery\("PRAGMA integrity_check"/);
+ assert.match(database,/cursor\.getString\(0\) != "ok"/);
+ assert.match(instrumented,/assertFalse\("SQLCipher reported page\/HMAC corruption", cursor\.moveToFirst\(\)\)/);
+ assert.match(instrumented,/assertEquals\("ok", cursor\.getString\(0\)\)/);
+});
