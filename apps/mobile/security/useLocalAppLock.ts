@@ -23,9 +23,10 @@ export function useLocalAppLock(){
  const appState=useRef(AppState.currentState||'active');
 
  const load=useCallback(async()=>{
+  // Each load has its own epoch: retries supersede previous pending reads.
+  const attemptEpoch=++epoch.current;
   setStatus('loading');
   setMessage('');
-  const attemptEpoch=epoch.current;
   try{
    const saved=await AsyncStorage.getItem(LOCAL_LOCK_PREF_KEY);
    const enabled=parseLocalLockPreference(saved);
@@ -40,7 +41,11 @@ export function useLocalAppLock(){
     setStatus(enabled?'locked':'off');
    }
   }catch{
-   if(active.current){setStatus('error');setMessage('Não foi possível ler a proteção local. O acesso permanecerá bloqueado até a verificação funcionar.');}
+   // An old failed read must not overwrite a newer successful retry.
+   if(active.current&&attemptEpoch===epoch.current){
+    setStatus('error');
+    setMessage('Não foi possível ler a proteção local. O acesso permanecerá bloqueado até a verificação funcionar.');
+   }
   }
  },[]);
 
