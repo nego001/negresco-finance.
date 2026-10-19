@@ -12,3 +12,18 @@ export function decodePreferences(raw:string|null):Preferences{
  };}catch{return {...defaultPreferences};}
 }
 export function encodePreferences(p:Preferences):string{return JSON.stringify(p);}
+
+/** Keep visual-preference writes ordered; a slower older write cannot overwrite a newer one. */
+export const PREFERENCES_STORAGE_KEY='negresco.preferences.v1';
+type PreferenceStore={setItem:(key:string,value:string)=>Promise<void>};
+export function createPreferenceWriteQueue(store:PreferenceStore){
+ let tail:Promise<void>=Promise.resolve();
+ return {
+  save:(preferences:Preferences):Promise<void>=>{
+   const payload=encodePreferences(preferences);
+   const pending=tail.then(()=>store.setItem(PREFERENCES_STORAGE_KEY,payload));
+   tail=pending.catch(()=>{});
+   return pending;
+  }
+ };
+}

@@ -10,7 +10,7 @@ import * as Sharing from 'expo-sharing';
 import { Icon, IconName } from './components/Icon';
 import React, { useEffect, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { decodePreferences, encodePreferences } from './preferences';
+import { decodePreferences, createPreferenceWriteQueue, PREFERENCES_STORAGE_KEY } from './preferences';
 import { Animated, Easing, SafeAreaView, ScrollView, StatusBar, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 type Page = 'Início' | 'Pix' | 'Contas' | 'Cartões' | 'Investimentos' | 'Metas' | 'Negresco' | 'Guardião' | 'Ajustes';
@@ -77,8 +77,11 @@ export default function App() {
   const [demoMessages,setDemoMessages]=useState<string[]>([]);
   const [assistantStyle,setAssistantStyle]=useState<'acolhedora'|'objetiva'>('acolhedora');
   const [preferencesLoaded,setPreferencesLoaded]=useState(false);
-  useEffect(()=>{let alive=true;AsyncStorage.getItem('negresco.preferences.v1').then(raw=>{if(!alive)return;const p=decodePreferences(raw);setAccent(p.accent);setCompact(p.compact);setFontLarge(p.fontLarge);setReducedMotion(p.reducedMotion);setAssistantStyle(p.assistantStyle);}).catch(()=>{}).finally(()=>{if(alive)setPreferencesLoaded(true);});return()=>{alive=false;};},[]);
-  useEffect(()=>{if(!preferencesLoaded)return;AsyncStorage.setItem('negresco.preferences.v1',encodePreferences({accent,compact,fontLarge,reducedMotion,assistantStyle})).catch(()=>{});},[preferencesLoaded,accent,compact,fontLarge,reducedMotion,assistantStyle]);
+  const [preferencesCanSave,setPreferencesCanSave]=useState(true);
+  const [preferencesStorageError,setPreferencesStorageError]=useState('');
+  const preferenceWriter=useRef(createPreferenceWriteQueue(AsyncStorage));
+  useEffect(()=>{let alive=true;AsyncStorage.getItem(PREFERENCES_STORAGE_KEY).then(raw=>{if(!alive)return;const p=decodePreferences(raw);setAccent(p.accent);setCompact(p.compact);setFontLarge(p.fontLarge);setReducedMotion(p.reducedMotion);setAssistantStyle(p.assistantStyle);}).catch(()=>{if(alive){setPreferencesCanSave(false);setPreferencesStorageError('Não foi possível carregar as preferências. Nenhuma configuração salva será sobrescrita nesta sessão.');}}).finally(()=>{if(alive)setPreferencesLoaded(true);});return()=>{alive=false;};},[]);
+  useEffect(()=>{if(!preferencesLoaded||!preferencesCanSave)return;preferenceWriter.current.save({accent,compact,fontLarge,reducedMotion,assistantStyle}).then(()=>setPreferencesStorageError('')).catch(()=>setPreferencesStorageError('Falha ao salvar preferências neste aparelho. As mudanças podem não persistir.'));},[preferencesLoaded,preferencesCanSave,accent,compact,fontLarge,reducedMotion,assistantStyle]);
   const enter=useRef(new Animated.Value(0)).current;
   useEffect(()=>{enter.setValue(0);Animated.timing(enter,{toValue:1,duration:reducedMotion?0:380,easing:Easing.out(Easing.cubic),useNativeDriver:true}).start();},[page,enter,reducedMotion]);
   const blue=accent?'#A28BFF':C.blue;
@@ -186,7 +189,7 @@ export default function App() {
         <View style={s.visualFeature}><Text style={s.visualFeatureTitle}>Consultas externas e monitoramento</Text><Text style={s.visualFeatureBody}>CNPJ: consulta opcional via BrasilAPI. Receita Federal direta, Reclame Aqui e bancos: integrações ainda indisponíveis. Monitoramento automático: desligado, sem coleta de notificações ou dados bancários.</Text><Text style={s.visualFeatureBody}>Alertas de risco nesta versão são limitados a inconsistências matemáticas. Não há classificação automática de fraude.</Text></View>
         <Notice title="Atenção antes de pagar" body="Verificar dígitos não comprova que a cobrança seja sua. Confira o nome e CNPJ do beneficiário exibidos no aplicativo oficial do banco e confirme a compra por canais independentes."/>
       </>:page==='Ajustes'?<>
-        <Text style={s.kicker}>PERSONALIZAÇÃO</Text><Text style={s.heading}>Do seu jeito.</Text><Text style={s.description}>Ajuste a aparência desta prévia. As escolhas ficam salvas neste aparelho.</Text>
+        <Text style={s.kicker}>PERSONALIZAÇÃO</Text><Text style={s.heading}>Do seu jeito.</Text><Text style={s.description}>Ajuste a aparência desta prévia. As escolhas ficam salvas neste aparelho quando o armazenamento estiver disponível.</Text>{!!preferencesStorageError&&<Notice title="Armazenamento local" body={preferencesStorageError}/>}
         <TouchableOpacity accessibilityRole="switch" accessibilityState={{checked:accent}} onPress={()=>setAccent(!accent)} style={s.setting}><Text style={s.settingText}>Cor de destaque</Text><Text style={[s.settingValue,{color:blue}]}>{accent?'Violeta':'Azul'}  ↔</Text></TouchableOpacity>
         <TouchableOpacity accessibilityRole="switch" accessibilityState={{checked:compact}} onPress={()=>setCompact(!compact)} style={s.setting}><Text style={s.settingText}>Cartões compactos</Text><Text style={[s.settingValue,{color:blue}]}>{compact?'Ligado':'Desligado'}  ↔</Text></TouchableOpacity>
         <TouchableOpacity accessibilityRole="switch" accessibilityState={{checked:fontLarge}} onPress={()=>setFontLarge(!fontLarge)} style={s.setting}><Text style={s.settingText}>Textos maiores</Text><Text style={[s.settingValue,{color:blue}]}>{fontLarge?'Ligado':'Desligado'}  ↔</Text></TouchableOpacity>
