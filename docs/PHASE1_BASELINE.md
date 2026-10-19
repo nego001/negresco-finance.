@@ -33,13 +33,16 @@ Status: **em andamento**. Esta fase é pré-requisito para iniciar a Fase 2 (con
 - [x] Mitigação de desativação interrompida: diário independente `optout.v1=pending` com prioridade no boot, marcador `disable-pending`, tentativas de restauração e testes simulados de morte do processo. **Ainda não é transação atômica: encerramento durante a exclusão final do diário permanece risco residual de opt-out inesperado.**
 
 - [x] Recuperação da leitura inicial da preferência após background: ao retornar ao primeiro plano, um novo carregamento substitui o resultado invalidado. Teste de regressão no CI, **QA-40 físico pendente**.
-- [x] [Contrato nativo de persistência do bloqueio](security/NATIVE_LOCK_PERSISTENCE_V1.md) documentado com critérios de transação, migração e homologação. **É somente arquitetura: módulo Kotlin/DataStore ainda não implementado.**
+- [x] [Contrato nativo de persistência do bloqueio](security/NATIVE_LOCK_PERSISTENCE_V1.md) documentado com critérios de transação, migração e homologação. **A arquitetura está documentada e existem laboratórios Kotlin separados; ainda não há integração Expo nem autenticação transacional nativa.**
 
 - [x] Gate do GitHub Actions reforçado: builds de push/feature branch geram somente artefatos; GitHub Release candidato exige disparo manual em `main` com `publish_release=true`. Política testada no CI; **não revoga releases antigos automaticamente**.
 
-- [x] Núcleo Kotlin experimental do bloqueio criado fora do app, com políticas de sessão e 10 cenários JVM, sem adaptadores de persistência/biometria e sem integração Expo. **Não é módulo Android nativo homologado, não habilita SQLCipher ou chaves reais.**
+- [x] Núcleo Kotlin experimental do bloqueio criado fora do app, com políticas de sessão e 10 cenários JVM; adaptadores separados foram criados posteriormente. Continua sem integração Expo. **Não é módulo Android nativo homologado, não habilita SQLCipher ou chaves reais.**
 
-- [x] Laboratório JVM DataStore: repositório com `updateData` atômico e testes de persistência em arquivo, corrupção, revisão e concorrência. **Não incorporado ao APK; validação final de CI e homologação Android ainda exigidas.**
+- [x] Laboratório JVM DataStore: repositório com `updateData` atômico e testes de persistência em arquivo, corrupção, revisão e concorrência. **Não incorporado ao APK; 15 cenários DataStore/migração executados no CI, homologação Android ainda exigida.**
+
+- [x] Classificação conservadora das preferências biométricas antigas e migração inicial transacional apenas para **bloqueado**, preservando estado nativo previamente existente. Cenários `null`/`disabled` exigem configuração explícita antes da integração. Sem migração real do APK.
+- [x] Laboratório `tooling/native-lock-android-lab` com singleton DataStore e adaptador BiometricPrompt forte; compilação Android controlada por job separado. **Não existe ponte Expo nem coordenador que vincule autenticação ao commit.**
 
 ## Ainda pendente para concluir a Fase 1
 - [ ] **Homologação no Samsung:** executar [roteiro de QA da V3.1](ANDROID_QA_V3.1.md), registrar falhas e corrigi-las. Sem execução física não declarar aprovado.
