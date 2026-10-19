@@ -6,7 +6,10 @@ plugins {
 android {
   namespace = "com.negresco.finance.sqlcipher.lab"
   compileSdk = 35
-  defaultConfig { minSdk = 26 }
+  defaultConfig {
+    minSdk = 26
+    testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+  }
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_17
     targetCompatibility = JavaVersion.VERSION_17
@@ -21,4 +24,7 @@ dependencies {
   implementation("androidx.sqlite:sqlite:2.7.0")
   implementation("androidx.datastore:datastore-preferences:1.2.1")
   implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+  androidTestImplementation("junit:junit:4.13.2")
+  androidTestImplementation("androidx.test:runner:1.6.2")
+  androidTestImplementation("androidx.test.ext:junit:1.2.1")
 }
