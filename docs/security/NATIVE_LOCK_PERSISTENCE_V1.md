@@ -1,6 +1,6 @@
 # Negresco Finance | Contrato de persistência nativa do bloqueio (proposta V1)
 
-**Status: núcleo Kotlin/JVM com DataStore e política de migração experimental; laboratório Android com provedores DataStore/BiometricPrompt fora do Expo. Ainda NÃO há coordenador Android ligando autenticação ao commit, leitura real das preferências legadas no aparelho, integração Expo ou homologação no Samsung.**
+**Status: núcleo Kotlin/JVM com DataStore e migração experimental; laboratório Android com um coordenador nativo para desbloqueio e ativação, ainda fora do Expo. A desativação está propositalmente bloqueada. Ainda NÃO há leitura das preferências legadas no aparelho, integração Expo, chaves Keystore reais ou homologação no Samsung.**
 O APK 3.1.2 continua usando AsyncStorage e autenticação de interface.
 Este arquivo **não** autoriza migração automática, dados financeiros reais,
 assinatura de produção, alegação de transação nativa ou uso do Keystore como
@@ -160,3 +160,20 @@ para quem tinha opt-in desligado e a seleção transacional da origem ainda
 não foram implementados. O CI JVM exercita **10 cenários de política +
 15 de DataStore/migração**, mas não substitui QA em Samsung ou análise
 de segurança independente.
+
+
+## Coordenador Android experimental: autorização conservadora
+
+`NativeLockAndroidLabSession` liga o `StrongBiometricPrompt`, o DataStore
+por processo e o `SuspendingNativeLockCoordinator`. O coordenador mantém
+geração de sessão sincronizada com `onStop`, cancela autorizações antigas,
+serializa prompts, verifica revisões persistidas e só abre sessão ao concluir
+sem mudança de Activity. **Desativar o bloqueio retorna DENIED** por projeto:
+permitir o opt-out antes de garantir atomicidade com a revogação do Android
+reintroduziria o problema crítico de desativação após background.
+
+Esse laboratório **não** expõe métodos JS, não integra o APK 3.1.2 e
+não utiliza segredos financeiros nem Android Keystore como fonte de chaves.
+Seus testes JVM são simulados; a compilação Android confirma apenas
+compatibilidade de código. É obrigatório testar autenticação real,
+cancelamento, rotação de Activity e troca de digitais num aparelho de teste.
