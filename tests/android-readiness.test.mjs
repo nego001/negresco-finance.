@@ -195,3 +195,15 @@ test('native repository exposes enable-only policy and no Boolean disable setter
  assert.doesNotMatch(coordinator,/repository\.compareAndSet/);
  assert.match(tests,/seedSyntheticRecord\(h, enabled = false\)/);
 });
+
+test('in-process DataStore revision rollback and split reads fail closed',()=>{
+ const coordinator=read('tooling/native-lock-spike/src/main/kotlin/com/negresco/finance/security/SuspendingNativeLockCoordinator.kt');
+ const tests=read('tooling/native-lock-spike/src/test/kotlin/com/negresco/finance/security/SuspendingNativeLockCoordinatorTest.kt');
+ assert.match(coordinator,/record\.revision < last\.revision/);
+ assert.match(coordinator,/record\.revision == last\.revision && record != last/);
+ assert.match(coordinator,/private fun rejectContradictoryRead\(record: LockRecord\)/);
+ assert.match(coordinator,/if \(rejectContradictoryRead\(before\)\) return@withLock LockResult\.STORAGE_ERROR/);
+ assert.match(coordinator,/if \(rejectContradictoryRead\(after\)\) return@withLock LockResult\.STORAGE_ERROR/);
+ assert.match(tests,/A contradictory enabled state at the SAME revision/);
+ assert.match(tests,/An old AFTER-prompt read cannot complete an unlock/);
+});
