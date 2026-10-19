@@ -57,7 +57,18 @@ internal class SuspendingNativeLockCoordinator(
         observationReady = true
       }
 
-      val changed = lastObservedRecord != null && lastObservedRecord != record
+      // A valid native mutation must advance the revision. A lower revision
+      // or a different record at the SAME revision is a local rollback /
+      // tampering signal. Latch the failure for this Activity lifetime.
+      val last = lastObservedRecord
+      val rollback = record != null && last != null &&
+        (record.revision < last.revision ||
+          (record.revision == last.revision && record != last))
+      if (rollback) {
+        observationReady = false
+        observationFailed = true
+      }
+      val changed = last != null && last != record
       val invalid = !observationReady || record?.enabled == false ||
         record?.disablePending == true ||
         (unlocked && unlockedRevision != record?.revision)
@@ -126,6 +137,15 @@ internal class SuspendingNativeLockCoordinator(
         }
       }
     return synchronized(lifecycleGuard) {
+      // A direct read can race an observer delivery. Reject local rollback
+      // even if the Flow has not emitted it yet; never return unlocked.
+      val last = lastObservedRecord
+      if (record != null && last != null &&
+          (record.revision < last.revision ||
+           (record.revision == last.revision && record != last))) {
+        observationReady = false
+        observationFailed = true
+      }
       if (!observationReady || observationFailed) {
         generation++
         unlocked = false
