@@ -3,7 +3,7 @@ import {AppState} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as LocalAuthentication from 'expo-local-authentication';
 import {
- LOCAL_LOCK_PREF_KEY,parseLocalLockPreference,isStrongBiometryAvailable,
+ LOCAL_LOCK_PREF_KEY,LOCAL_LOCK_OPTOUT_JOURNAL_KEY,parseLocalLockWithJournal,isStrongBiometryAvailable,
  canFinishAuthentication,shouldCoverAndLockOnState,shouldInvalidateLocalSession,
  persistBiometricOptOut,type LocalLockStatus
 } from './localLockPolicy';
@@ -25,13 +25,17 @@ export function useLocalAppLock(){
  const appState=useRef(AppState.currentState||'active');
 
  const load=useCallback(async()=>{
+  if(preferenceMutation.current)return;
   // Each load has its own epoch: retries supersede previous pending reads.
   const attemptEpoch=++epoch.current;
   setStatus('loading');
   setMessage('');
   try{
-   const saved=await AsyncStorage.getItem(LOCAL_LOCK_PREF_KEY);
-   const enabled=parseLocalLockPreference(saved);
+   const [saved,journal]=await Promise.all([
+    AsyncStorage.getItem(LOCAL_LOCK_PREF_KEY),
+    AsyncStorage.getItem(LOCAL_LOCK_OPTOUT_JOURNAL_KEY)
+   ]);
+   const enabled=parseLocalLockWithJournal(saved,journal);
    if(active.current){
     // A preference read started before backgrounding or a manual lock is stale.
     // Fail closed instead of allowing an old null preference to set UI to off.
