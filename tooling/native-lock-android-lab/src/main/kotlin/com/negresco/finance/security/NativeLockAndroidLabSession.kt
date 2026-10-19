@@ -25,8 +25,8 @@ internal class NativeLockAndroidLabSession(
   private val observationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
   private val coordinator = SuspendingNativeLockCoordinator(
     NativeLockAndroidStore.get(activity),
-    SuspendedStrongBiometry { action -> prompt.authenticate(action) },
-    requireLiveObservation = true
+    requireLiveObservation = true,
+    biometric = SuspendedStrongBiometry { action -> prompt.authenticate(action) }
   )
 
   init {
