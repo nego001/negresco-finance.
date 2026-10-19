@@ -4,7 +4,7 @@
 Expo, the existing APK, SQLite/SQLCipher or real biometric hardware.**
 
 This code establishes fail-closed rules that a future Kotlin + Jetpack DataStore
-adapter must obey. It intentionally has no implementation of `AtomicLockStore`
+coordinator must obey. The separate Android lab has preliminary adapters but no authenticated commit flow. It intentionally has no implementation of `AtomicLockStore`
 on Android and no implementation of `NativeBiometricVerifier` using BiometricPrompt.
 The in-memory store and synthetic verifier exist **only in tests**. Do not wire
 the test verifier into a shipped app.
@@ -21,7 +21,7 @@ the test verifier into a shipped app.
 - A typed atomic-update store contract for later integration with DataStore.
 - 10 offline JVM scenarios in `NativeLockCoordinatorTest.kt`.
 - A separate `DataStoreLockRecordRepository` uses the real AndroidX DataStore API (`datastore-preferences-core:1.2.1`) for atomic compare-and-set of version, enabled and revision in one transactional snapshot.
-- 7 persistent DataStore JVM scenarios including reopen, racing writers and corruption. No Android adapter or biometric authorization is attached to that repository.
+- 15 persistent DataStore and legacy-migration JVM scenarios, including restart, races, corrupt records, one-time locked migration and refusal to migrate legacy off/null silently. The Android adapters exist only in the separate, non-Expo lab.
 
 ## Run JVM smoke tests
 
@@ -42,14 +42,12 @@ java -jar /tmp/negresco-native-lock-check.jar
 ```
 
 The CI job `native-lock-spike` compiles the Kotlin project and executes the
-10 policy scenarios plus 7 DataStore persistence scenarios. Passing this job is **not** an Android APK compile or device QA. DataStore returns after durable write, but using it alone does not prove that a biometric request remains valid until commit.
+10 policy scenarios plus 15 DataStore/migration scenarios. Passing this job is **not** an Android APK compile or device QA. DataStore returns after durable write, but using it alone does not prove that a biometric request remains valid until commit.
 
 ## Non-negotiable gates before Expo integration
 
-1. Implement native-only authentication with Android BiometricPrompt and
-   real cancellation semantics. No `authenticated=true` input from JS.
-2. Instantiate a singleton DataStore on Android and bridge the tested repository's suspending calls; bridge
-   coroutine/suspend semantics without holding Java monitors over suspension.
+1. Connect the Android-only strong BiometricPrompt adapter from `../native-lock-android-lab` to a native coordinator and verify actual cancellation. No `authenticated=true` input from JS.
+2. Connect the Android-only singleton DataStore provider from that lab to a native coordinator. Preserve suspend semantics and avoid holding Java monitors across suspension.
 3. Make Activity backgrounding and the commit order linearizable; handle
    process death, corruption and denied access.
 4. Design a safe one-time migration from legacy `AsyncStorage` without
