@@ -63,6 +63,8 @@ Status: **em andamento**. Esta fase é pré-requisito para iniciar a Fase 2 (con
 
 - [x] Envelope AEAD AES-256-GCM sintético para registros financeiros com AAD vinculando tipo, ID lógico e revisão, 23 cenários JVM e laboratório separado de chave AES no Android Keystore. **Não há banco financeiro persistente ou SQLCipher, uso biométrico criptográfico, zero-knowledge real ou integração ao APK.** Detalhes: `docs/security/FINANCIAL_RECORD_ENVELOPE_LAB_V1.md`.
 
+- [x] Módulo `tooling/sqlcipher-android-lab` separado da aplicação com SQLCipher Community `4.19.1` e AndroidX SQLite `2.7.0` oficiais, compilação CI isolada, APIs de criação sintética explícita e abertura existente com chave (nunca fallback para SQLite comum). Doze cenários JVM validam recusa de cabeçalho plaintext, arquivo ausente/truncado e passphrase sintética; seis testes instrumentados Android foram **escritos/compilados, não executados**. **Não é banco financeiro real, não há chaves autorizadas por biometria e a licença/nativos/ABIs exigem auditoria.** Ver `tooling/sqlcipher-android-lab/README.md`.
+
 ## Ainda pendente para concluir a Fase 1
 - [ ] **Homologação no Samsung:** executar [roteiro de QA da V3.1](ANDROID_QA_V3.1.md), registrar falhas e corrigi-las. Sem execução física não declarar aprovado.
   - [x] Ferramenta **somente leitura** de pré-diagnóstico ADB/versão/hash preparada para Windows; sem validação física até o usuário executar no Samsung.
