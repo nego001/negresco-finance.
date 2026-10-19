@@ -7,6 +7,10 @@ android {
   namespace = "com.negresco.finance.nativelock.lab"
   compileSdk = 35
   defaultConfig { minSdk = 26 }
+  compileOptions {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+  }
   sourceSets.getByName("main").java.srcDir("../native-lock-spike/src/main/kotlin")
 }
 
