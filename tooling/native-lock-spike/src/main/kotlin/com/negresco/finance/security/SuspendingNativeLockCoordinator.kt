@@ -194,8 +194,9 @@ internal class SuspendingNativeLockCoordinator(
       catch (_: Exception) { false }
     if (!authenticated) return@withLock LockResult.DENIED
     if (!stillValid(ticket)) return@withLock LockResult.STALE
-    val committed = try { repository.compareAndSet(before.revision, true) }
+    val committed = try { repository.enableIfCurrent(before.revision) }
       catch (_: StaleNativeLockRevision) { return@withLock LockResult.STALE }
+      catch (_: AlreadyEnabledNativeLock) { return@withLock LockResult.STALE }
       catch (cancelled: CancellationException) { throw cancelled }
       catch (_: Exception) { return@withLock LockResult.STORAGE_ERROR }
     if (!committed.enabled || committed.revision != before.revision + 1L)
