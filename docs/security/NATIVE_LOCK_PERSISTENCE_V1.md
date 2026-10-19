@@ -194,3 +194,20 @@ exige reinicializar o observador sob controle nativo.
 chegar após a alteração no disco, e a interface não está ligada a esse
 laboratório no APK 3.1.2. Ainda falta revogação vinculada ao ciclo de vida
 real, testes no Samsung e transação segura para desativar a biometria.
+
+
+## Gate de saúde do observador (laboratório)
+
+O `NativeLockAndroidLabSession` agora exige uma primeira emissão válida do
+`Flow` DataStore antes de permitir desbloquear/ativar proteção. A perda do
+observador, seu término inesperado, dados ausentes ou inválidos deixam uma
+falha **travada** na Activity: nova leitura isolada ou um evento posterior
+aparentemente válido **não** restauram a autorização. Uma Activity nova
+pode recriar o observador, mas ainda deverá receber um registro válido e
+executar biometria novamente. Preferência nativa `enabled=false` com
+versão e revisão válidas **não** é erro de armazenamento, portanto continua
+possível ativar biometria com autenticação forte.
+
+Essa política limita a janela de uso sem monitoramento nativo; eventos ainda
+podem atrasar e não constituem proteção criptográfica dos dados. Não está
+integrada ao APK instalado, e não autoriza desativação biométrica.
