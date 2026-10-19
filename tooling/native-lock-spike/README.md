@@ -22,7 +22,7 @@ the test verifier into a shipped app.
 - 16 offline JVM scenarios in `NativeLockCoordinatorTest.kt`; the older synchronous coordinator now refuses DISABLE before any prompt and revokes old grants on storage failure.
 - A separate `DataStoreLockRecordRepository` uses the real AndroidX DataStore API (`datastore-preferences-core:1.2.1`) for atomic compare-and-set of version, enabled and revision in one transactional snapshot.
 - 23 persistent DataStore, opt-out preparation/recovery and legacy-migration JVM scenarios, including restart, races, corrupt records, one-time locked migration and refusal to migrate legacy off/null silently.
-- 28 coroutine coordinator scenarios, including revocation on externally changed revisions, missing/corrupt DataStore records, background events, cancellation and overlapping prompts. The Android adapters exist only in the separate, non-Expo lab.
+- 33 coroutine coordinator scenarios, including revocation on externally changed revisions, missing/corrupt DataStore records, background events, cancellation and overlapping prompts. The Android adapters exist only in the separate, non-Expo lab.
 
 ## Run JVM smoke tests
 
@@ -33,7 +33,7 @@ gradle -p tooling/native-lock-spike policyCheck --no-daemon
 ```
 
 The CI job `native-lock-spike` compiles the Kotlin project and executes the
-16 policy scenarios plus 23 DataStore/migration scenarios plus 28 coroutine coordinator scenarios, plus 3 deterministic interrupted-write scenarios. Passing this job is **not** an Android APK compile or device QA. DataStore returns after durable write, but using it alone does not prove that a biometric request remains valid until commit.
+16 policy scenarios plus 23 DataStore/migration scenarios plus 33 coroutine coordinator scenarios, plus 3 deterministic interrupted-write scenarios. Passing this job is **not** an Android APK compile or device QA. DataStore returns after durable write, but using it alone does not prove that a biometric request remains valid until commit.
 
 ## Non-negotiable gates before Expo integration
 
@@ -80,3 +80,17 @@ that expires mid-write no longer receives a misleading `PREPARED` result.
 
 These synthetic JVM scenarios do not prove linearizable Android `onStop` or
 make a safe `enabled=false` commit possible. Final opt-out stays blocked.
+
+
+## Local revision rollback detection (JVM + Android lab only)
+
+Once an Activity's observer sees a valid native DataStore revision, a smaller
+revision or different state at the *same* revision is treated as a terminal
+storage-integrity failure. The coordinator invalidates previous grants and
+refuses a new biometric prompt. Reads performed before and after biometrics
+apply the same check, in case the Flow has not delivered the event yet.
+
+This catches **in-process** rollback or inconsistent mutations only. It
+cannot detect a file restored to an old valid revision before a new process
+starts. Hardware-backed anti-rollback, key-bound authentication and real
+Android QA remain separate security gates.
