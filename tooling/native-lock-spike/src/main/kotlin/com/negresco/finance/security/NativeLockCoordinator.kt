@@ -38,6 +38,7 @@ internal class NativeLockCoordinator(
   private var generation = 0L
   private var foreground = true
   private var unlocked = false
+  private var promptInFlight = false
 
   fun onBackground() = synchronized(mutex) {
     generation++
@@ -77,10 +78,11 @@ internal class NativeLockCoordinator(
   private data class Attempt(val generation: Long, val revision: Long)
 
   private fun beginAttempt(): Pair<Attempt?, LockResult?> = synchronized(mutex) {
-    if (!foreground) return@synchronized null to LockResult.DENIED
+    if (!foreground || promptInFlight) return@synchronized null to LockResult.DENIED
     try {
       val record = validRecord(store.read())
         ?: return@synchronized null to LockResult.MIGRATION_REQUIRED
+      promptInFlight = true
       Attempt(generation, record.revision) to null
     } catch (_: Exception) {
       null to LockResult.STORAGE_ERROR
@@ -92,9 +94,11 @@ internal class NativeLockCoordinator(
     val (attempt, failure) = beginAttempt()
     if (failure != null) return failure
     val ticket = attempt ?: return LockResult.DENIED
-    if (!verifier.authenticate(action)) return LockResult.DENIED
+    try {
+      val accepted = try { verifier.authenticate(action) } catch (_: Exception) { false }
+      if (!accepted) return LockResult.DENIED
 
-    return synchronized(mutex) {
+      return synchronized(mutex) {
       if (!foreground || ticket.generation != generation) return@synchronized LockResult.STALE
       try {
         if (action == LockAction.UNLOCK) {
@@ -126,6 +130,9 @@ internal class NativeLockCoordinator(
         unlocked = false
         LockResult.STORAGE_ERROR
       }
+      }
+    } finally {
+      synchronized(mutex) { promptInFlight = false }
     }
   }
 }
