@@ -7,6 +7,11 @@ on:
         required: true
         default: false
         type: boolean
+      publish_release:
+        description: 'Explicitly publish test prerelease from main (never from feature branches)'
+        required: true
+        default: false
+        type: boolean
   push:
     paths:
       - 'apps/mobile/**'
@@ -220,7 +225,10 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+      # Pushes, including feature branches, produce artifacts only.
+      # A release requires an explicit manual opt-in on main.
       - name: Publish APK first, ZIP second in GitHub Releases
+        if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.publish_release }}
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
