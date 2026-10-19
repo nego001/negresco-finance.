@@ -22,12 +22,15 @@ export function useLocalAppLock(){
  const authenticating=useRef(false);
  const protectedNativePrompt=useRef(false);
  const preferenceMutation=useRef(false);
+ const pendingReadEpoch=useRef<number|null>(null);
+ const reloadOnForeground=useRef(false);
  const appState=useRef(AppState.currentState||'active');
 
  const load=useCallback(async()=>{
   if(preferenceMutation.current)return;
   // Each load has its own epoch: retries supersede previous pending reads.
   const attemptEpoch=++epoch.current;
+  pendingReadEpoch.current=attemptEpoch;
   setStatus('loading');
   setMessage('');
   try{
@@ -53,6 +56,8 @@ export function useLocalAppLock(){
     setStatus('error');
     setMessage('Não foi possível ler a proteção local. O acesso permanecerá bloqueado até a verificação funcionar.');
    }
+  }finally{
+   if(pendingReadEpoch.current===attemptEpoch)pendingReadEpoch.current=null;
   }
  },[]);
 
@@ -61,10 +66,17 @@ export function useLocalAppLock(){
   void load();
   const sub=AppState.addEventListener('change',next=>{
    appState.current=next;
+   // A preference read invalidated by background needs a fresh read on return.
+   // Otherwise loading could remain stuck without a retry button.
+   if(next==='active'&&reloadOnForeground.current){
+    reloadOnForeground.current=false;
+    void load();
+   }
    if(shouldCoverAndLockOnState(next)){
     // Ignore only transient inactive states caused by an intentional native
     // biometric prompt; background ALWAYS revokes the UI session.
     if(shouldInvalidateLocalSession(next,authenticating.current||protectedNativePrompt.current)){
+     if(pendingReadEpoch.current!==null)reloadOnForeground.current=true;
      epoch.current++;
      setStatus(prev=>prev==='unlocked'?'locked':prev);
     }
@@ -72,6 +84,7 @@ export function useLocalAppLock(){
   });
   return()=>{
    active.current=false;
+   reloadOnForeground.current=false;
    epoch.current++;
    sub.remove();
   };
