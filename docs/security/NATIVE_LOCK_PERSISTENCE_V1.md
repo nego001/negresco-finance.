@@ -1,6 +1,6 @@
 # Negresco Finance | Contrato de persistência nativa do bloqueio (proposta V1)
 
-**Status: arquitetura definida; um núcleo Kotlin experimental sem adaptadores Android foi criado em `tooling/native-lock-spike`. A persistência nativa e a autenticação Android seguem NÃO implementadas.**
+**Status: arquitetura definida; núcleo Kotlin e implementação experimental das transações Jetpack DataStore compiláveis na JVM foram adicionados a `tooling/native-lock-spike`. A integração Android, o provedor DataStore por processo, a autenticação BiometricPrompt e a migração continuam NÃO implementados.**
 O APK 3.1.2 continua usando AsyncStorage e autenticação de interface.
 Este arquivo **não** autoriza migração automática, dados financeiros reais,
 assinatura de produção, alegação de transação nativa ou uso do Keystore como
@@ -119,3 +119,10 @@ O protótipo fica deliberadamente **fora de `apps/mobile/modules`**, para não
 ser descoberto pelo autolinking nem alterar o APK 3.1.2. Sua existência não
 aprova os gates de implementação nativa, persistência atômica, migração,
 assinatura, segurança bancária ou QA físico.
+
+
+## Persistência experimental com DataStore
+
+`DataStoreLockRecordRepository.kt` usa a API real `androidx.datastore:datastore-preferences-core:1.2.1` em um projeto JVM isolado. A revisão do registro usa um único `updateData` transacional para versão de protocolo, estado habilitado e número de revisão. Não há operação de inicialização permissiva: registro ausente exige migração, registro parcial/versão desconhecida falha fechado.
+
+Os testes do laboratório usam um arquivo `.preferences_pb` temporário e verificam reabertura, revisão obsoleta, escritas concorrentes, corrupção e versões futuras. **Isso não é integração Android nem garante autenticação nativa.** A API `compareAndSet` só poderá ser chamada sob controle de uma operação nativa autenticada, jamais diretamente pelo JavaScript.
