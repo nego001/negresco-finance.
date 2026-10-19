@@ -168,7 +168,9 @@ de segurança independente.
 por processo e o `SuspendingNativeLockCoordinator`. O coordenador mantém
 geração de sessão sincronizada com `onStop`, cancela autorizações antigas,
 serializa prompts, verifica revisões persistidas e só abre sessão ao concluir
-sem mudança de Activity. **Desativar o bloqueio retorna DENIED** por projeto:
+sem mudança de Activity. O desbloqueio fica associado à revisão do registro: mudanças externas,
+ausência de registro e dados corrompidos revogam a autorização em memória.
+A confirmação do prompt exige Activity em `RESUMED`. **Desativar o bloqueio retorna DENIED** por projeto:
 permitir o opt-out antes de garantir atomicidade com a revogação do Android
 reintroduziria o problema crítico de desativação após background.
 
