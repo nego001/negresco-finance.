@@ -75,3 +75,24 @@ test('native lock Kotlin spike is isolated from APK and checked in CI',()=>{
  assert.match(nativeCheck,/gradle -p tooling\/native-lock-spike policyCheck --no-daemon/);
  assert.doesNotMatch(config,/NegrescoNativeLock|NativeLockCoordinator/);
 });
+
+test('experimental Android native lock cannot be invoked from Expo 3.1.2',()=>{
+ const androidBuild=read('tooling/native-lock-android-lab/build.gradle.kts');
+ const provider=read('tooling/native-lock-android-lab/src/main/kotlin/com/negresco/finance/security/NativeLockAndroidStore.kt');
+ const prompt=read('tooling/native-lock-android-lab/src/main/kotlin/com/negresco/finance/security/StrongBiometricPrompt.kt');
+ const migration=read('tooling/native-lock-spike/src/main/kotlin/com/negresco/finance/security/LegacyLockMigrationPolicy.kt');
+ const store=read('tooling/native-lock-spike/src/main/kotlin/com/negresco/finance/security/DataStoreLockRecordRepository.kt');
+ const mobile=read('apps/mobile/app.json');
+ const workflow=read('.github/workflows/ci.yml');
+ assert.match(androidBuild,/id\("com\.android\.library"\)/);
+ assert.match(provider,/internal object NativeLockAndroidStore/);
+ assert.match(provider,/@Volatile private var instance/);
+ assert.match(prompt,/BiometricManager\.Authenticators\.BIOMETRIC_STRONG/);
+ assert.match(prompt,/override fun onStop\(owner: LifecycleOwner\)/);
+ assert.match(prompt,/prompt\?\.cancelAuthentication\(\)/);
+ assert.match(migration,/NEEDS_EXPLICIT_SETUP/);
+ assert.match(store,/suspend fun migrateLegacyLocked/);
+ assert.match(store,/LegacyLockMigrationDecision\.NEEDS_EXPLICIT_SETUP/);
+ assert.match(workflow,/native-lock-android-lab:/);
+ assert.doesNotMatch(mobile,/native-lock-android-lab|NativeLockAndroidStore|StrongBiometricPrompt/);
+});
