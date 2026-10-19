@@ -81,7 +81,7 @@ biometric tests have been run.
 **Next implementation gate:** verify native prompt lifecycle on a Samsung
 with synthetic data; then design a safe native commit protocol for disabling
 protection, native-only migration and durable key authorization. No unguarded
-`compareAndSet` method in any JS bridge.
+`enableIfCurrent` repository operation in any JS bridge.
 
 ## Disable preparation gate (JVM-only, not wired to Activity)
 
