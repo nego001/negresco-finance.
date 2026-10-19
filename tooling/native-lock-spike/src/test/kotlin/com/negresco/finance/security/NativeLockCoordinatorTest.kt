@@ -103,5 +103,8 @@ fun main() {
     check(storage.record!!.enabled)
   }
   println("PASS: 10 Kotlin native lock policy scenarios (offline JVM only)")
-  kotlinx.coroutines.runBlocking { runDataStoreScenarios() }
+  kotlinx.coroutines.runBlocking {
+    runDataStoreScenarios()
+    runSuspendingCoordinatorScenarios()
+  }
 }
