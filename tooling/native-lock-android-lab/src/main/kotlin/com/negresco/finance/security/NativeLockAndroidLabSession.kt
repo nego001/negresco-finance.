@@ -3,6 +3,13 @@ package com.negresco.finance.security
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
 
 /**
  * Isolated Android host adapter for the coroutine-native lock coordinator.
@@ -15,6 +22,7 @@ internal class NativeLockAndroidLabSession(
   private val activity: FragmentActivity
 ) : DefaultLifecycleObserver {
   private val prompt = StrongBiometricPrompt(activity)
+  private val observationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
   private val coordinator = SuspendingNativeLockCoordinator(
     NativeLockAndroidStore.get(activity),
     SuspendedStrongBiometry { action -> prompt.authenticate(action) }
@@ -22,6 +30,20 @@ internal class NativeLockAndroidLabSession(
 
   init {
     activity.lifecycle.addObserver(this)
+    observationScope.launch {
+      try {
+        // Observe the SAME process-scoped DataStore instance used for writes.
+        // No event here can grant access, only revoke a stale UI session.
+        NativeLockAndroidStore.get(activity).observe().collect { event ->
+          coordinator.onPersistentStateChanged(event)
+        }
+      } catch (cancelled: CancellationException) {
+        throw cancelled
+      } catch (_: Exception) {
+        // If observation fails, revoke; recovery requires a new Activity.
+        coordinator.onPersistentStateChanged(NativeLockObservation.StorageError)
+      }
+    }
   }
 
   override fun onResume(owner: LifecycleOwner) {
@@ -34,6 +56,7 @@ internal class NativeLockAndroidLabSession(
 
   override fun onDestroy(owner: LifecycleOwner) {
     coordinator.onBackground()
+    observationScope.cancel()
     owner.lifecycle.removeObserver(this)
   }
 
