@@ -166,5 +166,6 @@ fun main() {
     runOptOutInterleavingScenarios()
     runLockIntegrityScenarios()
     runFinancialEnvelopeScenarios()
+    runSqlCipherLabGuardScenarios()
   }
 }
