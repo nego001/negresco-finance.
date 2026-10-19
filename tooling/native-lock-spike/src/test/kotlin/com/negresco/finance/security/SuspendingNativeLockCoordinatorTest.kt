@@ -463,5 +463,48 @@ internal suspend fun runSuspendingCoordinatorScenarios() {
     check(c.unlock() == LockResult.DENIED)
   }
 
-  println("PASS: 28 suspending native lock coordinator scenarios (isolated JVM only)")
+  // 29. Native Flow rollback in the same Activity is a terminal auth error.
+  withCoordinatorStore { repo, raw ->
+    var prompts = 0
+    val c = SuspendingNativeLockCoordinator(
+      repo, requireLiveObservation = true,
+      biometric = SuspendedStrongBiometry { prompts++; true })
+    c.onForeground()
+    check(!c.onPersistentStateChanged(NativeLockObservation.Record(repo.read()!!)))
+    check(c.unlock() == LockResult.SUCCESS)
+    setSyntheticRecord(raw, revision = 2L, enabled = true)
+    check(c.onPersistentStateChanged(NativeLockObservation.Record(repo.read()!!)))
+    check(c.snapshot().storageError && !c.snapshot().unlocked)
+    setSyntheticRecord(raw, revision = 4L, enabled = true)
+    check(!c.onPersistentStateChanged(NativeLockObservation.Record(repo.read()!!)))
+    check(c.unlock() == LockResult.DENIED)
+    check(prompts == 1)
+  }
+  // 30. A contradictory enabled state at the SAME revision is not a valid write.
+  withCoordinatorStore { repo, raw ->
+    val c = SuspendingNativeLockCoordinator(
+      repo, requireLiveObservation = true,
+      biometric = SuspendedStrongBiometry { true })
+    c.onForeground()
+    check(!c.onPersistentStateChanged(NativeLockObservation.Record(repo.read()!!)))
+    check(c.unlock() == LockResult.SUCCESS)
+    setSyntheticRecord(raw, revision = 3L, enabled = false)
+    check(c.onPersistentStateChanged(NativeLockObservation.Record(repo.read()!!)))
+    check(c.snapshot().storageError)
+    check(c.enable() == LockResult.DENIED)
+  }
+  // 31. Even before delayed Flow delivery, direct snapshot detects rollback.
+  withCoordinatorStore { repo, raw ->
+    val c = SuspendingNativeLockCoordinator(
+      repo, requireLiveObservation = true,
+      biometric = SuspendedStrongBiometry { true })
+    c.onForeground()
+    check(!c.onPersistentStateChanged(NativeLockObservation.Record(repo.read()!!)))
+    check(c.unlock() == LockResult.SUCCESS)
+    setSyntheticRecord(raw, revision = 1L, enabled = true)
+    check(c.snapshot().storageError)
+    check(!c.snapshot().unlocked)
+    check(c.unlock() == LockResult.DENIED)
+  }
+  println("PASS: 31 suspending native lock coordinator scenarios (isolated JVM only)")
 }
