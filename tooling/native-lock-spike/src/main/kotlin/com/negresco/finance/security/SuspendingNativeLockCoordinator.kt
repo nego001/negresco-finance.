@@ -59,6 +59,7 @@ internal class SuspendingNativeLockCoordinator(
 
       val changed = lastObservedRecord != null && lastObservedRecord != record
       val invalid = !observationReady || record?.enabled == false ||
+        record?.disablePending == true ||
         (unlocked && unlockedRevision != record?.revision)
       val wasUnlocked = unlocked
       if (changed || invalid) {
@@ -136,13 +137,15 @@ internal class SuspendingNativeLockCoordinator(
         unlockedRevision = null
         LockSnapshot(true, false, -1L, true, false)
       } else {
-        if (!record.enabled || (unlocked && unlockedRevision != record.revision)) {
+        if (!record.enabled || record.disablePending ||
+            (unlocked && unlockedRevision != record.revision)) {
           generation++
           unlocked = false
           unlockedRevision = null
         }
         LockSnapshot(record.enabled,
-          foreground && unlocked && unlockedRevision == record.revision && record.enabled,
+          foreground && unlocked && unlockedRevision == record.revision &&
+            record.enabled && !record.disablePending,
           record.revision, false, false)
       }
     }
@@ -158,7 +161,7 @@ internal class SuspendingNativeLockCoordinator(
       catch (_: Exception) {
       return@withLock LockResult.STORAGE_ERROR
     } ?: return@withLock LockResult.MIGRATION_REQUIRED
-    if (!before.enabled) return@withLock LockResult.DENIED
+    if (!before.enabled || before.disablePending) return@withLock LockResult.DENIED
 
     val authenticated = try { biometric.authenticate(LockAction.UNLOCK) }
       catch (cancelled: CancellationException) { throw cancelled }
@@ -170,7 +173,7 @@ internal class SuspendingNativeLockCoordinator(
       catch (_: Exception) {
       return@withLock LockResult.STORAGE_ERROR
     } ?: return@withLock LockResult.MIGRATION_REQUIRED
-    if (!after.enabled || after.revision != before.revision)
+    if (!after.enabled || after.disablePending || after.revision != before.revision)
       return@withLock LockResult.STALE
     finishUnlocked(ticket, after.revision)
   }
@@ -185,7 +188,7 @@ internal class SuspendingNativeLockCoordinator(
       catch (_: Exception) {
       return@withLock LockResult.STORAGE_ERROR
     } ?: return@withLock LockResult.MIGRATION_REQUIRED
-    if (before.enabled) return@withLock LockResult.DENIED
+    if (before.enabled || before.disablePending) return@withLock LockResult.DENIED
     val authenticated = try { biometric.authenticate(LockAction.ENABLE) }
       catch (cancelled: CancellationException) { throw cancelled }
       catch (_: Exception) { false }
@@ -198,6 +201,42 @@ internal class SuspendingNativeLockCoordinator(
     if (!committed.enabled || committed.revision != before.revision + 1L)
       return@withLock LockResult.STORAGE_ERROR
     finishUnlocked(ticket, committed.revision)
+  }
+
+  /**
+   * Phase 1 of a future native opt-out, intentionally NOT exposed by the
+   * Android Activity adapter. Requires a native biometric prompt. Even a
+   * successful result is PREPARED, not DISABLED. Any crash, cancellation or
+   * background event leaves the persisted lock enabled.
+   *
+   * The final commit to enabled=false remains NOT IMPLEMENTED.
+   */
+  suspend fun prepareDisableForLab(): LockResult = requestMutex.withLock {
+    val ticket = beginTicket() ?: return@withLock LockResult.DENIED
+    val before = try { repository.read() }
+      catch (cancelled: CancellationException) { throw cancelled }
+      catch (_: Exception) { return@withLock LockResult.STORAGE_ERROR }
+      ?: return@withLock LockResult.MIGRATION_REQUIRED
+    if (!before.enabled || before.disablePending) return@withLock LockResult.DENIED
+
+    val authenticated = try { biometric.authenticate(LockAction.DISABLE) }
+      catch (cancelled: CancellationException) { throw cancelled }
+      catch (_: Exception) { false }
+    if (!authenticated) return@withLock LockResult.DENIED
+    if (!stillValid(ticket)) return@withLock LockResult.STALE
+
+    val prepared = try { repository.prepareDisable(before.revision) }
+      catch (_: StaleNativeLockRevision) { return@withLock LockResult.STALE }
+      catch (cancelled: CancellationException) { throw cancelled }
+      catch (_: Exception) { return@withLock LockResult.STORAGE_ERROR }
+
+    // Revokes the old UI grant regardless of later observer scheduling.
+    lockNow()
+    if (!prepared.enabled || !prepared.disablePending ||
+        prepared.revision != before.revision + 1L)
+      return@withLock LockResult.STORAGE_ERROR
+    // No call ever reports a completed opt-out, even after a durable write.
+    LockResult.PREPARED
   }
 
   /** Remains unavailable until commit and lifecycle revocation are linearizable. */
