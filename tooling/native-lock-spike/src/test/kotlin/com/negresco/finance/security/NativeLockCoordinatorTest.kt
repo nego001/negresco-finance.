@@ -38,7 +38,7 @@ fun main() {
     val storage = MemoryAtomicStore()
     lateinit var coordinator: NativeLockCoordinator
     coordinator = NativeLockCoordinator(storage) { coordinator.onBackground(); true }
-    assertResult(LockResult.STALE, coordinator.request(LockAction.DISABLE))
+    assertResult(LockResult.DENIED, coordinator.request(LockAction.DISABLE))
     check(storage.record!!.enabled)
   }
   run {
@@ -49,11 +49,12 @@ fun main() {
   }
   run {
     val storage = MemoryAtomicStore()
-    val coordinator = NativeLockCoordinator(storage) { true }
-    assertResult(LockResult.SUCCESS, coordinator.request(LockAction.DISABLE))
-    check(storage.record == LockRecord(1, false, 5L))
+    var prompts = 0
+    val coordinator = NativeLockCoordinator(storage) { prompts++; true }
+    assertResult(LockResult.DENIED, coordinator.request(LockAction.DISABLE))
+    check(storage.record == LockRecord(1, true, 4L))
+    check(prompts == 0) // Denied BEFORE asking for biometrics.
     check(!coordinator.snapshot().unlocked)
-    assertResult(LockResult.STALE, coordinator.request(LockAction.UNLOCK))
   }
   run {
     val storage = MemoryAtomicStore()
@@ -61,14 +62,14 @@ fun main() {
       storage.record = LockRecord(1, true, 5L)
       true
     }
-    assertResult(LockResult.STORAGE_ERROR, coordinator.request(LockAction.DISABLE))
+    assertResult(LockResult.STALE, coordinator.request(LockAction.UNLOCK))
     check(storage.record!!.enabled)
   }
   run {
     val storage = MemoryAtomicStore(null)
     val coordinator = NativeLockCoordinator(storage) { true }
     check(coordinator.snapshot().migrationRequired)
-    assertResult(LockResult.MIGRATION_REQUIRED, coordinator.request(LockAction.DISABLE))
+    assertResult(LockResult.MIGRATION_REQUIRED, coordinator.request(LockAction.UNLOCK))
   }
   run {
     val storage = MemoryAtomicStore(LockRecord(7, false, 0L))
@@ -77,11 +78,11 @@ fun main() {
     assertResult(LockResult.STORAGE_ERROR, coordinator.request(LockAction.ENABLE))
   }
   run {
-    val storage = MemoryAtomicStore()
+    val storage = MemoryAtomicStore(LockRecord(1, false, 4L))
     storage.failWrite = true
     val coordinator = NativeLockCoordinator(storage) { true }
-    assertResult(LockResult.STORAGE_ERROR, coordinator.request(LockAction.DISABLE))
-    check(storage.record!!.enabled)
+    assertResult(LockResult.STORAGE_ERROR, coordinator.request(LockAction.ENABLE))
+    check(!storage.record!!.enabled)
   }
   run {
     val storage = MemoryAtomicStore()
@@ -102,7 +103,43 @@ fun main() {
     assertResult(LockResult.SUCCESS, coordinator.request(LockAction.UNLOCK))
     check(storage.record!!.enabled)
   }
-  println("PASS: 10 Kotlin native lock policy scenarios (offline JVM only)")
+  // Legacy policy may enable a valid off record but NEVER disable one.
+  run {
+    val storage = MemoryAtomicStore(LockRecord(1, false, 4L))
+    val coordinator = NativeLockCoordinator(storage) { true }
+    assertResult(LockResult.SUCCESS, coordinator.request(LockAction.ENABLE))
+    check(storage.record == LockRecord(1, true, 5L))
+    check(coordinator.snapshot().unlocked)
+    assertResult(LockResult.DENIED, coordinator.request(LockAction.DISABLE))
+  }
+  // Revision changed externally: an old biometric grant is not reusable.
+  run {
+    val storage = MemoryAtomicStore()
+    val coordinator = NativeLockCoordinator(storage) { true }
+    assertResult(LockResult.SUCCESS, coordinator.request(LockAction.UNLOCK))
+    storage.record = LockRecord(1, true, 5L)
+    check(!coordinator.snapshot().unlocked)
+    assertResult(LockResult.SUCCESS, coordinator.request(LockAction.UNLOCK))
+  }
+  // A pending opt-out remains protected even if the old session was unlocked.
+  run {
+    val storage = MemoryAtomicStore()
+    val coordinator = NativeLockCoordinator(storage) { true }
+    assertResult(LockResult.SUCCESS, coordinator.request(LockAction.UNLOCK))
+    storage.record = LockRecord(1, true, 5L, disablePending = true)
+    check(!coordinator.snapshot().unlocked)
+    assertResult(LockResult.DENIED, coordinator.request(LockAction.UNLOCK))
+    assertResult(LockResult.DENIED, coordinator.request(LockAction.DISABLE))
+  }
+  // Contradictory native record is corruption, not an opt-out.
+  run {
+    val storage = MemoryAtomicStore(LockRecord(1, false, 4L, disablePending = true))
+    val coordinator = NativeLockCoordinator(storage) { true }
+    check(coordinator.snapshot().storageError)
+    assertResult(LockResult.STORAGE_ERROR, coordinator.request(LockAction.UNLOCK))
+    assertResult(LockResult.DENIED, coordinator.request(LockAction.DISABLE))
+  }
+  println("PASS: 14 Kotlin native lock policy scenarios (offline JVM only)")
   kotlinx.coroutines.runBlocking {
     runDataStoreScenarios()
     runSuspendingCoordinatorScenarios()
