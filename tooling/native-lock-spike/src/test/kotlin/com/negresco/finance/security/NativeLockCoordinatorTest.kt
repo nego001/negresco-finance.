@@ -139,7 +139,27 @@ fun main() {
     assertResult(LockResult.STORAGE_ERROR, coordinator.request(LockAction.UNLOCK))
     assertResult(LockResult.DENIED, coordinator.request(LockAction.DISABLE))
   }
-  println("PASS: 14 Kotlin native lock policy scenarios (offline JVM only)")
+  // Storage read failure must revoke a previously authenticated grant.
+  run {
+    val storage = MemoryAtomicStore()
+    val coordinator = NativeLockCoordinator(storage) { true }
+    assertResult(LockResult.SUCCESS, coordinator.request(LockAction.UNLOCK))
+    storage.failRead = true
+    check(coordinator.snapshot().storageError)
+    storage.failRead = false
+    check(!coordinator.snapshot().unlocked)
+    assertResult(LockResult.SUCCESS, coordinator.request(LockAction.UNLOCK))
+  }
+  // Don't open an authentication prompt for an already enabled lock.
+  run {
+    val storage = MemoryAtomicStore()
+    var prompts = 0
+    val coordinator = NativeLockCoordinator(storage) { prompts++; true }
+    assertResult(LockResult.DENIED, coordinator.request(LockAction.ENABLE))
+    check(prompts == 0)
+    check(storage.record == LockRecord(1, true, 4L))
+  }
+  println("PASS: 16 Kotlin native lock policy scenarios (offline JVM only)")
   kotlinx.coroutines.runBlocking {
     runDataStoreScenarios()
     runSuspendingCoordinatorScenarios()
