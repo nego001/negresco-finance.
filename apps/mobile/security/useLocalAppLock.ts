@@ -30,9 +30,14 @@ export function useLocalAppLock(){
    const saved=await AsyncStorage.getItem(LOCAL_LOCK_PREF_KEY);
    const enabled=parseLocalLockPreference(saved);
    if(active.current){
-    // An old storage read must not reopen a session after backgrounding.
+    // A preference read started before backgrounding or a manual lock is stale.
+    // Fail closed instead of allowing an old null preference to set UI to off.
+    if(attemptEpoch!==epoch.current){
+     setStatus(prev=>prev==='loading'?'error':prev);
+     setMessage('O estado do aplicativo mudou durante a leitura da proteção. Tente verificar novamente.');
+     return;
+    }
     setStatus(enabled?'locked':'off');
-    if(attemptEpoch!==epoch.current&&enabled)setStatus('locked');
    }
   }catch{
    if(active.current){setStatus('error');setMessage('Não foi possível ler a proteção local. O acesso permanecerá bloqueado até a verificação funcionar.');}
