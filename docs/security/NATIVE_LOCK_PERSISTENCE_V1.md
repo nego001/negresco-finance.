@@ -179,3 +179,18 @@ não utiliza segredos financeiros nem Android Keystore como fonte de chaves.
 Seus testes JVM são simulados; a compilação Android confirma apenas
 compatibilidade de código. É obrigatório testar autenticação real,
 cancelamento, rotação de Activity e troca de digitais num aparelho de teste.
+
+## Observação persistente e revogação imediata (laboratório)
+
+O adaptador Android experimental agora observa o `Flow` do DataStore em uma
+coroutine própria da Activity. Uma revisão alterada, um registro removido
+ou um erro de decodificação revoga imediatamente a sessão **quando o evento
+é recebido**, sem depender de o usuário abrir outra tela. A verificação
+direta no `snapshot()` continua necessária porque eventos assíncronos podem
+atrasar. Em falha de observação, o acesso fica revogado e a recuperação
+exige reinicializar o observador sob controle nativo.
+
+**Não é uma barreira de segurança criptográfica:** uma notificação pode
+chegar após a alteração no disco, e a interface não está ligada a esse
+laboratório no APK 3.1.2. Ainda falta revogação vinculada ao ciclo de vida
+real, testes no Samsung e transação segura para desativar a biometria.
