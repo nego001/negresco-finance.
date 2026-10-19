@@ -21,6 +21,7 @@ export function useLocalAppLock(){
  const epoch=useRef(0);
  const authenticating=useRef(false);
  const protectedNativePrompt=useRef(false);
+ const preferenceMutation=useRef(false);
  const appState=useRef(AppState.currentState||'active');
 
  const load=useCallback(async()=>{
@@ -73,7 +74,7 @@ export function useLocalAppLock(){
  },[load]);
 
  const verifyStrong=useCallback(async(promptMessage:string):Promise<boolean>=>{
-  if(authenticating.current||protectedNativePrompt.current||!active.current||appState.current!=='active')return false;
+  if(authenticating.current||protectedNativePrompt.current||preferenceMutation.current||!active.current||appState.current!=='active')return false;
   authenticating.current=true;
   setBusy(true);
   setMessage('');
@@ -120,12 +121,16 @@ export function useLocalAppLock(){
  const enable=useCallback(async()=>{
   if(status!=='off')return;
   if(!await verifyStrong('Ativar bloqueio biométrico'))return;
+  if(preferenceMutation.current)return;
+  preferenceMutation.current=true;
   const ticket=epoch.current;
   try{
    await AsyncStorage.setItem(LOCAL_LOCK_PREF_KEY,'enabled');
    if(active.current)setStatus(canFinishAuthentication(true,ticket,epoch.current,appState.current)?'unlocked':'locked');
   }catch{
    if(active.current){setStatus('error');setMessage('O estado do bloqueio não pôde ser confirmado. Acesse novamente as preferências somente após recuperar o armazenamento.');}
+  }finally{
+   preferenceMutation.current=false;
   }
  },[status,verifyStrong]);
 
@@ -133,7 +138,9 @@ export function useLocalAppLock(){
   if(status!=='unlocked')return;
   const ticket=epoch.current;
   if(!await verifyStrong('Desativar bloqueio biométrico'))return;
-  if(!canFinishAuthentication(true,ticket,epoch.current,appState.current))return;
+  if(!canFinishAuthentication(true,ticket,epoch.current,appState.current)||preferenceMutation.current)return;
+  preferenceMutation.current=true;
+  try{
   const valid=()=>active.current&&canFinishAuthentication(true,ticket,epoch.current,appState.current);
   const outcome=await persistBiometricOptOut(AsyncStorage,valid);
   if(!active.current)return;
@@ -146,6 +153,9 @@ export function useLocalAppLock(){
    setStatus('locked');
    setMessage('A desativação foi interrompida. Confirme a biometria novamente antes de desativar.');
   }
+  }finally{
+   preferenceMutation.current=false;
+  }
  },[status,verifyStrong]);
 
  /**
@@ -153,7 +163,7 @@ export function useLocalAppLock(){
   * the user leaving the app. Does not confer any native key authorization.
   */
  const withProtectedNativePrompt=useCallback(async <T,>(task:()=>Promise<T>):Promise<T>=>{
-  if(!active.current||protectedNativePrompt.current||authenticating.current||appState.current!=='active')
+  if(!active.current||protectedNativePrompt.current||authenticating.current||preferenceMutation.current||appState.current!=='active')
    throw new Error('Native prompt is unavailable');
   protectedNativePrompt.current=true;
   try{return await task();}
