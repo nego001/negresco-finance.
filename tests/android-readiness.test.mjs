@@ -182,3 +182,16 @@ test('legacy Kotlin policy cannot bypass native opt-out denial',()=>{
  assert.match(faults,/attempt\.cancelAndJoin\(\)/);
  assert.match(runner,/runOptOutInterleavingScenarios\(\)/);
 });
+
+test('native repository exposes enable-only policy and no Boolean disable setter',()=>{
+ const store=read('tooling/native-lock-spike/src/main/kotlin/com/negresco/finance/security/DataStoreLockRecordRepository.kt');
+ const coordinator=read('tooling/native-lock-spike/src/main/kotlin/com/negresco/finance/security/SuspendingNativeLockCoordinator.kt');
+ const tests=read('tooling/native-lock-spike/src/test/kotlin/com/negresco/finance/security/DataStoreLockRecordRepositoryTest.kt');
+ assert.match(store,/suspend fun enableIfCurrent\(expectedRevision: Long\)/);
+ assert.match(store,/if \(previous\.enabled\) throw AlreadyEnabledNativeLock\(\)/);
+ assert.match(store,/this\[NativeLockDataStoreKeys\.enabled\] = true/);
+ assert.doesNotMatch(store,/suspend fun compareAndSet|targetEnabled/);
+ assert.match(coordinator,/repository\.enableIfCurrent\(before\.revision\)/);
+ assert.doesNotMatch(coordinator,/repository\.compareAndSet/);
+ assert.match(tests,/seedSyntheticRecord\(h, enabled = false\)/);
+});
