@@ -60,7 +60,9 @@ class SyntheticSqlCipherDatabaseInstrumentedTest {
         assertEquals("synthetic-marker", cursor.getString(0))
       }
     }
-    val header = syntheticFile.inputStream().use { it.readNBytes(16) }
+    val header = syntheticFile.inputStream().use { input ->
+      ByteArray(16).also { java.io.DataInputStream(input).readFully(it) }
+    }
     assertFalse(header.contentEquals("SQLite format 3\u0000".toByteArray(Charsets.US_ASCII)))
   }
 
