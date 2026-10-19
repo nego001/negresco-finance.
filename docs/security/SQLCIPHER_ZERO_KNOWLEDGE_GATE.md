@@ -60,6 +60,8 @@ segredos reais, nem mudar o status da auditoria CP-0163 do Security Black.
 - [ ] Revisão criptográfica independente e liberação formal antes de qualquer
   dado pessoal/financeiro real.
 
+A [ADR 0001](../decisions/0001-sqlcipher-zero-knowledge-negresco-only.md) registra a decisão do proprietário de manter esse desenvolvimento exclusivamente no Negresco Finance.
+
 ## Escopo exclusivo do Negresco Finance
 
 **SQLCipher nativo e zero-knowledge serão desenvolvidos exclusivamente neste

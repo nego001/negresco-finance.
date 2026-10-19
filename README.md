@@ -12,6 +12,10 @@ Aplicativo financeiro modular em desenvolvimento. **V3.1 é uma versão candidat
 
 > Uma linha digitável matematicamente correta e um CNPJ cadastrado **não comprovam a legitimidade de um boleto**. Não utilize o protótipo para decidir pagamentos ou enviar informações bancárias.
 
+## Decisão de segurança e escopo
+
+O banco **SQLCipher nativo** e a arquitetura **zero-knowledge** serão implementados **somente no Negresco Finance**, sem alterar nem depender do projeto Security Black. **Não estão ativos na V3.1**. A [decisão de arquitetura](docs/decisions/0001-sqlcipher-zero-knowledge-negresco-only.md) registra o compromisso e os requisitos verificáveis, preservando a ordem da [Fase 1](docs/PHASE1_BASELINE.md).
+
 ## Componentes planejados
 
 - **Negresco:** assistente pessoal personalizável.

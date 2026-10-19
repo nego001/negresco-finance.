@@ -2,6 +2,8 @@
 
 Status: **em andamento**. Esta fase é pré-requisito para iniciar a Fase 2 (controle financeiro manual). O APK continua **candidato de testes**, não um produto bancário.
 
+**Escopo formal:** [ADR 0001](decisions/0001-sqlcipher-zero-knowledge-negresco-only.md): SQLCipher nativo e zero-knowledge exclusivos do Negresco Finance. Não fazer alterações no Security Black para entregar estes requisitos. A V3.1 ainda não usa SQLCipher.
+
 ## Implementado e verificado no CI
 - [x] Compilação Android automatizada com assinatura técnica verificada e SHA256 do APK.
 - [x] Limites de memória do Gradle para compilar módulos Kotlin/Expo.
@@ -17,6 +19,7 @@ Status: **em andamento**. Esta fase é pré-requisito para iniciar a Fase 2 (con
 - [x] Publicação de impressão digital pública do certificado de assinatura em APK-SIGNATURE.txt. **Isto não estabiliza a assinatura por si só.**
 - [x] Pacote completo como artefato independente do GitHub Releases (APK, ZIP, SHA256 e impressão digital). Builds antigos são substituídos por execuções mais recentes na mesma branch; erros de permissão no Releases continuam visíveis.
 - [x] Android Auto Backup desabilitado enquanto não houver backup criptografado e recuperação segura. Reinstalar o app pode eliminar o histórico e as preferências locais.
+- [x] Decisão ADR 0001 de escopo exclusivo documentada e vinculada aos gates; **somente documentação, não implementação nativa**.
 
 ## Ainda pendente para concluir a Fase 1
 - [ ] **Homologação no Samsung:** executar [roteiro de QA da V3.1](ANDROID_QA_V3.1.md), registrar falhas e corrigi-las. Sem execução física não declarar aprovado.

@@ -1,6 +1,6 @@
 # Arquitetura inicial
 
-Mobile React Native + TypeScript e API NestJS estão planejados, ainda não implementados.
+O aplicativo **React Native + TypeScript (Expo)** já possui uma versão Android **V3.1 candidata**. A API NestJS continua planejada e não existe backend financeiro funcional.
 
 ## Agentes
 Negresco é a interface conversacional. CTO coordena solicitações. Guardião avalia riscos de segurança. Especialistas: Open Finance, Pix, investimentos, cartões, metas e auditoria.
@@ -14,4 +14,4 @@ Habilitados: IA, Open Finance, Pix, Investimentos, Cartões, Metas. Os demais fi
 Identidade feminina seleciona voz feminina; masculina seleciona masculina; neutra seleciona neutra quando disponível.
 
 ## Estado
-Somente contratos e políticas de protótipo; sem APK, banco de dados, backend funcional ou integrações reais.
+Há APK candidato, Guardião com validação matemática local, preferências e histórico limitado; ainda **sem SQLCipher nativo**, banco financeiro persistente, backend funcional ou integrações bancárias reais. O [ADR 0001](decisions/0001-sqlcipher-zero-knowledge-negresco-only.md) define SQLCipher/E2EE **exclusivos do Negresco Finance**, sem alterar o Security Black.
