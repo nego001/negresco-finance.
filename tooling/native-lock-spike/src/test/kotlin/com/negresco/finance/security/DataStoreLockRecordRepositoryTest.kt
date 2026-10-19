@@ -319,5 +319,16 @@ internal suspend fun runDataStoreScenarios() {
       check(h.repository.read() == LockRecord(1, false, 4L))
     } finally { h.close() }
   }
-  println("PASS: 22 real DataStore and legacy migration scenarios (isolated JVM only)")
+  // 23. An already enabled record must not be rewritten as a fake activation.
+  checkOne { file ->
+    val h = DataStoreHarness(file)
+    try {
+      seedSyntheticRecord(h)
+      check(runCatching { h.repository.enableIfCurrent(3L) }
+        .exceptionOrNull() is AlreadyEnabledNativeLock)
+      check(h.repository.read() == LockRecord(1, true, 3L))
+    } finally { h.close() }
+  }
+
+  println("PASS: 23 real DataStore and legacy migration scenarios (isolated JVM only)")
 }
