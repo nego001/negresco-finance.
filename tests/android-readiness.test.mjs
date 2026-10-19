@@ -103,7 +103,7 @@ test('native coroutine coordinator is lifecycle-gated and cannot disable protect
  const app=read('apps/mobile/App.tsx');
  assert.match(policy,/private val requestMutex = Mutex\(\)/);
  assert.match(policy,/fun onBackground\(\) = synchronized\(lifecycleGuard\)/);
- assert.match(policy,/private fun finishUnlocked\(ticket: Long\): LockResult = synchronized\(lifecycleGuard\)/);
+ assert.match(policy,/private fun finishUnlocked\(ticket: Long, revision: Long\): LockResult = synchronized\(lifecycleGuard\)/);
  assert.match(policy,/suspend fun enable\(\): LockResult = requestMutex\.withLock/);
  assert.match(policy,/suspend fun unlock\(\): LockResult = requestMutex\.withLock/);
  assert.match(policy,/suspend fun disable\(\): LockResult = LockResult\.DENIED/);
