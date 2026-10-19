@@ -28,6 +28,32 @@ internal class SuspendingNativeLockCoordinator(
   private var foreground = false
   private var unlocked = false
   private var unlockedRevision: Long? = null
+  private var lastObservedRecord: LockRecord? = null
+
+  /**
+   * A synchronous, revocation-only sink for the DataStore Flow collector.
+   * Notifications cannot grant access. Different persisted records, disabled
+   * protection, missing data and I/O/decoding errors revoke any old grant.
+   * Called by the Activity-owned collector, never by a JS bridge.
+   *
+   * The Flow is asynchronous: authorization is ALSO checked by read()/snapshot().
+   */
+  internal fun onPersistentStateChanged(event: NativeLockObservation): Boolean =
+    synchronized(lifecycleGuard) {
+      val record = (event as? NativeLockObservation.Record)?.value
+      val previous = lastObservedRecord
+      val changed = previous != null && previous != record
+      val invalid = record == null || !record.enabled ||
+        (unlocked && unlockedRevision != record.revision)
+      val wasUnlocked = unlocked
+      if (changed || invalid) {
+        generation++
+        unlocked = false
+        unlockedRevision = null
+      }
+      lastObservedRecord = record
+      wasUnlocked && !unlocked
+    }
 
   /** Called synchronously by Android lifecycle callbacks, never delayed. */
   fun onForeground() = synchronized(lifecycleGuard) {
