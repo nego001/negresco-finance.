@@ -72,7 +72,7 @@ export function useLocalAppLock(){
  },[load]);
 
  const verifyStrong=useCallback(async(promptMessage:string):Promise<boolean>=>{
-  if(authenticating.current)return false;
+  if(authenticating.current||protectedNativePrompt.current||!active.current||appState.current!=='active')return false;
   authenticating.current=true;
   setBusy(true);
   setMessage('');
