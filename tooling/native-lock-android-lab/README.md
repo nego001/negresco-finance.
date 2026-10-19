@@ -34,7 +34,10 @@ The AndroidX Biometric library is pinned to the stable `1.1.0`.
 process-scoped DataStore to `SuspendingNativeLockCoordinator`. It observes
 `onResume`/`onStop`, invalidates generations synchronously, serializes
 biometric requests with a coroutine Mutex and binds the unlock to the DataStore
-revision; a changed revision or invalid storage revokes the grant. Biometric
+revision; a changed revision or invalid storage revokes the grant. The Activity-owned
+coroutine also collects DataStore revisions and errors to revoke access without
+waiting for an explicit snapshot read; an observation cannot authorize access.
+Biometric
 success callbacks require the Activity to remain `RESUMED`.
 
 The new native coordinator supports **unlock and enable** in the isolated
@@ -43,9 +46,12 @@ protection is not yet linearizable with Android lifecycle revocation and must
 not be exposed through a JS bridge. A successful BiometricPrompt result is
 not a Keystore-protected cryptographic key authorization.
 
-15 additional JVM scenarios cover cancellation, revoked sessions, stale
+18 additional JVM scenarios cover cancellation, revoked sessions, stale
 revisions, serialized prompts, enabled commit external revision changes, corrupt/missing native records and explicit disable denial.
-No real-device biometric tests have been run.
+The additional cases include live DataStore updates, missing records and
+corruption, all of which must close a previously unlocked session. A failed
+observation stream remains locked until explicit recovery; no real-device
+biometric tests have been run.
 
 ## Not implemented and security limits
 
