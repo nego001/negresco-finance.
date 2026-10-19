@@ -38,12 +38,14 @@ internal class NativeLockCoordinator(
   private var generation = 0L
   private var foreground = true
   private var unlocked = false
+  private var unlockedRevision: Long? = null
   private var promptInFlight = false
 
   fun onBackground() = synchronized(mutex) {
     generation++
     foreground = false
     unlocked = false
+    unlockedRevision = null
   }
 
   fun onForeground() = synchronized(mutex) {
@@ -54,11 +56,13 @@ internal class NativeLockCoordinator(
   fun lockNow() = synchronized(mutex) {
     generation++
     unlocked = false
+    unlockedRevision = null
   }
 
   private fun validRecord(record: LockRecord?): LockRecord? {
     if (record == null) return null
-    require(record.version == LOCK_RECORD_VERSION && record.revision >= 0L) {
+    require(record.version == LOCK_RECORD_VERSION && record.revision >= 0L &&
+      !(record.disablePending && !record.enabled)) {
       "Invalid native lock record"
     }
     return record
@@ -68,7 +72,15 @@ internal class NativeLockCoordinator(
     try {
       val record = validRecord(store.read())
         ?: return@synchronized LockSnapshot(true, false, -1L, true, false)
-      LockSnapshot(record.enabled, foreground && unlocked && record.enabled,
+      if (unlocked && (!record.enabled || record.disablePending ||
+          record.revision != unlockedRevision)) {
+        generation++
+        unlocked = false
+        unlockedRevision = null
+      }
+      LockSnapshot(record.enabled,
+        foreground && unlocked && record.enabled && !record.disablePending &&
+          unlockedRevision == record.revision,
         record.revision, false, false)
     } catch (_: Exception) {
       LockSnapshot(true, false, -1L, false, true)
@@ -83,6 +95,8 @@ internal class NativeLockCoordinator(
       val record = validRecord(store.read())
         ?: return@synchronized null to LockResult.MIGRATION_REQUIRED
       promptInFlight = true
+      if (record.disablePending)
+        return@synchronized null to LockResult.DENIED
       Attempt(generation, record.revision) to null
     } catch (_: Exception) {
       null to LockResult.STORAGE_ERROR
@@ -91,6 +105,9 @@ internal class NativeLockCoordinator(
 
   /** Called only by the native adapter after a real native prompt. */
   fun request(action: LockAction): LockResult {
+    // IMPORTANT: this legacy synchronous policy must not become an opt-out
+    // bypass of the Android coroutine coordinator's DENIED decision.
+    if (action == LockAction.DISABLE) return LockResult.DENIED
     val (attempt, failure) = beginAttempt()
     if (failure != null) return failure
     val ticket = attempt ?: return LockResult.DENIED
@@ -104,30 +121,36 @@ internal class NativeLockCoordinator(
         if (action == LockAction.UNLOCK) {
           val current = validRecord(store.read())
             ?: return@synchronized LockResult.MIGRATION_REQUIRED
-          if (current.revision != ticket.revision || !current.enabled)
+          if (current.revision != ticket.revision || !current.enabled ||
+              current.disablePending)
             return@synchronized LockResult.STALE
+          unlockedRevision = current.revision
           unlocked = true
           return@synchronized LockResult.SUCCESS
         }
-        val enabled = action == LockAction.ENABLE
+        // The only mutating action remaining in this legacy policy is ENABLE.
         val saved = store.update { previous ->
           val current = validRecord(previous)
             ?: throw IllegalStateException("Migration required")
-          if (current.revision != ticket.revision || current.revision == Long.MAX_VALUE)
+          if (current.revision != ticket.revision || current.revision == Long.MAX_VALUE ||
+              current.enabled || current.disablePending)
             throw IllegalStateException("Stale or exhausted revision")
-          current.copy(enabled = enabled, revision = current.revision + 1L)
+          current.copy(enabled = true, revision = current.revision + 1L)
         }
         // The store is authoritative. Never trust a success return alone.
         if (saved.version != LOCK_RECORD_VERSION || saved.revision != ticket.revision + 1L ||
-            saved.enabled != enabled) {
+            !saved.enabled || saved.disablePending) {
           unlocked = false
+          unlockedRevision = null
           return@synchronized LockResult.STORAGE_ERROR
         }
-        unlocked = enabled
+        unlocked = true
+        unlockedRevision = saved.revision
         generation++
         LockResult.SUCCESS
       } catch (_: Exception) {
         unlocked = false
+        unlockedRevision = null
         LockResult.STORAGE_ERROR
       }
       }
