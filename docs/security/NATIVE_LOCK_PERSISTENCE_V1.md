@@ -125,7 +125,7 @@ assinatura, segurança bancária ou QA físico.
 
 `DataStoreLockRecordRepository.kt` usa a API real `androidx.datastore:datastore-preferences-core:1.2.1` em um projeto JVM isolado. A revisão do registro usa um único `updateData` transacional para versão de protocolo, estado habilitado e número de revisão. Não há operação de inicialização permissiva: registro ausente exige migração, registro parcial/versão desconhecida falha fechado.
 
-Os testes do laboratório usam um arquivo `.preferences_pb` temporário e verificam reabertura, revisão obsoleta, escritas concorrentes, corrupção e versões futuras. **Isso não é integração Android nem garante autenticação nativa.** A API `compareAndSet` só poderá ser chamada sob controle de uma operação nativa autenticada, jamais diretamente pelo JavaScript.
+Os testes do laboratório usam um arquivo `.preferences_pb` temporário e verificam reabertura, revisão obsoleta, escritas concorrentes, corrupção e versões futuras. **Isso não é integração Android nem garante autenticação nativa.** A antiga API genérica `compareAndSet(expectedRevision, targetEnabled)` foi eliminada: o repositório experimental só expõe `enableIfCurrent`, que grava `enabled=true` sob uma operação nativa autorizada. Estados desativados nos testes vêm de arquivos sintéticos, não de uma API de desativação disponível ao app.
 
 
 ## Adaptação Android isolada (sem integração com o aplicativo)
