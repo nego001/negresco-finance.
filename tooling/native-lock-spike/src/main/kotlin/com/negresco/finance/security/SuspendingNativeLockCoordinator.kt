@@ -203,7 +203,6 @@ internal class SuspendingNativeLockCoordinator(
       return@withLock LockResult.STORAGE_ERROR
     } ?: return@withLock LockResult.MIGRATION_REQUIRED
     if (rejectContradictoryRead(before)) return@withLock LockResult.STORAGE_ERROR
-    if (rejectContradictoryRead(before)) return@withLock LockResult.STORAGE_ERROR
     if (!before.enabled || before.disablePending) return@withLock LockResult.DENIED
 
     val authenticated = try { biometric.authenticate(LockAction.UNLOCK) }
@@ -263,6 +262,7 @@ internal class SuspendingNativeLockCoordinator(
       catch (cancelled: CancellationException) { throw cancelled }
       catch (_: Exception) { return@withLock LockResult.STORAGE_ERROR }
       ?: return@withLock LockResult.MIGRATION_REQUIRED
+    if (rejectContradictoryRead(before)) return@withLock LockResult.STORAGE_ERROR
     if (!before.enabled || before.disablePending) return@withLock LockResult.DENIED
 
     val authenticated = try { biometric.authenticate(LockAction.DISABLE) }
