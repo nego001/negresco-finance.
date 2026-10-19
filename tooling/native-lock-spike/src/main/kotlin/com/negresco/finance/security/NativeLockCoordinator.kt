@@ -70,8 +70,12 @@ internal class NativeLockCoordinator(
 
   fun snapshot(): LockSnapshot = synchronized(mutex) {
     try {
-      val record = validRecord(store.read())
-        ?: return@synchronized LockSnapshot(true, false, -1L, true, false)
+      val record = validRecord(store.read()) ?: run {
+        generation++
+        unlocked = false
+        unlockedRevision = null
+        return@synchronized LockSnapshot(true, false, -1L, true, false)
+      }
       if (unlocked && (!record.enabled || record.disablePending ||
           record.revision != unlockedRevision)) {
         generation++
@@ -83,19 +87,24 @@ internal class NativeLockCoordinator(
           unlockedRevision == record.revision,
         record.revision, false, false)
     } catch (_: Exception) {
+      generation++
+      unlocked = false
+      unlockedRevision = null
       LockSnapshot(true, false, -1L, false, true)
     }
   }
 
   private data class Attempt(val generation: Long, val revision: Long)
 
-  private fun beginAttempt(): Pair<Attempt?, LockResult?> = synchronized(mutex) {
+  private fun beginAttempt(action: LockAction): Pair<Attempt?, LockResult?> = synchronized(mutex) {
     if (!foreground || promptInFlight) return@synchronized null to LockResult.DENIED
     try {
       val record = validRecord(store.read())
         ?: return@synchronized null to LockResult.MIGRATION_REQUIRED
       promptInFlight = true
-      if (record.disablePending)
+      if (record.disablePending ||
+          (action == LockAction.ENABLE && record.enabled) ||
+          (action == LockAction.UNLOCK && !record.enabled))
         return@synchronized null to LockResult.DENIED
       Attempt(generation, record.revision) to null
     } catch (_: Exception) {
@@ -108,7 +117,7 @@ internal class NativeLockCoordinator(
     // IMPORTANT: this legacy synchronous policy must not become an opt-out
     // bypass of the Android coroutine coordinator's DENIED decision.
     if (action == LockAction.DISABLE) return LockResult.DENIED
-    val (attempt, failure) = beginAttempt()
+    val (attempt, failure) = beginAttempt(action)
     if (failure != null) return failure
     val ticket = attempt ?: return LockResult.DENIED
     try {
