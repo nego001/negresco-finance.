@@ -121,3 +121,18 @@ ensure nobody mistakes a MAC for an anti-rollback primitive.
 Do not publish any claim of Bitwarden-equivalent or stronger security until
 the release gates in `docs/security/BITWARDEN_GRADE_SECURITY_GATES.md` have
 independent evidence and appropriate external review.
+
+
+## Financial record AES-GCM laboratory (not bank encryption)
+
+`AndroidKeystoreFinancialEnvelopeLab` provisions a separate, explicitly
+requested AES-256-GCM key in AndroidKeyStore for **synthetic disposable data**
+only. It delegates bounded, versioned record encryption to the portable
+`FinancialRecordEnvelopeV1` and does not provision during decryption.
+A bad key, corrupt header, wrong record type/ID/revision or tag fails closed.
+
+**Not biometric-authorized, not a SQLCipher page key, not production E2EE,
+not exposed by the Activity adapter or Expo, and not tested on a Samsung.**
+This laboratory does not make the installed APK's financial records encrypted.
+The 23 synthetic JVM vector scenarios only test format and AEAD behavior.
+See `docs/security/FINANCIAL_RECORD_ENVELOPE_LAB_V1.md`.
