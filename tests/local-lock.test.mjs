@@ -63,7 +63,8 @@ test('unlock and lock removal must re-check epoch after the native prompt and pe
 
 test('stale preference reads fail closed rather than resetting lock to off',()=>{
  const hook=readFileSync(new URL('../apps/mobile/security/useLocalAppLock.ts',import.meta.url),'utf8');
- assert.match(hook,/if\(attemptEpoch!==epoch\.current\)\{[\s\S]*?setStatus\(prev=>prev==='loading'\?'error':prev\)/);
+ assert.match(hook,/if\(attemptEpoch!==epoch\.current\)return;/);
+ assert.match(hook,/if\(appState\.current!=='active'\)\{[\s\S]*?setStatus\('error'\)/);
  assert.match(hook,/setStatus\(enabled\?'locked':'off'\)/);
  assert.doesNotMatch(hook,/setStatus\(enabled\?'locked':'off'\);\s*if\(attemptEpoch!==epoch\.current/);
 });
