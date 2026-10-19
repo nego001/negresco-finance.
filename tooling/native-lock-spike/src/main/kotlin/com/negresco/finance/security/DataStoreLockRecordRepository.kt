@@ -42,6 +42,35 @@ internal class DataStoreLockRecordRepository(private val dataStore: DataStore<Pr
   suspend fun read(): LockRecord? = decode(dataStore.data.first())
 
   /**
+   * One-time, locked-only seed using a verified legacy snapshot.
+   * An existing native record always wins, even if legacy data was deleted.
+   * Never initializes disabled/off or overwrites an existing native revision.
+   *
+   * The future Android adapter must obtain the legacy snapshot internally
+   * during a controlled migration, not accept arbitrary values from JS.
+   */
+  suspend fun migrateLegacyLocked(
+    legacyPreference: String?,
+    legacyJournal: String?
+  ): LockRecord {
+    val committed = dataStore.updateData { before ->
+      if (decode(before) != null) return@updateData before
+      when (classifyLegacyLock(legacyPreference, legacyJournal)) {
+        LegacyLockMigrationDecision.PRESERVE_LOCK -> before.toMutablePreferences().apply {
+          this[NativeLockDataStoreKeys.version] = LOCK_RECORD_VERSION
+          this[NativeLockDataStoreKeys.enabled] = true
+          this[NativeLockDataStoreKeys.revision] = 0L
+        }
+        LegacyLockMigrationDecision.NEEDS_EXPLICIT_SETUP ->
+          throw LegacyLockSetupRequired()
+        LegacyLockMigrationDecision.REJECT_INVALID ->
+          throw LegacyLockInvalid()
+      }
+    }
+    return decode(committed) ?: throw InvalidNativeLockRecord()
+  }
+
+  /**
    * Atomic read/compare/update of all fields, persisted when updateData returns.
    * This method requires a future native biometric authorization boundary.
    * It must never be called from a JavaScript bridge directly.
