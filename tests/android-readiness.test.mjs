@@ -227,7 +227,7 @@ test('Bitwarden-grade release target stays explicitly unverified and lab cryptog
  assert.match(android,/KeyStore\.getInstance\(PROVIDER\)/);
  assert.match(android,/provisionForSyntheticLabOnly/);
  assert.match(android,/verifyWithExistingKey/);
- assert.match(tests,/A previously sealed record remains valid if replayed/);
+ assert.match(tests,/a previously sealed record remains valid if replayed/i);
  assert.match(runner,/runLockIntegrityScenarios\(\)/);
  assert.doesNotMatch(mobile,/AndroidKeystoreLockIntegrity|LockRecordIntegrity/);
 });
