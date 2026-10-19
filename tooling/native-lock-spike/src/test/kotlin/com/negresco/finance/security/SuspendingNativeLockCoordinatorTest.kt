@@ -174,5 +174,34 @@ internal suspend fun runSuspendingCoordinatorScenarios() {
       check(c.unlock() == LockResult.SUCCESS)
     }
   }
-  println("PASS: 11 suspending native lock coordinator scenarios (isolated JVM only)")
+  // 12. A change in the persisted revision revokes an existing unlocked session.
+  withCoordinatorStore { repo ->
+    val c = SuspendingNativeLockCoordinator(repo) { true }
+    c.onForeground()
+    check(c.unlock() == LockResult.SUCCESS)
+    check(c.snapshot().unlocked)
+    repo.compareAndSet(3L, true)
+    check(!c.snapshot().unlocked)
+    check(c.snapshot().revision == 4L)
+    check(c.unlock() == LockResult.SUCCESS) // Only a fresh prompt reopens.
+    check(c.snapshot().unlocked)
+  }
+  // 13. Disabling from another writer and re-enabling never restores old unlock.
+  withCoordinatorStore { repo ->
+    var authentications = 0
+    val c = SuspendingNativeLockCoordinator(repo) {
+      authentications++
+      true
+    }
+    c.onForeground()
+    check(c.unlock() == LockResult.SUCCESS)
+    repo.compareAndSet(3L, false)
+    check(!c.snapshot().unlocked)
+    check(!c.snapshot().enabled)
+    repo.compareAndSet(4L, true)
+    check(!c.snapshot().unlocked)
+    check(c.unlock() == LockResult.SUCCESS)
+    check(authentications == 2)
+  }
+  println("PASS: 13 suspending native lock coordinator scenarios (isolated JVM only)")
 }
