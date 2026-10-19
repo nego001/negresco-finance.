@@ -96,3 +96,20 @@ test('experimental Android native lock cannot be invoked from Expo 3.1.2',()=>{
  assert.match(workflow,/native-lock-android-lab:/);
  assert.doesNotMatch(mobile,/native-lock-android-lab|NativeLockAndroidStore|StrongBiometricPrompt/);
 });
+
+test('native coroutine coordinator is lifecycle-gated and cannot disable protection',()=>{
+ const policy=read('tooling/native-lock-spike/src/main/kotlin/com/negresco/finance/security/SuspendingNativeLockCoordinator.kt');
+ const host=read('tooling/native-lock-android-lab/src/main/kotlin/com/negresco/finance/security/NativeLockAndroidLabSession.kt');
+ const app=read('apps/mobile/App.tsx');
+ assert.match(policy,/private val requestMutex = Mutex\(\)/);
+ assert.match(policy,/fun onBackground\(\) = synchronized\(lifecycleGuard\)/);
+ assert.match(policy,/private fun finishUnlocked\(ticket: Long\): LockResult = synchronized\(lifecycleGuard\)/);
+ assert.match(policy,/suspend fun enable\(\): LockResult = requestMutex\.withLock/);
+ assert.match(policy,/suspend fun unlock\(\): LockResult = requestMutex\.withLock/);
+ assert.match(policy,/suspend fun disable\(\): LockResult = LockResult\.DENIED/);
+ assert.match(host,/StrongBiometricPrompt\(activity\)/);
+ assert.match(host,/SuspendingNativeLockCoordinator\(/);
+ assert.match(host,/override fun onStop\(owner: LifecycleOwner\)/);
+ assert.doesNotMatch(host,/suspend fun disable/);
+ assert.doesNotMatch(app,/NativeLockAndroidLabSession|SuspendingNativeLockCoordinator/);
+});
