@@ -25,7 +25,8 @@ internal class NativeLockAndroidLabSession(
   private val observationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
   private val coordinator = SuspendingNativeLockCoordinator(
     NativeLockAndroidStore.get(activity),
-    SuspendedStrongBiometry { action -> prompt.authenticate(action) }
+    SuspendedStrongBiometry { action -> prompt.authenticate(action) },
+    requireLiveObservation = true
   )
 
   init {
@@ -37,6 +38,8 @@ internal class NativeLockAndroidLabSession(
         NativeLockAndroidStore.get(activity).observe().collect { event ->
           coordinator.onPersistentStateChanged(event)
         }
+        // Even a clean (unexpected) stream completion means monitoring ended.
+        coordinator.onPersistentStateChanged(NativeLockObservation.StorageError)
       } catch (cancelled: CancellationException) {
         throw cancelled
       } catch (_: Exception) {
