@@ -67,3 +67,9 @@ test('stale preference reads fail closed rather than resetting lock to off',()=>
  assert.match(hook,/setStatus\(enabled\?'locked':'off'\)/);
  assert.doesNotMatch(hook,/setStatus\(enabled\?'locked':'off'\);\s*if\(attemptEpoch!==epoch\.current/);
 });
+
+test('overlapping preference retries are versioned and stale failures ignored',()=>{
+ const hook=readFileSync(new URL('../apps/mobile/security/useLocalAppLock.ts',import.meta.url),'utf8');
+ assert.match(hook,/const attemptEpoch=\+\+epoch\.current;/);
+ assert.match(hook,/if\(active\.current&&attemptEpoch===epoch\.current\)\{/);
+});
