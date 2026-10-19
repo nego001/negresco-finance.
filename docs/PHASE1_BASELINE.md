@@ -30,11 +30,13 @@ Status: **em andamento**. Esta fase é pré-requisito para iniciar a Fase 2 (con
   - [ ] [Issue #5](https://github.com/nego001/negresco-finance./issues/5): executar QA-35/QA-36 para screenshot, gravação e miniatura no Samsung. Ainda sem confirmação de proteção real em hardware.
   - [ ] [Issue #3](https://github.com/nego001/negresco-finance./issues/3): homologar autenticação Android real, e depois vincular chaves ao Keystore e ao futuro SQLCipher. Não declarar liberado apenas com CI verde.
 
+- [x] Mitigação de desativação interrompida: marcador persistente `disable-pending`, tratamento de sessão revogada, tentativa de restauração e testes de falha. **Não é transação atômica: fechamento abrupto durante gravação final continua risco residual de opt-out inesperado.**
+
 ## Ainda pendente para concluir a Fase 1
 - [ ] **Homologação no Samsung:** executar [roteiro de QA da V3.1](ANDROID_QA_V3.1.md), registrar falhas e corrigi-las. Sem execução física não declarar aprovado.
   - [x] Ferramenta **somente leitura** de pré-diagnóstico ADB/versão/hash preparada para Windows; sem validação física até o usuário executar no Samsung.
   - [x] [Comparador somente leitura de assinatura e versionCode](ANDROID_UPGRADE_PREFLIGHT.md) criado para Windows; consulta APK instalado e candidato sem modificar o celular, **não executado no aparelho nesta sessão**.
-  - [ ] Executar QA-01 a QA-38 no aparelho e anexar relatório sem informações privadas (inclui biometria, Keystore, captura, prompts e assinatura de APK).
+  - [ ] Executar QA-01 a QA-39 no aparelho e anexar relatório sem informações privadas (inclui biometria, Keystore, captura, prompts e assinatura de APK).
 - [ ] **Identidade de assinatura estável:** configurar keystore de distribuição administrado com segurança fora do Git, com segredos no GitHub Actions; confirmar atualização sobre APK anterior **sem perder dados**. Nunca publicar chave privada no repositório.
   - [x] [Procedimento de configuração e migração documentado](ANDROID_SIGNING_V3_1.md), com exigência de hash SHA-256 do certificado.
   - [ ] Criar/provisionar chave permanente fora do GitHub, executar build opt-in e testar atualização entre duas versões com a mesma assinatura.
