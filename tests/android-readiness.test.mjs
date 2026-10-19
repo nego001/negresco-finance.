@@ -265,6 +265,8 @@ test('SQLCipher native lab is isolated and has no SQLite plaintext fallback',()=
  const runner=read('tooling/native-lock-spike/src/test/kotlin/com/negresco/finance/security/NativeLockCoordinatorTest.kt');
  const mobile=read('apps/mobile/package.json');
  assert.match(gradle,/net\.zetetic:sqlcipher-android:4\.19\.1/);
+ assert.match(gradle,/kotlin\("android"\) version "2\.2\.10"/);
+ assert.match(gradle,/androidTestImplementation\("androidx\.test\.ext:junit:1\.2\.1"\)/);
  assert.match(gradle,/androidx\.sqlite:sqlite:2\.7\.0/);
  assert.match(database,/import net\.zetetic\.database\.sqlcipher\.SQLiteDatabase/);
  assert.match(database,/System\.loadLibrary\("sqlcipher"\)/);
@@ -279,8 +281,13 @@ test('SQLCipher native lab is isolated and has no SQLite plaintext fallback',()=
  assert.doesNotMatch(database,/import android\.database\.sqlite|SQLiteDatabase\.openOrCreateDatabase/);
  assert.match(policy,/REFUSE_PLAINTEXT_SQLITE/);
  assert.match(suite,/SQLCipher pre-open fail-closed policy scenarios/);
+ const instrumented=read('tooling/sqlcipher-android-lab/src/androidTest/kotlin/com/negresco/finance/sqlcipher/lab/SyntheticSqlCipherDatabaseInstrumentedTest.kt');
+ assert.match(instrumented,/rejectsWrongPassphraseWithoutAlteringExistingDatabase/);
+ assert.match(instrumented,/refusesKnownPlaintextSQLiteBeforeNativeOpen/);
+ assert.match(instrumented,/createsEncryptedDatabaseAndReopensWithCorrectPassphrase/);
+ assert.match(instrumented,/refusesDuplicateCreateWithoutOverwritingExistingFile/);
  assert.match(runner,/runSqlCipherLabGuardScenarios\(\)/);
  assert.match(workflow,/sqlcipher-android-lab:/);
- assert.match(workflow,/gradle -p tooling\/sqlcipher-android-lab compileDebugKotlin --no-daemon/);
+ assert.match(workflow,/gradle -p tooling\/sqlcipher-android-lab compileDebugKotlin compileDebugAndroidTestKotlin --no-daemon/);
  assert.doesNotMatch(mobile,/sqlcipher-android|sqlcipher-lab/);
 });
