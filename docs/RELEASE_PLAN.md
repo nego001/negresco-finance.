@@ -67,3 +67,14 @@ Open Finance e provedores financeiros autorizados, sujeitos a requisitos legais,
 - Seletor de apresentacao visual acolhedora/objetiva (temporario).
 - Estados e acessibilidade nos controles; nenhuma mudanca nativa.
 - Testes de CI, Android e recebimento OTA no Samsung ainda devem ser confirmados.
+
+
+## Gate de publicação de candidatos (Fase 1)
+
+Alterações em branches e pushes de desenvolvimento podem compilar e preservar APKs
+como artefatos de CI, mas **não** devem criar GitHub Releases automaticamente.
+A etapa de publicação da workflow Android está condicionada ao uso manual
+`workflow_dispatch` na branch `main` com `publish_release=true`.
+A opção começa desligada. Mesmo um release marcado como *prerelease* não
+substitui a homologação de assinatura, atualização segura e QA no Samsung.
+Um push comum na `main` também não publica APK: exige intenção explícita.
