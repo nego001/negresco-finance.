@@ -21,8 +21,8 @@ the test verifier into a shipped app.
 - A typed atomic-update store contract for later integration with DataStore.
 - 10 offline JVM scenarios in `NativeLockCoordinatorTest.kt`.
 - A separate `DataStoreLockRecordRepository` uses the real AndroidX DataStore API (`datastore-preferences-core:1.2.1`) for atomic compare-and-set of version, enabled and revision in one transactional snapshot.
-- 15 persistent DataStore and legacy-migration JVM scenarios, including restart, races, corrupt records, one-time locked migration and refusal to migrate legacy off/null silently.
-- 15 coroutine coordinator scenarios, including revocation on externally changed revisions, missing/corrupt DataStore records, background events, cancellation and overlapping prompts. The Android adapters exist only in the separate, non-Expo lab.
+- 22 persistent DataStore, opt-out preparation/recovery and legacy-migration JVM scenarios, including restart, races, corrupt records, one-time locked migration and refusal to migrate legacy off/null silently.
+- 28 coroutine coordinator scenarios, including revocation on externally changed revisions, missing/corrupt DataStore records, background events, cancellation and overlapping prompts. The Android adapters exist only in the separate, non-Expo lab.
 
 ## Run JVM smoke tests
 
@@ -32,18 +32,8 @@ With JDK 17 and Gradle 8.10.2, from the repository root:
 gradle -p tooling/native-lock-spike policyCheck --no-daemon
 ```
 
-For local environments already providing `kotlinc`, equivalent compilation:
-
-```bash
-cd tooling/native-lock-spike
-kotlinc src/main/kotlin/com/negresco/finance/security/NativeLockCoordinator.kt \
-  src/test/kotlin/com/negresco/finance/security/NativeLockCoordinatorTest.kt \
-  -include-runtime -d /tmp/negresco-native-lock-check.jar
-java -jar /tmp/negresco-native-lock-check.jar
-```
-
 The CI job `native-lock-spike` compiles the Kotlin project and executes the
-10 policy scenarios plus 15 DataStore/migration scenarios plus 15 coroutine coordinator scenarios. Passing this job is **not** an Android APK compile or device QA. DataStore returns after durable write, but using it alone does not prove that a biometric request remains valid until commit.
+10 policy scenarios plus 22 DataStore/migration scenarios plus 28 coroutine coordinator scenarios. Passing this job is **not** an Android APK compile or device QA. DataStore returns after durable write, but using it alone does not prove that a biometric request remains valid until commit.
 
 ## Non-negotiable gates before Expo integration
 
@@ -59,3 +49,18 @@ The CI job `native-lock-spike` compiles the Kotlin project and executes the
    changes the native APK and cannot safely ship through OTA alone.
 
 See `docs/security/NATIVE_LOCK_PERSISTENCE_V1.md` for the architecture.
+
+
+## Prepared opt-out is not actual opt-out
+
+`prepareDisableForLab()` authenticates using the injected native-only prompt
+contract and stores `enabled=true, disablePending=true` in one durable
+DataStore update. Its result is `PREPARED`, **never** disabled.
+`recoverPreparedDisable()` can be called after a process restart, clears
+`disablePending` and keeps `enabled=true`. While pending, normal preference
+writes and UI unlocking are refused.
+
+The lab's actual `disable()` still returns `DENIED`. This phase is not
+exposed by the Android Activity adapter, is not included in any APK, and
+is not authorization for financial-data access. The final opt-out commit
+requires a separate lifecycle-linearization and cryptographic review.
