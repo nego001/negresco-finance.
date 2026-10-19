@@ -131,9 +131,9 @@ test('native DataStore observation revokes sessions but cannot grant access',()=
  assert.match(store,/\.distinctUntilChanged\(\)/);
  assert.match(coordinator,/fun onPersistentStateChanged\(event: NativeLockObservation\)/);
  assert.match(coordinator,/unlockedRevision != record\.revision/);
- assert.match(host,/\\.observe\\(\\)\\.collect/);
+ assert.match(host,/\.observe\(\)\.collect/);
  assert.match(host,/requireLiveObservation = true/);
- assert.match(host,/coordinator\\.onPersistentStateChanged\\(NativeLockObservation\\.StorageError\\)/);
+ assert.match(host,/coordinator\.onPersistentStateChanged\(NativeLockObservation\.StorageError\)/);
  assert.match(coordinator,/private var observationReady = !requireLiveObservation/);
  assert.match(coordinator,/private var observationFailed = false/);
  assert.match(coordinator,/observationReady = false/);
