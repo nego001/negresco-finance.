@@ -8,6 +8,7 @@
 - [ ] Confirmar no GitHub Actions que **Android APK**, **CI** e **Mobile static check** passaram para o commit correspondente.
 - [ ] Comparar o certificado em **APK-SIGNATURE.txt** com o APK já instalado antes de presumir que é possível atualizar sem reinstalar. Não confundir assinatura tecnicamente válida com identidade de assinatura estável.
 - [ ] Se o Android recusar instalar sobre um APK antigo por assinatura diferente, **não desinstalar antes de decidir o que fazer com os dados locais**. O aplicativo não oferece backup/migração garantidos.
+- [ ] O APK V3.1 desabilita o backup automático do Android: anotar que **reinstalar pode apagar histórico e preferências**, pois ainda não existe migração segura.
 - [ ] Registrar modelo do Samsung, versão Android, tag do APK e resultado da instalação. Não capturar dados bancários reais em prints/logs.
 
 ## Verificações funcionais

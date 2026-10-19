@@ -16,6 +16,7 @@ Status: **em andamento**. Esta fase é pré-requisito para iniciar a Fase 2 (con
 - [x] Testes unitários e verificação estática do aplicativo para as alterações acima.
 - [x] Publicação de impressão digital pública do certificado de assinatura em APK-SIGNATURE.txt. **Isto não estabiliza a assinatura por si só.**
 - [x] Pacote completo como artefato independente do GitHub Releases (APK, ZIP, SHA256 e impressão digital). Builds antigos são substituídos por execuções mais recentes na mesma branch; erros de permissão no Releases continuam visíveis.
+- [x] Android Auto Backup desabilitado enquanto não houver backup criptografado e recuperação segura. Reinstalar o app pode eliminar o histórico e as preferências locais.
 
 ## Ainda pendente para concluir a Fase 1
 - [ ] **Homologação no Samsung:** executar [roteiro de QA da V3.1](ANDROID_QA_V3.1.md), registrar falhas e corrigi-las. Sem execução física não declarar aprovado.

@@ -66,6 +66,11 @@ jobs:
         run: |
           set -euo pipefail
           MANIFEST="android/app/src/main/AndroidManifest.xml"
+          echo "=== Android local backup policy ==="
+          if ! grep -Eq 'android:allowBackup="false"' "$MANIFEST"; then
+            echo "::error::Android Auto Backup must remain disabled until secure data recovery is designed."
+            exit 1
+          fi
           echo "=== Expo Updates Android manifest entries ==="
           grep -n -A 4 -B 2 -E 'expo.modules.updates|expo-channel-name|EXPO_UPDATE' "$MANIFEST" || true
           echo "=== OTA references in Android resources ==="

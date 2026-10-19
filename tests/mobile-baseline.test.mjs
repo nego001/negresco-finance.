@@ -34,6 +34,7 @@ test('V3.1 uses a separate OTA runtime from builds with older native modules',()
  assert.equal(config.version,'3.1.0');
  assert.equal(mobile.version,config.version);
  assert.equal(config.android.versionCode,31);
+ assert.equal(config.android.allowBackup,false,'Android Auto Backup must remain disabled for sensitive prototype data');
  assert.equal(config.runtimeVersion.policy,'appVersion');
  assert.equal(config.updates.requestHeaders['expo-channel-name'],'preview');
 });
