@@ -48,3 +48,27 @@ test('not found in third party registry does not mean fraud',()=>{
  assert.equal(review.legitimacy,'unknown');
  assert.match(review.rows.find(x=>x.id==='company').detail,/não prova fraude/);
 });
+
+test('a public company registry cannot confirm that company issued a boleto',()=>{
+ const i=createInvestigation('registry-test','2026-10-18T23:00:00Z');
+ i.evidence=[{id:'cnpj-1',source:'official-registry',title:'Cadastro público',checkedAt:'2026-10-18',summary:'CNPJ cadastrado'}];
+ i.issuer={value:'EMPRESA TESTE',status:'confirmed',evidenceIds:['cnpj-1']};
+ i.beneficiary={value:'EMPRESA TESTE',status:'confirmed',evidenceIds:['cnpj-1']};
+ const errors=validateInvestigation(i);
+ assert.ok(errors.some(e=>e.startsWith('issuer:')&&e.includes('bancária')));
+ assert.ok(errors.some(e=>e.startsWith('beneficiary:')&&e.includes('bancária')));
+});
+test('a screenshot or news post cannot confirm a registration bank',()=>{
+ const i=createInvestigation('news-test','2026-10-18T23:00:00Z');
+ i.evidence=[{id:'public-1',source:'news',title:'Notícia',checkedAt:'2026-10-18',summary:'Banco citado'}];
+ i.registrationBank={value:'Banco X',status:'confirmed',evidenceIds:['public-1']};
+ assert.ok(validateInvestigation(i).some(e=>e.startsWith('registrationBank:')&&e.includes('bancária')));
+});
+test('rejects duplicated evidence IDs to avoid ambiguous citations',()=>{
+ const i=createInvestigation('duplicate-test','2026-10-18T23:00:00Z');
+ i.evidence=[
+  {id:'dup',source:'bank-authorized',title:'A',checkedAt:'2026-10-18',summary:'A'},
+  {id:'dup',source:'official-registry',title:'B',checkedAt:'2026-10-18',summary:'B'}
+ ];
+ assert.ok(validateInvestigation(i).some(e=>e.includes('duplicado')));
+});
