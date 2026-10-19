@@ -44,6 +44,10 @@ Leituras de armazenamento e alterações simultâneas de preferência são isola
 
 **Risco residual:** AsyncStorage não garante transação atômica entre esses registros. Se o processo morrer **durante a exclusão final do diário** ou a perda de foco ocorrer no intervalo entre a validação e o término da exclusão, o marcador `disabled` ainda pode persistir sem o diário. A correção definitiva exige um serviço Android nativo que serialize autenticação, ciclo de vida e commit transacional. Este APK não o possui e não está homologado para dados financeiros reais.
 
+O próximo passo de engenharia está especificado no [contrato de persistência nativa](security/NATIVE_LOCK_PERSISTENCE_V1.md): criar um único estado transacional no Android, serializar autenticação e ciclo de vida e migrar registros sem perda de dados. **Nenhum módulo nativo desse contrato foi instalado ou ativado.**
+
+Uma leitura de preferência interrompida durante background agora é repetida quando o Android retorna a `active`, para evitar a tela de inicialização presa em carregamento. Esta correção tem teste de regressão, mas ainda exige QA físico.
+
 ## Homologação no Samsung
 
 Usar apenas dados fictícios: verificar primeira abertura sem bloqueio, ativação mediante digital forte, reinício bloqueado, cancelamento, impressão errada, envio para segundo plano, retorno, bloqueio manual e desativação autenticada. Testar aparelho sem impressão cadastrada e reconhecer mensagem clara, sem abrir indevidamente após tentativas falhas.
