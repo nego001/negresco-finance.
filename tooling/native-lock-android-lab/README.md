@@ -101,3 +101,23 @@ and does not reach Expo or the APK. Neither a complete opt-out transaction nor
 Android Keystore-backed cryptographic authorization exists yet. The future
 second phase needs to linearize lifecycle revocation against the durable
 commit, plus physical-device tests.
+
+
+## Cryptographic integrity prototype: NOT DATA ENCRYPTION
+
+A separate, unlinked `AndroidKeystoreLockIntegrity` lab provides explicit
+HMAC-SHA256 key provisioning for **synthetic test records only**, using the
+AndroidKeyStore provider. Verification does **not** provision a key when
+missing. The JVM helper `LockRecordIntegrity` uses deterministic, domain-
+separated binary encoding, a 32-byte tag and timing-safe tag comparison.
+
+This code is deliberately **not connected** to the Android lock record,
+BiometricPrompt, the financial database or Expo. The lab key is not bound to
+biometric user authentication and cannot protect financial data. HMAC detects
+modified state but cannot reject replay of an older, correctly signed record.
+The 15 synthetic JVM scenarios include an explicit successful replay to
+ensure nobody mistakes a MAC for an anti-rollback primitive.
+
+Do not publish any claim of Bitwarden-equivalent or stronger security until
+the release gates in `docs/security/BITWARDEN_GRADE_SECURITY_GATES.md` have
+independent evidence and appropriate external review.
