@@ -255,3 +255,32 @@ test('financial AES-GCM envelope is isolated, authenticated, and not shipped in 
  assert.match(runner,/runFinancialEnvelopeScenarios\(\)/);
  assert.doesNotMatch(mobile,/FinancialRecordEnvelopeV1|AndroidKeystoreFinancialEnvelopeLab/);
 });
+
+test('SQLCipher native lab is isolated and has no SQLite plaintext fallback',()=>{
+ const gradle=read('tooling/sqlcipher-android-lab/build.gradle.kts');
+ const database=read('tooling/sqlcipher-android-lab/src/main/kotlin/com/negresco/finance/sqlcipher/lab/SyntheticSqlCipherDatabase.kt');
+ const policy=read('tooling/native-lock-spike/src/main/kotlin/com/negresco/finance/security/SqlCipherLabGuard.kt');
+ const suite=read('tooling/native-lock-spike/src/test/kotlin/com/negresco/finance/security/SqlCipherLabGuardTest.kt');
+ const workflow=read('.github/workflows/ci.yml');
+ const runner=read('tooling/native-lock-spike/src/test/kotlin/com/negresco/finance/security/NativeLockCoordinatorTest.kt');
+ const mobile=read('apps/mobile/package.json');
+ assert.match(gradle,/net\.zetetic:sqlcipher-android:4\.19\.1/);
+ assert.match(gradle,/androidx\.sqlite:sqlite:2\.7\.0/);
+ assert.match(database,/import net\.zetetic\.database\.sqlcipher\.SQLiteDatabase/);
+ assert.match(database,/System\.loadLibrary\("sqlcipher"\)/);
+ assert.match(database,/openExistingSynthetic/);
+ assert.match(database,/createFreshSynthetic/);
+ assert.match(database,/SqlCipherLabFileVerdict\.REQUIRE_NATIVE_KEYED_OPEN/);
+ assert.match(database,/SQLiteDatabase\.OPEN_READWRITE\)/);
+ assert.match(database,/CREATE_IF_NECESSARY/);
+ assert.match(database,/PRAGMA cipher_version/);
+ assert.match(database,/SELECT count\(\*\) FROM sqlite_master/);
+ assert.match(database,/noBackupFilesDir/);
+ assert.doesNotMatch(database,/import android\.database\.sqlite|SQLiteDatabase\.openOrCreateDatabase/);
+ assert.match(policy,/REFUSE_PLAINTEXT_SQLITE/);
+ assert.match(suite,/SQLCipher pre-open fail-closed policy scenarios/);
+ assert.match(runner,/runSqlCipherLabGuardScenarios\(\)/);
+ assert.match(workflow,/sqlcipher-android-lab:/);
+ assert.match(workflow,/gradle -p tooling\/sqlcipher-android-lab compileDebugKotlin --no-daemon/);
+ assert.doesNotMatch(mobile,/sqlcipher-android|sqlcipher-lab/);
+});
