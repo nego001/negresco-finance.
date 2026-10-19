@@ -126,5 +126,96 @@ internal suspend fun runDataStoreScenarios() {
     finally { h.close() }
   }
 
-  println("PASS: 7 real DataStore persistence scenarios (isolated JVM only)")
+  // 8. Legacy parser never treats corrupted data or pending opt-out as disabled.
+  run {
+    check(classifyLegacyLock("enabled", null) == LegacyLockMigrationDecision.PRESERVE_LOCK)
+    check(classifyLegacyLock("disable-pending", null) == LegacyLockMigrationDecision.PRESERVE_LOCK)
+    check(classifyLegacyLock("disabled", "pending") == LegacyLockMigrationDecision.PRESERVE_LOCK)
+    check(classifyLegacyLock(null, "pending") == LegacyLockMigrationDecision.PRESERVE_LOCK)
+    check(classifyLegacyLock(null, null) == LegacyLockMigrationDecision.NEEDS_EXPLICIT_SETUP)
+    check(classifyLegacyLock("disabled", null) == LegacyLockMigrationDecision.NEEDS_EXPLICIT_SETUP)
+    check(classifyLegacyLock("off", null) == LegacyLockMigrationDecision.REJECT_INVALID)
+    check(classifyLegacyLock("enabled", "unexpected") == LegacyLockMigrationDecision.REJECT_INVALID)
+  }
+
+  // 9. Opted-in legacy marker seeds a locked native record and survives restart.
+  checkOne { file ->
+    val first = DataStoreHarness(file)
+    try {
+      check(first.repository.migrateLegacyLocked("enabled", null) == LockRecord(1, true, 0L))
+    } finally { first.close() }
+    val reopened = DataStoreHarness(file)
+    try { check(reopened.repository.read() == LockRecord(1, true, 0L)) }
+    finally { reopened.close() }
+  }
+
+  // 10. A surviving journal overrides 'disabled' and preserves the lock.
+  checkOne { file ->
+    val h = DataStoreHarness(file)
+    try {
+      check(h.repository.migrateLegacyLocked("disabled", "pending") == LockRecord(1, true, 0L))
+      check(h.repository.read()!!.enabled)
+    } finally { h.close() }
+  }
+
+  // 11. Legacy off/null requires explicit setup and never silently seeds native off.
+  for (primary in listOf<String?>(null, "disabled")) {
+    checkOne { file ->
+      val h = DataStoreHarness(file)
+      try {
+        check(runCatching { h.repository.migrateLegacyLocked(primary, null) }
+          .exceptionOrNull() is LegacyLockSetupRequired)
+        check(h.repository.read() == null)
+      } finally { h.close() }
+    }
+  }
+
+  // 12. Invalid markers are rejected and cannot create a native record.
+  checkOne { file ->
+    val h = DataStoreHarness(file)
+    try {
+      check(runCatching { h.repository.migrateLegacyLocked("enabled", "corrupt") }
+        .exceptionOrNull() is LegacyLockInvalid)
+      check(runCatching { h.repository.migrateLegacyLocked("off", null) }
+        .exceptionOrNull() is LegacyLockInvalid)
+      check(h.repository.read() == null)
+    } finally { h.close() }
+  }
+
+  // 13. Migration is idempotent and cannot overwrite a newer native decision.
+  checkOne { file ->
+    val h = DataStoreHarness(file)
+    try {
+      check(h.repository.migrateLegacyLocked("enabled", null) == LockRecord(1, true, 0L))
+      check(h.repository.compareAndSet(0L, false) == LockRecord(1, false, 1L))
+      check(h.repository.migrateLegacyLocked("enabled", "bad-journal") == LockRecord(1, false, 1L))
+      check(h.repository.read() == LockRecord(1, false, 1L))
+    } finally { h.close() }
+  }
+
+  // 14. Partial/corrupt native records cannot be repaired from legacy markers.
+  checkOne { file ->
+    val h = DataStoreHarness(file)
+    try {
+      h.raw.updateData { mutablePreferencesOf(NativeLockDataStoreKeys.enabled to false) }
+      check(runCatching { h.repository.migrateLegacyLocked("enabled", null) }
+        .exceptionOrNull() is InvalidNativeLockRecord)
+    } finally { h.close() }
+  }
+
+  // 15. Racing migration callers serialize and only one native seed is committed.
+  checkOne { file ->
+    val h = DataStoreHarness(file)
+    try {
+      val outcomes = coroutineScope {
+        val a = async { h.repository.migrateLegacyLocked("enabled", null) }
+        val b = async { h.repository.migrateLegacyLocked("disabled", null) }
+        listOf(runCatching { a.await() }, runCatching { b.await() })
+      }
+      check(outcomes.any { it.getOrNull() == LockRecord(1, true, 0L) })
+      check(h.repository.read() == LockRecord(1, true, 0L))
+    } finally { h.close() }
+  }
+
+  println("PASS: 15 real DataStore and legacy migration scenarios (isolated JVM only)")
 }
