@@ -15,7 +15,7 @@ import kotlinx.coroutines.flow.map
 /**
  * Real Jetpack DataStore transaction logic, compiled on JVM without Android.
  * This is NOT registered as an Expo module, not wired to NativeLockCoordinator,
- * and has no biometric authorizer. Never expose compareAndSet directly to JS.
+ * and has no biometric authorizer. Never expose the repository directly to JS.
  *
  * An Android integration must use ONE process-scoped DataStore instance per
  * file and couple authorization with native lifecycle before allowing writes.
@@ -31,6 +31,7 @@ internal class MissingNativeLockRecord : IllegalStateException("Native lock requ
 internal class InvalidNativeLockRecord : IllegalStateException("Invalid native lock record")
 internal class StaleNativeLockRevision : IllegalStateException("Native lock revision changed")
 internal class PendingNativeLockDisable : IllegalStateException("Native lock disable already pending or not eligible")
+internal class AlreadyEnabledNativeLock : IllegalStateException("Native lock is already enabled")
 
 /**
  * An observation is a hint to REVOKE in-memory access, never an authorization.
@@ -108,20 +109,24 @@ internal class DataStoreLockRecordRepository(private val dataStore: DataStore<Pr
   }
 
   /**
-   * Atomic read/compare/update of all fields, persisted when updateData returns.
-   * This method requires a future native biometric authorization boundary.
-   * It must never be called from a JavaScript bridge directly.
+   * The only generic state change permitted by the production-facing
+   * repository is ENABLE. There is intentionally no Boolean target and
+   * no method that can persist enabled=false from this adapter.
+   *
+   * A native-only coordinator must authorize this operation before calling.
+   * It must never be exported to JavaScript.
    */
-  suspend fun compareAndSet(expectedRevision: Long, targetEnabled: Boolean): LockRecord {
+  suspend fun enableIfCurrent(expectedRevision: Long): LockRecord {
     val committed = dataStore.updateData { before ->
       val previous = decode(before) ?: throw MissingNativeLockRecord()
       if (previous.revision != expectedRevision || previous.revision == Long.MAX_VALUE) {
         throw StaleNativeLockRevision()
       }
       if (previous.disablePending) throw PendingNativeLockDisable()
+      if (previous.enabled) throw AlreadyEnabledNativeLock()
       before.toMutablePreferences().apply {
         this[NativeLockDataStoreKeys.version] = LOCK_RECORD_VERSION
-        this[NativeLockDataStoreKeys.enabled] = targetEnabled
+        this[NativeLockDataStoreKeys.enabled] = true
         this[NativeLockDataStoreKeys.revision] = previous.revision + 1L
       }
     }
