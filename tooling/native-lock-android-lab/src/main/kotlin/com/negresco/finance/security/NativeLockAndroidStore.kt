@@ -5,7 +5,7 @@ import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import java.io.File
+import androidx.datastore.preferences.preferencesDataStoreFile
 
 /**
  * Android-only process singleton for the experimental NativeLock DataStore.
@@ -15,7 +15,7 @@ import java.io.File
  * The native migration and authentication gate MUST be completed before use.
  */
 internal object NativeLockAndroidStore {
-  private const val FILE_NAME = "negresco_native_lock.preferences_pb"
+  private const val STORE_NAME = "negresco_native_lock"
   private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
   @Volatile private var instance: DataStoreLockRecordRepository? = null
@@ -25,7 +25,7 @@ internal object NativeLockAndroidStore {
       instance ?: run {
         val application = context.applicationContext
         val store = PreferenceDataStoreFactory.create(scope = scope) {
-          File(application.filesDir, "datastore/$FILE_NAME")
+          application.preferencesDataStoreFile(STORE_NAME)
         }
         DataStoreLockRecordRepository(store).also { instance = it }
       }
