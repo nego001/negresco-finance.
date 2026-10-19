@@ -10,6 +10,7 @@
 - [ ] Se o Android recusar instalar sobre um APK antigo por assinatura diferente, **não desinstalar antes de decidir o que fazer com os dados locais**. O aplicativo não oferece backup/migração garantidos.
 - [ ] O APK V3.1 desabilita o backup automático do Android: anotar que **reinstalar pode apagar histórico e preferências**, pois ainda não existe migração segura.
 - [ ] Registrar modelo do Samsung, versão Android, tag do APK e resultado da instalação. Não capturar dados bancários reais em prints/logs.
+- [ ] Executar opcionalmente o [diagnóstico somente leitura no Windows](../tooling/windows/android-v31-readonly-preflight.ps1) com o Samsung conectado. Ele não instala nem desinstala o aplicativo.
 
 ## Verificações funcionais
 
@@ -35,6 +36,8 @@
 | QA-18 | Preencher boleto e CNPJ e pressionar Início/Ajustes | Ao voltar ao Guardião, campos e resultados temporários desaparecem; histórico resumido permanece |
 | QA-19 | Escrever mensagem de demonstração na Negresco e mudar de aba | A mensagem temporária some ao voltar; nenhuma mensagem é enviada a um servidor |
 | QA-20 | Abrir o alternador de apps e voltar ao Negresco Finance | Valores e textos temporários são apagados; o app não bloqueia capturas de tela nem substitui autenticação |
+| QA-21 | Rodar o diagnóstico ADB somente leitura antes da homologação | Detecta modelo, Android e versão instalada; não instala nem apaga dados do aparelho |
+| QA-22 | Verificar SHA-256 do APK baixado contra o Release | Hash do APK corresponde ao arquivo publicado; caso haja assinatura incompatível, não forçar reinstalação |
 
 ## Como registrar problemas
 
@@ -49,3 +52,19 @@ Classificação sugerida: **P0** = não abre, perde dados ou deixa dados privado
 - Nenhum dado real é enviado sem ação explícita, e nenhum resultado matemático ou cadastro empresarial é apresentado como validação de pagamento.
 
 **Limite:** aprovação deste roteiro confirma apenas funcionamento do protótipo testado, não auditoria de segurança bancária, prevenção efetiva de fraude ou prontidão para operações financeiras.
+
+## Diagnóstico não destrutivo no PowerShell
+
+Baixe o script `tooling/windows/android-v31-readonly-preflight.ps1` do repositório atualizado. Inspecione seu conteúdo e, com Android Platform Tools/ADB disponível no Windows e depuração USB autorizada no Samsung, rode a partir da raiz do projeto:
+
+```powershell
+$arquivo = ".\\tooling\\windows\\android-v31-readonly-preflight.ps1"
+$tokens = $null
+$erros = $null
+[void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $arquivo).Path, [ref]$tokens, [ref]$erros)
+if ($erros.Count -gt 0) { throw ($erros -join "; ") }
+powershell.exe -NoProfile -File $arquivo
+# Opcional: acrescente -ApkPath "C:\\caminho\\app.apk" para conferir SHA256.
+```
+
+**Atenção:** este diagnóstico não confirma a compatibilidade do certificado de um APK com a instalação existente e não garante migração de dados. Comparar `APK-SIGNATURE.txt` dos dois builds antes de instalar. Não compartilhar número de série de dispositivo nem dados pessoais em logs públicos.

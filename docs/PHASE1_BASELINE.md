@@ -23,6 +23,8 @@ Status: **em andamento**. Esta fase é pré-requisito para iniciar a Fase 2 (con
 
 ## Ainda pendente para concluir a Fase 1
 - [ ] **Homologação no Samsung:** executar [roteiro de QA da V3.1](ANDROID_QA_V3.1.md), registrar falhas e corrigi-las. Sem execução física não declarar aprovado.
+  - [x] Ferramenta **somente leitura** de pré-diagnóstico ADB/versão/hash preparada para Windows; sem validação física até o usuário executar no Samsung.
+  - [ ] Executar QA-01 a QA-22 no aparelho e anexar relatório sem informações privadas.
 - [ ] **Identidade de assinatura estável:** configurar keystore de distribuição administrado com segurança fora do Git, com segredos no GitHub Actions; confirmar atualização sobre APK anterior **sem perder dados**. Nunca publicar chave privada no repositório.
 - [ ] **Autenticação e proteção local:** escolher e implementar bloqueio do app, recuperação e gestão de sessão compatíveis com Android. Não chamar o protótipo de aplicativo bancário seguro.
 - [ ] **Banco nativo + zero-knowledge:** cumprir [gates SQLCipher e E2EE](security/SQLCIPHER_ZERO_KNOWLEDGE_GATE.md) antes de habilitar qualquer biblioteca nativa, integração bancária ou armazenamento sensível real.
