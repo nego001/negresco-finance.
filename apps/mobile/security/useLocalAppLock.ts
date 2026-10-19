@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as LocalAuthentication from 'expo-local-authentication';
 import {
  LOCAL_LOCK_PREF_KEY,parseLocalLockPreference,isStrongBiometryAvailable,
- canFinishAuthentication,shouldCoverAndLockOnState,type LocalLockStatus
+ canFinishAuthentication,shouldCoverAndLockOnState,shouldInvalidateLocalSession,type LocalLockStatus
 } from './localLockPolicy';
 
 /**
@@ -19,6 +19,7 @@ export function useLocalAppLock(){
  const active=useRef(true);
  const epoch=useRef(0);
  const authenticating=useRef(false);
+ const protectedNativePrompt=useRef(false);
  const appState=useRef(AppState.currentState||'active');
 
  const load=useCallback(async()=>{
@@ -44,10 +45,12 @@ export function useLocalAppLock(){
   const sub=AppState.addEventListener('change',next=>{
    appState.current=next;
    if(shouldCoverAndLockOnState(next)){
-    // Android's own biometric prompt may generate an inactive transition.
-    // Treat background as a hard invalidation even while prompting.
-    if(next==='background'||!authenticating.current)epoch.current++;
-    setStatus(prev=>prev==='unlocked'?'locked':prev);
+    // Ignore only transient inactive states caused by an intentional native
+    // biometric prompt; background ALWAYS revokes the UI session.
+    if(shouldInvalidateLocalSession(next,authenticating.current||protectedNativePrompt.current)){
+     epoch.current++;
+     setStatus(prev=>prev==='unlocked'?'locked':prev);
+    }
    }
   });
   return()=>{
@@ -97,7 +100,9 @@ export function useLocalAppLock(){
 
  const unlock=useCallback(async()=>{
   if(status!=='locked')return;
-  if(await verifyStrong('Desbloquear Negresco Finance')&&active.current)setStatus('unlocked');
+  const ticket=epoch.current;
+  if(await verifyStrong('Desbloquear Negresco Finance')&&active.current&&
+     canFinishAuthentication(true,ticket,epoch.current,appState.current))setStatus('unlocked');
  },[status,verifyStrong]);
 
  const enable=useCallback(async()=>{
@@ -114,15 +119,30 @@ export function useLocalAppLock(){
 
  const disable=useCallback(async()=>{
   if(status!=='unlocked')return;
+  const ticket=epoch.current;
   if(!await verifyStrong('Desativar bloqueio biométrico'))return;
-  if(appState.current!=='active')return;
+  if(!canFinishAuthentication(true,ticket,epoch.current,appState.current))return;
   try{
    await AsyncStorage.removeItem(LOCAL_LOCK_PREF_KEY);
-   if(active.current)setStatus('off');
+   // Do not reopen UI after a background transition during storage I/O.
+   if(active.current&&canFinishAuthentication(true,ticket,epoch.current,appState.current))setStatus('off');
+   else if(active.current)setStatus('error');
   }catch{
    if(active.current)setMessage('Falha ao desativar a proteção. O bloqueio permanece habilitado.');
   }
  },[status,verifyStrong]);
+
+ /**
+  * Prevent a trusted manual SecureStore diagnostic from being mistaken for
+  * the user leaving the app. Does not confer any native key authorization.
+  */
+ const withProtectedNativePrompt=useCallback(async <T,>(task:()=>Promise<T>):Promise<T>=>{
+  if(!active.current||protectedNativePrompt.current||authenticating.current||appState.current!=='active')
+   throw new Error('Native prompt is unavailable');
+  protectedNativePrompt.current=true;
+  try{return await task();}
+  finally{protectedNativePrompt.current=false;}
+ },[]);
 
  const lockNow=useCallback(()=>{
   epoch.current++;
@@ -131,7 +151,7 @@ export function useLocalAppLock(){
  },[]);
 
  return {
-  status,busy,message,unlock,enable,disable,lockNow,retry:load,
+  status,busy,message,unlock,enable,disable,lockNow,retry:load,withProtectedNativePrompt,
   enabled:status==='locked'||status==='unlocked'
  };
 }

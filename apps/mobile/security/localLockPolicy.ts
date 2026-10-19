@@ -16,3 +16,12 @@ export function canFinishAuthentication(success:boolean,attemptEpoch:number,curr
 export function shouldCoverAndLockOnState(next:string):boolean{
   return next==='inactive'||next==='background';
 }
+
+/**
+ * Android biometric and authenticated SecureStore prompts may produce a
+ * transient "inactive". A genuine "background" must ALWAYS invalidate the
+ * current session, even if a native authentication prompt is on screen.
+ */
+export function shouldInvalidateLocalSession(nextState:string,nativePromptActive:boolean):boolean{
+ return nextState==='background'||(nextState==='inactive'&&!nativePromptActive);
+}

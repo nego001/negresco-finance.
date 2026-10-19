@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {
  LOCAL_LOCK_PREF_KEY,parseLocalLockPreference,isStrongBiometryAvailable,
- canFinishAuthentication,shouldCoverAndLockOnState
+ canFinishAuthentication,shouldCoverAndLockOnState,shouldInvalidateLocalSession
 } from '../apps/mobile/security/localLockPolicy.ts';
 
 test('existing devices have opt-in UI lock disabled by default',()=>{
@@ -41,4 +41,22 @@ test('native biometrics never silently fall back or persist a secret',()=>{
  assert.doesNotMatch(hook,/AsyncStorage\.setItem\([^\n]*[Pp]assword/);
  assert.match(app,/LocalLockScreen/);
  assert.match(app,/localLock\.status==='off'\|\|localLock\.status==='unlocked'/);
+});
+
+test('native biometric prompt inactive is transient, background is always a hard revoke',()=>{
+ assert.equal(shouldInvalidateLocalSession('inactive',true),false);
+ assert.equal(shouldInvalidateLocalSession('inactive',false),true);
+ assert.equal(shouldInvalidateLocalSession('background',true),true);
+ assert.equal(shouldInvalidateLocalSession('background',false),true);
+ assert.equal(shouldInvalidateLocalSession('active',true),false);
+});
+test('unlock and lock removal must re-check epoch after the native prompt and persistence',()=>{
+ const hook=readFileSync(new URL('../apps/mobile/security/useLocalAppLock.ts',import.meta.url),'utf8');
+ assert.match(hook,/shouldInvalidateLocalSession\(next,authenticating\.current\|\|protectedNativePrompt\.current\)/);
+ assert.match(hook,/withProtectedNativePrompt/);
+ assert.match(hook,/try\{return await task\(\);\}/);
+ assert.match(hook,/finally\{protectedNativePrompt\.current=false;\}/);
+ assert.match(hook,/const ticket=epoch\.current;/);
+ assert.match(hook,/await AsyncStorage\.removeItem\(LOCAL_LOCK_PREF_KEY\)/);
+ assert.match(hook,/if\(active\.current&&canFinishAuthentication\(true,ticket,epoch\.current,appState\.current\)\)setStatus\('off'\)/);
 });
