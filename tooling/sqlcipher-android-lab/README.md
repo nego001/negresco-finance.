@@ -13,7 +13,7 @@
   https://www.zetetic.net/sqlcipher/sqlcipher-for-android-migration/
 - Source: https://github.com/sqlcipher/sqlcipher-android
 
-**Build does not imply license review, reproducible native builds, integrity/audit validation, Samsung behavior, ABI testing or 16-KiB page compliance.** Dependency license, POM, SBOM, component hashes and shipped .so checks must be independently reviewed before any APK work.
+**Build does not imply license review, reproducible native builds, integrity/audit validation, Samsung behavior, ABI testing or 16-KiB page compliance.** Dependency license, POM, SBOM, component hashes and shipped .so checks must be independently reviewed before any APK work. The dedicated CI can install Android SDK platform 36 **on its disposable runner**, never on the user's phone.
 
 ## Lab module design
 
@@ -31,7 +31,7 @@ The shared portable `SqlCipherLabGuard` carries **12 JVM-only** input and header
 
 ## Local compilation
 
-From the repository root with JDK 17, Android SDK 35 and Gradle 8.10.2. The SQLCipher module uses Kotlin 2.2.10, separately from the Kotlin 2.0.21 native-lock laboratory, because the current published SQLCipher dependencies require newer Kotlin metadata:
+From the repository root with JDK 17, Android SDK **36**, AGP **8.10.1** and Gradle **8.11.1**. The SQLCipher 4.19.1 AAR requires compileSdk 36 and its published Kotlin dependencies use 2.2 metadata. This separate lab uses Kotlin **2.2.10**; the other two labs are unchanged:
 
 ```bash
 gradle -p tooling/sqlcipher-android-lab compileDebugKotlin compileDebugAndroidTestKotlin --no-daemon
