@@ -56,6 +56,8 @@
 | QA-38 | Antes de atualizar sobre um APK antigo, executar a comparação read-only do APK instalado e do candidato | Verifica pacote, certificado e versionCode; sinaliza diferenças antes de qualquer instalação. Se não for possível obter evidência, não assumir compatibilidade |
 | QA-39 | Com dados fictícios e biometria ativada, tentar desativar e colocar o app em segundo plano ou encerrá-lo abruptamente | Durante o processo, o diário `optout.v1=pending` deve manter o bloqueio mesmo se a preferência principal ficar `disabled`. Testes automatizados simulam a falha entre gravações; o Samsung deve testar também encerramento durante a exclusão final do diário. Não homologar como transação atômica. |
 
+| QA-40 | Durante a leitura inicial das preferências, colocar o app em segundo plano e retornar; repetir após uma leitura interrompida | O aplicativo reinicia a leitura ao voltar ao primeiro plano, sem ficar preso em “Preparando proteção” nem aceitar resultado antigo como autorização. Executar apenas com dados fictícios. |
+
 O QA-35 e QA-36 só podem ser aprovados com teste físico no Samsung, verificando inclusive as miniaturas do Android. A proteção nativa depende da aplicação efetiva do `FLAG_SECURE`; capturas anteriores e PDFs já compartilhados não são protegidos retroativamente.
 
 
