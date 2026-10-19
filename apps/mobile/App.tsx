@@ -3,6 +3,7 @@ import { consultCnpj, type CompanyResult } from './guardiao/company';
 import {reclameAqui,bankMonitoring,availabilityMessage} from './guardiao/integrations';
 import {loadHistory,createHistoryWriteQueue} from './guardiao/history';
 import * as SecureStore from 'expo-secure-store';
+import { buildEvidenceReview, type EvidenceReviewState } from './guardiao/evidence';
 import { createLocalReport, renderReportHtml } from './guardiao/report';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
@@ -14,6 +15,20 @@ import { Animated, Easing, SafeAreaView, ScrollView, StatusBar, Platform, StyleS
 
 type Page = 'Início' | 'Pix' | 'Contas' | 'Cartões' | 'Investimentos' | 'Metas' | 'Negresco' | 'Guardião' | 'Ajustes';
 const C = { bg:'#000000',panel:'#0D111A',raised:'#121A29',line:'#26354B',blue:'#78B5FF',muted:'#99A8BC',white:'#F7FAFF' };
+const evidenceStatusLabels:Record<EvidenceReviewState,string>={
+ 'local-checked':'Dígitos conferem',
+ 'local-invalid':'Inconsistente',
+ 'external-response':'Resposta externa',
+ 'external-unavailable':'Indisponível',
+ 'not-checked':'Não consultado'
+};
+const evidenceStatusColors:Record<EvidenceReviewState,string>={
+ 'local-checked':'#7AC9AE',
+ 'local-invalid':'#F5B984',
+ 'external-response':'#92C5FF',
+ 'external-unavailable':'#E2BF83',
+ 'not-checked':'#9DAEC4'
+};
 const sections: {name:Page;glyph:IconName;description:string}[] = [
   {name:'Contas',glyph:'accounts',description:'Instituições e saldos'},
   {name:'Pix',glyph:'pix',description:'Pagamentos e recebimentos'},
@@ -43,7 +58,7 @@ export default function App() {
   const [cnpjLoading,setCnpjLoading]=useState(false);
   const cnpjRequestId=useRef(0);
   const [historyQuery,setHistoryQuery]=useState('');
-  const exportLocalPdf=async()=>{if(!boletoResult)return;setReportExportStatus('Gerando PDF local...');try{const html=renderReportHtml(createLocalReport(boletoResult,new Date().toLocaleString('pt-BR')));const pdf=await Print.printToFileAsync({html});if(await Sharing.isAvailableAsync()){await Sharing.shareAsync(pdf.uri,{mimeType:'application/pdf',dialogTitle:'Compartilhar relatório do Guardião'});setReportExportStatus('PDF gerado. Escolha onde salvar ou compartilhar.');}else{setReportExportStatus('PDF gerado no armazenamento temporário, mas o compartilhamento não está disponível.');}}catch{setReportExportStatus('Não foi possível gerar ou compartilhar o PDF.');}};
+  const exportLocalPdf=async()=>{if(!boletoResult)return;setReportExportStatus('Gerando PDF local...');try{const html=renderReportHtml(createLocalReport(boletoResult,new Date().toLocaleString('pt-BR'),cnpjResult));const pdf=await Print.printToFileAsync({html});if(await Sharing.isAvailableAsync()){await Sharing.shareAsync(pdf.uri,{mimeType:'application/pdf',dialogTitle:'Compartilhar relatório do Guardião'});setReportExportStatus('PDF gerado. Escolha onde salvar ou compartilhar.');}else{setReportExportStatus('PDF gerado no armazenamento temporário, mas o compartilhamento não está disponível.');}}catch{setReportExportStatus('Não foi possível gerar ou compartilhar o PDF.');}};
   const [guardiaoHistory,setGuardiaoHistory]=useState<{id:string;date:string;kind:string;valid:boolean;digits:number}[]>([]);
   const [historyLoaded,setHistoryLoaded]=useState(false);
   const [historyStorageError,setHistoryStorageError]=useState('');
@@ -68,6 +83,7 @@ export default function App() {
   const blue=accent?'#A28BFF':C.blue;
   const nav=(p:Page)=>setPage(p);
   const active=sections.find(x=>x.name===page);
+  const evidenceReview=buildEvidenceReview(boletoResult,cnpjResult);
   return <SafeAreaView style={[s.root,{paddingTop:Platform.OS==='android'?(StatusBar.currentHeight??24):0}]}>
     <StatusBar backgroundColor="#000000" barStyle="light-content"/>
     <View style={s.header}>
@@ -135,8 +151,29 @@ export default function App() {
         <View style={s.visualFeature}><Text style={s.visualFeatureTitle}>Quem está cobrando?</Text><Text style={s.visualFeatureBody}>A linha digitável não revela de forma confiável a empresa, o beneficiário final ou a compra que gerou a cobrança. Para isso, precisaremos consultar o registro bancário e cruzar documentos autorizados.</Text>
           {([['Banco que notificou','Não informado'],['Empresa emissora','Não identificada'],['Beneficiário final','Não identificado'],['Banco registrador','Não consultado'],['Compra ou contrato','Origem não identificada']] as const).map(([label,value])=><View key={label} style={[s.rowBetween,{paddingTop:13}]}><Text style={{color:C.muted,fontSize:11,flex:1}}>{label}</Text><Text style={{color:C.white,fontSize:11,fontWeight:'800',flex:1,textAlign:'right'}}>{value}</Text></View>)}
         </View>
-        <View style={s.visualFeature}><Text style={s.visualFeatureTitle}>Investigação na internet</Text><Text style={s.visualFeatureBody}>Receita Federal, Reclame Aqui, notícias e denúncias.</Text>{['Receita Federal · Não consultada','Reclame Aqui · Não consultado','Notícias e alertas · Não consultados'].map(t=><View key={t} style={s.visualStep}><Text style={s.visualStepText}>{t}</Text></View>)}<Text style={s.visualFeatureBody}>Somente a consulta opcional de CNPJ usa um serviço externo. Não há pesquisa automática na internet nem acesso bancário.</Text></View>
-        <View style={s.visualFeature}><Text style={s.visualFeatureTitle}>Relatório de evidências</Text><Text style={s.visualFeatureBody}>Análise local: apenas dígitos verificadores. Emissor, beneficiário, CNPJ, contrato e origem comercial permanecem desconhecidos até consulta autorizada.</Text><Text style={s.visualFeatureBody}>Resultado: inconclusivo sobre a legitimidade da cobrança. A verificação deste boleto não consulta fontes externas. Uma eventual consulta de CNPJ é independente e não autentica a cobrança.</Text><Text style={s.visualFeatureBody}>O PDF contém apenas o resultado estrutural local e informa que nenhuma fonte externa foi consultada.</Text></View>
+        <View style={s.visualFeature}>
+          <View style={[s.rowBetween,{alignItems:'center'}]}>
+            <Text style={s.visualFeatureTitle}>Mapa de evidências</Text>
+            <Text style={{color:'#E2BF83',fontSize:10,fontWeight:'800'}}>INCONCLUSIVO</Text>
+          </View>
+          <Text style={s.visualFeatureBody}>Cada informação mostra sua origem e o que realmente foi verificado. Respostas de terceiros não comprovam quem emitiu o boleto.</Text>
+          {evidenceReview.rows.map(item=><View key={item.id} style={{borderTopWidth:1,borderTopColor:C.line,paddingTop:13,paddingBottom:12}}>
+            <View style={[s.rowBetween,{alignItems:'center'}]}>
+              <Text style={{color:C.white,fontSize:13,fontWeight:'800',flex:1,marginRight:8}}>{item.title}</Text>
+              <View style={{backgroundColor:'#1D2D40',borderRadius:7,paddingHorizontal:8,paddingVertical:5}}>
+                <Text style={{fontSize:10,fontWeight:'800',color:evidenceStatusColors[item.status]}}>{evidenceStatusLabels[item.status]}</Text>
+              </View>
+            </View>
+            <Text style={{color:blue,fontSize:11,marginTop:7}}>Fonte: {item.source}</Text>
+            <Text style={[s.visualFeatureBody,{marginTop:5}]}>{item.detail}</Text>
+          </View>)}
+          <Text style={[s.visualFeatureBody,{color:'#E2BF83'}]}>Fontes externas com resposta: {evidenceReview.externalResponses}. Legitimidade da cobrança: não determinada. Confirme o beneficiário no seu banco.</Text>
+        </View>
+        <View style={s.visualFeature}>
+          <Text style={s.visualFeatureTitle}>Relatório de evidências</Text>
+          <Text style={s.visualFeatureBody}>O PDF reúne a análise matemática e, se você consultou um CNPJ, registra essa resposta como informação independente. Nenhuma consulta atribui automaticamente a cobrança à empresa.</Text>
+          <Text style={s.visualFeatureBody}>O relatório não contém a linha digitável nem o CNPJ completo. Banco, beneficiário, contrato e Reclame Aqui permanecem sem verificação externa.</Text>
+        </View>
         {boletoResult&&<TouchableOpacity accessibilityRole="button" onPress={exportLocalPdf} style={[s.actionButton,{backgroundColor:blue,marginBottom:15}]}><Text style={s.actionText}>Gerar e compartilhar relatório PDF</Text></TouchableOpacity>}
         {!!reportExportStatus&&<Text style={[s.visualFeatureBody,{marginBottom:12}]}>{reportExportStatus}</Text>}
         <View style={s.visualFeature}><Text style={s.visualFeatureTitle}>Histórico protegido</Text><Text style={s.visualFeatureBody}>Somente tipo, quantidade de dígitos e resultado estrutural. A linha digitável completa não é armazenada no histórico. Os registros ficam salvos no armazenamento seguro quando disponível.</Text><TextInput accessibilityLabel="Pesquisar histórico" style={s.input} value={historyQuery} onChangeText={setHistoryQuery} placeholder="Pesquisar data, tipo ou resultado" placeholderTextColor="#8195AE"/>{guardiaoHistory.length===0?<Text style={s.visualFeatureBody}>Nenhuma verificação salva.</Text>:guardiaoHistory.filter(item=>(item.date+' '+item.kind+' '+(item.valid?'confere':'não confere')).toLowerCase().includes(historyQuery.toLowerCase())).map(item=><View key={item.id} style={[s.rowBetween,{paddingTop:12}]}><Text style={{color:C.muted,fontSize:11,flex:1}}>{item.date} · {item.kind}</Text><Text style={{color:C.white,fontSize:11,fontWeight:'800'}}>{item.valid?'Dígitos conferem':'Não confere'}</Text></View>)}{guardiaoHistory.length>0&&<TouchableOpacity accessibilityRole="button" onPress={()=>{skipNextHistorySave.current=true;setGuardiaoHistory([]);historyQueue.current.clear().catch(()=>setHistoryStorageError('Falha ao apagar histórico seguro.'));}} style={[s.actionButton,{marginTop:14,backgroundColor:'#223A59'}]}><Text style={s.actionText}>Limpar histórico</Text></TouchableOpacity>}</View>
