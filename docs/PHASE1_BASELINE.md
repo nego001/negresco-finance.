@@ -32,11 +32,14 @@ Status: **em andamento**. Esta fase é pré-requisito para iniciar a Fase 2 (con
 
 - [x] Mitigação de desativação interrompida: diário independente `optout.v1=pending` com prioridade no boot, marcador `disable-pending`, tentativas de restauração e testes simulados de morte do processo. **Ainda não é transação atômica: encerramento durante a exclusão final do diário permanece risco residual de opt-out inesperado.**
 
+- [x] Recuperação da leitura inicial da preferência após background: ao retornar ao primeiro plano, um novo carregamento substitui o resultado invalidado. Teste de regressão no CI, **QA-40 físico pendente**.
+- [x] [Contrato nativo de persistência do bloqueio](security/NATIVE_LOCK_PERSISTENCE_V1.md) documentado com critérios de transação, migração e homologação. **É somente arquitetura: módulo Kotlin/DataStore ainda não implementado.**
+
 ## Ainda pendente para concluir a Fase 1
 - [ ] **Homologação no Samsung:** executar [roteiro de QA da V3.1](ANDROID_QA_V3.1.md), registrar falhas e corrigi-las. Sem execução física não declarar aprovado.
   - [x] Ferramenta **somente leitura** de pré-diagnóstico ADB/versão/hash preparada para Windows; sem validação física até o usuário executar no Samsung.
   - [x] [Comparador somente leitura de assinatura e versionCode](ANDROID_UPGRADE_PREFLIGHT.md) criado para Windows; consulta APK instalado e candidato sem modificar o celular, **não executado no aparelho nesta sessão**.
-  - [ ] Executar QA-01 a QA-39 no aparelho e anexar relatório sem informações privadas (inclui biometria, Keystore, captura, prompts e assinatura de APK).
+  - [ ] Executar QA-01 a QA-40 no aparelho e anexar relatório sem informações privadas (inclui biometria, Keystore, captura, prompts e assinatura de APK).
 - [ ] **Identidade de assinatura estável:** configurar keystore de distribuição administrado com segurança fora do Git, com segredos no GitHub Actions; confirmar atualização sobre APK anterior **sem perder dados**. Nunca publicar chave privada no repositório.
   - [x] [Procedimento de configuração e migração documentado](ANDROID_SIGNING_V3_1.md), com exigência de hash SHA-256 do certificado.
   - [ ] Criar/provisionar chave permanente fora do GitHub, executar build opt-in e testar atualização entre duas versões com a mesma assinatura.
