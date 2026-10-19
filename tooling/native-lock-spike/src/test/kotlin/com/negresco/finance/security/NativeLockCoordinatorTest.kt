@@ -143,5 +143,6 @@ fun main() {
   kotlinx.coroutines.runBlocking {
     runDataStoreScenarios()
     runSuspendingCoordinatorScenarios()
+    runOptOutInterleavingScenarios()
   }
 }
