@@ -31,17 +31,17 @@ The shared portable `SqlCipherLabGuard` carries **12 JVM-only** input and header
 
 ## Local compilation
 
-From the repository root with JDK 17, Android SDK 35 and Gradle 8.10.2:
+From the repository root with JDK 17, Android SDK 35 and Gradle 8.10.2. The SQLCipher module uses Kotlin 2.2.10, separately from the Kotlin 2.0.21 native-lock laboratory, because the current published SQLCipher dependencies require newer Kotlin metadata:
 
 ```bash
-gradle -p tooling/sqlcipher-android-lab compileDebugKotlin --no-daemon
+gradle -p tooling/sqlcipher-android-lab compileDebugKotlin compileDebugAndroidTestKotlin --no-daemon
 ```
 
-GitHub Actions has a separate `sqlcipher-android-lab` job for this compile. This step compiles Kotlin code against the Zetetic AAR, but does **not** execute Android/JNI code, install APKs, open an actual SQLCipher database, test WAL recovery or authorize a finance release.
+GitHub Actions has a separate `sqlcipher-android-lab` job for this compile. This step compiles Kotlin code against the Zetetic AAR and **six Android instrumentation scenarios**, but does **not execute** Android/JNI code, install APKs, open an actual SQLCipher database, test WAL recovery or authorize a finance release. The scenarios, under `src/androidTest`, require a dedicated emulator/test APK, explicitly isolated fixture data and a separate QA run.
 
 ## Mandatory next gates
 
-1. Android instrumentation with disposable synthetic databases: key correct/wrong, SQLite plaintext, reopen, process death, crashes mid-transaction, corruption and WAL; verify file headers and SQLite journal behavior.
+1. **Run** the six compiled Android instrumentation scenarios on a dedicated test emulator: correct/wrong key, SQLite plaintext, reopen, missing file, duplicate create and truncated file. Additional process-death, WAL, corruption and transaction interruption scenarios are still missing.
 2. Verify the actual native .so binaries and license compliance for supported ABIs, 16-KiB memory pages, app signing and distribution security.
 3. Design a dedicated random SQLCipher page key, Keystore-backed wrapping and **CryptoObject** authorization with lifecycle revocation, as distinct from existing AES record/HMAC lab keys. No hardcoded passphrase, plaintext storage or JavaScript proof.
 4. Independently review creation/open/migration and backup/recovery. Never silently migrate plaintext or delete user files.
