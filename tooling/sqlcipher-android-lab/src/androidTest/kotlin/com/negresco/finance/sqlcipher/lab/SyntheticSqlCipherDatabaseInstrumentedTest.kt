@@ -129,9 +129,15 @@ class SyntheticSqlCipherDatabaseInstrumentedTest {
     fixtureOwned = true
     SyntheticSqlCipherDatabase.createFreshSynthetic(context, passphrase).use { db ->
       db.execSQL("INSERT INTO lab_probe(id, marker) VALUES (1, 'integrity-fixture')")
+      // SQLCipher emits one row PER HMAC/page error. Healthy pages emit ZERO
+      // rows, unlike SQLite's logical PRAGMA integrity_check ("ok").
       db.rawQuery("PRAGMA cipher_integrity_check", null).use { cursor ->
-        assertTrue("Missing integrity result from native SQLCipher", cursor.moveToFirst())
+        assertFalse("SQLCipher reported page/HMAC corruption", cursor.moveToFirst())
+      }
+      db.rawQuery("PRAGMA integrity_check", null).use { cursor ->
+        assertTrue("Missing SQLite logical integrity result", cursor.moveToFirst())
         assertEquals("ok", cursor.getString(0))
+        assertFalse("Unexpected additional SQLite integrity errors", cursor.moveToNext())
       }
     }
   }
