@@ -291,3 +291,20 @@ test('SQLCipher native lab is isolated and has no SQLite plaintext fallback',()=
  assert.match(workflow,/gradle -p tooling\/sqlcipher-android-lab compileDebugKotlin compileDebugAndroidTestKotlin --no-daemon/);
  assert.doesNotMatch(mobile,/sqlcipher-android|sqlcipher-lab/);
 });
+
+test('SQLCipher emulator CI is isolated, pinned and includes real JNI instrumentation',()=>{
+ const workflow=read('.github/workflows/ci.yml');
+ const testSource=read('tooling/sqlcipher-android-lab/src/androidTest/kotlin/com/negresco/finance/sqlcipher/lab/SyntheticSqlCipherDatabaseInstrumentedTest.kt');
+ assert.match(workflow,/sqlcipher-android-emulator:/);
+ assert.match(workflow,/if: github\.event_name == 'pull_request'/);
+ assert.match(workflow,/needs: sqlcipher-android-lab/);
+ assert.match(workflow,/reactivecircus\/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d/);
+ assert.match(workflow,/connectedDebugAndroidTest --no-daemon --stacktrace/);
+ assert.match(workflow,/api-level: 35/);
+ assert.match(workflow,/arch: x86_64/);
+ assert.match(testSource,/nativeCipherIntegrityCheckReportsHealthyPages/);
+ assert.match(testSource,/rolledBackTransactionDoesNotReappearAfterKeyedReopen/);
+ assert.match(testSource,/encryptedWalDoesNotRevealSyntheticMarkerAsPlaintext/);
+ assert.match(testSource,/noBackupFilesDir/);
+ assert.doesNotMatch(workflow,/adb install .*apps\/mobile|eas build/);
+});
