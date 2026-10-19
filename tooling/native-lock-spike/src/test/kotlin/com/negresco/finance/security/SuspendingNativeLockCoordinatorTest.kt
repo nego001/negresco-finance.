@@ -383,5 +383,68 @@ internal suspend fun runSuspendingCoordinatorScenarios() {
     check(c.unlock() == LockResult.DENIED)
   }
 
-  println("PASS: 23 suspending native lock coordinator scenarios (isolated JVM only)")
+  // 24. Biometric authorization stages opt-out but NEVER disables the lock.
+  withCoordinatorStore { repo, _ ->
+    var prompted: LockAction? = null
+    val c = SuspendingNativeLockCoordinator(repo) { action ->
+      prompted = action
+      true
+    }
+    c.onForeground()
+    check(c.prepareDisableForLab() == LockResult.PREPARED)
+    check(prompted == LockAction.DISABLE)
+    check(repo.read() == LockRecord(1, true, 4L, disablePending = true))
+    check(c.disable() == LockResult.DENIED)
+    check(!c.snapshot().unlocked)
+    check(c.unlock() == LockResult.DENIED)
+  }
+
+  // 25. Cancelled authentication never leaves a pending opt-out marker.
+  withCoordinatorStore { repo, _ ->
+    val c = SuspendingNativeLockCoordinator(repo) { false }
+    c.onForeground()
+    check(c.prepareDisableForLab() == LockResult.DENIED)
+    check(repo.read() == LockRecord(1, true, 3L))
+  }
+
+  // 26. Background while strong biometric prompt is active blocks staging.
+  withCoordinatorStore { repo, _ ->
+    lateinit var c: SuspendingNativeLockCoordinator
+    c = SuspendingNativeLockCoordinator(repo) {
+      c.onBackground()
+      c.onForeground()
+      true
+    }
+    c.onForeground()
+    check(c.prepareDisableForLab() == LockResult.STALE)
+    check(repo.read() == LockRecord(1, true, 3L))
+  }
+
+  // 27. An interrupted prepared operation is only recoverable to ENABLED.
+  withCoordinatorStore { repo, _ ->
+    val c = SuspendingNativeLockCoordinator(repo) { true }
+    c.onForeground()
+    check(c.prepareDisableForLab() == LockResult.PREPARED)
+    c.onBackground()
+    check(!c.snapshot().unlocked)
+    val recovered = repo.recoverPreparedDisable()
+    check(recovered == LockRecord(1, true, 5L))
+    c.onForeground()
+    check(!c.snapshot().unlocked)
+    check(c.unlock() == LockResult.SUCCESS)
+  }
+
+  // 28. Live pending observations revoke any earlier in-memory unlock.
+  withCoordinatorStore { repo, _ ->
+    val c = SuspendingNativeLockCoordinator(repo) { true }
+    c.onForeground()
+    check(c.unlock() == LockResult.SUCCESS)
+    check(c.snapshot().unlocked)
+    val record = repo.prepareDisable(3L)
+    check(c.onPersistentStateChanged(NativeLockObservation.Record(record)))
+    check(!c.snapshot().unlocked)
+    check(c.unlock() == LockResult.DENIED)
+  }
+
+  println("PASS: 28 suspending native lock coordinator scenarios (isolated JVM only)")
 }
