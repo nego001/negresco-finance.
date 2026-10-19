@@ -7,9 +7,9 @@ package com.negresco.finance.security
  */
 internal const val LOCK_RECORD_VERSION = 1
 
-internal data class LockRecord(val version: Int, val enabled: Boolean, val revision: Long)
+internal data class LockRecord(val version: Int, val enabled: Boolean, val revision: Long, val disablePending: Boolean = false)
 internal enum class LockAction { ENABLE, DISABLE, UNLOCK }
-internal enum class LockResult { SUCCESS, DENIED, STALE, STORAGE_ERROR, MIGRATION_REQUIRED }
+internal enum class LockResult { SUCCESS, PREPARED, DENIED, STALE, STORAGE_ERROR, MIGRATION_REQUIRED }
 internal data class LockSnapshot(
   val enabled: Boolean,
   val unlocked: Boolean,
