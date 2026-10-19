@@ -17,6 +17,10 @@ package it into Negresco Finance 3.1.2, OTA or any existing release.
 
 ## Build isolation
 
+The Activity adapter executes safe `recoverPreparedDisable()` before it starts
+observing the DataStore. A pending restart always rearms the lock; an error
+keeps the observer gate closed.
+
 The GitHub CI job `native-lock-android-lab` compiles the Android library:
 
 ```bash
@@ -51,9 +55,9 @@ protection is not yet linearizable with Android lifecycle revocation and must
 not be exposed through a JS bridge. A successful BiometricPrompt result is
 not a Keystore-protected cryptographic key authorization.
 
-23 additional JVM scenarios cover cancellation, revoked sessions, stale
+28 additional JVM scenarios cover cancellation, revoked sessions, stale
 revisions, serialized prompts, enabled commit external revision changes, corrupt/missing native records and explicit disable denial.
-The additional cases include live DataStore updates, missing records and
+The additional cases include protected opt-out preparation/recovery, live DataStore updates, missing records and
 corruption, all of which must close a previously unlocked session. A failed
 observation stream remains locked until explicit recovery; no real-device
 biometric tests have been run.
