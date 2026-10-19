@@ -33,8 +33,9 @@ The AndroidX Biometric library is pinned to the stable `1.1.0`.
 `NativeLockAndroidLabSession` now wires `StrongBiometricPrompt` and the
 process-scoped DataStore to `SuspendingNativeLockCoordinator`. It observes
 `onResume`/`onStop`, invalidates generations synchronously, serializes
-biometric requests with a coroutine Mutex and rechecks the DataStore revision
-before granting an unlocked UI session.
+biometric requests with a coroutine Mutex and binds the unlock to the DataStore
+revision; a changed revision or invalid storage revokes the grant. Biometric
+success callbacks require the Activity to remain `RESUMED`.
 
 The new native coordinator supports **unlock and enable** in the isolated
 laboratory. It **refuses disable**: the final transaction of removing local
@@ -42,8 +43,8 @@ protection is not yet linearizable with Android lifecycle revocation and must
 not be exposed through a JS bridge. A successful BiometricPrompt result is
 not a Keystore-protected cryptographic key authorization.
 
-11 additional JVM scenarios cover cancellation, revoked sessions, stale
-revisions, serialized prompts, enabled commit and explicit disable denial.
+15 additional JVM scenarios cover cancellation, revoked sessions, stale
+revisions, serialized prompts, enabled commit external revision changes, corrupt/missing native records and explicit disable denial.
 No real-device biometric tests have been run.
 
 ## Not implemented and security limits
