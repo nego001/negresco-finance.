@@ -21,7 +21,8 @@ the test verifier into a shipped app.
 - A typed atomic-update store contract for later integration with DataStore.
 - 10 offline JVM scenarios in `NativeLockCoordinatorTest.kt`.
 - A separate `DataStoreLockRecordRepository` uses the real AndroidX DataStore API (`datastore-preferences-core:1.2.1`) for atomic compare-and-set of version, enabled and revision in one transactional snapshot.
-- 15 persistent DataStore and legacy-migration JVM scenarios, including restart, races, corrupt records, one-time locked migration and refusal to migrate legacy off/null silently. The Android adapters exist only in the separate, non-Expo lab.
+- 15 persistent DataStore and legacy-migration JVM scenarios, including restart, races, corrupt records, one-time locked migration and refusal to migrate legacy off/null silently.
+- 15 coroutine coordinator scenarios, including revocation on externally changed revisions, missing/corrupt DataStore records, background events, cancellation and overlapping prompts. The Android adapters exist only in the separate, non-Expo lab.
 
 ## Run JVM smoke tests
 
@@ -42,7 +43,7 @@ java -jar /tmp/negresco-native-lock-check.jar
 ```
 
 The CI job `native-lock-spike` compiles the Kotlin project and executes the
-10 policy scenarios plus 15 DataStore/migration scenarios. Passing this job is **not** an Android APK compile or device QA. DataStore returns after durable write, but using it alone does not prove that a biometric request remains valid until commit.
+10 policy scenarios plus 15 DataStore/migration scenarios plus 15 coroutine coordinator scenarios. Passing this job is **not** an Android APK compile or device QA. DataStore returns after durable write, but using it alone does not prove that a biometric request remains valid until commit.
 
 ## Non-negotiable gates before Expo integration
 
