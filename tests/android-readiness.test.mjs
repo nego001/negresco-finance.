@@ -32,3 +32,25 @@ test('Samsung manual QA checklist explicitly protects installed app data',()=>{
  assert.match(qa,/QA-22/);
  assert.match(qa,/não desinstalar antes/i);
 });
+
+test('Windows update verifier compares installed public APK identity without device writes',()=>{
+ const source=read('tooling/windows/compare-installed-apk.ps1');
+ assert.match(source,/\[CmdletBinding\(\)\]/);
+ assert.match(source,/Find-AndroidTool 'apksigner'/);
+ assert.match(source,/Find-AndroidTool 'aapt'/);
+ assert.match(source,/shell pm path \$packageName/);
+ assert.match(source,/pull \$deviceApk \$localCopy/);
+ assert.match(source,/Remove-Item -LiteralPath \$localCopy -Force/);
+ assert.match(source,/\$installedCert -cne \$candidateCert/);
+ assert.match(source,/\$candidate\.VersionCode -le \$installed\.VersionCode/);
+ assert.match(source,/\$packageName='com\.negresco\.finance'/);
+ assert.doesNotMatch(source,/shell\s+pm\s+(?:clear|uninstall|install)\b/i);
+ assert.doesNotMatch(source,/&\s+\$adb(?:\.Source)?[^\n]*\b(?:install|uninstall|push|root|remount)\b/i);
+});
+test('PowerShell 5.1 parser audit covers both read-only Windows tools',()=>{
+ const workflow=read('.github/workflows/windows-readonly-tools-check.yml');
+ assert.match(workflow,/windows-latest/);
+ assert.match(workflow,/windows\/compare-installed-apk\.ps1/);
+ assert.match(workflow,/windows\/android-v31-readonly-preflight\.ps1/);
+ assert.match(workflow,/Parser\]::ParseFile/);
+});

@@ -6,7 +6,9 @@
 
 O Android só permite atualizar o mesmo pacote instalado quando a **identidade de assinatura é compatível**, além de observar as regras de versão do sistema. Trocar a chave de Debug por uma chave permanente **não consegue atualizar automaticamente o APK antigo**. Forçar desinstalação apagaria os dados locais e hoje não existe backup/migração de dados aprovado.
 
-A V3.1 usa `com.negresco.finance`, `versionName=3.1.0` e `versionCode=31`. Cada atualização distribuída precisa de `versionCode` apropriado. Não promover qualquer build sem teste de upgrade no Samsung.
+A V3.1.2 usa `com.negresco.finance`, `versionName=3.1.2` e `versionCode=33`. Cada atualização distribuída precisa de `versionCode` apropriado. Não promover qualquer build sem teste de upgrade no Samsung.
+
+**Comparação antes de instalar:** consulte [diagnóstico de assinatura e versão no Samsung](ANDROID_UPGRADE_PREFLIGHT.md), que compara localmente os certificados do APK baixado e da instalação existente, sem executar instalação ou desinstalação.
 
 ## Fluxos de compilação
 

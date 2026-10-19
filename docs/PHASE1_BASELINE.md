@@ -33,7 +33,8 @@ Status: **em andamento**. Esta fase é pré-requisito para iniciar a Fase 2 (con
 ## Ainda pendente para concluir a Fase 1
 - [ ] **Homologação no Samsung:** executar [roteiro de QA da V3.1](ANDROID_QA_V3.1.md), registrar falhas e corrigi-las. Sem execução física não declarar aprovado.
   - [x] Ferramenta **somente leitura** de pré-diagnóstico ADB/versão/hash preparada para Windows; sem validação física até o usuário executar no Samsung.
-  - [ ] Executar QA-01 a QA-37 no aparelho e anexar relatório sem informações privadas (inclui biometria forte, Keystore, captura e concorrência de prompts).
+  - [x] [Comparador somente leitura de assinatura e versionCode](ANDROID_UPGRADE_PREFLIGHT.md) criado para Windows; consulta APK instalado e candidato sem modificar o celular, **não executado no aparelho nesta sessão**.
+  - [ ] Executar QA-01 a QA-38 no aparelho e anexar relatório sem informações privadas (inclui biometria, Keystore, captura, prompts e assinatura de APK).
 - [ ] **Identidade de assinatura estável:** configurar keystore de distribuição administrado com segurança fora do Git, com segredos no GitHub Actions; confirmar atualização sobre APK anterior **sem perder dados**. Nunca publicar chave privada no repositório.
   - [x] [Procedimento de configuração e migração documentado](ANDROID_SIGNING_V3_1.md), com exigência de hash SHA-256 do certificado.
   - [ ] Criar/provisionar chave permanente fora do GitHub, executar build opt-in e testar atualização entre duas versões com a mesma assinatura.

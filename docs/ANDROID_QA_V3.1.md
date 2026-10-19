@@ -53,6 +53,7 @@
 | QA-35 | No Android, abrir Guardião e tentar capturar print, gravar tela ou abrir o alternador de apps | O conteúdo do Guardião não deve aparecer na captura/gravação nem na miniatura dos aplicativos recentes |
 | QA-36 | Ativar biometria forte, testar captura nas demais telas e depois desativar o bloqueio | Com proteção ativa o app não deve ser capturável; após desativá-la, a tela Início pode ser capturada normalmente. O Guardião continua protegido |
 | QA-37 | Durante o prompt biométrico do desbloqueio ou Keystore, alternar de app e retornar | Estado `inactive` temporário do prompt não gera aprovação falsa; `background` invalida autenticação e o resultado do diagnóstico não reaparece como válido |
+| QA-38 | Antes de atualizar sobre um APK antigo, executar a comparação read-only do APK instalado e do candidato | Verifica pacote, certificado e versionCode; sinaliza diferenças antes de qualquer instalação. Se não for possível obter evidência, não assumir compatibilidade |
 
 O QA-35 e QA-36 só podem ser aprovados com teste físico no Samsung, verificando inclusive as miniaturas do Android. A proteção nativa depende da aplicação efetiva do `FLAG_SECURE`; capturas anteriores e PDFs já compartilhados não são protegidos retroativamente.
 
@@ -72,6 +73,10 @@ Classificação sugerida: **P0** = não abre, perde dados ou deixa dados privado
 - Nenhum dado real é enviado sem ação explícita, e nenhum resultado matemático ou cadastro empresarial é apresentado como validação de pagamento.
 
 **Limite:** aprovação deste roteiro confirma apenas funcionamento do protótipo testado, não auditoria de segurança bancária, prevenção efetiva de fraude ou prontidão para operações financeiras.
+
+## Checagem de assinatura antes de atualizar
+
+O [comparador de APK instalado](ANDROID_UPGRADE_PREFLIGHT.md) verifica a identidade do certificado no próprio Samsung e no arquivo baixado, sem instalar nem remover aplicativos. O script precisa de ADB, apksigner e aapt instalados no Windows. **Uma assinatura coincidente não basta para declarar que a atualização é segura para dados existentes.**
 
 ## Diagnóstico não destrutivo no PowerShell
 

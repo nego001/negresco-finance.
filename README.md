@@ -41,6 +41,8 @@ Para gerar o aplicativo Android, consulte [GitHub Actions](https://github.com/ne
 
 **Diagnóstico experimental Android Keystore:** opção manual em Ajustes para testar gravação, leitura autenticada e limpeza de um marcador fictício via SecureStore. Não usa chaves financeiras reais nem prova segurança criptográfica do futuro SQLCipher. Teste ainda **não executado no Samsung**.
 
+**Checagem não destrutiva de atualização:** a [ferramenta Windows](docs/ANDROID_UPGRADE_PREFLIGHT.md) pode comparar a assinatura e a versão do APK baixado com o aplicativo já instalado no Samsung antes de tentar atualizar. Exige Android SDK e validação local; não instala o APK nem comprova recuperação dos dados.
+
 **Assinatura Android:** os APKs automáticos continuam Debug. A [configuração opcional de assinatura permanente](docs/ANDROID_SIGNING_V3_1.md) foi preparada, mas sua chave e a migração segura ainda não foram validadas.
 
 ## Documentação

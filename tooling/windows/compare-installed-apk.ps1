@@ -100,7 +100,7 @@ try {
   $deviceApk=($baseLine[0] -replace '^package:','').Trim()
   $localCopy=Join-Path ([IO.Path]::GetTempPath()) ("negresco-inspected-"+[Guid]::NewGuid().ToString('N')+".apk")
   # adb pull reads the installed application's PUBLIC code bundle, not its data directory.
-  $pull=@(& $adb -s $serial pull $deviceApk $localCopy 2>&1)
+  & $adb -s $serial pull $deviceApk $localCopy | Out-Null
   if($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $localCopy)) {
     throw 'Falha ao copiar somente o base.apk para a pasta temporaria do PC.'
   }

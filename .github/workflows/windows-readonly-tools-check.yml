@@ -1,0 +1,35 @@
+name: Validate Windows Android Read-only Tools
+on:
+  push:
+    paths:
+      - 'tooling/windows/**'
+      - '.github/workflows/windows-readonly-tools-check.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  powershell-syntax:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse PowerShell 5.1 scripts without executing or connecting ADB
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $files = @(
+            'tooling/windows/android-v31-readonly-preflight.ps1',
+            'tooling/windows/compare-installed-apk.ps1'
+          )
+          foreach ($path in $files) {
+            $tokens = $null
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path -LiteralPath $path).Path, [ref]$tokens, [ref]$errors
+            )
+            if ($errors.Count -gt 0) {
+              $errors | ForEach-Object { Write-Error $_ }
+              throw "PowerShell syntax failed: $path"
+            }
+            Write-Host "[OK] PowerShell syntax: $path"
+          }
