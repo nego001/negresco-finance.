@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {
- LOCAL_LOCK_PREF_KEY,parseLocalLockPreference,isStrongBiometryAvailable,
+ LOCAL_LOCK_PREF_KEY,LOCAL_LOCK_ENABLED,LOCAL_LOCK_DISABLE_PENDING,LOCAL_LOCK_DISABLED,
+ parseLocalLockPreference,persistBiometricOptOut,isStrongBiometryAvailable,
  canFinishAuthentication,shouldCoverAndLockOnState,shouldInvalidateLocalSession
 } from '../apps/mobile/security/localLockPolicy.ts';
 
@@ -10,6 +11,8 @@ test('existing devices have opt-in UI lock disabled by default',()=>{
  assert.equal(LOCAL_LOCK_PREF_KEY,'negresco.local_lock.v1');
  assert.equal(parseLocalLockPreference(null),false);
  assert.equal(parseLocalLockPreference('enabled'),true);
+ assert.equal(parseLocalLockPreference(LOCAL_LOCK_DISABLE_PENDING),true);
+ assert.equal(parseLocalLockPreference(LOCAL_LOCK_DISABLED),false);
  assert.throws(()=>parseLocalLockPreference('off'),/Unknown/);
  assert.throws(()=>parseLocalLockPreference('malformed'),/Unknown/);
 });
@@ -57,8 +60,9 @@ test('unlock and lock removal must re-check epoch after the native prompt and pe
  assert.match(hook,/try\{return await task\(\);\}/);
  assert.match(hook,/finally\{protectedNativePrompt\.current=false;\}/);
  assert.match(hook,/const ticket=epoch\.current;/);
- assert.match(hook,/await AsyncStorage\.removeItem\(LOCAL_LOCK_PREF_KEY\)/);
- assert.match(hook,/if\(active\.current&&canFinishAuthentication\(true,ticket,epoch\.current,appState\.current\)\)setStatus\('off'\)/);
+ assert.match(hook,/await persistBiometricOptOut\(AsyncStorage,valid\)/);
+ assert.match(hook,/if\(outcome==='disabled'&&valid\(\)\)/);
+ assert.doesNotMatch(hook,/AsyncStorage\.removeItem\(LOCAL_LOCK_PREF_KEY\)/);
 });
 
 test('stale preference reads fail closed rather than resetting lock to off',()=>{
@@ -78,4 +82,57 @@ test('overlapping preference retries are versioned and stale failures ignored',(
 test('biometric authentication cannot overlap with SecureStore prompt or background',()=>{
  const hook=readFileSync(new URL('../apps/mobile/security/useLocalAppLock.ts',import.meta.url),'utf8');
  assert.match(hook,/if\(authenticating\.current\|\|protectedNativePrompt\.current\|\|!active\.current\|\|appState\.current!=='active'\)return false;/);
+});
+
+test('biometric opt-out commits only after a valid two-stage write',async()=>{
+ const written=[];
+ const store={setItem:async(key,value)=>{
+  assert.equal(key,LOCAL_LOCK_PREF_KEY);
+  written.push(value);
+ }};
+ assert.equal(await persistBiometricOptOut(store,()=>true),'disabled');
+ assert.deepEqual(written,[LOCAL_LOCK_DISABLE_PENDING,LOCAL_LOCK_DISABLED]);
+});
+
+test('interrupt after opt-out intent leaves locked marker on disk',async()=>{
+ let current=LOCAL_LOCK_ENABLED;
+ let valid=true;
+ const store={setItem:async(_key,value)=>{
+  current=value;
+  if(value===LOCAL_LOCK_DISABLE_PENDING)valid=false;
+ }};
+ assert.equal(await persistBiometricOptOut(store,()=>valid),'interrupted');
+ assert.equal(current,LOCAL_LOCK_DISABLE_PENDING);
+ assert.equal(parseLocalLockPreference(current),true);
+});
+
+test('interrupt during final opt-out write restores enabled marker',async()=>{
+ let current=LOCAL_LOCK_ENABLED;
+ let valid=true;
+ const store={setItem:async(_key,value)=>{
+  current=value;
+  if(value===LOCAL_LOCK_DISABLED)valid=false;
+ }};
+ assert.equal(await persistBiometricOptOut(store,()=>valid),'interrupted');
+ assert.equal(current,LOCAL_LOCK_ENABLED);
+});
+
+test('ambiguous failed opt-out write attempts rearm; failed rearm is reported',async()=>{
+ let current=LOCAL_LOCK_ENABLED;
+ const store={setItem:async(_key,value)=>{
+  current=value;
+  if(value===LOCAL_LOCK_DISABLED)throw new Error('write acknowledged as failed after persistence');
+ }};
+ assert.equal(await persistBiometricOptOut(store,()=>true),'interrupted');
+ assert.equal(current,LOCAL_LOCK_ENABLED);
+ const brokenStore={setItem:async(_key,value)=>{
+  if(value===LOCAL_LOCK_DISABLED||value===LOCAL_LOCK_ENABLED)throw new Error('I/O failure');
+ }};
+ assert.equal(await persistBiometricOptOut(brokenStore,()=>true),'failed');
+});
+
+test('opt-out uses a pending state instead of deleting legacy preference',()=>{
+ const hook=readFileSync(new URL('../apps/mobile/security/useLocalAppLock.ts',import.meta.url),'utf8');
+ assert.match(hook,/await persistBiometricOptOut\(AsyncStorage,valid\)/);
+ assert.doesNotMatch(hook,/removeItem\(LOCAL_LOCK_PREF_KEY\)/);
 });
