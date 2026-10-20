@@ -151,6 +151,29 @@ descartável**, sem dados bancários:
   instrumentada de bloqueio/DataStore passa de 10 para **13 casos**.
   Contagens só valem como resultados depois de CI concluído.
 
+### Cancelamento transacional de desafios pendentes
+
+Adicionado `cancelPendingForDisposableLab(expectedRevision, expectedEpoch, floor)`
+ao ledger de teste. Após um cancelamento explícito de desafio pendente,
+uma única transação DataStore apaga o nonce e seus vínculos e incrementa
+**revision + epoch**. Uma assinatura Ed25519 anteriormente emitida continua
+criptograficamente válida para seus bytes, mas **não atende mais à revisão**
+que o verificador de estado exige, portanto o ledger a recusa. Um segundo
+cancelamento ou uma chamada com revisão incorreta não pode incrementar o
+estado silenciosamente. A operação é somente de revogação: não expõe token
+de acesso nem autoriza transações financeiras.
+
+O laboratório inclui **mais quatro cenários Kotlin/JVM** de cancelamento e
+reabertura, e **mais um teste Android instrumentado** em arquivo descartável,
+elevando a matriz específica do ledger para **18 casos JVM** e a suíte Android
+de bloqueio/dispositivos para **14 testes**. Esses resultados só podem ser
+marcados aprovados após execução efetiva no CI do HEAD atual.
+
+**Não é um callback automático de lifecycle:** o produto ainda precisará
+ligar `onStop` e as revogações do autorizador nativo a esta operação.
+O estado não está protegido contra restauração de arquivo, relógio alterado
+ou backup antigo; anti-rollback remoto/protegido continua pendente.
+
 **Limites críticos:** DataStore não é armazenamento anti-rollback. Restaurar
 o arquivo para uma versão antiga pode restaurar desafios/contadores
 antigos. Falta uma âncora independente, monotônica, durável, autenticada
