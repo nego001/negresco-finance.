@@ -18,7 +18,7 @@
 | SEC-02 | Identidade forte | Keystore, `BiometricPrompt.CryptoObject` e reautenticação por operação | Laboratório Android; biometria manual não executada | API Android real, revogação em `onStop`, biometria e inscrição alterada |
 | SEC-03 | Privacidade | Tela segura, anti-tapjacking, clipboard, notificações e revisão de backups | Bloqueio de captura parcial no app experimental | revisão por tela, teste de overlays/captura, acessibilidade |
 | SEC-04 | Antifraude | Detecção de ações arriscadas e alertas locais, sem PII desnecessária | Sinais definidos no motor de política sintético | telemetria minimizada, qualidade dos sinais, resposta a falsos positivos |
-| SEC-05 | Confiança de dispositivos | Credenciais por aparelho, registro aprovado, expiração e revogação | Laboratório Kotlin com verificação real de assinatura Ed25519 sobre desafios sintéticos e guardas de revogação em memória | autenticar cadastro, emitir desafios confiáveis, counters duráveis, âncora monotônica, QA Android e servidor |
+| SEC-05 | Confiança de dispositivos | Credenciais por aparelho, registro aprovado, expiração e revogação | Laboratórios Ed25519, DataStore de uso único e verificador de testemunho remoto assinado (ainda sem emissor real) | cadastro autenticado, autoridade remota, âncora monotônica real, integração nativa e QA de hardware |
 | SEC-06 | Modo Proteção Máxima | Pré-verificação por risco e autenticação reforçada por ação | **Laboratório Kotlin `SecurityOperationPolicyLab` inicial** | entradas obtidas somente por módulos nativos, decisão revalidada na camada de chaves |
 | SEC-07 | Recuperação | Backup cifrado + kit separado + recuperação verificada + anti-rollback | Protótipo sintético em memória | exportação segura, restauração segunda instalação e proteção contra replay |
 | SEC-08 | Central de Segurança | Painel com estado real, alertas e auditoria sem segredos | Laboratório de eventos minimizados `SecurityAuditEventLab` (sem persistência) | API de evidências verificadas, armazenamento cifrado, nenhum indicador visual fictício |
@@ -217,6 +217,48 @@ material de chave não exportável, atestado quando disponível, algoritmo
 realmente suportado no hardware (possivelmente ECDSA P-256 com domínio
 específico, distinto de Ed25519) e integração com ciclo de vida e biometria
 forte. O SEC-05 permanece LAB até lá.
+
+### Verificação de âncora remota assinada (SEC-05, estudo isolado)
+
+`SyntheticSignedTrustFloorLab.kt` usa assinatura **Ed25519 real** para
+verificar, num laboratório offline JVM, um testemunho de confiança contendo
+fingerprint da chave pública do dispositivo, `revision`, `epoch`,
+`minLastSequence` e um desafio aleatório **novo** de 32 bytes. O objetivo
+é identificar restauração de um arquivo DataStore mais antigo que o último
+estado conhecido por uma autoridade independente. A codificação é binária,
+versionada e isolada por domínio criptográfico.
+
+Quando a assinatura é válida e está vinculada ao desafio solicitado, o
+verificador compara o estado observado com o testemunho:
+- estado ausente, chave da autoridade ausente, assinatura inválida,
+  outro dispositivo ou desafio divergente: **nega**;
+- revisão ou época diferente da assinada: **nega** e exige uma conciliação
+  independente, nunca cria ou corrige registros automaticamente;
+- último contador local inferior ao mínimo assinado: **nega**;
+- somente uma resposta verificada com dados consistentes retorna
+  `PROCEED_TO_INDEPENDENT_NATIVE_AUTHORIZER`, **não acesso financeiro**.
+
+Foram adicionados **22 cenários Kotlin/JVM** sintéticos e dois contratos Node
+contra troca de chave, assinatura adulterada, desafio antigo, replay de
+resposta, dispositivo diferente e arquivos antigos.
+
+**Controle essencial NÃO IMPLEMENTADO:** não existe, neste repositório,
+servidor que mantenha os contadores atuais, fluxo HTTPS autenticado,
+provisionamento de chave da autoridade, autenticação de cadastro de
+aparelhos, rotação/revogação dessa chave, emissor de desafios com garantia
+de unicidade nem persistência do testemunho fora do arquivo sujeito a
+rollback. A injeção de uma chave pública arbitrária como autoridade destrói
+a segurança deste desenho. O teste gera chaves de autoridade fictícias e
+verifica apenas as propriedades criptográficas dos bytes.
+
+Uma assinatura antiga válida sobre um desafio antigo **continua válida
+criptograficamente**. Ela só deve ser recusada quando o cliente consegue
+garantir desafio novo e obter da autoridade legítima o **estado atual**.
+Sem conexão, ou se o próprio emissor responder com estado antigo, este
+laboratório **NÃO prova resistência real a rollback**. Não existe ligação
+com `SyntheticDeviceChallengeDataStoreLab.issue/consume` nesta fase;
+a ligação futura terá de ser nativa e auditar atomicidade, cancelamento,
+expiração, revogação e o estado remoto antes de qualquer acesso.
 
 ## Laboratório de auditoria, sem coleta de dados pessoais (SEC-08)
 
