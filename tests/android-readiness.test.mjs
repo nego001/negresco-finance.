@@ -202,10 +202,13 @@ test('in-process DataStore revision rollback and split reads fail closed',()=>{
  assert.match(coordinator,/record\.revision < last\.revision/);
  assert.match(coordinator,/record\.revision == last\.revision && record != last/);
  assert.match(coordinator,/private fun rejectContradictoryRead\(record: LockRecord\)/);
- assert.match(coordinator,/if \(rejectContradictoryRead\(before\)\) return@withLock LockResult\.STORAGE_ERROR/);
- assert.match(coordinator,/if \(rejectContradictoryRead\(after\)\) return@withLock LockResult\.STORAGE_ERROR/);
+ assert.match(coordinator,/if \(rejectContradictoryRead\(before\)\) return@withLock revokeOnUnsafeRead\(LockResult\.STORAGE_ERROR\)/);
+ assert.match(coordinator,/if \(rejectContradictoryRead\(after\)\) return@withLock revokeOnUnsafeRead\(LockResult\.STORAGE_ERROR\)/);
  assert.match(tests,/A contradictory enabled state at the SAME revision/);
  assert.match(tests,/An old AFTER-prompt read cannot complete an unlock/);
+ assert.match(coordinator,/private fun revokeOnUnsafeRead\(result: LockResult\)/);
+ assert.match(tests,/A failing explicit unlock re-read revokes an EARLIER approved grant/);
+ assert.match(tests,/Missing DataStore record on a new unlock revokes an EARLIER grant/);
 });
 
 test('Bitwarden-grade release target stays explicitly unverified and lab cryptography isolated',()=>{
