@@ -142,6 +142,7 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 35
     steps:
+      - uses: actions/checkout@v4
       - name: Download the exact two verified GitHub APK binaries
         env:
           GH_TOKEN: ${{ github.token }}
@@ -175,18 +176,4 @@ jobs:
           profile: pixel_6
           emulator-boot-timeout: 600
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
-          script: |
-            set -eu
-            OLD=previous/Negresco-Finance-V3.1-candidate.apk
-            NEW="$(find candidate -type f -name '*.apk' -print -quit)"
-            adb install "$OLD"
-            adb shell pm path com.negresco.finance | grep -F 'package:'
-            adb shell dumpsys package com.negresco.finance > /tmp/negresco-before-upgrade.txt
-            grep -m 1 'versionCode=33' /tmp/negresco-before-upgrade.txt
-            # Do not uninstall, clear, reset, or migrate real data.
-            adb install -r "$NEW"
-            adb shell pm path com.negresco.finance | grep -F 'package:'
-            adb shell dumpsys package com.negresco.finance > /tmp/negresco-after-upgrade.txt
-            grep -m 1 'versionCode=34' /tmp/negresco-after-upgrade.txt
-            echo 'EMULATOR ONLY: PackageManager accepted same-signature upgrade.'
-            echo 'This does NOT establish preservation of financial data or the Samsung certificate.'
+          script: bash tooling/ci/android-upgrade-emulator-smoke.sh
