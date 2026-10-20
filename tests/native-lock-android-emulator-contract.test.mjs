@@ -42,11 +42,11 @@ test('fourteen native DataStore checks cover lock sessions and signed device cha
  assert.match(source,/absentPersistedRecordRevokesPreviouslyUnlockedSession/);
  assert.match(source,/malformedPersistedRecordRevokesPreviouslyUnlockedSession/);
  assert.match(source,/any real financial data|No record/i);
- // Emulator-only disposable Keystore entries are OK; biometric enrollment is NOT.
- assert.match(source,/KeyGenParameterSpec\.Builder\(alias, KeyProperties\.PURPOSE_SIGN\)/);
- assert.match(source,/KeyPairGenerator\.getInstance\("Ed25519", "AndroidKeyStore"\)/);
- assert.match(source,/androidKeystore\.deleteEntry\(alias\)/);
- assert.match(source,/\.setUserAuthenticationRequired\(false\)/);
- assert.match(source,/createDisposableAndroidEd25519KeyPair\(\)/);
+ // Android 35 emulator returned EC, so Ed25519 must use test-only software.
+ assert.match(gradle,/androidTestImplementation\("org\.bouncycastle:bcprov-jdk18on:1\.86"\)/);
+ assert.match(source,/BouncyCastleProvider\(\)/);
+ assert.match(source,/KeyPairGenerator\.getInstance\("Ed25519", testEd25519Provider\)/);
+ assert.match(source,/Signature\.getInstance\("Ed25519", testEd25519Provider\)/);
+ assert.doesNotMatch(source,/KeyPairGenerator\.getInstance\("Ed25519", "AndroidKeyStore"\)/);
  assert.doesNotMatch(source,/biometricPrompt|BiometricPrompt\.CryptoObject/);
 });
