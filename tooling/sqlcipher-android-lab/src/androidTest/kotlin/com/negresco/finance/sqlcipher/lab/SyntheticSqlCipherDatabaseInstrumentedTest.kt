@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import java.io.File
+import java.io.RandomAccessFile
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -158,6 +159,59 @@ class SyntheticSqlCipherDatabaseInstrumentedTest {
       reopened.rawQuery("SELECT count(*) FROM lab_probe", null).use { cursor ->
         assertTrue(cursor.moveToFirst())
         assertEquals(0L, cursor.getLong(0))
+      }
+    }
+  }
+
+  @Test
+  fun tamperedEncryptedPageFailsClosedWithoutSilentRecreation() {
+    fixtureOwned = true
+    SyntheticSqlCipherDatabase.createFreshSynthetic(context, passphrase).use { db ->
+      db.execSQL("INSERT INTO lab_probe(id, marker) VALUES (1, 'tamper-fixture')")
+    }
+    assertTrue("Encrypted fixture unexpectedly small", syntheticFile.length() > 512L)
+
+    // Deliberately corrupt encrypted page content, never a real user file.
+    // Offset 256 lies beyond the SQLCipher file salt in page one.
+    RandomAccessFile(syntheticFile, "rw").use { io ->
+      io.seek(256L)
+      val original = io.readUnsignedByte()
+      io.seek(256L)
+      io.writeByte(original xor 0x01)
+    }
+    val corruptedBytes = syntheticFile.readBytes()
+    val result = runCatching {
+      SyntheticSqlCipherDatabase.openExistingSynthetic(context, passphrase).close()
+    }
+    assertTrue("Damaged encrypted page must not pass keyed open",
+      result.exceptionOrNull() is SyntheticSqlCipherDatabase.Unavailable)
+    assertTrue("A failed read must not recreate or rewrite the damaged DB",
+      syntheticFile.readBytes().contentEquals(corruptedBytes))
+    assertTrue("Corrupted database must remain in place for manual inspection",
+      syntheticFile.exists())
+  }
+
+  @Test
+  fun committedWalTransactionSurvivesKeyedReopen() {
+    fixtureOwned = true
+    SyntheticSqlCipherDatabase.createFreshSynthetic(context, passphrase).use { db ->
+      db.rawQuery("PRAGMA journal_mode=WAL", null).use { cursor ->
+        assertTrue(cursor.moveToFirst())
+        assertEquals("wal", cursor.getString(0))
+      }
+      db.beginTransaction()
+      try {
+        db.execSQL("INSERT INTO lab_probe(id, marker) VALUES (1, 'committed-WAL-fixture')")
+        db.setTransactionSuccessful()
+      } finally {
+        db.endTransaction()
+      }
+    }
+    SyntheticSqlCipherDatabase.openExistingSynthetic(context, passphrase).use { reopened ->
+      reopened.rawQuery("SELECT marker FROM lab_probe WHERE id = 1", null).use { cursor ->
+        assertTrue(cursor.moveToFirst())
+        assertEquals("committed-WAL-fixture", cursor.getString(0))
+        assertFalse(cursor.moveToNext())
       }
     }
   }
