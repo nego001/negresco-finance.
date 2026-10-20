@@ -145,6 +145,38 @@ internal class SyntheticDeviceChallengeDataStoreLab(
   }
 
   /**
+   * Explicit lab-only cancellation for an abandoned challenge, e.g. after a
+   * synthetic onStop. Atomically discard the nonce and advance BOTH epoch
+   * and revision, so a signature bound to the old state cannot be accepted.
+   *
+   * A real lifecycle adapter, trusted revision anchor and account binding
+   * are NOT present. This is a revocation-only operation, NEVER a grant.
+   */
+  suspend fun cancelPendingForDisposableLab(
+    expectedRevision: Long,
+    expectedEpoch: Long,
+    floor: DeviceTrustFloor?
+  ): SyntheticLedgerView {
+    val committed = store.updateData { before ->
+      val view = decode(before) ?: throw InvalidSyntheticDeviceLedger()
+      if (!validFloor(view, floor) ||
+          view.revision != expectedRevision || view.epoch != expectedEpoch ||
+          view.revision == Long.MAX_VALUE || view.epoch == Long.MAX_VALUE) {
+        throw StaleSyntheticDeviceLedger()
+      }
+      if (view.pending == null) throw StaleSyntheticDeviceLedger()
+      before.toMutablePreferences().apply {
+        this[SyntheticDeviceLedgerKeys.revision] = view.revision + 1L
+        this[SyntheticDeviceLedgerKeys.epoch] = view.epoch + 1L
+        remove(SyntheticDeviceLedgerKeys.challengeHex)
+        remove(SyntheticDeviceLedgerKeys.challengeAction)
+        remove(SyntheticDeviceLedgerKeys.challengeSequence)
+      }
+    }
+    return decode(committed) ?: throw InvalidSyntheticDeviceLedger()
+  }
+
+  /**
    * Verification and consumption happen inside the SAME DataStore transaction:
    * a race can only commit one use of the nonce+counter. No Boolean proof
    * parameter exists. Signature must match a separately enrolled public key.
