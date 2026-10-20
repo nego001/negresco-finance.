@@ -128,6 +128,55 @@ class NativeLockDataStoreInstrumentedTest {
       .exceptionOrNull() is InvalidNativeLockRecord)
   }
 
+  @Test fun absentPersistedRecordRevokesPreviouslyUnlockedSession() = runBlocking {
+    val fixture = open()
+    fixture.repository.migrateLegacyLocked("enabled", null)
+    val coordinator = SuspendingNativeLockCoordinator(fixture.repository) { true }
+    coordinator.onForeground()
+    assertEquals(LockResult.SUCCESS, coordinator.unlock())
+    assertTrue(coordinator.snapshot().unlocked)
+
+    // Remove ONLY the disposable Android DataStore record after login.
+    fixture.raw.updateData { mutablePreferencesOf() }
+    assertEquals(LockResult.MIGRATION_REQUIRED, coordinator.unlock())
+
+    // Restoration of a valid synthetic record must NOT restore old access.
+    fixture.raw.updateData {
+      mutablePreferencesOf(
+        NativeLockDataStoreKeys.version to LOCK_RECORD_VERSION,
+        NativeLockDataStoreKeys.enabled to true,
+        NativeLockDataStoreKeys.revision to 0L
+      )
+    }
+    assertFalse(coordinator.snapshot().unlocked)
+    assertEquals(LockResult.SUCCESS, coordinator.unlock())
+  }
+
+  @Test fun malformedPersistedRecordRevokesPreviouslyUnlockedSession() = runBlocking {
+    val fixture = open()
+    fixture.repository.migrateLegacyLocked("enabled", null)
+    val coordinator = SuspendingNativeLockCoordinator(fixture.repository) { true }
+    coordinator.onForeground()
+    assertEquals(LockResult.SUCCESS, coordinator.unlock())
+    assertTrue(coordinator.snapshot().unlocked)
+
+    // Partial record is CORRUPT, not a valid disabled preference.
+    fixture.raw.updateData {
+      mutablePreferencesOf(NativeLockDataStoreKeys.enabled to false)
+    }
+    assertEquals(LockResult.STORAGE_ERROR, coordinator.unlock())
+
+    fixture.raw.updateData {
+      mutablePreferencesOf(
+        NativeLockDataStoreKeys.version to LOCK_RECORD_VERSION,
+        NativeLockDataStoreKeys.enabled to true,
+        NativeLockDataStoreKeys.revision to 0L
+      )
+    }
+    assertFalse(coordinator.snapshot().unlocked)
+    assertEquals(LockResult.SUCCESS, coordinator.unlock())
+  }
+
   @Test fun healthyEnabledRecordCannotBeDisabledByEnableOnlyWriter() = runBlocking {
     val store = open().repository
     store.migrateLegacyLocked("enabled", null)
