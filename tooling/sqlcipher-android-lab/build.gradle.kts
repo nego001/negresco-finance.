@@ -9,6 +9,9 @@ android {
   defaultConfig {
     minSdk = 26
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    // Off by default: real-sensor QA requires explicit foreground user approval.
+    testInstrumentationRunnerArguments["negrescoBiometricManual"] =
+      (project.findProperty("negrescoBiometricManual")?.toString() ?: "false")
   }
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_17
