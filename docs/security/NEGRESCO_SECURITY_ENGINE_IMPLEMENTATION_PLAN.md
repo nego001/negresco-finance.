@@ -329,6 +329,54 @@ assinaturas **não é prova de autorização do titular** e não permite
 inserir um aparelho em `active` no aplicativo. O cadastro persistente
 deve ser separado, auditado e confirmado por uma autoridade autêntica.
 
+### Convite persistente de uso único para outro dispositivo (SEC-05, LAB)
+
+`SyntheticEnrollmentInviteDataStoreLab.kt` implementa um **ledger de um
+único convite por arquivo DataStore descartável**, com estados
+`PENDING`, `CONSUMED` e `CANCELLED`. O desafio de 32 bytes é
+produzido por `SecureRandom`, persistido junto às impressões digitais
+das duas chaves, revisão, época e sequência do aparelho que aprova.
+
+- **Emissão**: exige registro sintético consistente, estado mínimo de
+  confiança e as duas chaves públicas compatíveis; não aceita um convite
+  anterior no mesmo arquivo e não recria um convite cancelado ou consumido.
+- **Consumo**: numa única `DataStore.updateData`, compara o convite exato,
+  desafio previamente persistido e **ambas** as assinaturas Ed25519 em
+  domínios criptográficos separados; grava `CONSUMED` e apaga o nonce.
+  Tentativas simultâneas não podem consumir o mesmo convite duas vezes na
+  mesma instância DataStore.
+- **Cancelamento sintético**: numa transação, grava `CANCELLED` e apaga
+  o nonce. O estado terminal é mantido para recusar nova emissão no mesmo
+  arquivo; corrida entre consumo e cancelamento admite apenas um vencedor.
+- **Reabertura**: fechamento normal e nova abertura do mesmo DataStore
+  mantêm o marcador terminal. O registro **não modifica** a lista de
+  dispositivos ativos, não autentica o titular, não emite token, não acessa
+  SQLCipher e não concede autorização financeira.
+
+Há **18 cenários JVM** de emissão, assinatura trocada, adulteração,
+cancelamento, concorrência, corrupção, tombstone e reabertura, além de
+**um teste Android instrumentado adicional** com chaves de software
+Bouncy Castle e arquivos em `noBackupFilesDir` descartáveis, ampliando
+a suíte nativa para **16 casos**. Contagens e testes só podem ser
+chamados aprovados depois da execução correspondente no CI do HEAD.
+
+**Limites fundamentais:** `labRegistry`, `labFloor` e
+`labApprovedKey` vêm de fixtures injetadas, **não de uma autoridade
+confiável**. Um backup restaurado pode restaurar o arquivo antigo e sua
+pendência; cópias em outro arquivo/instalação não compartilham contador
+monotônico. Não há expiração, número global de tentativas, identidade
+autenticada da conta, confirmação da presença do proprietário, registro
+do candidato num backend nem consumo atômico do convite **junto ao
+cadastro real**. O cancelamento é um método de teste, não uma API que
+usuários não autenticados possam acionar.
+
+A etapa seguinte é um **serviço autenticado independente**, com chave
+de confiança pinada, convite com prazo e identificador global, registro
+único de nonce e sequências, autenticação forte do titular, aprovação
+e revogação verificáveis, transação atômica no backend e cerimônia de
+recuperação para perda de todos os aparelhos. Até existir esse serviço,
+**não ligar este ledger ao Expo nem tratar `CONSUMED` como `ENROLLED`**.
+
 ## Laboratório de auditoria, sem coleta de dados pessoais (SEC-08)
 
 `SecurityAuditEventLab` gera somente eventos estruturados com código,
