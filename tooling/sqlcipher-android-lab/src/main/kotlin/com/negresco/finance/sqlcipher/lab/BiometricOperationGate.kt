@@ -14,6 +14,7 @@ internal class BiometricOperationGate(private val expected: Cipher) {
   private var state = State.WAITING
 
   /** Called only from BiometricPrompt.onAuthenticationSucceeded. */
+  @Synchronized
   fun approve(returned: Cipher?, resumed: Boolean): Boolean {
     if (state != State.WAITING) return false
     if (!resumed || returned !== expected) {
@@ -25,6 +26,7 @@ internal class BiometricOperationGate(private val expected: Cipher) {
   }
 
   /** Called on cancellation, error, Activity.onStop or failed authorization. */
+  @Synchronized
   fun revoke() {
     state = State.CLOSED
   }
@@ -33,6 +35,7 @@ internal class BiometricOperationGate(private val expected: Cipher) {
    * The approved instance can be claimed only once while the Activity is
    * resumed. A second claim never returns an authorized Cipher.
    */
+  @Synchronized
   fun consume(resumed: Boolean): Cipher? {
     if (state != State.APPROVED || !resumed) {
       state = State.CLOSED
