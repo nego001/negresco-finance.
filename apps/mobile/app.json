@@ -3,12 +3,12 @@
     "name": "Negresco Finance",
     "slug": "negresco-finance",
     "scheme": "negresco",
-    "version": "3.1.2",
+    "version": "3.1.3",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "android": {
       "package": "com.negresco.finance",
-      "versionCode": 33,
+      "versionCode": 34,
       "allowBackup": false
     },
     "plugins": [
