@@ -83,12 +83,15 @@ internal class SyntheticDeviceChallengeDataStoreLab(
     val pendingCount = listOf(nonce, action, sequence).count { it != null }
     if (pendingCount != 0 && pendingCount != 3) throw InvalidSyntheticDeviceLedger()
     val pending = if (pendingCount == 3) {
-      if (!hexPattern.matches(nonce!!) || sequence!! <= last ||
-          sequence == Long.MAX_VALUE) throw InvalidSyntheticDeviceLedger()
-      val operation = ProtectedOperation.entries.find { it.name == action }
+      val value = nonce ?: throw InvalidSyntheticDeviceLedger()
+      val seq = sequence ?: throw InvalidSyntheticDeviceLedger()
+      val type = action ?: throw InvalidSyntheticDeviceLedger()
+      if (!hexPattern.matches(value) || seq <= last ||
+          seq == Long.MAX_VALUE) throw InvalidSyntheticDeviceLedger()
+      val operation = ProtectedOperation.entries.find { it.name == type }
         ?: throw InvalidSyntheticDeviceLedger()
-      val claim = PresentedDeviceOperation(id, revision, epoch, sequence, operation)
-      PendingSyntheticChallenge(claim, nonce.chunked(2).map { it.toInt(16).toByte() }.toByteArray())
+      val claim = PresentedDeviceOperation(id, revision, epoch, seq, operation)
+      PendingSyntheticChallenge(claim, value.chunked(2).map { it.toInt(16).toByte() }.toByteArray())
     } else null
     return SyntheticLedgerView(id, revision, epoch, last, pending)
   }
