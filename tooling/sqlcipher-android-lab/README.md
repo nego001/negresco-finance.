@@ -158,3 +158,16 @@ before any real finance data can be entrusted to the architecture.
 A suíte de Android instrumentado cresce de **15 para 17 cenários**, aguardando CI na nova revisão. Testes de formato não validam o conteúdo autenticado do GCM. **Ainda NÃO existem testes positivos reais de sensor/prompt**, cancelamento físico, mudança de biometria, retorno ao background e recuperação de chave numa segunda instalação/dispositivo. A integração com Expo, banco financeiro persistente, recuperação e assinatura Android também continuam pendentes. Não tratar compilação como aprovação de segurança bancária.
 
 O teste de 15/15 do PR #6 anterior passou no run [39355448172](https://github.com/nego001/negresco-finance./actions/runs/39355448172). A nova revisão requer confirmação independente no GitHub Actions; não reutilizar a conclusão daquele commit como se cobrisse o código novo.
+
+
+## Enrijecimento de autorização de uso único do CryptoObject
+
+Após confirmar **17/17 testes Android** no emulador do commit `38c0239` (GitHub Actions [39363287809](https://github.com/nego001/negresco-finance./actions/runs/39363287809)), foi criada uma camada de decisão determinística `BiometricOperationGate` para reforçar a autorização por `BiometricPrompt.CryptoObject`.
+
+Regras: um `Cipher` só é aceito se for a **mesma instância** usada na operação, após callback bem-sucedido com `Activity` em `RESUMED`; cancelamento, `onStop`, mudança de estado e objeto incompatível recusam acesso. Após uma chamada de `consume`, a autorização não pode ser reutilizada. `BiometricCipherAuthorizationLab` passou a consumir essa decisão além da autorização obrigatória de hardware via AndroidKeyStore.
+
+`BiometricOperationGateInstrumentedTest.kt` adiciona **oito cenários** isolados: ausência de callback, uso único, objeto trocado, objeto ausente, callback após background, perda de primeiro plano após aprovação, cancelamento antes de callback tardio e callback duplicado. Com isso, a suíte projetada passa de 17 para **25 cenários**. **Esta revisão necessita sua própria compilação e execução de emulador em CI antes de contar como aprovada.** Os oito novos testes usam Ciphers descartáveis sem sensor; comprovam somente a política local de callbacks, não autenticação humana, material criptográfico hardware-backed nem execução de AES-GCM autenticada.
+
+**Permanecem pendentes**: provisionamento/inscrição biométrica em emulador de teste apropriado, aceitação via prompt real, cancelamento/erro nativos, invalidação da chave após nova impressão digital, suspensão/retorno da Activity durante o prompt e testes físicos no Samsung A55, além de recuperação/migração, StrongBox quando compatível, auditoria e integração Expo/SQLCipher de produção.
+
+Estado da etapa: **laboratório somente com dados sintéticos, sem alterar o APK ou a main**.
