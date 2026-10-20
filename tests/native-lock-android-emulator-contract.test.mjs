@@ -41,5 +41,6 @@ test('thirteen native DataStore checks cover lock sessions and signed device cha
  assert.match(source,/absentPersistedRecordRevokesPreviouslyUnlockedSession/);
  assert.match(source,/malformedPersistedRecordRevokesPreviouslyUnlockedSession/);
  assert.match(source,/any real financial data|No record/i);
- assert.doesNotMatch(source,/fingerprint|biometricPrompt|AndroidKeyStore/);
+ // Public-key fingerprint is allowed; biometric enrollment and Keystore access are not.
+ assert.doesNotMatch(source,/biometricPrompt|AndroidKeyStore|BiometricPrompt\.CryptoObject/);
 });
