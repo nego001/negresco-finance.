@@ -7,7 +7,6 @@ import java.security.MessageDigest
 import java.security.PublicKey
 import java.security.Provider
 import java.security.Signature
-import java.security.interfaces.EdECPublicKey
 
 /**
  * SEC-05: verification of a fresh, externally signed anti-rollback witness.
@@ -45,9 +44,14 @@ internal object SyntheticSignedTrustFloorLab {
   private const val CHALLENGE_BYTES = 32
   private const val SIGNATURE_BYTES = 64
 
+  /**
+   * Reuse the STRICT RFC 8410 Ed25519 SPKI validation already exercised by
+   * signed-device proofs. Android Bouncy Castle key classes are not required
+   * to implement the JDK-only EdECPublicKey interface. EC/P-256 and malformed
+   * DER remain rejected despite any misleading algorithm or class label.
+   */
   private fun isEd25519(key: PublicKey): Boolean =
-    key is EdECPublicKey && key.params.name == "Ed25519" &&
-      key.format == "X.509" && key.encoded != null
+    SyntheticSignedDeviceProofLab.fingerprint(key) != null
 
   /**
    * Wire format independent of locale, JSON field order and JVM enum ordinal.
