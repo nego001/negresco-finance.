@@ -294,6 +294,41 @@ confiável, protocolo de nonce de uso único com expiração vinculada à
 conta e dispositivo, autenticação nativa Android/Keystore, prova de
 persistência anti-rollback fora do DataStore e auditoria independente.
 
+### Prova dupla para cadastro de novo dispositivo (SEC-05, LAB)
+
+`SyntheticDeviceEnrollmentProofLab.kt` modela o início de uma solicitação
+de cadastro de aparelho. São necessárias duas assinaturas **Ed25519 reais**
+sobre a mesma intenção de ingresso (chaves antigas e novas, `revision`,
+`epoch`, número de sequência e nonce de 32 bytes), com separação de
+domínios criptográficos por papel:
+
+- a chave pública de **um aparelho previamente aprovado**, cuja identidade
+  deve vir de um registro nativo autenticamente provisionado, assina a
+  aprovação da solicitação;
+- a **nova chave pública** também deve assinar uma prova de posse própria,
+  no domínio criptográfico de candidato;
+- o verificador rejeita cadastro do próprio dispositivo como novo,
+  aparelho candidato já ativo ou revogado, chave de aprovador desconhecida,
+  registro inválido, revisão antiga, floor ausente, nonce divergente,
+  contador repetido, algoritmo diferente ou qualquer assinatura incorreta.
+
+São **20 testes Kotlin/JVM** e dois contratos Node do protocolo, com
+uma matriz que confirma que nenhuma transição real do registro acontece.
+Resultado positivo é apenas
+`PROCEED_TO_INDEPENDENT_PERSISTENT_ENROLLMENT_PROTOCOL`. Nenhum
+dispositivo real é ativado, nenhuma autorização financeira é emitida.
+
+**Limites ainda críticos:** o dispositivo aprovador NÃO é autenticado
+por serviço nem por registro protegido neste laboratório; os testes
+fornecem uma chave e um snapshot fictícios. Não há autenticação forte
+do titular, vínculo à conta, expiração/desafio entregue por autoridade,
+consumo persistente e atômico desse convite, prova de hardware/Keystore,
+limite de tentativas, confirmação fora de banda, notificação ou revogação
+depois de perda do aparelho. Portanto, a verificação matemática das
+assinaturas **não é prova de autorização do titular** e não permite
+inserir um aparelho em `active` no aplicativo. O cadastro persistente
+deve ser separado, auditado e confirmado por uma autoridade autêntica.
+
 ## Laboratório de auditoria, sem coleta de dados pessoais (SEC-08)
 
 `SecurityAuditEventLab` gera somente eventos estruturados com código,
