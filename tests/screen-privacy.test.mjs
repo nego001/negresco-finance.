@@ -19,8 +19,8 @@ test('a single capture guard is mounted outside page content',()=>{
 test('capture protection requires a separate native runtime and is documented',()=>{
  const cfg=JSON.parse(read('apps/mobile/app.json')).expo;
  const packageJson=JSON.parse(read('apps/mobile/package.json'));
- assert.equal(cfg.version,'3.1.2');
- assert.equal(cfg.android.versionCode,33);
+ assert.equal(cfg.version,'3.1.3');
+ assert.equal(cfg.android.versionCode,34);
  assert.equal(packageJson.version,cfg.version);
  assert.equal(packageJson.dependencies['expo-screen-capture'],'~8.0.9');
  assert.match(read('docs/ANDROID_QA_V3.1.md'),/QA-35/);
