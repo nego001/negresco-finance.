@@ -163,5 +163,24 @@ internal fun runSignedDeviceProofScenarios() {
   check(SyntheticSignedDeviceProofLab.fingerprint(rsa.public) == null)
   check(!verify(publicKey = rsa.public))
 
-  println("PASS: 22 Ed25519 signed device proof scenarios (JVM only, no trusted enrollment)")
+  // 23. RFC 8410 SPKI must contain exactly Ed25519 OID, never Ed448/XDH.
+  fun syntheticPublicKey(spki: ByteArray): java.security.PublicKey =
+    object : java.security.PublicKey {
+      override fun getAlgorithm(): String = "Ed25519"
+      override fun getFormat(): String = "X.509"
+      override fun getEncoded(): ByteArray = spki.copyOf()
+    }
+  val spki = pair.public.encoded
+  val wrongOid = spki.copyOf().also { it[8] = (it[8].toInt() xor 1).toByte() }
+  check(SyntheticSignedDeviceProofLab.fingerprint(syntheticPublicKey(wrongOid)) == null)
+  check(SyntheticSignedDeviceProofLab.fingerprint(syntheticPublicKey(spki + byteArrayOf(0))) == null)
+
+  // 24. JCA interface/algorithm label is not the trust anchor. Only canonical
+  // 44-byte SPKI plus a REAL Ed25519 signature can satisfy a signed proof.
+  val portableSpki = syntheticPublicKey(spki)
+  check(SyntheticSignedDeviceProofLab.fingerprint(portableSpki) == id)
+  check(!SyntheticSignedDeviceProofLab.verify(op, portableSpki, challenge,
+    challenge, signature)) // the fake key object cannot act as a crypto provider
+
+  println("PASS: 24 Ed25519 signed device proof scenarios (JVM only, no trusted enrollment)")
 }
