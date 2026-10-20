@@ -24,6 +24,7 @@ test('signed challenges survive isolated emulator restarts and fail closed after
  assert.match(tests,/deviceChallengePersistsAndSingleUseSurvivesReopeningRealDataStore/);
  assert.match(tests,/racingValidSignedDeviceProofConsumesOneRealDataStoreTransaction/);
  assert.match(tests,/fakeSignatureDoesNotConsumeDeviceChallengeOnRealDataStore/);
+ assert.match(tests,/cancelledSignedChallengeStaysInvalidAcrossAndroidDataStoreReopen/);
  assert.match(tests,/targetContext.noBackupFilesDir/);
  assert.match(tests,/isolatedDirectory.deleteRecursively\(\)/);
 });
