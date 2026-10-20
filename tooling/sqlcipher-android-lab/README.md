@@ -146,3 +146,15 @@ not implement BiometricPrompt.CryptoObject, StrongBox attestation, KeyStore
 key invalidation, recovery, rotation or secure persistent envelope storage.
 It is not wired to the installed APK or user records. These are mandatory
 before any real finance data can be entrusted to the architecture.
+
+
+## Laboratório seguinte: autorização por CryptoObject
+
+**Código criado na branch do PR #6, ainda NÃO homologado:**
+- `BiometricCipherAuthorizationLab.kt`: chave AES-256-GCM de laboratório com criação explícita, autenticação `BIOMETRIC_STRONG` por operação (API 30+) e invalidação quando biometria cadastrada muda. Exige que o objeto `Cipher` retornado pelo `BiometricPrompt.CryptoObject` seja exatamente a instância original e que a `Activity` permaneça em `RESUMED`. Cancelamento ou `onStop` rejeitam o uso; nenhuma aprovação de UI isolada serve como autorização criptográfica.
+- `BiometricSqlCipherKeyEnvelopeLab.kt`: envelopamento DESACOPLADO da classe anterior, somente em memória e com senha **fictícia** de 32 bytes, versão/magic, IV de 12 bytes escolhido pelo provedor, AES-GCM autenticado (tag de 128 bits) e AAD de domínio. Recuperação nunca provisiona chave, não usa SQLite plaintext como fallback e apaga cópias temporárias nos caminhos controlados.
+- `BiometricEnvelopeNegativeInstrumentedTest.kt`: dois casos adicionais verificam recusa de comprimento/versão inválidos ANTES de pedir biometria e confirmam que checagens de formato não criam nem apagam alias Keystore.
+
+A suíte de Android instrumentado cresce de **15 para 17 cenários**, aguardando CI na nova revisão. Testes de formato não validam o conteúdo autenticado do GCM. **Ainda NÃO existem testes positivos reais de sensor/prompt**, cancelamento físico, mudança de biometria, retorno ao background e recuperação de chave numa segunda instalação/dispositivo. A integração com Expo, banco financeiro persistente, recuperação e assinatura Android também continuam pendentes. Não tratar compilação como aprovação de segurança bancária.
+
+O teste de 15/15 do PR #6 anterior passou no run [39355448172](https://github.com/nego001/negresco-finance./actions/runs/39355448172). A nova revisão requer confirmação independente no GitHub Actions; não reutilizar a conclusão daquele commit como se cobrisse o código novo.
