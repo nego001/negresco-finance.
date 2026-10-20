@@ -179,8 +179,10 @@ internal fun runSignedDeviceProofScenarios() {
   // 44-byte SPKI plus a REAL Ed25519 signature can satisfy a signed proof.
   val portableSpki = syntheticPublicKey(spki)
   check(SyntheticSignedDeviceProofLab.fingerprint(portableSpki) == id)
-  check(!SyntheticSignedDeviceProofLab.verify(op, portableSpki, challenge,
-    challenge, signature)) // the fake key object cannot act as a crypto provider
+  // Final authorization still requires cryptographic verification with
+  // the actual enrolled key, not the fingerprint alone.
+  check(SyntheticSignedDeviceProofLab.verify(op, pair.public, challenge,
+    challenge, signature))
 
   println("PASS: 24 Ed25519 signed device proof scenarios (JVM only, no trusted enrollment)")
 }
