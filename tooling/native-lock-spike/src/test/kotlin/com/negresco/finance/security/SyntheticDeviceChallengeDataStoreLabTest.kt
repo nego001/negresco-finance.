@@ -249,5 +249,82 @@ internal suspend fun runSyntheticDeviceLedgerScenarios() {
         .exceptionOrNull() is StaleSyntheticDeviceLedger)
     } finally { h.close() }
   }
-  println("PASS: 14 durable DataStore device challenge/replay lab scenarios (JVM, rollback anchor NOT implemented)")
+  // 15. An abandoned nonce can be cancelled transactionally, invalidating
+  // the old epoch and rejecting a once-valid signed claim.
+  withFile { file ->
+    val h = SyntheticLedgerHarness(file)
+    try {
+      h.ledger.seedForDisposableLab(id)
+      val old = h.ledger.issue(claim(), floor)
+      val signed = ledgerSign(pair, claim(), old.nonceCopy())
+      val cancelled = h.ledger.cancelPendingForDisposableLab(1L, 1L, floor)
+      check(cancelled.epoch == 2L && cancelled.revision == 2L)
+      check(cancelled.pending == null && cancelled.lastSequence == 0L)
+      check(runCatching {
+        h.ledger.consume(claim(), floor, pair.public, old.nonceCopy(), signed)
+      }.exceptionOrNull() is StaleSyntheticDeviceLedger)
+      val secondClaim = claim().copy(registryRevision = 2L, epoch = 2L)
+      val secondFloor = DeviceTrustFloor(2L, 2L)
+      val fresh = h.ledger.issue(secondClaim, secondFloor)
+      check(!old.nonceCopy().contentEquals(fresh.nonceCopy()))
+      check(h.ledger.consume(secondClaim, secondFloor, pair.public, fresh.nonceCopy(),
+        ledgerSign(pair, secondClaim, fresh.nonceCopy())).lastSequence == 1L)
+    } finally { h.close() }
+  }
+
+  // 16. Stale or duplicate cancellation cannot advance the revision twice.
+  withFile { file ->
+    val h = SyntheticLedgerHarness(file)
+    try {
+      h.ledger.seedForDisposableLab(id)
+      h.ledger.issue(claim(), floor)
+      h.ledger.cancelPendingForDisposableLab(1L, 1L, floor)
+      check(runCatching {
+        h.ledger.cancelPendingForDisposableLab(1L, 1L, floor)
+      }.exceptionOrNull() is StaleSyntheticDeviceLedger)
+      check(runCatching {
+        h.ledger.cancelPendingForDisposableLab(2L, 2L, DeviceTrustFloor(2L, 2L))
+      }.exceptionOrNull() is StaleSyntheticDeviceLedger)
+      check(h.ledger.read()!!.revision == 2L)
+    } finally { h.close() }
+  }
+
+  // 17. Trusted floor must exist and must not be older than the required
+  // minimum in the caller; no missing floor may invalidate a pending record.
+  withFile { file ->
+    val h = SyntheticLedgerHarness(file)
+    try {
+      h.ledger.seedForDisposableLab(id)
+      val issued = h.ledger.issue(claim(), floor)
+      check(runCatching {
+        h.ledger.cancelPendingForDisposableLab(1L, 1L, null)
+      }.exceptionOrNull() is StaleSyntheticDeviceLedger)
+      check(runCatching {
+        h.ledger.cancelPendingForDisposableLab(1L, 1L, DeviceTrustFloor(2L, 2L))
+      }.exceptionOrNull() is StaleSyntheticDeviceLedger)
+      check(h.ledger.read()!!.pending!!.nonceCopy().contentEquals(issued.nonceCopy()))
+    } finally { h.close() }
+  }
+
+  // 18. Cancellation survives closing/reopening physical DataStore bytes.
+  withFile { file ->
+    val first = SyntheticLedgerHarness(file)
+    val signed = try {
+      first.ledger.seedForDisposableLab(id)
+      val p = first.ledger.issue(claim(), floor)
+      first.ledger.cancelPendingForDisposableLab(1L, 1L, floor)
+      Pair(p.nonceCopy(), ledgerSign(pair, claim(), p.nonceCopy()))
+    } finally { first.close() }
+    val reopened = SyntheticLedgerHarness(file)
+    try {
+      val current = reopened.ledger.read()!!
+      check(current.epoch == 2L && current.revision == 2L)
+      check(current.pending == null)
+      check(runCatching {
+        reopened.ledger.consume(claim(), floor, pair.public, signed.first, signed.second)
+      }.exceptionOrNull() is StaleSyntheticDeviceLedger)
+    } finally { reopened.close() }
+  }
+
+  println("PASS: 18 durable DataStore device challenge/replay lab scenarios (JVM, rollback anchor NOT implemented)")
 }
