@@ -1,0 +1,370 @@
+package com.negresco.finance.sqlcipher.lab
+
+import android.content.Context
+import android.app.ActivityManager
+import android.net.Uri
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import java.io.File
+import java.io.RandomAccessFile
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+
+/**
+ * Android/JNI tests to run in a dedicated TEST APP sandbox with fictional data.
+ * Compiling them in GitHub Actions DOES NOT EXECUTE THEM.
+ *
+ * Requires an Android emulator or disposable test device, native .so and
+ * no installed user's financial database. Never run against production app.
+ */
+@RunWith(AndroidJUnit4::class)
+class SyntheticSqlCipherDatabaseInstrumentedTest {
+  private val context: Context
+    get() = InstrumentationRegistry.getInstrumentation().targetContext
+
+  private val syntheticFile: File
+    get() = File(context.noBackupFilesDir, "negresco_sqlcipher_synthetic_v1.db")
+
+  private val crashWitness: File
+    get() = File(context.noBackupFilesDir, SyntheticSqlCipherCrashProvider.WITNESS_FILE)
+
+  private val passphrase = ByteArray(32) { (it * 7 + 1).toByte() }
+  private val wrongPassphrase = ByteArray(32) { (it * 7 + 2).toByte() }
+  private var fixtureOwned = false
+
+  @Before
+  fun requireCleanFixture() {
+    // Stop rather than silently delete an earlier run's database.
+    assertFalse("Prior synthetic fixture requires explicit test-sandbox cleanup",
+      syntheticFile.exists())
+    assertFalse("Prior crash witness requires explicit test-sandbox cleanup",
+      crashWitness.exists())
+  }
+
+  @After
+  fun cleanOwnedFixtureOnly() {
+    if (fixtureOwned) {
+      syntheticFile.delete()
+      crashWitness.delete()
+      File(syntheticFile.path + "-journal").delete()
+      File(syntheticFile.path + "-wal").delete()
+      File(syntheticFile.path + "-shm").delete()
+    }
+  }
+
+  @Test
+  fun createsEncryptedDatabaseAndReopensWithCorrectPassphrase() {
+    fixtureOwned = true
+    SyntheticSqlCipherDatabase.createFreshSynthetic(context, passphrase).use { db ->
+      db.execSQL("INSERT INTO lab_probe(id, marker) VALUES (1, 'synthetic-marker')")
+    }
+    SyntheticSqlCipherDatabase.openExistingSynthetic(context, passphrase).use { db ->
+      db.rawQuery("SELECT marker FROM lab_probe WHERE id = 1", null).use { cursor ->
+        assertTrue(cursor.moveToFirst())
+        assertEquals("synthetic-marker", cursor.getString(0))
+      }
+    }
+    val header = syntheticFile.inputStream().use { input ->
+      ByteArray(16).also { java.io.DataInputStream(input).readFully(it) }
+    }
+    assertFalse(header.contentEquals("SQLite format 3\u0000".toByteArray(Charsets.US_ASCII)))
+  }
+
+  @Test
+  fun rejectsWrongPassphraseWithoutAlteringExistingDatabase() {
+    fixtureOwned = true
+    SyntheticSqlCipherDatabase.createFreshSynthetic(context, passphrase).close()
+    val before = syntheticFile.length()
+    val result = runCatching {
+      SyntheticSqlCipherDatabase.openExistingSynthetic(context, wrongPassphrase).close()
+    }
+    assertTrue(result.exceptionOrNull() is SyntheticSqlCipherDatabase.Unavailable)
+    assertTrue(syntheticFile.exists())
+    assertEquals(before, syntheticFile.length())
+    SyntheticSqlCipherDatabase.openExistingSynthetic(context, passphrase).close()
+  }
+
+  @Test
+  fun refusesKnownPlaintextSQLiteBeforeNativeOpen() {
+    fixtureOwned = true
+    syntheticFile.outputStream().use { out ->
+      out.write("SQLite format 3\u0000".toByteArray(Charsets.US_ASCII))
+      out.write(ByteArray(128))
+    }
+    val result = runCatching {
+      SyntheticSqlCipherDatabase.openExistingSynthetic(context, passphrase).close()
+    }
+    assertTrue(result.exceptionOrNull() is SyntheticSqlCipherDatabase.Unavailable)
+  }
+
+  @Test
+  fun absentFileDoesNotImplicitlyCreateDatabase() {
+    val result = runCatching {
+      SyntheticSqlCipherDatabase.openExistingSynthetic(context, passphrase).close()
+    }
+    assertTrue(result.exceptionOrNull() is SyntheticSqlCipherDatabase.Unavailable)
+    assertFalse(syntheticFile.exists())
+  }
+
+  @Test
+  fun refusesDuplicateCreateWithoutOverwritingExistingFile() {
+    fixtureOwned = true
+    SyntheticSqlCipherDatabase.createFreshSynthetic(context, passphrase).close()
+    val before = syntheticFile.readBytes()
+    val second = runCatching {
+      SyntheticSqlCipherDatabase.createFreshSynthetic(context, passphrase).close()
+    }
+    assertTrue(second.exceptionOrNull() is SyntheticSqlCipherDatabase.Unavailable)
+    assertTrue(syntheticFile.readBytes().contentEquals(before))
+  }
+
+  @Test
+  fun rejectsTruncatedPreExistingFile() {
+    fixtureOwned = true
+    syntheticFile.writeBytes(byteArrayOf(1, 2, 3))
+    val result = runCatching {
+      SyntheticSqlCipherDatabase.openExistingSynthetic(context, passphrase).close()
+    }
+    assertTrue(result.exceptionOrNull() is SyntheticSqlCipherDatabase.Unavailable)
+  }
+
+  @Test
+  fun nativeCipherIntegrityCheckReportsHealthyPages() {
+    fixtureOwned = true
+    SyntheticSqlCipherDatabase.createFreshSynthetic(context, passphrase).use { db ->
+      db.execSQL("INSERT INTO lab_probe(id, marker) VALUES (1, 'integrity-fixture')")
+      // SQLCipher emits one row PER HMAC/page error. Healthy pages emit ZERO
+      // rows, unlike SQLite's logical PRAGMA integrity_check ("ok").
+      db.rawQuery("PRAGMA cipher_integrity_check", null).use { cursor ->
+        assertFalse("SQLCipher reported page/HMAC corruption", cursor.moveToFirst())
+      }
+      db.rawQuery("PRAGMA integrity_check", null).use { cursor ->
+        assertTrue("Missing SQLite logical integrity result", cursor.moveToFirst())
+        assertEquals("ok", cursor.getString(0))
+        assertFalse("Unexpected additional SQLite integrity errors", cursor.moveToNext())
+      }
+    }
+  }
+
+  @Test
+  fun rolledBackTransactionDoesNotReappearAfterKeyedReopen() {
+    fixtureOwned = true
+    SyntheticSqlCipherDatabase.createFreshSynthetic(context, passphrase).use { db ->
+      db.beginTransaction()
+      try {
+        db.execSQL("INSERT INTO lab_probe(id, marker) VALUES (1, 'never-commit')")
+        // Deliberately do NOT mark transaction successful.
+      } finally {
+        db.endTransaction()
+      }
+    }
+    SyntheticSqlCipherDatabase.openExistingSynthetic(context, passphrase).use { reopened ->
+      reopened.rawQuery("SELECT count(*) FROM lab_probe", null).use { cursor ->
+        assertTrue(cursor.moveToFirst())
+        assertEquals(0L, cursor.getLong(0))
+      }
+    }
+  }
+
+  @Test
+  fun tamperedEncryptedPageFailsClosedWithoutSilentRecreation() {
+    fixtureOwned = true
+    SyntheticSqlCipherDatabase.createFreshSynthetic(context, passphrase).use { db ->
+      db.execSQL("INSERT INTO lab_probe(id, marker) VALUES (1, 'tamper-fixture')")
+    }
+    assertTrue("Encrypted fixture unexpectedly small", syntheticFile.length() > 512L)
+
+    // Deliberately corrupt encrypted page content, never a real user file.
+    // Offset 256 lies beyond the SQLCipher file salt in page one.
+    RandomAccessFile(syntheticFile, "rw").use { io ->
+      io.seek(256L)
+      val original = io.readUnsignedByte()
+      io.seek(256L)
+      io.writeByte(original xor 0x01)
+    }
+    val corruptedBytes = syntheticFile.readBytes()
+    val result = runCatching {
+      SyntheticSqlCipherDatabase.openExistingSynthetic(context, passphrase).close()
+    }
+    assertTrue("Damaged encrypted page must not pass keyed open",
+      result.exceptionOrNull() is SyntheticSqlCipherDatabase.Unavailable)
+    assertTrue("A failed read must not recreate or rewrite the damaged DB",
+      syntheticFile.readBytes().contentEquals(corruptedBytes))
+    assertTrue("Corrupted database must remain in place for manual inspection",
+      syntheticFile.exists())
+  }
+
+  @Test
+  fun abortedWalTransactionDoesNotLoseEarlierCommittedRecord() {
+    fixtureOwned = true
+    SyntheticSqlCipherDatabase.createFreshSynthetic(context, passphrase).use { db ->
+      db.rawQuery("PRAGMA journal_mode=WAL", null).use { cursor ->
+        assertTrue(cursor.moveToFirst())
+        assertEquals("wal", cursor.getString(0))
+      }
+      db.execSQL("INSERT INTO lab_probe(id, marker) VALUES (1, 'durable')")
+      db.beginTransaction()
+      try {
+        db.execSQL("INSERT INTO lab_probe(id, marker) VALUES (2, 'must-rollback')")
+        // Simulate a normally aborted transaction; NOT sudden power loss.
+      } finally {
+        db.endTransaction()
+      }
+    }
+    SyntheticSqlCipherDatabase.openExistingSynthetic(context, passphrase).use { reopened ->
+      reopened.rawQuery("SELECT id, marker FROM lab_probe ORDER BY id", null).use { cursor ->
+        assertTrue(cursor.moveToFirst())
+        assertEquals(1L, cursor.getLong(0))
+        assertEquals("durable", cursor.getString(1))
+        assertFalse("Aborted WAL row was incorrectly persisted", cursor.moveToNext())
+      }
+    }
+  }
+
+  @Test
+  fun committedWalTransactionSurvivesKeyedReopen() {
+    fixtureOwned = true
+    SyntheticSqlCipherDatabase.createFreshSynthetic(context, passphrase).use { db ->
+      db.rawQuery("PRAGMA journal_mode=WAL", null).use { cursor ->
+        assertTrue(cursor.moveToFirst())
+        assertEquals("wal", cursor.getString(0))
+      }
+      db.beginTransaction()
+      try {
+        db.execSQL("INSERT INTO lab_probe(id, marker) VALUES (1, 'committed-WAL-fixture')")
+        db.setTransactionSuccessful()
+      } finally {
+        db.endTransaction()
+      }
+    }
+    SyntheticSqlCipherDatabase.openExistingSynthetic(context, passphrase).use { reopened ->
+      reopened.rawQuery("SELECT marker FROM lab_probe WHERE id = 1", null).use { cursor ->
+        assertTrue(cursor.moveToFirst())
+        assertEquals("committed-WAL-fixture", cursor.getString(0))
+        assertFalse(cursor.moveToNext())
+      }
+    }
+  }
+
+  @Test
+  fun killedRemoteProcessDuringUncommittedWalPreservesCommittedRecord() {
+    fixtureOwned = true
+    SyntheticSqlCipherDatabase.createFreshSynthetic(context, passphrase).use { db ->
+      db.rawQuery("PRAGMA journal_mode=WAL", null).use { cursor ->
+        assertTrue(cursor.moveToFirst())
+        assertEquals("wal", cursor.getString(0))
+      }
+      db.execSQL("INSERT INTO lab_probe(id, marker) VALUES (1, 'committed-before-crash')")
+    }
+
+    // IPC returns BEFORE the private provider crashes, so the instrumentation
+    // process is not killed together with an in-flight provider Binder call.
+    val result = context.contentResolver.call(
+      Uri.parse("content://${SyntheticSqlCipherCrashProvider.AUTHORITY}"),
+      SyntheticSqlCipherCrashProvider.METHOD, null, null
+    )
+    assertTrue("Remote provider failed to accept crash fixture", result != null)
+    var reached = false
+    repeat(50) {
+      reached = crashWitness.isFile &&
+        crashWitness.readText(Charsets.US_ASCII) == "pending-transaction-reached"
+      if (!reached) Thread.sleep(100L)
+    }
+    assertTrue("Remote subprocess never wrote the uncommitted transaction witness", reached)
+
+    // Confirm no remote crash helper remains running before re-opening the DB.
+    val manager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+    var stillRunning = true
+    repeat(50) {
+      stillRunning = manager.runningAppProcesses?.any {
+        it.processName.endsWith(":sqlcipher_crash_test")
+      } == true
+      if (stillRunning) Thread.sleep(100L)
+    }
+    assertFalse("Remote helper process survived its intentional kill", stillRunning)
+
+    // Native SQLCipher must recover any hot WAL on a NEW keyed connection.
+    // A genuinely uncommitted row must be absent, with earlier data intact.
+    SyntheticSqlCipherDatabase.openExistingSynthetic(context, passphrase).use { reopened ->
+      reopened.rawQuery("SELECT id, marker FROM lab_probe ORDER BY id", null).use { cursor ->
+        assertTrue(cursor.moveToFirst())
+        assertEquals(1L, cursor.getLong(0))
+        assertEquals("committed-before-crash", cursor.getString(1))
+        assertFalse("Killed transaction must not become durable", cursor.moveToNext())
+      }
+    }
+  }
+
+  @Test
+  fun keystoreWrapRestoresSyntheticSqlCipherPassphraseWithoutPlaintextFallback() {
+    fixtureOwned = true
+    // Explicit, lab-only key provision. Never called from actual mobile app.
+    SyntheticSqlCipherKeyWrap.provisionForSyntheticLabOnly()
+    val wrapped = SyntheticSqlCipherKeyWrap.wrapSyntheticPassphrase(passphrase)
+    assertFalse("Wrapped envelope must not equal the raw database passphrase",
+      wrapped.contentEquals(passphrase))
+    val recovered = SyntheticSqlCipherKeyWrap.unwrapSyntheticPassphrase(wrapped)
+    try {
+      assertTrue(recovered.contentEquals(passphrase))
+      SyntheticSqlCipherDatabase.createFreshSynthetic(context, recovered).use { db ->
+        db.execSQL("INSERT INTO lab_probe(id, marker) VALUES (1, 'key-wrap-fixture')")
+      }
+    } finally {
+      recovered.fill(0)
+    }
+    val reopened = SyntheticSqlCipherKeyWrap.unwrapSyntheticPassphrase(wrapped)
+    try {
+      SyntheticSqlCipherDatabase.openExistingSynthetic(context, reopened).use { db ->
+        db.rawQuery("SELECT marker FROM lab_probe WHERE id = 1", null).use { cursor ->
+          assertTrue(cursor.moveToFirst())
+          assertEquals("key-wrap-fixture", cursor.getString(0))
+        }
+      }
+    } finally {
+      reopened.fill(0)
+    }
+  }
+
+  @Test
+  fun tamperedKeystoreEnvelopeNeverReleasesSyntheticSqlCipherPassphrase() {
+    SyntheticSqlCipherKeyWrap.provisionForSyntheticLabOnly()
+    val wrapped = SyntheticSqlCipherKeyWrap.wrapSyntheticPassphrase(passphrase)
+    val tampered = wrapped.copyOf()
+    tampered[tampered.lastIndex] = (tampered.last().toInt() xor 1).toByte()
+    assertTrue(runCatching {
+      SyntheticSqlCipherKeyWrap.unwrapSyntheticPassphrase(tampered)
+    }.exceptionOrNull() is SyntheticSqlCipherKeyWrap.Unavailable)
+    assertTrue(runCatching {
+      SyntheticSqlCipherKeyWrap.unwrapSyntheticPassphrase(wrapped.copyOf(wrapped.size - 1))
+    }.exceptionOrNull() is SyntheticSqlCipherKeyWrap.Unavailable)
+    val badVersion = wrapped.copyOf().also { it[4] = 2 }
+    assertTrue(runCatching {
+      SyntheticSqlCipherKeyWrap.unwrapSyntheticPassphrase(badVersion)
+    }.exceptionOrNull() is SyntheticSqlCipherKeyWrap.Unavailable)
+  }
+
+  @Test
+  fun encryptedWalDoesNotRevealSyntheticMarkerAsPlaintext() {
+    fixtureOwned = true
+    val marker = "this-is-not-a-financial-record-WAL-sentinel-928"
+    SyntheticSqlCipherDatabase.createFreshSynthetic(context, passphrase).use { db ->
+      db.rawQuery("PRAGMA journal_mode=WAL", null).use { cursor ->
+        assertTrue(cursor.moveToFirst())
+        assertEquals("wal", cursor.getString(0))
+      }
+      db.execSQL("INSERT INTO lab_probe(id, marker) VALUES (1, '$marker')")
+      val wal = File(syntheticFile.path + "-wal")
+      assertTrue("WAL was not created during synthetic write", wal.isFile)
+      assertFalse("Plaintext marker found in WAL bytes",
+        wal.readBytes().toString(Charsets.ISO_8859_1).contains(marker))
+      assertFalse("Plaintext marker found in main DB bytes",
+        syntheticFile.readBytes().toString(Charsets.ISO_8859_1).contains(marker))
+    }
+  }
+}
+

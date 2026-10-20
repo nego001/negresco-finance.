@@ -86,3 +86,34 @@ mecanismo de chaves seguro, recuperação e testes no Samsung.
 A prioridade segue: estabilizar V3.1, homologar Samsung,
 concluir gestão de chaves/recovery e compilar/testar SQLCipher nativo,
 depois construir módulos financeiros e integrações reais.
+
+## SQLCipher Community Android: laboratório isolado (outubro/2026)
+
+O módulo `tooling/sqlcipher-android-lab` usa o **artefato atual** da Zetetic
+`net.zetetic:sqlcipher-android:4.19.1` e
+`androidx.sqlite:sqlite:2.7.0`. A biblioteca anterior
+`android-database-sqlcipher` está descontinuada.
+Este módulo Gradle separado **não** é dependência de `apps/mobile`.
+
+`SyntheticSqlCipherDatabase` implementa criação explícita, exclusiva, de um
+arquivo descartável dentro de `noBackupFilesDir` e abertura de arquivo
+existente sem `CREATE_IF_NECESSARY`. Verifica cabeçalho SQLite plaintext,
+carrega `sqlcipher` nativamente, exige `PRAGMA cipher_version` e faz leitura
+com chave de `sqlite_master`; jamais tenta usar `android.database.sqlite`
+como fallback. A senha descartável do laboratório é separada das chaves
+AES-GCM/HMAC dos outros experimentos.
+
+Doze testes JVM cobrem apenas decisões pré-abertura. Seis testes Android
+instrumentados exercitam o arquivo real, chave certa/errada, plaintext,
+truncamento, não sobrescrita e abertura explícita. **Escrever/compilar os
+testes não significa executá-los em aparelho**. Ainda faltam execução em
+emulador e Samsung, processo morto em transação, WAL, integridade de página,
+16-KiB, ABIs, hash de dependências, SBOM, licenças, chaves hardware-backed,
+backup e auditoria independente. Os critérios de aceite anteriores **não
+mudaram para aprovados**.
+
+Documentação oficial:
+- https://www.zetetic.net/sqlcipher/sqlcipher-for-android-community/
+- https://www.zetetic.net/sqlcipher/sqlcipher-for-android-migration/
+
+Ver `tooling/sqlcipher-android-lab/README.md`.

@@ -32,6 +32,22 @@ Os prompts biométricos nativos podem produzir um estado Android `inactive` tran
 
 O diagnóstico SecureStore também descarta seu resultado visual se o usuário sair dos Ajustes ou colocar o app em segundo plano. A limpeza do marcador fictício continua sendo tratada pelo diagnóstico, mesmo quando seu resultado não pode mais ser exibido. O teste não cria autorização para usar chaves reais.
 
+## Desativação biométrica interrompida (prévia)
+
+Para reduzir o risco de desligamento inesperado após uma interrupção, o opt-out usa agora **dois registros persistentes** no AsyncStorage:
+
+1. Primeiro grava o diário de operação `negresco.local_lock.optout.v1=pending`. Se existir, o início do app permanece bloqueado, **mesmo** com a preferência principal em `disabled`.
+2. Depois escreve `disable-pending` e `disabled` na preferência principal. Interrupções ainda conservam o diário, então o aplicativo volta bloqueado.
+3. Somente após revalidar a sessão tenta excluir o diário. A ausência dele permite respeitar a preferência `disabled`. Se a exclusão falhar ou a sessão for revogada, o app tenta recriar o diário e restaurar `enabled`.
+
+Leituras de armazenamento e alterações simultâneas de preferência são isoladas. O diário é uma **mitigação de consistência**, não uma chave criptográfica ou confirmação de autenticação. Não se devem apagar manualmente as preferências do app.
+
+**Risco residual:** AsyncStorage não garante transação atômica entre esses registros. Se o processo morrer **durante a exclusão final do diário** ou a perda de foco ocorrer no intervalo entre a validação e o término da exclusão, o marcador `disabled` ainda pode persistir sem o diário. A correção definitiva exige um serviço Android nativo que serialize autenticação, ciclo de vida e commit transacional. Este APK não o possui e não está homologado para dados financeiros reais.
+
+O próximo passo de engenharia está especificado no [contrato de persistência nativa](security/NATIVE_LOCK_PERSISTENCE_V1.md): criar um único estado transacional no Android, serializar autenticação e ciclo de vida e migrar registros sem perda de dados. **Nenhum módulo nativo desse contrato foi instalado ou ativado.**
+
+Uma leitura de preferência interrompida durante background agora é repetida quando o Android retorna a `active`, para evitar a tela de inicialização presa em carregamento. Esta correção tem teste de regressão, mas ainda exige QA físico.
+
 ## Homologação no Samsung
 
 Usar apenas dados fictícios: verificar primeira abertura sem bloqueio, ativação mediante digital forte, reinício bloqueado, cancelamento, impressão errada, envio para segundo plano, retorno, bloqueio manual e desativação autenticada. Testar aparelho sem impressão cadastrada e reconhecer mensagem clara, sem abrir indevidamente após tentativas falhas.
