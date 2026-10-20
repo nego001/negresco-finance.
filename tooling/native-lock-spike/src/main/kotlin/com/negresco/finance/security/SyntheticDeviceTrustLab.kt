@@ -67,10 +67,10 @@ internal data class PresentedDeviceOperation(
  * signed, operation-bound device assertion". It is NOT an unlock.
  */
 internal object SyntheticDeviceTrustPolicy {
-  private fun wellFormed(snapshot: DeviceTrustSnapshot): Boolean =
-    snapshot.revision >= 0L && snapshot.epoch >= 0L &&
+  internal fun wellFormed(snapshot: DeviceTrustSnapshot): Boolean =
+    snapshot.revision >= 1L && snapshot.epoch >= 1L &&
       snapshot.epoch <= snapshot.revision &&
-      snapshot.active.isNotEmpty() &&
+      (snapshot.active.isNotEmpty() || snapshot.revoked.isNotEmpty()) &&
       snapshot.active.intersect(snapshot.revoked).isEmpty() &&
       snapshot.lastSequence.keys.all { it in snapshot.active } &&
       snapshot.lastSequence.values.all { it >= 0L }
@@ -94,7 +94,7 @@ internal object SyntheticDeviceTrustPolicy {
       return DeviceTrustGate.DENY_STALE_REGISTRY_REVISION
     }
     val last = snapshot.lastSequence[claim.fingerprint] ?: 0L
-    if (claim.sequence <= 0L || claim.sequence <= last) {
+    if (claim.sequence <= 0L || claim.sequence == Long.MAX_VALUE || claim.sequence <= last) {
       return DeviceTrustGate.DENY_REPLAY_OR_INVALID_SEQUENCE
     }
     return DeviceTrustGate.PROCEED_TO_INDEPENDENT_NATIVE_VERIFICATION
@@ -163,6 +163,9 @@ internal class SyntheticDeviceTrustCoordinator(initial: DeviceTrustSnapshot) {
     if (!proofVerified) return DeviceTrustGate.DENY_EXTERNAL_PROOF_MISSING
     while (true) {
       val current = state.get()
+      if (!SyntheticDeviceTrustPolicy.wellFormed(current)) {
+        return DeviceTrustGate.DENY_MALFORMED_STATE
+      }
       if (floor == null || floor.minRevision < 0L || floor.minEpoch < 0L ||
           current.revision < floor.minRevision || current.epoch < floor.minEpoch) {
         return DeviceTrustGate.DENY_UNTRUSTED_ANCHOR
