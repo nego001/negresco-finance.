@@ -216,10 +216,14 @@ internal class SuspendingNativeLockCoordinator(
     if (!before.enabled || before.disablePending) return@withLock revokeOnUnsafeRead(LockResult.DENIED)
 
     val authenticated = try { biometric.authenticate(LockAction.UNLOCK) }
-      catch (cancelled: CancellationException) { throw cancelled }
+      catch (cancelled: CancellationException) {
+        lockNow()
+        throw cancelled
+      }
       catch (_: Exception) { false }
-    if (!authenticated) return@withLock LockResult.DENIED
-    if (!stillValid(ticket)) return@withLock LockResult.STALE
+    // A cancelled/rejected re-authentication invalidates an earlier grant too.
+    if (!authenticated) return@withLock revokeOnUnsafeRead(LockResult.DENIED)
+    if (!stillValid(ticket)) return@withLock revokeOnUnsafeRead(LockResult.STALE)
 
     val after = try { repository.read() } catch (cancelled: CancellationException) { throw cancelled }
       catch (_: Exception) {
@@ -276,10 +280,14 @@ internal class SuspendingNativeLockCoordinator(
     if (!before.enabled || before.disablePending) return@withLock LockResult.DENIED
 
     val authenticated = try { biometric.authenticate(LockAction.DISABLE) }
-      catch (cancelled: CancellationException) { throw cancelled }
+      catch (cancelled: CancellationException) {
+        lockNow()
+        throw cancelled
+      }
       catch (_: Exception) { false }
-    if (!authenticated) return@withLock LockResult.DENIED
-    if (!stillValid(ticket)) return@withLock LockResult.STALE
+    // Failed opt-out attempts cannot retain an older unlocked session.
+    if (!authenticated) return@withLock revokeOnUnsafeRead(LockResult.DENIED)
+    if (!stillValid(ticket)) return@withLock revokeOnUnsafeRead(LockResult.STALE)
 
     val prepared = try { repository.prepareDisable(before.revision) }
       catch (_: StaleNativeLockRevision) { return@withLock LockResult.STALE }
