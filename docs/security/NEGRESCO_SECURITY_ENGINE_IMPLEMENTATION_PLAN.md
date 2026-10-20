@@ -184,6 +184,30 @@ Keystore ou token de autorização final. Nenhuma migração real ou integraçã
 Expo foi realizada. O teste de reinicialização fecha e reabre o DataStore,
 mas não simula um reset completo do sistema ou restauração de backup antigo.
 
+### Gate Android: provedor de assinatura e algoritmo real
+
+No emulador Android API 35, o gerador `AndroidKeyStore` acionado por
+`KeyPairGenerator("Ed25519")` sem `KeyGenParameterSpec` falhou como
+`Not initialized`. Com inicialização explícita do alias, o emulador devolveu
+uma chave pública **EC com SPKI DER de 91 bytes**, incompatível com Ed25519.
+A política **recusou** esse material: não é permitido renomeá-lo, aceitar
+algoritmos de curva distintos ou anunciar Ed25519 hardware-backed sem prova.
+
+A partir desta revisão, **apenas os testes instrumentados Android de desafios
+Ed25519** usam o provedor criptográfico Bouncy Castle `bcprov-jdk18on:1.86`,
+declarado **exclusivamente em `androidTestImplementation`**. As chaves de
+teste são criadas em memória, sem hardware Keystore, sem cadastro e sem
+matrícula biométrica. A verificação normal do `SyntheticSignedDeviceProofLab`
+continua exigindo um SPKI RFC 8410 canônico de 44 bytes e uma assinatura
+Ed25519 real, nunca um teste baseado só no rótulo da API.
+
+**Nenhuma conclusão de proteção por hardware** pode ser tirada dos 14 testes
+de DataStore e desafios assinados. Um módulo futuro separado deve demonstrar
+material de chave não exportável, atestado quando disponível, algoritmo
+realmente suportado no hardware (possivelmente ECDSA P-256 com domínio
+específico, distinto de Ed25519) e integração com ciclo de vida e biometria
+forte. O SEC-05 permanece LAB até lá.
+
 ## Laboratório de auditoria, sem coleta de dados pessoais (SEC-08)
 
 `SecurityAuditEventLab` gera somente eventos estruturados com código,
