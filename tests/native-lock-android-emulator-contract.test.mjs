@@ -33,6 +33,6 @@ test('native lock Android tests operate only on disposable no-backup fixtures',(
 test('six native DataStore verification cases are present and not marked as biometric proof',()=>{
  const source=read('tooling/native-lock-android-lab/src/androidTest/kotlin/com/negresco/finance/security/NativeLockDataStoreInstrumentedTest.kt');
  assert.equal((source.match(/@Test fun /g)||[]).length,6);
- assert.match(source,/No record|no real financial data/i);
+ assert.match(source,/any real financial data|No record/i);
  assert.doesNotMatch(source,/fingerprint|biometricPrompt|AndroidKeyStore/);
 });
