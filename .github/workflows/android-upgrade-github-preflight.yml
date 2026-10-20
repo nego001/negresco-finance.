@@ -176,7 +176,7 @@ jobs:
           emulator-boot-timeout: 600
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
           script: |
-            set -euo pipefail
+            set -eu
             OLD=previous/Negresco-Finance-V3.1-candidate.apk
             NEW="$(find candidate -type f -name '*.apk' -print -quit)"
             adb install "$OLD"
