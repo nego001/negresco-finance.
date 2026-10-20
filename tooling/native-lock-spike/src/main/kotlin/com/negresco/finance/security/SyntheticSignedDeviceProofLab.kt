@@ -5,6 +5,7 @@ import java.io.DataOutputStream
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.security.PublicKey
+import java.security.Provider
 import java.security.Signature
 
 /**
@@ -107,7 +108,10 @@ internal object SyntheticSignedDeviceProofLab {
     enrolledPublicKey: PublicKey?,
     independentlyIssuedNonce: ByteArray?,
     presentedNonce: ByteArray?,
-    signature: ByteArray?
+    signature: ByteArray?,
+    // JVM/Android test-only provider injection for portable Ed25519 fixtures.
+    // NEVER expose provider selection to JS or an untrusted operation.
+    labVerifierProvider: Provider? = null
   ): Boolean {
     if (enrolledPublicKey == null || canonicalEd25519Spki(enrolledPublicKey) == null ||
       independentlyIssuedNonce == null || independentlyIssuedNonce.size != NONCE_LENGTH ||
@@ -117,7 +121,9 @@ internal object SyntheticSignedDeviceProofLab {
     return try {
       if (fingerprint(enrolledPublicKey) != claim.fingerprint) return false
       val payload = canonicalPayload(claim, presentedNonce.copyOf())
-      val verifier = Signature.getInstance("Ed25519")
+      val verifier = if (labVerifierProvider == null)
+        Signature.getInstance("Ed25519")
+      else Signature.getInstance("Ed25519", labVerifierProvider)
       verifier.initVerify(enrolledPublicKey)
       verifier.update(payload)
       verifier.verify(signature.copyOf())
