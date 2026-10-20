@@ -30,9 +30,10 @@ test('P0 build produces a standalone APK artifact',()=>{
  assert.match(workflow,/upload-artifact@v4/);
 });
 
-test('V3.1 uses a separate OTA runtime from builds with older native modules',()=>{
+test('3.1.3 preview uses a separate OTA runtime from older native builds',()=>{
  assert.equal(config.version,'3.1.3');
  assert.equal(mobile.version,config.version);
+ assert.ok(!Object.keys(mobile.dependencies).some(name=>name.toLowerCase().includes('sqlcipher')), 'SQLCipher lab must not be bundled into the Expo preview');
  assert.equal(config.android.versionCode,34);
  assert.equal(config.android.allowBackup,false,'Android Auto Backup must remain disabled for sensitive prototype data');
  assert.ok(mobile.dependencies['expo-local-authentication'],'native biometric module must be bundled');
