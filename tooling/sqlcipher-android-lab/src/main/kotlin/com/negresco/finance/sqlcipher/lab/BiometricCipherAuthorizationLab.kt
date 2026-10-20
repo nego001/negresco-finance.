@@ -75,6 +75,7 @@ internal object BiometricCipherAuthorizationLab {
           BiometricManager.Authenticators.BIOMETRIC_STRONG
         ) != BiometricManager.BIOMETRIC_SUCCESS) throw Unavailable()
 
+      val gate = BiometricOperationGate(cipher)
       val result = suspendCancellableCoroutine<Cipher?> { continuation ->
         var prompt: BiometricPrompt? = null
         var finished = false
@@ -89,17 +90,21 @@ internal object BiometricCipherAuthorizationLab {
 
         observer = object : DefaultLifecycleObserver {
           override fun onStop(owner: LifecycleOwner) {
+            gate.revoke()
             prompt?.cancelAuthentication()
             complete(null)
           }
         }
         val callback = object : BiometricPrompt.AuthenticationCallback() {
           override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-            val sameCipher = result.cryptoObject?.cipher === cipher
-            val active = activity.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
-            complete(if (sameCipher && active) cipher else null)
+            val accepted = gate.approve(
+              result.cryptoObject?.cipher,
+              activity.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+            )
+            complete(if (accepted) cipher else null)
           }
           override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+            gate.revoke()
             complete(null)
           }
           // A failed scan is not a successful authorization.
@@ -115,6 +120,7 @@ internal object BiometricCipherAuthorizationLab {
 
         activity.lifecycle.addObserver(observer)
         continuation.invokeOnCancellation {
+          gate.revoke()
           activity.runOnUiThread {
             activity.lifecycle.removeObserver(observer)
             prompt?.cancelAuthentication()
@@ -124,11 +130,13 @@ internal object BiometricCipherAuthorizationLab {
           prompt = BiometricPrompt(activity, ContextCompat.getMainExecutor(activity), callback)
           prompt?.authenticate(info, BiometricPrompt.CryptoObject(cipher))
         } catch (_: RuntimeException) {
+          gate.revoke()
           complete(null)
         }
       }
-      if (result !== cipher ||
-        !activity.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) throw Unavailable()
+      if (result !== cipher || gate.consume(
+          activity.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+        ) !== cipher) throw Unavailable()
       cipher
     }
 }
