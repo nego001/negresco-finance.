@@ -305,6 +305,11 @@ test('SQLCipher emulator CI is isolated, pinned and includes real JNI instrument
  assert.match(testSource,/nativeCipherIntegrityCheckReportsHealthyPages/);
  assert.match(testSource,/rolledBackTransactionDoesNotReappearAfterKeyedReopen/);
  assert.match(testSource,/encryptedWalDoesNotRevealSyntheticMarkerAsPlaintext/);
+ assert.match(testSource,/tamperedEncryptedPageFailsClosedWithoutSilentRecreation/);
+ assert.match(testSource,/RandomAccessFile\(syntheticFile, "rw"\)/);
+ assert.match(testSource,/committedWalTransactionSurvivesKeyedReopen/);
+ assert.match(testSource,/abortedWalTransactionDoesNotLoseEarlierCommittedRecord/);
+ assert.match(testSource,/assertTrue\("Damaged encrypted page must not pass keyed open"/);
  assert.match(testSource,/noBackupFilesDir/);
  assert.doesNotMatch(workflow,/adb install .*apps\/mobile|eas build/);
 });
