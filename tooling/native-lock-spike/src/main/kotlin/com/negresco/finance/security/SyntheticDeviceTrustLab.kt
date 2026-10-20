@@ -121,9 +121,17 @@ internal object SyntheticDeviceTrustPolicy {
  * an independent monotonic anchor/protected backend.
  */
 internal class SyntheticDeviceTrustCoordinator(initial: DeviceTrustSnapshot) {
-  private val state = AtomicReference(initial)
+  private fun immutableCopy(snapshot: DeviceTrustSnapshot) = snapshot.copy(
+    active = snapshot.active.toSet(),
+    revoked = snapshot.revoked.toSet(),
+    lastSequence = snapshot.lastSequence.toMap()
+  )
 
-  fun snapshotForLabOnly(): DeviceTrustSnapshot = state.get()
+  // Prevent untrusted MutableSet/MutableMap callers from changing the state
+  // underneath a CAS. Still NOT a secure or durable anti-rollback anchor.
+  private val state = AtomicReference(immutableCopy(initial))
+
+  fun snapshotForLabOnly(): DeviceTrustSnapshot = immutableCopy(state.get())
 
   fun preflight(claim: PresentedDeviceOperation, floor: DeviceTrustFloor?): DeviceTrustGate =
     SyntheticDeviceTrustPolicy.inspect(state.get(), floor, claim)
