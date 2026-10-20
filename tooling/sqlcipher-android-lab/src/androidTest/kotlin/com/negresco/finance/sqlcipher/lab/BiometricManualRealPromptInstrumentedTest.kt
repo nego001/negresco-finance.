@@ -14,6 +14,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertArrayEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Test
@@ -69,18 +70,25 @@ class BiometricManualRealPromptInstrumentedTest {
           BiometricManager.Authenticators.BIOMETRIC_STRONG
         ) == BiometricManager.BIOMETRIC_SUCCESS)
 
+      // Must provision and initialize a REAL Keystore Cipher. Passing an
+      // uninitialized Cipher could fail before a prompt ever starts, giving
+      // misleading "success" to a lifecycle cancellation test.
+      BiometricCipherAuthorizationLab.provisionForLabOnly(activity.get())
+      val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+      cipher.init(Cipher.ENCRYPT_MODE, BiometricCipherAuthorizationLab.existingKey())
+
       val result = runBlocking {
         withTimeout(10_000) {
           val pending = async(Dispatchers.Default) {
             runCatching {
-              BiometricCipherAuthorizationLab.authorize(
-                activity.get(), Cipher.getInstance("AES/GCM/NoPadding")
-              )
+              BiometricCipherAuthorizationLab.authorize(activity.get(), cipher)
             }.exceptionOrNull()
           }
-          // This test intentionally never supplies a fingerprint. Giving the
-          // system time to open a real prompt tests actual lifecycle revocation.
-          delay(500)
+          // No fingerprint is supplied. A promptly rejected operation must
+          // FAIL the test rather than masquerade as onStop cancellation.
+          delay(650)
+          assertFalse("The biometric prompt returned before Activity suspension",
+            pending.isCompleted)
           scenario.moveToState(Lifecycle.State.CREATED)
           pending.await()
         }
