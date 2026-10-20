@@ -107,3 +107,20 @@ The test is included in emulator CI but must pass there before counting it
 as validated. In no circumstances link this crash provider, test code or
 synthetic passphrase to `apps/mobile`, a production APK or any real finance
 records. Test files stay inside the disposable app's `noBackupFilesDir`.
+
+
+## Emulator validation after IPC race fix (2026-10-19/20 UTC)
+
+Run [39347703529](https://github.com/nego001/negresco-finance./actions/runs/39347703529),
+job `sqlcipher-android-emulator`: **13/13 native Android tests passed**;
+log shows `Starting 13 tests`, `Finished 13 tests`, `BUILD SUCCESSFUL`.
+The first synchronous provider-kill attempt was inconsistent across CI runs:
+Android sometimes terminated the instrumentation process while the Binder
+call was active. The provider now **returns its private IPC call first**,
+starts the uncommitted transaction in a private worker and kills only that
+private process after the client's Binder reference has been released.
+
+This is one successful validated revision, NOT statistical evidence of
+flakiness elimination and NOT a device power-loss simulation. A future job
+should run the subprocess-death case repeatedly and test recovery after
+storage/process restart without relying on fixed sleep durations.
