@@ -177,6 +177,45 @@ class NativeLockDataStoreInstrumentedTest {
     assertEquals(LockResult.SUCCESS, coordinator.unlock())
   }
 
+  @Test fun deniedSecondAuthenticationRevokesPreviousGrantOnRealDataStore() = runBlocking {
+    val fixture = open()
+    fixture.repository.migrateLegacyLocked("enabled", null)
+    var approve = true
+    val coordinator = SuspendingNativeLockCoordinator(fixture.repository) { approve }
+    coordinator.onForeground()
+    assertEquals(LockResult.SUCCESS, coordinator.unlock())
+    assertTrue(coordinator.snapshot().unlocked)
+
+    // The prompt result is synthetic. DataStore and its persisted records are real.
+    approve = false
+    assertEquals(LockResult.DENIED, coordinator.unlock())
+    assertFalse(coordinator.snapshot().unlocked)
+    assertEquals(LockRecord(1, true, 0L), fixture.repository.read())
+    approve = true
+    assertEquals(LockResult.SUCCESS, coordinator.unlock())
+  }
+
+  @Test fun cancelledOptOutCannotRetainPriorGrantOrDisableRealDataStore() = runBlocking {
+    val fixture = open()
+    fixture.repository.migrateLegacyLocked("enabled", null)
+    var cancelOptOut = false
+    val coordinator = SuspendingNativeLockCoordinator(fixture.repository) { action ->
+      if (cancelOptOut && action == LockAction.DISABLE)
+        throw java.util.concurrent.CancellationException("synthetic biometric cancellation")
+      true
+    }
+    coordinator.onForeground()
+    assertEquals(LockResult.SUCCESS, coordinator.unlock())
+    assertTrue(coordinator.snapshot().unlocked)
+
+    cancelOptOut = true
+    assertTrue(runCatching { coordinator.prepareDisableForLab() }.exceptionOrNull()
+      is java.util.concurrent.CancellationException)
+    assertFalse(coordinator.snapshot().unlocked)
+    assertEquals(LockRecord(1, true, 0L), fixture.repository.read())
+    assertEquals(LockResult.DENIED, coordinator.disable())
+  }
+
   @Test fun healthyEnabledRecordCannotBeDisabledByEnableOnlyWriter() = runBlocking {
     val store = open().repository
     store.migrateLegacyLocked("enabled", null)
