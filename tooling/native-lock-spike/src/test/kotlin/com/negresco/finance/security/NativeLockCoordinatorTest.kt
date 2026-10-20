@@ -168,5 +168,6 @@ fun main() {
     runFinancialEnvelopeScenarios()
     runSqlCipherLabGuardScenarios()
     runSecurityOperationPolicyScenarios()
+    runSecurityAuditEventScenarios()
   }
 }
