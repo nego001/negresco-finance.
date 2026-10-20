@@ -344,3 +344,20 @@ test('SQLCipher crash injection only kills isolated lab process and checks WAL r
  assert.match(tests,/Killed transaction must not become durable/);
  assert.doesNotMatch(mobile,/sqlcipher-android-lab|SyntheticSqlCipherCrashProvider/);
 });
+
+test('synthetic SQLCipher passphrase Keystore wrapping is authenticated and not linked to Expo',()=>{
+ const source=read('tooling/sqlcipher-android-lab/src/main/kotlin/com/negresco/finance/sqlcipher/lab/SyntheticSqlCipherKeyWrap.kt');
+ const tests=read('tooling/sqlcipher-android-lab/src/androidTest/kotlin/com/negresco/finance/sqlcipher/lab/SyntheticSqlCipherDatabaseInstrumentedTest.kt');
+ const mobile=read('apps/mobile/package.json');
+ assert.match(source,/KeyStore\.getInstance\(PROVIDER\)/);
+ assert.match(source,/setKeySize\(256\)/);
+ assert.match(source,/AES\/GCM\/NoPadding/);
+ assert.match(source,/setRandomizedEncryptionRequired\(true\)/);
+ assert.match(source,/cipher\.updateAAD\(DOMAIN\)/);
+ assert.match(source,/fun provisionForSyntheticLabOnly\(\)/);
+ assert.match(source,/fun unwrapSyntheticPassphrase\(envelope: ByteArray\)/);
+ assert.match(source,/throw Unavailable\(\)/);
+ assert.match(tests,/keystoreWrapRestoresSyntheticSqlCipherPassphraseWithoutPlaintextFallback/);
+ assert.match(tests,/tamperedKeystoreEnvelopeNeverReleasesSyntheticSqlCipherPassphrase/);
+ assert.doesNotMatch(mobile,/SyntheticSqlCipherKeyWrap/);
+});
