@@ -32,25 +32,34 @@ internal class SyntheticSqlCipherCrashProvider : ContentProvider() {
       "Refusing to terminate anything other than the isolated SQLCipher crash fixture"
     }
     val ctx = requireNotNull(context)
-    val key = ByteArray(32) { (it * 7 + 1).toByte() } // synthetic fixture ONLY
-    val db = SyntheticSqlCipherDatabase.openExistingSynthetic(ctx, key)
-    db.rawQuery("PRAGMA journal_mode=WAL", null).use { cursor ->
-      check(cursor.moveToFirst() && cursor.getString(0).equals("wal", ignoreCase = true))
-    }
-    db.beginTransaction()
-    db.execSQL("INSERT INTO lab_probe(id, marker) VALUES (2, 'crash-pending-not-committed')")
-    // Separate witness proves the remote process reached the uncommitted row.
-    // It never contains a password, SQLCipher key or user financial content.
-    FileOutputStream(File(ctx.noBackupFilesDir, WITNESS_FILE)).use { output ->
-      output.write("pending-transaction-reached".toByteArray(Charsets.US_ASCII))
-      output.fd.sync()
-    }
+    val witness = File(ctx.noBackupFilesDir, WITNESS_FILE)
+    check(!witness.exists()) { "Prior synthetic witness must be cleaned explicitly" }
 
-    // Intentionally OMIT endTransaction()/close(): this is a real process kill
-    // at the remote PID, not merely a simulated rollback or a clean close.
-    Process.killProcess(Process.myPid())
-    Thread.sleep(5000) // fail-closed if signal delivery is not immediate
-    error("Remote-only crash injection did not terminate its process")
+    // IMPORTANT: return the Binder call first. Killing a provider WHILE a
+    // client has an active ContentResolver.call can kill the calling test
+    // process too. The worker remains in this private subprocess and commits
+    // nothing before terminating its own PID.
+    Thread({
+      val key = ByteArray(32) { (it * 7 + 1).toByte() } // synthetic fixture ONLY
+      val db = SyntheticSqlCipherDatabase.openExistingSynthetic(ctx, key)
+      db.rawQuery("PRAGMA journal_mode=WAL", null).use { cursor ->
+        check(cursor.moveToFirst() && cursor.getString(0).equals("wal", ignoreCase = true))
+      }
+      db.beginTransaction()
+      db.execSQL("INSERT INTO lab_probe(id, marker) VALUES (2, 'crash-pending-not-committed')")
+      FileOutputStream(witness).use { output ->
+        output.write("pending-transaction-reached".toByteArray(Charsets.US_ASCII))
+        output.fd.sync()
+      }
+      // Give the caller time to release its provider Binder reference. This
+      // delay is NOT the durability test; transaction remains uncommitted.
+      Thread.sleep(1000L)
+      // No endTransaction() or db.close() in this subprocess on purpose.
+      Process.killProcess(Process.myPid())
+      Thread.sleep(5000L)
+      error("Isolated test subprocess did not terminate")
+    }, "synthetic-wal-crash-only").start()
+    return Bundle.EMPTY
   }
 
   override fun query(
