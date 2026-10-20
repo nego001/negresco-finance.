@@ -76,3 +76,24 @@ Os testes Node de contrato asseguram que os quatro valores fornecidos ao verific
 - [ ] Homologar migração do bloqueio local, preferências e Guardião num aparelho com **dados fictícios**, sem perda.
 - [ ] Testar biometria forte e cancelamentos com hardware real, recuperação sem perda e assinatura permanente antes de release estável.
 - [ ] Revisar anti-rollback e caminho de opt-out transacional nativo; ainda há limitações conhecidas no PR #6.
+
+
+## Gate Android nativo adicional: DataStore real, sem biometria do usuário
+
+O laboratório `tooling/native-lock-android-lab` passou a compilar uma suíte `androidTest` própria e executar o novo job `native-lock-android-emulator` no CI do PR, com um emulador Android API 35 descartável. **Essa integração não aparece nem é ativada no APK 3.1.3**.
+
+Seis testes isolados verificam:
+1. DataStore inexistente não significa `enabled=false` nem autorização implícita.
+2. Migração legada bloqueada permanece persistida após fechar e reabrir o DataStore real.
+3. Preparação de desligamento continua com `enabled=true` depois de reabrir e sua recuperação rearma o bloqueio.
+4. Duas preparações simultâneas com a mesma revisão não podem confirmar duas gravações.
+5. Estado contraditório `enabled=false` com `disablePending=true` é rejeitado mesmo após reabrir.
+6. `enableIfCurrent` não pode alterar um registro já bloqueado nem oferecer operação de desativação.
+
+Cada teste só usa um arquivo de preferência **descartável e único** no `noBackupFilesDir` do pacote do laboratório, e o apaga após cancelar os scopes DataStore próprios. Não lê/escreve preferências de produção, não acessa banco financeiro e **não registra a biometria do Samsung**.
+
+A preparação de desativação ainda não fornece o commit final `enabled=false`: a desativação transacional vinculada ao ciclo de vida segue bloqueada, e o código Kotlin ainda não está integrado ao Expo. **Compilar os testes não equivale a executá-los**. A aprovação desta nova etapa depende de verificação explícita do job `native-lock-android-emulator` no HEAD do PR #14.
+
+O `tests/native-lock-android-emulator-contract.test.mjs` exige que esse job continue restrito a PR, com dependência da compilação, runner fixado e sem inclusão do laboratório no APK. O CI em `push` compila a instrumentação e os testes; a execução no emulador ocorre apenas no CI de `pull_request`.
+
+Referências: [PR #14](https://github.com/nego001/negresco-finance./pull/14) e [PR #6](https://github.com/nego001/negresco-finance./pull/6). A assinatura e a instalação no Galaxy A55 seguem pendentes de QA físico e consentimento.
