@@ -231,7 +231,9 @@ class NativeLockDataStoreInstrumentedTest {
    * No private key is sent to an API, stored, or logged.
    */
   private fun createDisposableSoftwareEd25519KeyPair(): KeyPair =
-    KeyPairGenerator.getInstance("Ed25519", testEd25519Provider).generateKeyPair()
+    KeyPairGenerator.getInstance("Ed25519", testEd25519Provider).apply {
+      initialize(org.bouncycastle.jcajce.spec.EdDSAParameterSpec("Ed25519"))
+    }.generateKeyPair()
 
   private fun requireCanonicalLabFingerprint(key: java.security.PublicKey): DeviceKeyFingerprint =
     SyntheticSignedDeviceProofLab.fingerprint(key) ?: error(
