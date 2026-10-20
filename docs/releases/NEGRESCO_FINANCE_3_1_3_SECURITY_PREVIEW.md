@@ -82,13 +82,15 @@ Os testes Node de contrato asseguram que os quatro valores fornecidos ao verific
 
 O laboratório `tooling/native-lock-android-lab` passou a compilar uma suíte `androidTest` própria e executar o novo job `native-lock-android-emulator` no CI do PR, com um emulador Android API 35 descartável. **Essa integração não aparece nem é ativada no APK 3.1.3**.
 
-Seis testes isolados verificam:
+Oito testes isolados verificam:
 1. DataStore inexistente não significa `enabled=false` nem autorização implícita.
 2. Migração legada bloqueada permanece persistida após fechar e reabrir o DataStore real.
 3. Preparação de desligamento continua com `enabled=true` depois de reabrir e sua recuperação rearma o bloqueio.
 4. Duas preparações simultâneas com a mesma revisão não podem confirmar duas gravações.
 5. Estado contraditório `enabled=false` com `disablePending=true` é rejeitado mesmo após reabrir.
 6. `enableIfCurrent` não pode alterar um registro já bloqueado nem oferecer operação de desativação.
+7. Se o registro desaparecer depois de um desbloqueio, a nova chamada `unlock()` revoga imediatamente a autorização anterior; restaurar o arquivo não recupera a sessão sem autenticação nova.
+8. Se o registro ficar parcial/corrompido depois de um desbloqueio, a nova chamada `unlock()` falha e revoga a sessão anterior no **DataStore Android real**.
 
 Cada teste só usa um arquivo de preferência **descartável e único** no `noBackupFilesDir` do pacote do laboratório, e o apaga após cancelar os scopes DataStore próprios. Não lê/escreve preferências de produção, não acessa banco financeiro e **não registra a biometria do Samsung**.
 
@@ -108,3 +110,6 @@ A correção em `SuspendingNativeLockCoordinator` introduz `revokeOnUnsafeRead`,
 Três cenários JVM com transporte sintético `ReadFaultDataStore` verificam: falha em nova leitura após desbloqueio válido, ausência de registro após desbloqueio válido e falha da segunda leitura depois de autenticação. O total nominal da suíte JVM do laboratório cresce de **125 para 128 cenários**, além dos 6 testes Android de DataStore e 45 de SQLCipher (dos quais 5 de biometria manual são ignorados no CI comum).
 
 **Gate:** não declarar esses três novos cenários aprovados até conferir `native-lock-spike` no **head** atual do PR #14. A correção permanece no laboratório: sem autolinking Expo, sem atualização de APK/OTA, sem QA físico, sem garantia de proteção bancária.
+
+
+**Reforço de revogação:** a execução ampliada passa a conter **8 testes Android nativos**, além dos **128 cenários Kotlin/JVM** (3 testes novos de falha de leitura) e dos testes SQLCipher. Validar o CI e o job de emulador no commit exato antes de declarar esses oito aprovados; os novos testes nunca tocam a instalação pessoal ou o APK 3.1.3 já gerado.
