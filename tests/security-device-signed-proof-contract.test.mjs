@@ -7,7 +7,10 @@ const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
 test('device proof is Ed25519, operation-bound and never an unlock',()=>{
  const src=read('tooling/native-lock-spike/src/main/kotlin/com/negresco/finance/security/SyntheticSignedDeviceProofLab.kt');
  assert.match(src,/Signature\.getInstance\("Ed25519"\)/);
- assert.match(src,/publicKey is EdECPublicKey/);
+ assert.match(src,/canonicalEd25519Spki/);
+ assert.match(src,/ed25519SpkiPrefix/);
+ assert.match(src,/encoded\.size != ed25519SpkiPrefix\.size \+ 32/);
+ assert.match(src,/MessageDigest\.isEqual\(/);
  assert.match(src,/MessageDigest\.getInstance\("SHA-256"\)/);
  assert.match(src,/claim\.registryRevision/);
  assert.match(src,/claim\.epoch/);
@@ -31,6 +34,8 @@ test('verified signature is rechecked against current synthetic replay state',()
  assert.match(scenarios,/DENY_REVOKED/);
  assert.match(scenarios,/CountDownLatch\(1\)/);
  assert.match(scenarios,/Ed25519 signed device proof scenarios/);
+ assert.match(scenarios,/RFC 8410 SPKI must contain exactly Ed25519 OID/);
+ assert.match(scenarios,/portableSpki/);
  assert.match(runner,/runSignedDeviceProofScenarios\(\)/);
 });
 
