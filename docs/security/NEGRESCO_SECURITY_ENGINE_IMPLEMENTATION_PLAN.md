@@ -21,7 +21,7 @@
 | SEC-05 | Confiança de dispositivos | Credenciais por aparelho, registro aprovado, expiração e revogação | Planejado; sem backend autorizado | protocolo assinado, atestado contextual, replays e troca de aparelho |
 | SEC-06 | Modo Proteção Máxima | Pré-verificação por risco e autenticação reforçada por ação | **Laboratório Kotlin `SecurityOperationPolicyLab` inicial** | entradas obtidas somente por módulos nativos, decisão revalidada na camada de chaves |
 | SEC-07 | Recuperação | Backup cifrado + kit separado + recuperação verificada + anti-rollback | Protótipo sintético em memória | exportação segura, restauração segunda instalação e proteção contra replay |
-| SEC-08 | Central de Segurança | Painel com estado real, alertas e auditoria sem segredos | Planejado | API de evidências verificadas, nenhum indicador visual fictício |
+| SEC-08 | Central de Segurança | Painel com estado real, alertas e auditoria sem segredos | Laboratório de eventos minimizados `SecurityAuditEventLab` (sem persistência) | API de evidências verificadas, armazenamento cifrado, nenhum indicador visual fictício |
 | SEC-09 | Comunicação | TLS, tokens seguros, idempotência, E2EE condicionado a sync | Planejado | especificação de servidor/protocolo e pentest, sem fluxo falso |
 | SEC-10 | Verificação | OWASP MASVS/MASTG, SBOM, testes de falhas, QA físico e auditoria | CI JVM/Android/SQLCipher e assinaturas experimentais | auditoria por função, assinatura de produção, preservação do usuário |
 
@@ -83,6 +83,22 @@ apenas um sinal para decidir o próximo passo; mesmo `true` só pode retornar
 `PROCEED_TO_INDEPENDENT_NATIVE_AUTHORIZER`. Esta primeira versão não implementa
 sincronização, FIDO2, antifraude de produção ou nenhum dos controles da
 plataforma necessários para garantir esses sinais.
+
+
+## Laboratório de auditoria, sem coleta de dados pessoais (SEC-08)
+
+`SecurityAuditEventLab` gera somente eventos estruturados com código,
+gravidade e enumerações da operação e motivo. O evento não admite texto livre,
+valor financeiro, CPF, CNPJ, token, identificador de dispositivo, localização,
+captura de tela ou conteúdo do banco. A função é pura: não transmite, não
+armazena e não aciona IA. Dez testes de contrato exercitam os códigos de
+emergência, bloqueio de exportação, cadastro de aparelhos, recuperação e
+ausência de `String`/`ByteArray` na estrutura do evento.
+
+**Não equivale ao histórico de segurança do aplicativo.** Antes de um
+histórico persistente, faltam retenção limitada, criptografia e integridade
+do registro, tratamento de exclusão/LGPD, controle de acesso e garantia de
+que uma notificação visível não revela informações privadas.
 
 ## Qualidade e critérios de promoção
 
