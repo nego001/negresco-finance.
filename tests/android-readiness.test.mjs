@@ -324,3 +324,23 @@ test('SQLCipher distinguishes HMAC page integrity from SQLite logical integrity'
  assert.match(instrumented,/assertFalse\("SQLCipher reported page\/HMAC corruption", cursor\.moveToFirst\(\)\)/);
  assert.match(instrumented,/assertEquals\("ok", cursor\.getString\(0\)\)/);
 });
+
+test('SQLCipher crash injection only kills isolated lab process and checks WAL recovery',()=>{
+ const manifest=read('tooling/sqlcipher-android-lab/src/main/AndroidManifest.xml');
+ const helper=read('tooling/sqlcipher-android-lab/src/main/kotlin/com/negresco/finance/sqlcipher/lab/SyntheticSqlCipherCrashProvider.kt');
+ const tests=read('tooling/sqlcipher-android-lab/src/androidTest/kotlin/com/negresco/finance/sqlcipher/lab/SyntheticSqlCipherDatabaseInstrumentedTest.kt');
+ const mobile=read('apps/mobile/package.json');
+ assert.match(manifest,/android:exported="false"/);
+ assert.match(manifest,/android:process=":sqlcipher_crash_test"/);
+ assert.match(manifest,/SyntheticSqlCipherCrashProvider/);
+ assert.match(helper,/Application\.getProcessName\(\)/);
+ assert.match(helper,/endsWith\(":sqlcipher_crash_test"\)/);
+ assert.match(helper,/Process\.killProcess\(Process\.myPid\(\)\)/);
+ assert.match(helper,/db\.beginTransaction\(\)/);
+ assert.doesNotMatch(helper,/setTransactionSuccessful|endTransaction|android\.database\.sqlite/);
+ assert.match(tests,/killedRemoteProcessDuringUncommittedWalPreservesCommittedRecord/);
+ assert.match(tests,/crashWitness\.isFile/);
+ assert.match(tests,/committed-before-crash/);
+ assert.match(tests,/Killed transaction must not become durable/);
+ assert.doesNotMatch(mobile,/sqlcipher-android-lab|SyntheticSqlCipherCrashProvider/);
+});
