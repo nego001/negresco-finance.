@@ -248,6 +248,13 @@ class NativeLockDataStoreInstrumentedTest {
     return pair
   }
 
+  private fun requireCanonicalLabFingerprint(key: java.security.PublicKey): DeviceKeyFingerprint =
+    SyntheticSignedDeviceProofLab.fingerprint(key) ?: error(
+      "Disposable Ed25519 SPKI rejected: algorithm=${key.algorithm} " +
+        "format=${key.format} DER-length=${key.encoded?.size ?: -1}. " +
+        "No private key or DER bytes are logged."
+    )
+
   private fun signDeviceLab(
     key: KeyPair, claim: PresentedDeviceOperation, nonce: ByteArray
   ): ByteArray = Signature.getInstance("Ed25519").run {
@@ -261,7 +268,7 @@ class NativeLockDataStoreInstrumentedTest {
       // This test uses an entirely separate disposable DataStore file.
       val file = File(isolatedDirectory, "device_challenge.preferences_pb")
       val pair = createDisposableAndroidEd25519KeyPair()
-      val id = SyntheticSignedDeviceProofLab.fingerprint(pair.public)!!
+      val id = requireCanonicalLabFingerprint(pair.public)
       val claim = PresentedDeviceOperation(id, 1L, 1L, 1L,
         ProtectedOperation.EXPORT_FINANCIAL_DATA)
       val floor = DeviceTrustFloor(1L, 1L)
@@ -295,7 +302,7 @@ class NativeLockDataStoreInstrumentedTest {
     val ledger = SyntheticDeviceChallengeDataStoreLab(fixture.raw)
     val pair = createDisposableAndroidEd25519KeyPair()
     val other = createDisposableAndroidEd25519KeyPair()
-    val id = SyntheticSignedDeviceProofLab.fingerprint(pair.public)!!
+    val id = requireCanonicalLabFingerprint(pair.public)
     val claim = PresentedDeviceOperation(id, 1L, 1L, 1L,
       ProtectedOperation.REVOKE_DEVICE)
     val floor = DeviceTrustFloor(1L, 1L)
@@ -314,7 +321,7 @@ class NativeLockDataStoreInstrumentedTest {
       val fixture = Fixture(file).also { instances.add(it) }
       val ledger = SyntheticDeviceChallengeDataStoreLab(fixture.raw)
       val pair = createDisposableAndroidEd25519KeyPair()
-      val id = SyntheticSignedDeviceProofLab.fingerprint(pair.public)!!
+      val id = requireCanonicalLabFingerprint(pair.public)
       val claim = PresentedDeviceOperation(id, 1L, 1L, 1L,
         ProtectedOperation.EXPORT_FINANCIAL_DATA)
       val floor = DeviceTrustFloor(1L, 1L)
@@ -338,7 +345,7 @@ class NativeLockDataStoreInstrumentedTest {
     runBlocking {
       val file = File(isolatedDirectory, "device_cancelled.preferences_pb")
       val pair = createDisposableAndroidEd25519KeyPair()
-      val id = SyntheticSignedDeviceProofLab.fingerprint(pair.public)!!
+      val id = requireCanonicalLabFingerprint(pair.public)
       val claim = PresentedDeviceOperation(id, 1L, 1L, 1L,
         ProtectedOperation.REVOKE_DEVICE)
       val floor = DeviceTrustFloor(1L, 1L)
