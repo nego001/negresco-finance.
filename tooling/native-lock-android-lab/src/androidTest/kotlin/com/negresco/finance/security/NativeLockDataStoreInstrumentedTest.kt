@@ -11,9 +11,7 @@ import java.io.File
 import java.util.UUID
 import java.security.KeyPair
 import java.security.KeyPairGenerator
-import java.security.KeyStore
-import android.security.keystore.KeyGenParameterSpec
-import android.security.keystore.KeyProperties
+import org.bouncycastle.jce.provider.BouncyCastleProvider
 import java.security.Signature
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -45,7 +43,7 @@ class NativeLockDataStoreInstrumentedTest {
   private lateinit var isolatedDirectory: File
   private lateinit var dataFile: File
   private val instances = mutableListOf<Fixture>()
-  private val disposableEd25519Aliases = mutableListOf<String>()
+  private val testEd25519Provider = BouncyCastleProvider()
 
   private class Fixture(file: File) {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -69,13 +67,8 @@ class NativeLockDataStoreInstrumentedTest {
   }
 
   @After fun tearDown() = runBlocking {
-    try {
-      for (instance in instances.asReversed()) instance.close()
-    } finally {
-      val androidKeystore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-      for (alias in disposableEd25519Aliases) androidKeystore.deleteEntry(alias)
-      assertTrue("Only lab fixture files are removed", isolatedDirectory.deleteRecursively())
-    }
+    for (instance in instances.asReversed()) instance.close()
+    assertTrue("Only lab fixture files are removed", isolatedDirectory.deleteRecursively())
   }
 
   @Test fun emptyStoreDoesNotEnableOrUnlockByDefault() = runBlocking {
@@ -229,24 +222,16 @@ class NativeLockDataStoreInstrumentedTest {
   }
 
   /**
-   * Android API 35 JCA's default Ed25519 generator resolves to
-   * AndroidKeyStore, which REQUIRES KeyGenParameterSpec initialization.
-   * Every alias is unique, emulated, used only for disposable instrumentation
-   * and removed in tearDown. This is NOT user-enrolled biometric Keystore QA.
+   * STRICTLY SOFTWARE-ONLY Ed25519 keypairs on a disposable Android emulator.
+   * AndroidKeyStore in this emulator returned EC/P-256 SPKI for an Ed25519
+   * request. That is NOT Ed25519 and must NEVER pass proof verification.
+   * A hardware-backed Ed25519/Keystore QA gate remains unresolved.
+   *
+   * The pinned Bouncy Castle provider is androidTestImplementation ONLY.
+   * No private key is sent to an API, stored, or logged.
    */
-  private fun createDisposableAndroidEd25519KeyPair(): KeyPair {
-    val alias = "negresco_lab_ed25519_" + UUID.randomUUID().toString()
-    val generator = KeyPairGenerator.getInstance("Ed25519", "AndroidKeyStore")
-    generator.initialize(
-      KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_SIGN)
-        .setDigests(KeyProperties.DIGEST_NONE)
-        .setUserAuthenticationRequired(false)
-        .build()
-    )
-    val pair = generator.generateKeyPair()
-    disposableEd25519Aliases.add(alias)
-    return pair
-  }
+  private fun createDisposableSoftwareEd25519KeyPair(): KeyPair =
+    KeyPairGenerator.getInstance("Ed25519", testEd25519Provider).generateKeyPair()
 
   private fun requireCanonicalLabFingerprint(key: java.security.PublicKey): DeviceKeyFingerprint =
     SyntheticSignedDeviceProofLab.fingerprint(key) ?: error(
@@ -257,7 +242,7 @@ class NativeLockDataStoreInstrumentedTest {
 
   private fun signDeviceLab(
     key: KeyPair, claim: PresentedDeviceOperation, nonce: ByteArray
-  ): ByteArray = Signature.getInstance("Ed25519").run {
+  ): ByteArray = Signature.getInstance("Ed25519", testEd25519Provider).run {
     initSign(key.private)
     update(SyntheticSignedDeviceProofLab.canonicalPayload(claim, nonce))
     sign()
@@ -267,7 +252,7 @@ class NativeLockDataStoreInstrumentedTest {
     runBlocking {
       // This test uses an entirely separate disposable DataStore file.
       val file = File(isolatedDirectory, "device_challenge.preferences_pb")
-      val pair = createDisposableAndroidEd25519KeyPair()
+      val pair = createDisposableSoftwareEd25519KeyPair()
       val id = requireCanonicalLabFingerprint(pair.public)
       val claim = PresentedDeviceOperation(id, 1L, 1L, 1L,
         ProtectedOperation.EXPORT_FINANCIAL_DATA)
@@ -300,8 +285,8 @@ class NativeLockDataStoreInstrumentedTest {
     val file = File(isolatedDirectory, "device_invalid_signature.preferences_pb")
     val fixture = Fixture(file).also { instances.add(it) }
     val ledger = SyntheticDeviceChallengeDataStoreLab(fixture.raw)
-    val pair = createDisposableAndroidEd25519KeyPair()
-    val other = createDisposableAndroidEd25519KeyPair()
+    val pair = createDisposableSoftwareEd25519KeyPair()
+    val other = createDisposableSoftwareEd25519KeyPair()
     val id = requireCanonicalLabFingerprint(pair.public)
     val claim = PresentedDeviceOperation(id, 1L, 1L, 1L,
       ProtectedOperation.REVOKE_DEVICE)
@@ -320,7 +305,7 @@ class NativeLockDataStoreInstrumentedTest {
       val file = File(isolatedDirectory, "device_race.preferences_pb")
       val fixture = Fixture(file).also { instances.add(it) }
       val ledger = SyntheticDeviceChallengeDataStoreLab(fixture.raw)
-      val pair = createDisposableAndroidEd25519KeyPair()
+      val pair = createDisposableSoftwareEd25519KeyPair()
       val id = requireCanonicalLabFingerprint(pair.public)
       val claim = PresentedDeviceOperation(id, 1L, 1L, 1L,
         ProtectedOperation.EXPORT_FINANCIAL_DATA)
@@ -344,7 +329,7 @@ class NativeLockDataStoreInstrumentedTest {
   @Test fun cancelledSignedChallengeStaysInvalidAcrossAndroidDataStoreReopen() =
     runBlocking {
       val file = File(isolatedDirectory, "device_cancelled.preferences_pb")
-      val pair = createDisposableAndroidEd25519KeyPair()
+      val pair = createDisposableSoftwareEd25519KeyPair()
       val id = requireCanonicalLabFingerprint(pair.public)
       val claim = PresentedDeviceOperation(id, 1L, 1L, 1L,
         ProtectedOperation.REVOKE_DEVICE)
