@@ -204,3 +204,17 @@ O prompt precisa permanecer em primeiro plano para duas leituras autênticas. Em
 - [ ] Revisão de segurança da recuperação/migração, testes físicos autorizados no Samsung A55 e auditoria independente.
 
 **O módulo de teste não está vinculado ao Expo nem aos dados financeiros de produção.**
+
+
+## Reforço adversarial: nenhuma operação sem biometria e suspensão no prompt
+
+Na branch do PR #6 foram adicionados dois cenários adicionais ao harness **opt-in** de biometria real:
+
+- `directKeystoreOperationWithoutBiometricMustFail`: depois de provisionamento explícito de chave **somente de laboratório**, tenta realizar `Cipher.doFinal` diretamente, sem `BiometricPrompt.CryptoObject`. Deve falhar; não publica, não persiste ou apaga uma senha financeira.
+- `backgroundingAnActiveSystemPromptMustDenyAuthorization`: inicia um prompt real e manda a `FragmentActivity` para `CREATED` sem fornecer impressão digital. Espera rejeição da operação e nunca um objeto `Cipher` autorizado.
+
+Esses testes são **omitidos/skip** no CI comum até que `-PnegrescoBiometricManual=true` seja passado explicitamente em ambiente Android **de teste** com `BIOMETRIC_STRONG` cadastrado. O cenário existente de duas autenticações reais também é opt-in. Uma execução automática verde não comprova sensor, digital de pessoa, invalidação após matrícula ou segurança física do Samsung.
+
+A suite atualmente declara **30 testes em código**: 27 automáticos (incluindo verificação condicional quando não há biometria) e 3 opt-in manuais. Ainda não afirmar 30 aprovados: verificar logs do emulador e contagem de skips na revisão exata do commit.
+
+Permanecem pendentes invalidação de chave após alteração de digitais, biometria real em dispositivo físico **autorizado**, perda de aparelho, restauração e migração segura; não ligar à versão 3.1.2.
