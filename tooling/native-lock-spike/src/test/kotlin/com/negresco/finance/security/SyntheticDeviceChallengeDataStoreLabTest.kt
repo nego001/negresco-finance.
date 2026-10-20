@@ -4,6 +4,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.mutablePreferencesOf
+import androidx.datastore.preferences.core.toMutablePreferences
 import java.io.File
 import java.nio.file.Files
 import java.security.KeyPair
