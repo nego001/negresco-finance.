@@ -4,6 +4,10 @@ on:
   pull_request:
 permissions:
   contents: read
+# Only the newest revision of the same branch/PR should consume emulator minutes.
+concurrency:
+  group: negresco-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   contracts:
     runs-on: ubuntu-latest
