@@ -1,6 +1,8 @@
 package com.negresco.finance.sqlcipher.lab
 
 import android.content.Context
+import android.app.ActivityManager
+import android.net.Uri
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import java.io.File
@@ -28,6 +30,9 @@ class SyntheticSqlCipherDatabaseInstrumentedTest {
   private val syntheticFile: File
     get() = File(context.noBackupFilesDir, "negresco_sqlcipher_synthetic_v1.db")
 
+  private val crashWitness: File
+    get() = File(context.noBackupFilesDir, SyntheticSqlCipherCrashProvider.WITNESS_FILE)
+
   private val passphrase = ByteArray(32) { (it * 7 + 1).toByte() }
   private val wrongPassphrase = ByteArray(32) { (it * 7 + 2).toByte() }
   private var fixtureOwned = false
@@ -37,12 +42,15 @@ class SyntheticSqlCipherDatabaseInstrumentedTest {
     // Stop rather than silently delete an earlier run's database.
     assertFalse("Prior synthetic fixture requires explicit test-sandbox cleanup",
       syntheticFile.exists())
+    assertFalse("Prior crash witness requires explicit test-sandbox cleanup",
+      crashWitness.exists())
   }
 
   @After
   fun cleanOwnedFixtureOnly() {
     if (fixtureOwned) {
       syntheticFile.delete()
+      crashWitness.delete()
       File(syntheticFile.path + "-journal").delete()
       File(syntheticFile.path + "-wal").delete()
       File(syntheticFile.path + "-shm").delete()
@@ -239,6 +247,55 @@ class SyntheticSqlCipherDatabaseInstrumentedTest {
         assertTrue(cursor.moveToFirst())
         assertEquals("committed-WAL-fixture", cursor.getString(0))
         assertFalse(cursor.moveToNext())
+      }
+    }
+  }
+
+  @Test
+  fun killedRemoteProcessDuringUncommittedWalPreservesCommittedRecord() {
+    fixtureOwned = true
+    SyntheticSqlCipherDatabase.createFreshSynthetic(context, passphrase).use { db ->
+      db.rawQuery("PRAGMA journal_mode=WAL", null).use { cursor ->
+        assertTrue(cursor.moveToFirst())
+        assertEquals("wal", cursor.getString(0))
+      }
+      db.execSQL("INSERT INTO lab_probe(id, marker) VALUES (1, 'committed-before-crash')")
+    }
+
+    // Private provider is hosted in :sqlcipher_crash_test, NOT the test/main
+    // process. IPC may throw when that remote process intentionally dies.
+    runCatching {
+      context.contentResolver.call(
+        Uri.parse("content://${SyntheticSqlCipherCrashProvider.AUTHORITY}"),
+        SyntheticSqlCipherCrashProvider.METHOD, null, null
+      )
+    }
+    assertTrue(
+      "Remote provider did not reach the uncommitted WAL write",
+      crashWitness.isFile &&
+        crashWitness.readText(Charsets.US_ASCII) == "pending-transaction-reached"
+    )
+
+    // Confirm no remote crash helper remains running before re-opening the DB.
+    val manager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+    var stillRunning = true
+    repeat(30) {
+      stillRunning = manager.runningAppProcesses?.any {
+        it.processName.endsWith(":sqlcipher_crash_test")
+      } == true
+      if (!stillRunning) return@repeat
+      Thread.sleep(100)
+    }
+    assertFalse("Remote helper process survived its intentional kill", stillRunning)
+
+    // Native SQLCipher must recover any hot WAL on a NEW keyed connection.
+    // A genuinely uncommitted row must be absent, with earlier data intact.
+    SyntheticSqlCipherDatabase.openExistingSynthetic(context, passphrase).use { reopened ->
+      reopened.rawQuery("SELECT id, marker FROM lab_probe ORDER BY id", null).use { cursor ->
+        assertTrue(cursor.moveToFirst())
+        assertEquals(1L, cursor.getLong(0))
+        assertEquals("committed-before-crash", cursor.getString(1))
+        assertFalse("Killed transaction must not become durable", cursor.moveToNext())
       }
     }
   }
