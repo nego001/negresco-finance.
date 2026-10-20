@@ -67,7 +67,7 @@ Status: **em andamento**. Esta fase é pré-requisito para iniciar a Fase 2 (con
 
 - [x] 9/9 cenários instrumentados de SQLCipher passaram no emulador Android (GitHub Actions do PR #6). Foram adicionados **três cenários adversariais** de adulteração de página cifrada, WAL confirmado e WAL abortado; sua execução no emulador exige aprovação do CI desta revisão. **Não são testes de desligamento abrupto, recuperação após perda de energia ou QA Samsung.**
 
-- [x] Teste instrumentado de subprocesso privado em `tooling/sqlcipher-android-lab`: transação WAL não confirmada é interrompida via `Process.killProcess()` **somente no PID auxiliar**, com verificação do registro confirmado após reabrir. O código/compilação foram preparados, mas **a execução do caso 13 exige resultado verde do emulador**; não equivale a teste de energia ou Samsung.
+- [x] Teste instrumentado de subprocesso privado em `tooling/sqlcipher-android-lab`: transação WAL não confirmada é interrompida via `Process.killProcess()` **somente no PID auxiliar**, com verificação do registro confirmado após reabrir. O caso 13 **passou** no emulador após corrigir a corrida IPC, run 39347703529; não equivale a teste de energia ou Samsung.
 - [x] Desenho de hierarquia de chaves SQLCipher, chave de envelopamento Keystore separada, pré-requisitos `CryptoObject`, recuperação e migração em `docs/security/SQLCIPHER_KEY_WRAP_DESIGN_V1.md`. **Somente documentação: chaves de produção ainda não são provisionadas.**
 
 ## Ainda pendente para concluir a Fase 1
