@@ -170,5 +170,6 @@ fun main() {
     runSecurityOperationPolicyScenarios()
     runSecurityAuditEventScenarios()
     runSyntheticDeviceTrustScenarios()
+    runSignedDeviceProofScenarios()
   }
 }
