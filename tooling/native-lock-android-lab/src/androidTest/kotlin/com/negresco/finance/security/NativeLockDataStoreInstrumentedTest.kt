@@ -9,6 +9,9 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import java.io.File
 import java.util.UUID
+import java.security.KeyPair
+import java.security.KeyPairGenerator
+import java.security.Signature
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -215,6 +218,92 @@ class NativeLockDataStoreInstrumentedTest {
     assertEquals(LockRecord(1, true, 0L), fixture.repository.read())
     assertEquals(LockResult.DENIED, coordinator.disable())
   }
+
+  private fun signDeviceLab(
+    key: KeyPair, claim: PresentedDeviceOperation, nonce: ByteArray
+  ): ByteArray = Signature.getInstance("Ed25519").run {
+    initSign(key.private)
+    update(SyntheticSignedDeviceProofLab.canonicalPayload(claim, nonce))
+    sign()
+  }
+
+  @Test fun deviceChallengePersistsAndSingleUseSurvivesReopeningRealDataStore() =
+    runBlocking {
+      // This test uses an entirely separate disposable DataStore file.
+      val file = File(isolatedDirectory, "device_challenge.preferences_pb")
+      val pair = KeyPairGenerator.getInstance("Ed25519").generateKeyPair()
+      val id = SyntheticSignedDeviceProofLab.fingerprint(pair.public)!!
+      val claim = PresentedDeviceOperation(id, 1L, 1L, 1L,
+        ProtectedOperation.EXPORT_FINANCIAL_DATA)
+      val floor = DeviceTrustFloor(1L, 1L)
+      val first = Fixture(file).also { instances.add(it) }
+      val ledger = SyntheticDeviceChallengeDataStoreLab(first.raw)
+      ledger.seedForDisposableLab(id)
+      val challenge = ledger.issue(claim, floor)
+      first.close()
+
+      val reopened = Fixture(file).also { instances.add(it) }
+      val afterRestart = SyntheticDeviceChallengeDataStoreLab(reopened.raw)
+      assertTrue(afterRestart.read()!!.pending!!.nonceCopy()
+        .contentEquals(challenge.nonceCopy()))
+      val signature = signDeviceLab(pair, claim, challenge.nonceCopy())
+      assertEquals(1L, afterRestart.consume(claim, floor, pair.public,
+        challenge.nonceCopy(), signature).lastSequence)
+      reopened.close()
+
+      val again = Fixture(file).also { instances.add(it) }
+      val afterSecondRestart = SyntheticDeviceChallengeDataStoreLab(again.raw)
+      assertEquals(1L, afterSecondRestart.read()!!.lastSequence)
+      assertNull(afterSecondRestart.read()!!.pending)
+      assertTrue(runCatching { afterSecondRestart.consume(claim, floor, pair.public,
+        challenge.nonceCopy(), signature) }.exceptionOrNull()
+        is StaleSyntheticDeviceLedger)
+    }
+
+  @Test fun fakeSignatureDoesNotConsumeDeviceChallengeOnRealDataStore() = runBlocking {
+    val file = File(isolatedDirectory, "device_invalid_signature.preferences_pb")
+    val fixture = Fixture(file).also { instances.add(it) }
+    val ledger = SyntheticDeviceChallengeDataStoreLab(fixture.raw)
+    val pair = KeyPairGenerator.getInstance("Ed25519").generateKeyPair()
+    val other = KeyPairGenerator.getInstance("Ed25519").generateKeyPair()
+    val id = SyntheticSignedDeviceProofLab.fingerprint(pair.public)!!
+    val claim = PresentedDeviceOperation(id, 1L, 1L, 1L,
+      ProtectedOperation.REVOKE_DEVICE)
+    val floor = DeviceTrustFloor(1L, 1L)
+    ledger.seedForDisposableLab(id)
+    val issued = ledger.issue(claim, floor)
+    val forged = signDeviceLab(other, claim, issued.nonceCopy())
+    assertTrue(runCatching { ledger.consume(claim, floor, pair.public,
+      issued.nonceCopy(), forged) }.exceptionOrNull() is UnverifiedSyntheticDeviceProof)
+    assertEquals(0L, ledger.read()!!.lastSequence)
+    assertTrue(ledger.read()!!.pending != null)
+  }
+
+  @Test fun racingValidSignedDeviceProofConsumesOneRealDataStoreTransaction() =
+    runBlocking {
+      val file = File(isolatedDirectory, "device_race.preferences_pb")
+      val fixture = Fixture(file).also { instances.add(it) }
+      val ledger = SyntheticDeviceChallengeDataStoreLab(fixture.raw)
+      val pair = KeyPairGenerator.getInstance("Ed25519").generateKeyPair()
+      val id = SyntheticSignedDeviceProofLab.fingerprint(pair.public)!!
+      val claim = PresentedDeviceOperation(id, 1L, 1L, 1L,
+        ProtectedOperation.EXPORT_FINANCIAL_DATA)
+      val floor = DeviceTrustFloor(1L, 1L)
+      ledger.seedForDisposableLab(id)
+      val issued = ledger.issue(claim, floor)
+      val sig = signDeviceLab(pair, claim, issued.nonceCopy())
+      val outcomes = coroutineScope {
+        (1..8).map { async {
+          runCatching { ledger.consume(claim, floor, pair.public,
+            issued.nonceCopy(), sig) }
+        } }.map { it.await() }
+      }
+      assertEquals(1, outcomes.count { it.isSuccess })
+      assertEquals(7, outcomes.count {
+        it.exceptionOrNull() is StaleSyntheticDeviceLedger
+      })
+      assertEquals(1L, ledger.read()!!.lastSequence)
+    }
 
   @Test fun healthyEnabledRecordCannotBeDisabledByEnableOnlyWriter() = runBlocking {
     val store = open().repository
