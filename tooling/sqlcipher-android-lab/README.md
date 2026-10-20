@@ -215,6 +215,13 @@ Na branch do PR #6 foram adicionados dois cenários adicionais ao harness **opt-
 
 Esses testes são **omitidos/skip** no CI comum até que `-PnegrescoBiometricManual=true` seja passado explicitamente em ambiente Android **de teste** com `BIOMETRIC_STRONG` cadastrado. O cenário existente de duas autenticações reais também é opt-in. Uma execução automática verde não comprova sensor, digital de pessoa, invalidação após matrícula ou segurança física do Samsung.
 
-A suite atualmente declara **30 testes em código**: 27 automáticos (incluindo verificação condicional quando não há biometria) e 3 opt-in manuais. Ainda não afirmar 30 aprovados: verificar logs do emulador e contagem de skips na revisão exata do commit.
+A suíte atual declara **31 testes em código**: 28 automáticos (incluindo verificação condicional quando não há biometria) e 3 opt-in manuais. Ainda não afirmar 31 aprovados: verificar logs do emulador e contagem de skips na revisão exata do commit.
 
 Permanecem pendentes invalidação de chave após alteração de digitais, biometria real em dispositivo físico **autorizado**, perda de aparelho, restauração e migração segura; não ligar à versão 3.1.2.
+
+
+## Cancelamento concorrente entre callbacks de biometria
+
+`BiometricOperationGate` usa métodos sincronizados para serializar `approve`, `revoke` e `consume`, porque um cancelamento de coroutine pode acontecer fora da thread principal enquanto o Android entrega o callback de autenticação. O teste automático `concurrentCancellationCannotBeOverriddenByLateSuccess` exercita repetidamente a disputa entre conclusão e cancelamento: depois que a revogação ocorreu, nenhum callback tardio pode reabrir a autorização. A sincronização NÃO substitui o token criptográfico de uso único do AndroidKeyStore.
+
+**Nova contagem:** 31 testes detectáveis, sendo três opt-in manuais e um automático que pode ser ignorado dependendo do estado de matrícula biométrica no emulador. Cada `skip` deve ser informado separadamente de `pass`. Nenhum desses testes usa o APK instalado, fotos, digital real do titular ou dados financeiros. A última execução do CI desta revisão precisa ser verificada antes de qualquer aprovação.
