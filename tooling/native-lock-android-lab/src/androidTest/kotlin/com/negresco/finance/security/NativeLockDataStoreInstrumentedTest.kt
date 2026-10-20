@@ -258,13 +258,13 @@ class NativeLockDataStoreInstrumentedTest {
         ProtectedOperation.EXPORT_FINANCIAL_DATA)
       val floor = DeviceTrustFloor(1L, 1L)
       val first = Fixture(file).also { instances.add(it) }
-      val ledger = SyntheticDeviceChallengeDataStoreLab(first.raw)
+      val ledger = SyntheticDeviceChallengeDataStoreLab(first.raw, testEd25519Provider)
       ledger.seedForDisposableLab(id)
       val challenge = ledger.issue(claim, floor)
       first.close()
 
       val reopened = Fixture(file).also { instances.add(it) }
-      val afterRestart = SyntheticDeviceChallengeDataStoreLab(reopened.raw)
+      val afterRestart = SyntheticDeviceChallengeDataStoreLab(reopened.raw, testEd25519Provider)
       assertTrue(afterRestart.read()!!.pending!!.nonceCopy()
         .contentEquals(challenge.nonceCopy()))
       val signature = signDeviceLab(pair, claim, challenge.nonceCopy())
@@ -273,7 +273,7 @@ class NativeLockDataStoreInstrumentedTest {
       reopened.close()
 
       val again = Fixture(file).also { instances.add(it) }
-      val afterSecondRestart = SyntheticDeviceChallengeDataStoreLab(again.raw)
+      val afterSecondRestart = SyntheticDeviceChallengeDataStoreLab(again.raw, testEd25519Provider)
       assertEquals(1L, afterSecondRestart.read()!!.lastSequence)
       assertNull(afterSecondRestart.read()!!.pending)
       assertTrue(runCatching { afterSecondRestart.consume(claim, floor, pair.public,
@@ -284,7 +284,7 @@ class NativeLockDataStoreInstrumentedTest {
   @Test fun fakeSignatureDoesNotConsumeDeviceChallengeOnRealDataStore() = runBlocking {
     val file = File(isolatedDirectory, "device_invalid_signature.preferences_pb")
     val fixture = Fixture(file).also { instances.add(it) }
-    val ledger = SyntheticDeviceChallengeDataStoreLab(fixture.raw)
+    val ledger = SyntheticDeviceChallengeDataStoreLab(fixture.raw, testEd25519Provider)
     val pair = createDisposableSoftwareEd25519KeyPair()
     val other = createDisposableSoftwareEd25519KeyPair()
     val id = requireCanonicalLabFingerprint(pair.public)
@@ -304,7 +304,7 @@ class NativeLockDataStoreInstrumentedTest {
     runBlocking {
       val file = File(isolatedDirectory, "device_race.preferences_pb")
       val fixture = Fixture(file).also { instances.add(it) }
-      val ledger = SyntheticDeviceChallengeDataStoreLab(fixture.raw)
+      val ledger = SyntheticDeviceChallengeDataStoreLab(fixture.raw, testEd25519Provider)
       val pair = createDisposableSoftwareEd25519KeyPair()
       val id = requireCanonicalLabFingerprint(pair.public)
       val claim = PresentedDeviceOperation(id, 1L, 1L, 1L,
@@ -335,7 +335,7 @@ class NativeLockDataStoreInstrumentedTest {
         ProtectedOperation.REVOKE_DEVICE)
       val floor = DeviceTrustFloor(1L, 1L)
       val first = Fixture(file).also { instances.add(it) }
-      val ledger = SyntheticDeviceChallengeDataStoreLab(first.raw)
+      val ledger = SyntheticDeviceChallengeDataStoreLab(first.raw, testEd25519Provider)
       ledger.seedForDisposableLab(id)
       val issued = ledger.issue(claim, floor)
       val signed = signDeviceLab(pair, claim, issued.nonceCopy())
@@ -344,7 +344,7 @@ class NativeLockDataStoreInstrumentedTest {
       first.close()
 
       val reopened = Fixture(file).also { instances.add(it) }
-      val afterRestart = SyntheticDeviceChallengeDataStoreLab(reopened.raw)
+      val afterRestart = SyntheticDeviceChallengeDataStoreLab(reopened.raw, testEd25519Provider)
       assertEquals(2L, afterRestart.read()!!.revision)
       assertNull(afterRestart.read()!!.pending)
       assertTrue(runCatching {
