@@ -12,6 +12,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import java.io.File
 import java.nio.file.Files
 import kotlinx.coroutines.CoroutineScope
@@ -57,6 +59,29 @@ private suspend fun setSyntheticRecord(
       NativeLockDataStoreKeys.enabled to enabled,
       NativeLockDataStoreKeys.revision to revision
     )
+  }
+}
+
+/**
+ * Fake READ transport, not a production DataStore. Allows a failure between
+ * a real previously successful unlock and the very next native disk read.
+ */
+private class ReadFaultDataStore : DataStore<Preferences> {
+  var failRead = false
+  var missingRecord = false
+  private var record: Preferences = mutablePreferencesOf(
+    NativeLockDataStoreKeys.version to LOCK_RECORD_VERSION,
+    NativeLockDataStoreKeys.enabled to true,
+    NativeLockDataStoreKeys.revision to 3L
+  )
+  override val data: Flow<Preferences>
+    get() = flow {
+      if (failRead) error("synthetic disk read unavailable")
+      emit(if (missingRecord) mutablePreferencesOf() else record)
+    }
+  override suspend fun updateData(transform: suspend (t: Preferences) -> Preferences): Preferences {
+    record = transform(record)
+    return record
   }
 }
 
@@ -533,5 +558,48 @@ internal suspend fun runSuspendingCoordinatorScenarios() {
     check(c.unlock() == LockResult.STORAGE_ERROR)
     check(c.snapshot().storageError && !c.snapshot().unlocked)
   }
-  println("PASS: 33 suspending native lock coordinator scenarios (isolated JVM only)")
+  // 34. A failing explicit unlock re-read revokes an EARLIER approved grant.
+  run {
+    val raw = ReadFaultDataStore()
+    val repo = DataStoreLockRecordRepository(raw)
+    val c = SuspendingNativeLockCoordinator(repo) { true }
+    c.onForeground()
+    check(c.unlock() == LockResult.SUCCESS)
+    check(c.snapshot().unlocked)
+    raw.failRead = true
+    check(c.unlock() == LockResult.STORAGE_ERROR)
+    raw.failRead = false
+    check(!c.snapshot().unlocked)
+    // A repaired read does NOT restore the old token without a new prompt.
+    check(c.unlock() == LockResult.SUCCESS)
+  }
+
+  // 35. Missing DataStore record on a new unlock revokes an EARLIER grant.
+  run {
+    val raw = ReadFaultDataStore()
+    val repo = DataStoreLockRecordRepository(raw)
+    val c = SuspendingNativeLockCoordinator(repo) { true }
+    c.onForeground()
+    check(c.unlock() == LockResult.SUCCESS)
+    raw.missingRecord = true
+    check(c.unlock() == LockResult.MIGRATION_REQUIRED)
+    raw.missingRecord = false
+    check(!c.snapshot().unlocked)
+  }
+
+  // 36. If the disk fails only AFTER successful biometric prompt, no unlock.
+  run {
+    val raw = ReadFaultDataStore()
+    val repo = DataStoreLockRecordRepository(raw)
+    val c = SuspendingNativeLockCoordinator(repo) {
+      raw.failRead = true
+      true
+    }
+    c.onForeground()
+    check(c.unlock() == LockResult.STORAGE_ERROR)
+    raw.failRead = false
+    check(!c.snapshot().unlocked)
+  }
+
+  println("PASS: 36 suspending native lock coordinator scenarios (isolated JVM only)")
 }
