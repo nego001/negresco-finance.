@@ -18,7 +18,7 @@
 | SEC-02 | Identidade forte | Keystore, `BiometricPrompt.CryptoObject` e reautenticação por operação | Laboratório Android; biometria manual não executada | API Android real, revogação em `onStop`, biometria e inscrição alterada |
 | SEC-03 | Privacidade | Tela segura, anti-tapjacking, clipboard, notificações e revisão de backups | Bloqueio de captura parcial no app experimental | revisão por tela, teste de overlays/captura, acessibilidade |
 | SEC-04 | Antifraude | Detecção de ações arriscadas e alertas locais, sem PII desnecessária | Sinais definidos no motor de política sintético | telemetria minimizada, qualidade dos sinais, resposta a falsos positivos |
-| SEC-05 | Confiança de dispositivos | Credenciais por aparelho, registro aprovado, expiração e revogação | Laboratório Kotlin sintético de revogação/epoch e anti-replay (sem chave e sem servidor) | protocolo assinado, atestado contextual, persistência atômica, revisão monotônica remota e troca de aparelho |
+| SEC-05 | Confiança de dispositivos | Credenciais por aparelho, registro aprovado, expiração e revogação | Laboratório Kotlin com verificação real de assinatura Ed25519 sobre desafios sintéticos e guardas de revogação em memória | autenticar cadastro, emitir desafios confiáveis, counters duráveis, âncora monotônica, QA Android e servidor |
 | SEC-06 | Modo Proteção Máxima | Pré-verificação por risco e autenticação reforçada por ação | **Laboratório Kotlin `SecurityOperationPolicyLab` inicial** | entradas obtidas somente por módulos nativos, decisão revalidada na camada de chaves |
 | SEC-07 | Recuperação | Backup cifrado + kit separado + recuperação verificada + anti-rollback | Protótipo sintético em memória | exportação segura, restauração segunda instalação e proteção contra replay |
 | SEC-08 | Central de Segurança | Painel com estado real, alertas e auditoria sem segredos | Laboratório de eventos minimizados `SecurityAuditEventLab` (sem persistência) | API de evidências verificadas, armazenamento cifrado, nenhum indicador visual fictício |
@@ -98,6 +98,34 @@ plataforma necessários para garantir esses sinais.
 - São **21 cenários adversariais**, incluindo corrida de 16 tentativas concorrentes, e **256 combinações de estados**. Os resultados só devem ser chamados aprovados após verificar `native-lock-spike` no CI do HEAD.
 
 **Bloqueios para produção:** identidade autenticada de chave pública, prova de posse por desafio assinado com domínio/operação/nonce, vínculo ao titular, contador transacional persistente, valor monotônico protegido fora do banco sujeito a rollback, rotação, recuperação de aparelhos perdidos, política offline e proteção contra clonagem. O projeto atual **não** protege replays após morte do processo ou restauração de um backup antigo: compare-and-set em memória não resolve essa ameaça. Não conectar esse protótipo ao JavaScript como permissão de acesso.
+
+### Prova criptográfica vinculada à operação (Ed25519, somente JVM)
+
+`SyntheticSignedDeviceProofLab.kt` valida assinaturas **Ed25519 reais** e
+impede que uma operação assinada seja substituída por outra de tipo diferente,
+dispositivo, revisão, epoch ou contador diferente. Codificação canônica
+binária com identificadores estáveis por operação, domínio criptográfico e
+desafio de 32 bytes. Fingerprint SHA-256 é calculado a partir da chave pública
+X.509 fornecida pelo laboratório; a chave privada só existe em
+`SyntheticSignedDeviceProofLabTest.kt`, gerada em memória.
+
+O `SyntheticDeviceTrustCoordinator.recordSignedSyntheticOperation` associa a
+verificação criptográfica ao registro atômico do número de sequência de
+laboratório. Uma assinatura válida **não** desbloqueia nada, nem retorna
+`ALLOW`. A mesma sequência só pode ser consumida uma vez **enquanto durar a
+instância JVM**. Há 22 novos cenários JVM de assinatura adulterada, chave
+errada, nonce diferente, ação alterada, revisão alterada, revogação posterior,
+replay e concorrência.
+
+**Atenção:** este NÃO é um autenticador de produção. O parâmetro
+`enrolledPublicKey` deve, no futuro, ser lido de cadastro de chave previamente
+autorizado e autenticado, nunca de payload controlado por quem pede acesso.
+O `independentlyIssuedNonce` deve vir de emissor seguro com validade e
+consumo único persistido. O laboratório não tem essas duas autoridades,
+vínculo à conta, antirreplay depois de processo reiniciado, Keystore
+hardware-backed, validação de Play Integrity, assinaturas reais em Android
+nem conexão segura com serviço de dispositivos. Seu resultado continua
+**pré-requisito de uma autorização separada**, não autorização financeira.
 
 ## Laboratório de auditoria, sem coleta de dados pessoais (SEC-08)
 
