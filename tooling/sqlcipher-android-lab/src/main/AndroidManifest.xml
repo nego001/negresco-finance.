@@ -1,1 +1,12 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" />
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <application>
+    <!-- Disposable SQLCipher lab only. A private helper process is deliberately
+         terminated by one instrumented test while a transaction is uncommitted.
+         This library is NOT linked to the Negresco Finance APK. -->
+    <provider
+      android:name="com.negresco.finance.sqlcipher.lab.SyntheticSqlCipherCrashProvider"
+      android:authorities="com.negresco.finance.sqlcipher.lab.synthetic_crash"
+      android:exported="false"
+      android:process=":sqlcipher_crash_test" />
+  </application>
+</manifest>
