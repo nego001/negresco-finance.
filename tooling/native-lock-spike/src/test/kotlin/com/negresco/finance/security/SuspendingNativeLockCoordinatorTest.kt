@@ -601,5 +601,68 @@ internal suspend fun runSuspendingCoordinatorScenarios() {
     check(!c.snapshot().unlocked)
   }
 
-  println("PASS: 36 suspending native lock coordinator scenarios (isolated JVM only)")
+  // 37. A rejected NEW unlock attempt must revoke the PREVIOUS valid grant.
+  withCoordinatorStore { repo, raw ->
+    var approve = true
+    val c = SuspendingNativeLockCoordinator(repo) { approve }
+    c.onForeground()
+    check(c.unlock() == LockResult.SUCCESS)
+    check(c.snapshot().unlocked)
+    approve = false
+    check(c.unlock() == LockResult.DENIED)
+    check(!c.snapshot().unlocked)
+    approve = true
+    check(c.unlock() == LockResult.SUCCESS) // A fresh prompt is required.
+  }
+
+  // 38. Cancellation of NEW unlock also revokes an earlier session.
+  withCoordinatorStore { repo, raw ->
+    var cancel = false
+    val c = SuspendingNativeLockCoordinator(repo) {
+      if (cancel) throw java.util.concurrent.CancellationException("synthetic cancelled prompt")
+      true
+    }
+    c.onForeground()
+    check(c.unlock() == LockResult.SUCCESS)
+    check(c.snapshot().unlocked)
+    cancel = true
+    check(runCatching { c.unlock() }.exceptionOrNull()
+      is java.util.concurrent.CancellationException)
+    cancel = false
+    check(!c.snapshot().unlocked)
+    check(c.unlock() == LockResult.SUCCESS)
+  }
+
+  // 39. Rejected opt-out authentication revokes previous session, never writes off.
+  withCoordinatorStore { repo, raw ->
+    var approve = true
+    val c = SuspendingNativeLockCoordinator(repo) { approve }
+    c.onForeground()
+    check(c.unlock() == LockResult.SUCCESS)
+    approve = false
+    check(c.prepareDisableForLab() == LockResult.DENIED)
+    check(!c.snapshot().unlocked)
+    check(repo.read() == LockRecord(1, true, 3L))
+    check(c.disable() == LockResult.DENIED)
+  }
+
+  // 40. Cancelled opt-out prompt cannot reuse previous grant or stage opt-out.
+  withCoordinatorStore { repo, raw ->
+    var cancelOptOut = false
+    val c = SuspendingNativeLockCoordinator(repo) { action ->
+      if (cancelOptOut && action == LockAction.DISABLE)
+        throw java.util.concurrent.CancellationException("synthetic opt-out cancellation")
+      true
+    }
+    c.onForeground()
+    check(c.unlock() == LockResult.SUCCESS)
+    cancelOptOut = true
+    check(runCatching { c.prepareDisableForLab() }.exceptionOrNull()
+      is java.util.concurrent.CancellationException)
+    check(!c.snapshot().unlocked)
+    check(repo.read() == LockRecord(1, true, 3L))
+    check(c.disable() == LockResult.DENIED)
+  }
+
+  println("PASS: 40 suspending native lock coordinator scenarios (isolated JVM only)")
 }
