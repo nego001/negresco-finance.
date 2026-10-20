@@ -160,6 +160,12 @@ jobs:
           test -n "$NEW"
           echo 'f70ba5107c24e4e59c423ba898f281d9cc8aebc8852f4a0f999cb5923d1c0077  '"$NEW" | sha256sum -c -
 
+      - name: Enable accelerated disposable Android emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-negresco-kvm.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
       - name: Try in-place update ONLY in a throwaway emulator
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
         with:
@@ -175,10 +181,12 @@ jobs:
             NEW="$(find candidate -type f -name '*.apk' -print -quit)"
             adb install "$OLD"
             adb shell pm path com.negresco.finance | grep -F 'package:'
-            adb shell dumpsys package com.negresco.finance | grep -m 1 'versionCode=33'
+            adb shell dumpsys package com.negresco.finance > /tmp/negresco-before-upgrade.txt
+            grep -m 1 'versionCode=33' /tmp/negresco-before-upgrade.txt
             # Do not uninstall, clear, reset, or migrate real data.
             adb install -r "$NEW"
             adb shell pm path com.negresco.finance | grep -F 'package:'
-            adb shell dumpsys package com.negresco.finance | grep -m 1 'versionCode=34'
+            adb shell dumpsys package com.negresco.finance > /tmp/negresco-after-upgrade.txt
+            grep -m 1 'versionCode=34' /tmp/negresco-after-upgrade.txt
             echo 'EMULATOR ONLY: PackageManager accepted same-signature upgrade.'
             echo 'This does NOT establish preservation of financial data or the Samsung certificate.'
