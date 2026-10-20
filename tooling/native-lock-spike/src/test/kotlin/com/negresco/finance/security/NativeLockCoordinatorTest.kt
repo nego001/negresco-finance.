@@ -169,5 +169,6 @@ fun main() {
     runSqlCipherLabGuardScenarios()
     runSecurityOperationPolicyScenarios()
     runSecurityAuditEventScenarios()
+    runSyntheticDeviceTrustScenarios()
   }
 }
