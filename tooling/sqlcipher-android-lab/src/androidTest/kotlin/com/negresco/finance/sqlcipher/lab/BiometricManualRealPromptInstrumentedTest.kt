@@ -5,6 +5,7 @@ import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import java.security.SecureRandom
+import javax.crypto.Cipher
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -24,6 +25,33 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class BiometricManualRealPromptInstrumentedTest {
+  @Test fun directKeystoreOperationWithoutBiometricMustFail() {
+    val options = InstrumentationRegistry.getArguments()
+    assumeTrue("Explicit biometrics-only test flag is required",
+      options.getString("negrescoBiometricManual") == "true")
+
+    ActivityScenario.launch(SyntheticBiometricTestActivity::class.java).use { scenario ->
+      val activity = AtomicReference<SyntheticBiometricTestActivity>()
+      scenario.onActivity { activity.set(it) }
+      assertTrue("Enrolled strong biometrics are required",
+        BiometricManager.from(activity.get()).canAuthenticate(
+          BiometricManager.Authenticators.BIOMETRIC_STRONG
+        ) == BiometricManager.BIOMETRIC_SUCCESS)
+
+      BiometricCipherAuthorizationLab.provisionForLabOnly(activity.get())
+
+      // Do not show a prompt. Per-use KeyStore authorization MUST prevent an
+      // otherwise correctly initialized Cipher from executing AES-GCM.
+      val attempt = runCatching {
+        val raw = Cipher.getInstance("AES/GCM/NoPadding")
+        raw.init(Cipher.ENCRYPT_MODE, BiometricCipherAuthorizationLab.existingKey())
+        raw.doFinal(ByteArray(32))
+      }
+      assertTrue("A non-prompt Cipher must not use the authenticated key",
+        attempt.isFailure)
+    }
+  }
+
   @Test fun manuallyAuthorizeTwoOperationsToReopenSyntheticEnvelope() {
     val options = InstrumentationRegistry.getArguments()
     assumeTrue("Manual biometric prompt test is opt-in only",
