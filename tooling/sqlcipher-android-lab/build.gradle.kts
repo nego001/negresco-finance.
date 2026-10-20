@@ -12,6 +12,9 @@ android {
     // Off by default: real-sensor QA requires explicit foreground user approval.
     testInstrumentationRunnerArguments["negrescoBiometricManual"] =
       (project.findProperty("negrescoBiometricManual")?.toString() ?: "false")
+    // Off by default: two-stage enrollment changes are emulator-only and manual.
+    testInstrumentationRunnerArguments["negrescoEnrollmentPhase"] =
+      (project.findProperty("negrescoEnrollmentPhase")?.toString() ?: "none")
   }
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_17
