@@ -172,5 +172,6 @@ fun main() {
     runSyntheticDeviceTrustScenarios()
     runSignedDeviceProofScenarios()
     runSyntheticDeviceLedgerScenarios()
+    runSignedAuthorityFloorScenarios()
   }
 }
