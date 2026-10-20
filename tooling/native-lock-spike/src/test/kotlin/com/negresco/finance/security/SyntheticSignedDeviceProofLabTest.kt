@@ -184,5 +184,16 @@ internal fun runSignedDeviceProofScenarios() {
   check(SyntheticSignedDeviceProofLab.verify(op, pair.public, challenge,
     challenge, signature))
 
-  println("PASS: 24 Ed25519 signed device proof scenarios (JVM only, no trusted enrollment)")
+  // 25. Explicit JCA provider selection changes implementation only, NEVER
+  // the Ed25519 signature, fingerprint, nonce or operation verification.
+  val explicitVerifier = Signature.getInstance("Ed25519").provider
+  check(SyntheticSignedDeviceProofLab.verify(op, pair.public,
+    challenge, challenge, signature, explicitVerifier))
+  check(!SyntheticSignedDeviceProofLab.verify(op, pair.public,
+    challenge, challenge, modified, explicitVerifier))
+  check(!SyntheticSignedDeviceProofLab.verify(
+    op.copy(operation = ProtectedOperation.REVOKE_DEVICE),
+    pair.public, challenge, challenge, signature, explicitVerifier))
+
+  println("PASS: 25 Ed25519 signed device proof scenarios (JVM only, no trusted enrollment)")
 }
