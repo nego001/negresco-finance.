@@ -355,6 +355,55 @@ class NativeLockDataStoreInstrumentedTest {
       assertEquals(0L, afterRestart.read()!!.lastSequence)
     }
 
+  @Test fun signedAuthorityAndDeviceProofConsumeOneAndroidDataStoreCounter() =
+    runBlocking {
+      // Software-only keys, isolated DataStore and synthetic authority.
+      // This test does NOT emulate production trust or server freshness.
+      val file = File(isolatedDirectory, "authority_witness.preferences_pb")
+      val device = createDisposableSoftwareEd25519KeyPair()
+      val authority = createDisposableSoftwareEd25519KeyPair()
+      val id = requireCanonicalLabFingerprint(device.public)
+      val fixture = Fixture(file).also { instances.add(it) }
+      val ledger = SyntheticDeviceChallengeDataStoreLab(fixture.raw,
+        testEd25519Provider, authority.public)
+      val claim = PresentedDeviceOperation(id, 1L, 1L, 1L,
+        ProtectedOperation.EXPORT_FINANCIAL_DATA)
+      val pending = ledger.seedForDisposableLab(id).let {
+        ledger.issue(claim, DeviceTrustFloor(1L, 1L))
+      }
+      val authorityNonce = ByteArray(32).also {
+        java.security.SecureRandom().nextBytes(it)
+      }
+      val floor = SignedFloorClaim(id, 1L, 1L, 0L)
+      val authoritySig = Signature.getInstance("Ed25519", testEd25519Provider).run {
+        initSign(authority.private)
+        update(SyntheticSignedTrustFloorLab.payload(floor, authorityNonce))
+        sign()
+      }
+      val deviceSig = signDeviceLab(device, claim, pending.nonceCopy())
+
+      val changedChallenge = authorityNonce.copyOf().also {
+        it[0] = (it[0].toInt() xor 1).toByte()
+      }
+      assertTrue(runCatching {
+        ledger.consumeWithSignedAuthorityFloorForDisposableLab(
+          claim, floor, changedChallenge, authorityNonce, authoritySig,
+          device.public, pending.nonceCopy(), deviceSig)
+      }.exceptionOrNull() is UnverifiedSyntheticAuthorityFloor)
+      assertEquals(0L, ledger.read()!!.lastSequence)
+
+      val saved = ledger.consumeWithSignedAuthorityFloorForDisposableLab(
+        claim, floor, authorityNonce, authorityNonce, authoritySig,
+        device.public, pending.nonceCopy(), deviceSig)
+      assertEquals(1L, saved.lastSequence)
+      assertNull(saved.pending)
+      assertTrue(runCatching {
+        ledger.consumeWithSignedAuthorityFloorForDisposableLab(
+          claim, floor, authorityNonce, authorityNonce, authoritySig,
+          device.public, pending.nonceCopy(), deviceSig)
+      }.exceptionOrNull() is StaleSyntheticDeviceLedger)
+    }
+
   @Test fun healthyEnabledRecordCannotBeDisabledByEnableOnlyWriter() = runBlocking {
     val store = open().repository
     store.migrateLegacyLocked("enabled", null)
