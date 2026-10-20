@@ -5,6 +5,7 @@ import java.io.DataOutputStream
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.security.PublicKey
+import java.security.Provider
 import java.security.Signature
 import java.security.interfaces.EdECPublicKey
 
@@ -93,7 +94,10 @@ internal object SyntheticSignedTrustFloorLab {
     trustedAuthorityPublicKey: PublicKey?,
     freshClientChallenge: ByteArray?,
     returnedChallenge: ByteArray?,
-    authoritySignature: ByteArray?
+    authoritySignature: ByteArray?,
+    // Software-only fixture override for isolated Android instrumentation.
+    // Production must FIX and audit its crypto implementation; no JS input.
+    labVerifierProvider: Provider? = null
   ): SignedFloorCheck {
     if (trustedAuthorityPublicKey == null || !isEd25519(trustedAuthorityPublicKey)) {
       return SignedFloorCheck.DENY_MISSING_AUTHORITY
@@ -116,7 +120,8 @@ internal object SyntheticSignedTrustFloorLab {
       return SignedFloorCheck.DENY_SIGNATURE
     }
     val signatureVerified = try {
-      val verifier = Signature.getInstance("Ed25519")
+      val verifier = if (labVerifierProvider == null) Signature.getInstance("Ed25519")
+        else Signature.getInstance("Ed25519", labVerifierProvider)
       verifier.initVerify(trustedAuthorityPublicKey)
       verifier.update(payload(floor, returnedChallenge))
       verifier.verify(authoritySignature.copyOf())
