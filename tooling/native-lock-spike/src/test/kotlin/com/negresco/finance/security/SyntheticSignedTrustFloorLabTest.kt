@@ -54,6 +54,15 @@ internal fun runSignedAuthorityFloorScenarios() {
   val rsa = KeyPairGenerator.getInstance("RSA").apply { initialize(2048) }.generateKeyPair()
   check(inspect(key = rsa.public) == SignedFloorCheck.DENY_MISSING_AUTHORITY)
 
+  // An attacker-defined key label is not proof of canonical Ed25519 DER.
+  val mislabelledKey = object : PublicKey {
+    override fun getAlgorithm() = "Ed25519"
+    override fun getFormat() = "X.509"
+    override fun getEncoded() = rsa.public.encoded.copyOf()
+  }
+  check(inspect(key = mislabelledKey) == SignedFloorCheck.DENY_MISSING_AUTHORITY)
+  check(SyntheticSignedDeviceProofLab.fingerprint(mislabelledKey) == null)
+
   // 5. Tampered signature invalid even if counters appear healthy.
   val altered = signed.copyOf().also { it[0] = (it[0].toInt() xor 1).toByte() }
   check(inspect(signature = altered) == SignedFloorCheck.DENY_SIGNATURE)
