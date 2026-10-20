@@ -404,6 +404,55 @@ class NativeLockDataStoreInstrumentedTest {
       }.exceptionOrNull() is StaleSyntheticDeviceLedger)
     }
 
+  @Test fun dualSignedInvitationIsConsumedOnceAfterAndroidDataStoreReopen() =
+    runBlocking {
+      // Software-only Ed25519 and disposable separate DataStore fixture.
+      // The result is a terminal INVITE, never a trusted registered device.
+      val file = File(isolatedDirectory, "dual_signed_invite.preferences_pb")
+      val approver = createDisposableSoftwareEd25519KeyPair()
+      val candidate = createDisposableSoftwareEd25519KeyPair()
+      val other = createDisposableSoftwareEd25519KeyPair()
+      val id = requireCanonicalLabFingerprint(approver.public)
+      val newId = requireCanonicalLabFingerprint(candidate.public)
+      val state = SyntheticDeviceTrustPolicy.createSyntheticFirstDevice(id)
+      val floor = DeviceTrustFloor(1L, 1L)
+      val intent = SyntheticDeviceEnrollmentIntent(id, newId, 1L, 1L, 1L)
+      val original = Fixture(file).also { instances.add(it) }
+      val invites = SyntheticEnrollmentInviteDataStoreLab(
+        original.raw, state, floor, approver.public, testEd25519Provider)
+      val nonce = invites.issue(intent, candidate.public).pendingNonceCopy()!!
+      fun signed(key: KeyPair, candidateRole: Boolean): ByteArray =
+        Signature.getInstance("Ed25519", testEd25519Provider).run {
+          initSign(key.private)
+          update(SyntheticDeviceEnrollmentProofLab.payload(intent, nonce, candidateRole))
+          sign()
+        }
+      val oldSig = signed(approver, false)
+      val newSig = signed(candidate, true)
+      val forgedCandidateSig = signed(other, true)
+
+      assertTrue(runCatching {
+        invites.consume(intent, candidate.public, nonce, oldSig, forgedCandidateSig)
+      }.exceptionOrNull() is UnverifiedSyntheticInvite)
+      assertEquals(SyntheticInviteStatus.PENDING, invites.read()!!.status)
+      assertEquals(SyntheticInviteStatus.CONSUMED,
+        invites.consume(intent, candidate.public, nonce, oldSig, newSig).status)
+      assertNull(invites.read()!!.pendingNonceCopy())
+      original.close()
+
+      val reopened = Fixture(file).also { instances.add(it) }
+      val persistent = SyntheticEnrollmentInviteDataStoreLab(
+        reopened.raw, state, floor, approver.public, testEd25519Provider)
+      assertEquals(SyntheticInviteStatus.CONSUMED, persistent.read()!!.status)
+      assertTrue(runCatching {
+        persistent.consume(intent, candidate.public, nonce, oldSig, newSig)
+      }.exceptionOrNull() is StaleSyntheticInvite)
+      assertTrue(runCatching {
+        persistent.issue(intent, candidate.public)
+      }.exceptionOrNull() is StaleSyntheticInvite)
+      assertFalse(newId in state.active)
+    }
+
   @Test fun healthyEnabledRecordCannotBeDisabledByEnableOnlyWriter() = runBlocking {
     val store = open().repository
     store.migrateLegacyLocked("enabled", null)
