@@ -30,9 +30,12 @@ test('native lock Android tests operate only on disposable no-backup fixtures',(
  assert.doesNotMatch(mobile,/native-lock-android-lab|NativeLockAndroidStore/);
 });
 
-test('ten native DataStore verification cases include rejection and cancellation of prior grants',()=>{
+test('thirteen native DataStore checks cover lock sessions and signed device challenge persistence',()=>{
  const source=read('tooling/native-lock-android-lab/src/androidTest/kotlin/com/negresco/finance/security/NativeLockDataStoreInstrumentedTest.kt');
- assert.equal((source.match(/@Test fun /g)||[]).length,10);
+ assert.equal((source.match(/@Test fun /g)||[]).length,13);
+ assert.match(source,/deviceChallengePersistsAndSingleUseSurvivesReopeningRealDataStore/);
+ assert.match(source,/fakeSignatureDoesNotConsumeDeviceChallengeOnRealDataStore/);
+ assert.match(source,/racingValidSignedDeviceProofConsumesOneRealDataStoreTransaction/);
  assert.match(source,/deniedSecondAuthenticationRevokesPreviousGrantOnRealDataStore/);
  assert.match(source,/cancelledOptOutCannotRetainPriorGrantOrDisableRealDataStore/);
  assert.match(source,/absentPersistedRecordRevokesPreviouslyUnlockedSession/);
