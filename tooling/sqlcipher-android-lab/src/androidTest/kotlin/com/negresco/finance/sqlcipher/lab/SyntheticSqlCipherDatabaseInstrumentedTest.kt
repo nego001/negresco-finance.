@@ -262,29 +262,29 @@ class SyntheticSqlCipherDatabaseInstrumentedTest {
       db.execSQL("INSERT INTO lab_probe(id, marker) VALUES (1, 'committed-before-crash')")
     }
 
-    // Private provider is hosted in :sqlcipher_crash_test, NOT the test/main
-    // process. IPC may throw when that remote process intentionally dies.
-    runCatching {
-      context.contentResolver.call(
-        Uri.parse("content://${SyntheticSqlCipherCrashProvider.AUTHORITY}"),
-        SyntheticSqlCipherCrashProvider.METHOD, null, null
-      )
-    }
-    assertTrue(
-      "Remote provider did not reach the uncommitted WAL write",
-      crashWitness.isFile &&
-        crashWitness.readText(Charsets.US_ASCII) == "pending-transaction-reached"
+    // IPC returns BEFORE the private provider crashes, so the instrumentation
+    // process is not killed together with an in-flight provider Binder call.
+    val result = context.contentResolver.call(
+      Uri.parse("content://${SyntheticSqlCipherCrashProvider.AUTHORITY}"),
+      SyntheticSqlCipherCrashProvider.METHOD, null, null
     )
+    assertTrue("Remote provider failed to accept crash fixture", result != null)
+    var reached = false
+    repeat(50) {
+      reached = crashWitness.isFile &&
+        crashWitness.readText(Charsets.US_ASCII) == "pending-transaction-reached"
+      if (!reached) Thread.sleep(100L)
+    }
+    assertTrue("Remote subprocess never wrote the uncommitted transaction witness", reached)
 
     // Confirm no remote crash helper remains running before re-opening the DB.
     val manager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
     var stillRunning = true
-    repeat(30) {
+    repeat(50) {
       stillRunning = manager.runningAppProcesses?.any {
         it.processName.endsWith(":sqlcipher_crash_test")
       } == true
-      if (!stillRunning) return@repeat
-      Thread.sleep(100)
+      if (stillRunning) Thread.sleep(100L)
     }
     assertFalse("Remote helper process survived its intentional kill", stillRunning)
 
