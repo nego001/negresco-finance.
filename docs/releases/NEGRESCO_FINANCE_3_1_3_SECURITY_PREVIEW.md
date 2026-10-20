@@ -97,3 +97,14 @@ A preparação de desativação ainda não fornece o commit final `enabled=false
 O `tests/native-lock-android-emulator-contract.test.mjs` exige que esse job continue restrito a PR, com dependência da compilação, runner fixado e sem inclusão do laboratório no APK. O CI em `push` compila a instrumentação e os testes; a execução no emulador ocorre apenas no CI de `pull_request`.
 
 Referências: [PR #14](https://github.com/nego001/negresco-finance./pull/14) e [PR #6](https://github.com/nego001/negresco-finance./pull/6). A assinatura e a instalação no Galaxy A55 seguem pendentes de QA físico e consentimento.
+
+
+## Revogação imediata após falha de releitura nativa
+
+Foi identificado um risco lógico no laboratório Kotlin: se uma Activity já tivesse uma sessão autorizada e outra chamada `unlock()` encontrasse um registro ausente, uma exceção no `repository.read()` ou uma revisão de estado não utilizável, o retorno `STORAGE_ERROR`/`MIGRATION_REQUIRED`/`STALE` podia ocorrer sem revogar a **autorização anterior** em memória. A leitura por `snapshot()` já revogava, mas a chamada direta de `unlock()` não deveria depender de uma leitura posterior.
+
+A correção em `SuspendingNativeLockCoordinator` introduz `revokeOnUnsafeRead`, que invalida a geração e a autorização anterior **sincronamente** antes de devolver erro/negação em leituras inseguras de `unlock()`. Uma leitura válida posterior não recicla o desbloqueio antigo: precisa de nova autenticação. O fluxo `disable()` ainda retorna `DENIED`; isto **não** implementa o commit final de desativação.
+
+Três cenários JVM com transporte sintético `ReadFaultDataStore` verificam: falha em nova leitura após desbloqueio válido, ausência de registro após desbloqueio válido e falha da segunda leitura depois de autenticação. O total nominal da suíte JVM do laboratório cresce de **125 para 128 cenários**, além dos 6 testes Android de DataStore e 45 de SQLCipher (dos quais 5 de biometria manual são ignorados no CI comum).
+
+**Gate:** não declarar esses três novos cenários aprovados até conferir `native-lock-spike` no **head** atual do PR #14. A correção permanece no laboratório: sem autolinking Expo, sem atualização de APK/OTA, sem QA físico, sem garantia de proteção bancária.
