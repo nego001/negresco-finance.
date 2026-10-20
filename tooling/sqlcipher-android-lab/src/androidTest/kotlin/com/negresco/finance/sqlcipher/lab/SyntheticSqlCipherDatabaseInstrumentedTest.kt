@@ -301,6 +301,54 @@ class SyntheticSqlCipherDatabaseInstrumentedTest {
   }
 
   @Test
+  fun keystoreWrapRestoresSyntheticSqlCipherPassphraseWithoutPlaintextFallback() {
+    fixtureOwned = true
+    // Explicit, lab-only key provision. Never called from actual mobile app.
+    SyntheticSqlCipherKeyWrap.provisionForSyntheticLabOnly()
+    val wrapped = SyntheticSqlCipherKeyWrap.wrapSyntheticPassphrase(passphrase)
+    assertFalse("Wrapped envelope must not equal the raw database passphrase",
+      wrapped.contentEquals(passphrase))
+    val recovered = SyntheticSqlCipherKeyWrap.unwrapSyntheticPassphrase(wrapped)
+    try {
+      assertTrue(recovered.contentEquals(passphrase))
+      SyntheticSqlCipherDatabase.createFreshSynthetic(context, recovered).use { db ->
+        db.execSQL("INSERT INTO lab_probe(id, marker) VALUES (1, 'key-wrap-fixture')")
+      }
+    } finally {
+      recovered.fill(0)
+    }
+    val reopened = SyntheticSqlCipherKeyWrap.unwrapSyntheticPassphrase(wrapped)
+    try {
+      SyntheticSqlCipherDatabase.openExistingSynthetic(context, reopened).use { db ->
+        db.rawQuery("SELECT marker FROM lab_probe WHERE id = 1", null).use { cursor ->
+          assertTrue(cursor.moveToFirst())
+          assertEquals("key-wrap-fixture", cursor.getString(0))
+        }
+      }
+    } finally {
+      reopened.fill(0)
+    }
+  }
+
+  @Test
+  fun tamperedKeystoreEnvelopeNeverReleasesSyntheticSqlCipherPassphrase() {
+    SyntheticSqlCipherKeyWrap.provisionForSyntheticLabOnly()
+    val wrapped = SyntheticSqlCipherKeyWrap.wrapSyntheticPassphrase(passphrase)
+    val tampered = wrapped.copyOf()
+    tampered[tampered.lastIndex] = (tampered.last().toInt() xor 1).toByte()
+    assertTrue(runCatching {
+      SyntheticSqlCipherKeyWrap.unwrapSyntheticPassphrase(tampered)
+    }.exceptionOrNull() is SyntheticSqlCipherKeyWrap.Unavailable)
+    assertTrue(runCatching {
+      SyntheticSqlCipherKeyWrap.unwrapSyntheticPassphrase(wrapped.copyOf(wrapped.size - 1))
+    }.exceptionOrNull() is SyntheticSqlCipherKeyWrap.Unavailable)
+    val badVersion = wrapped.copyOf().also { it[4] = 2 }
+    assertTrue(runCatching {
+      SyntheticSqlCipherKeyWrap.unwrapSyntheticPassphrase(badVersion)
+    }.exceptionOrNull() is SyntheticSqlCipherKeyWrap.Unavailable)
+  }
+
+  @Test
   fun encryptedWalDoesNotRevealSyntheticMarkerAsPlaintext() {
     fixtureOwned = true
     val marker = "this-is-not-a-financial-record-WAL-sentinel-928"
