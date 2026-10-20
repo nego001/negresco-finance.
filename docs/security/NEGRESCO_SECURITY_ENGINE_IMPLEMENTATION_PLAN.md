@@ -92,10 +92,10 @@ plataforma necessários para garantir esses sinais.
 - Estado `revision`, `epoch`, conjunto de aparelhos ativos, tumbas de revogação e último número de sequência por chave.
 - Estado ausente, corrompido ou mais antigo que um **limite de confiança externo** é negado. O limite não foi implementado em Keystore/backend; nestes testes ele é fornecido como entrada confiável fictícia.
 - Pedido de operação com `revision` ou `epoch` antigo é negado; dispositivo desconhecido ou revogado permanece negado.
-- O contador de sequência não pode ser reutilizado na mesma instância JVM; o commit de laboratório usa compare-and-set para reduzir corrida de requisições.
+- O contador de sequência não pode ser reutilizado na mesma instância JVM; o commit de laboratório usa compare-and-set para reduzir corrida de requisições. O laboratório copia defensivamente mapas/conjuntos externos, para que o chamador não modifique a confiança por referência.
 - Revogação sintética remove o aparelho do conjunto ativo, grava um marcador de revogado e incrementa a época. Revogar o último aparelho mantém o estado **bloqueado**, sem reativação ou geração silenciosa de novo dispositivo.
 - `proofVerified: Boolean` é um **substituto artificial para testes**, jamais prova assinatura. Nenhum método concede acesso aos dados, abre SQLCipher, autoriza pagamento, exportação ou altera o aplicativo.
-- São **20 cenários adversariais**, incluindo corrida de 16 tentativas concorrentes, e **256 combinações de estados**. Os resultados só devem ser chamados aprovados após verificar `native-lock-spike` no CI do HEAD.
+- São **21 cenários adversariais**, incluindo corrida de 16 tentativas concorrentes, e **256 combinações de estados**. Os resultados só devem ser chamados aprovados após verificar `native-lock-spike` no CI do HEAD.
 
 **Bloqueios para produção:** identidade autenticada de chave pública, prova de posse por desafio assinado com domínio/operação/nonce, vínculo ao titular, contador transacional persistente, valor monotônico protegido fora do banco sujeito a rollback, rotação, recuperação de aparelhos perdidos, política offline e proteção contra clonagem. O projeto atual **não** protege replays após morte do processo ou restauração de um backup antigo: compare-and-set em memória não resolve essa ameaça. Não conectar esse protótipo ao JavaScript como permissão de acesso.
 
