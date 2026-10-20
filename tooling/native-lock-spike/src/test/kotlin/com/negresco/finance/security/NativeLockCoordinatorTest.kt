@@ -175,5 +175,6 @@ fun main() {
     runSignedAuthorityFloorScenarios()
     runSignedAuthorityLedgerIntegrationScenarios()
     runSyntheticDeviceEnrollmentProofScenarios()
+    runPersistentEnrollmentInviteScenarios()
   }
 }
