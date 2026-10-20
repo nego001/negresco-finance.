@@ -18,7 +18,7 @@
 | SEC-02 | Identidade forte | Keystore, `BiometricPrompt.CryptoObject` e reautenticação por operação | Laboratório Android; biometria manual não executada | API Android real, revogação em `onStop`, biometria e inscrição alterada |
 | SEC-03 | Privacidade | Tela segura, anti-tapjacking, clipboard, notificações e revisão de backups | Bloqueio de captura parcial no app experimental | revisão por tela, teste de overlays/captura, acessibilidade |
 | SEC-04 | Antifraude | Detecção de ações arriscadas e alertas locais, sem PII desnecessária | Sinais definidos no motor de política sintético | telemetria minimizada, qualidade dos sinais, resposta a falsos positivos |
-| SEC-05 | Confiança de dispositivos | Credenciais por aparelho, registro aprovado, expiração e revogação | Planejado; sem backend autorizado | protocolo assinado, atestado contextual, replays e troca de aparelho |
+| SEC-05 | Confiança de dispositivos | Credenciais por aparelho, registro aprovado, expiração e revogação | Laboratório Kotlin sintético de revogação/epoch e anti-replay (sem chave e sem servidor) | protocolo assinado, atestado contextual, persistência atômica, revisão monotônica remota e troca de aparelho |
 | SEC-06 | Modo Proteção Máxima | Pré-verificação por risco e autenticação reforçada por ação | **Laboratório Kotlin `SecurityOperationPolicyLab` inicial** | entradas obtidas somente por módulos nativos, decisão revalidada na camada de chaves |
 | SEC-07 | Recuperação | Backup cifrado + kit separado + recuperação verificada + anti-rollback | Protótipo sintético em memória | exportação segura, restauração segunda instalação e proteção contra replay |
 | SEC-08 | Central de Segurança | Painel com estado real, alertas e auditoria sem segredos | Laboratório de eventos minimizados `SecurityAuditEventLab` (sem persistência) | API de evidências verificadas, armazenamento cifrado, nenhum indicador visual fictício |
@@ -84,6 +84,20 @@ apenas um sinal para decidir o próximo passo; mesmo `true` só pode retornar
 sincronização, FIDO2, antifraude de produção ou nenhum dos controles da
 plataforma necessários para garantir esses sinais.
 
+
+## Protótipo de confiança e revogação de dispositivos (SEC-05)
+
+`tooling/native-lock-spike/.../SyntheticDeviceTrustLab.kt` modela **um laboratório sem chaves privadas, comunicação de rede, contas ou aparelhos reais**. O protótipo usa um identificador de chave pública de 32 bytes representado em hexadecimal para testar transições de estado; a existência de um identificador **não** comprova posse da chave. Não registra biometria nem provisiona aparelhos.
+
+- Estado `revision`, `epoch`, conjunto de aparelhos ativos, tumbas de revogação e último número de sequência por chave.
+- Estado ausente, corrompido ou mais antigo que um **limite de confiança externo** é negado. O limite não foi implementado em Keystore/backend; nestes testes ele é fornecido como entrada confiável fictícia.
+- Pedido de operação com `revision` ou `epoch` antigo é negado; dispositivo desconhecido ou revogado permanece negado.
+- O contador de sequência não pode ser reutilizado na mesma instância JVM; o commit de laboratório usa compare-and-set para reduzir corrida de requisições.
+- Revogação sintética remove o aparelho do conjunto ativo, grava um marcador de revogado e incrementa a época. Revogar o último aparelho mantém o estado **bloqueado**, sem reativação ou geração silenciosa de novo dispositivo.
+- `proofVerified: Boolean` é um **substituto artificial para testes**, jamais prova assinatura. Nenhum método concede acesso aos dados, abre SQLCipher, autoriza pagamento, exportação ou altera o aplicativo.
+- São **20 cenários adversariais**, incluindo corrida de 16 tentativas concorrentes, e **256 combinações de estados**. Os resultados só devem ser chamados aprovados após verificar `native-lock-spike` no CI do HEAD.
+
+**Bloqueios para produção:** identidade autenticada de chave pública, prova de posse por desafio assinado com domínio/operação/nonce, vínculo ao titular, contador transacional persistente, valor monotônico protegido fora do banco sujeito a rollback, rotação, recuperação de aparelhos perdidos, política offline e proteção contra clonagem. O projeto atual **não** protege replays após morte do processo ou restauração de um backup antigo: compare-and-set em memória não resolve essa ameaça. Não conectar esse protótipo ao JavaScript como permissão de acesso.
 
 ## Laboratório de auditoria, sem coleta de dados pessoais (SEC-08)
 
