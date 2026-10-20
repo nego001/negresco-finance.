@@ -37,6 +37,7 @@ internal class InvalidSyntheticDeviceLedger : IllegalStateException("Synthetic d
 internal class StaleSyntheticDeviceLedger : IllegalStateException("Synthetic operation expired or replayed")
 internal class PendingSyntheticDeviceChallenge : IllegalStateException("Challenge already outstanding")
 internal class UnverifiedSyntheticDeviceProof : IllegalStateException("Signed device claim rejected")
+internal class UnverifiedSyntheticAuthorityFloor : IllegalStateException("Signed authority floor denied")
 
 internal data class SyntheticLedgerView(
   val fingerprint: DeviceKeyFingerprint,
@@ -58,7 +59,10 @@ internal class SyntheticDeviceChallengeDataStoreLab(
   private val store: DataStore<Preferences>,
   // Only portable crypto fixture tests may supply a software JCA provider.
   // No production enrollment, native authorization, or JS bridge exists here.
-  private val labVerifierProvider: Provider? = null
+  private val labVerifierProvider: Provider? = null,
+  // LAB-ONLY pinned fixture: supplied at construction, never by the operation
+  // request. There is no authenticated provisioning or real backend here.
+  private val labTrustedAuthorityKey: PublicKey? = null
 ) {
   private val rng = SecureRandom()
   private val hexPattern = Regex("[0-9a-f]{64}")
@@ -212,4 +216,61 @@ internal class SyntheticDeviceChallengeDataStoreLab(
     }
     return decode(committed) ?: throw InvalidSyntheticDeviceLedger()
   }
+
+  /**
+   * SEC-05 LAB: atomically re-check the signed authority witness AND signed
+   * device challenge against the same DataStore snapshot at consumption.
+   *
+   * The authority public key is fixed in this disposable fixture's
+   * constructor, NOT chosen in each request. This is still NOT a trusted
+   * provisioner. No network/issuer exists and the caller-supplied remote
+   * challenge is NOT guaranteed fresh by this method.
+   *
+   * Never expose to JavaScript, use for financial access, or treat the
+   * returned ledger view as authorization. A separate native, verified
+   * issuer/nonce protocol is mandatory before shipping anything.
+   */
+  suspend fun consumeWithSignedAuthorityFloorForDisposableLab(
+    claim: PresentedDeviceOperation,
+    signedFloor: SignedFloorClaim?,
+    freshlyIssuedAuthorityChallenge: ByteArray?,
+    echoedAuthorityChallenge: ByteArray?,
+    authoritySignature: ByteArray?,
+    enrolledDeviceKey: PublicKey?,
+    presentedDeviceNonce: ByteArray?,
+    deviceSignature: ByteArray?
+  ): SyntheticLedgerView {
+    val committed = store.updateData { before ->
+      val view = decode(before) ?: throw InvalidSyntheticDeviceLedger()
+      val floorResult = SyntheticSignedTrustFloorLab.inspect(
+        view, signedFloor, labTrustedAuthorityKey,
+        freshlyIssuedAuthorityChallenge, echoedAuthorityChallenge,
+        authoritySignature, labVerifierProvider
+      )
+      if (floorResult != SignedFloorCheck.PROCEED_TO_INDEPENDENT_NATIVE_AUTHORIZER)
+        throw UnverifiedSyntheticAuthorityFloor()
+
+      if (claim.fingerprint != view.fingerprint ||
+          claim.registryRevision != view.revision || claim.epoch != view.epoch ||
+          claim.sequence <= 0L || claim.sequence == Long.MAX_VALUE ||
+          claim.sequence <= view.lastSequence) throw StaleSyntheticDeviceLedger()
+
+      val pending = view.pending ?: throw StaleSyntheticDeviceLedger()
+      if (pending.claim != claim) throw StaleSyntheticDeviceLedger()
+      if (!SyntheticSignedDeviceProofLab.verify(
+          claim, enrolledDeviceKey, pending.nonceCopy(),
+          presentedDeviceNonce, deviceSignature, labVerifierProvider
+        )) throw UnverifiedSyntheticDeviceProof()
+
+      // Re-check and consume INSIDE the same atomic DataStore update.
+      before.toMutablePreferences().apply {
+        this[SyntheticDeviceLedgerKeys.lastSequence] = claim.sequence
+        remove(SyntheticDeviceLedgerKeys.challengeHex)
+        remove(SyntheticDeviceLedgerKeys.challengeAction)
+        remove(SyntheticDeviceLedgerKeys.challengeSequence)
+      }
+    }
+    return decode(committed) ?: throw InvalidSyntheticDeviceLedger()
+  }
+
 }
