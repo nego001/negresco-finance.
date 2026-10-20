@@ -24,4 +24,6 @@ dependencies {
   implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
   androidTestImplementation("androidx.test:runner:1.6.2")
   androidTestImplementation("androidx.test.ext:junit:1.2.1")
+  // Emulated Ed25519 software-only test fixtures. NOT included in the Expo APK.
+  androidTestImplementation("org.bouncycastle:bcprov-jdk18on:1.86")
 }
