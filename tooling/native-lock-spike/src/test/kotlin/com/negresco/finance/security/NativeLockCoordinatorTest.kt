@@ -167,5 +167,6 @@ fun main() {
     runLockIntegrityScenarios()
     runFinancialEnvelopeScenarios()
     runSqlCipherLabGuardScenarios()
+    runSecurityOperationPolicyScenarios()
   }
 }
