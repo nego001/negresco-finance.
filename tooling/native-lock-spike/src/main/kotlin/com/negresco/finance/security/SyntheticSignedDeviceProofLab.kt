@@ -6,7 +6,6 @@ import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.security.PublicKey
 import java.security.Signature
-import java.security.interfaces.EdECPublicKey
 
 /**
  * SEC-05: real Ed25519 SIGNATURE VERIFICATION over a synthetic device claim.
@@ -23,6 +22,27 @@ internal object SyntheticSignedDeviceProofLab {
     .toByteArray(StandardCharsets.US_ASCII)
   private const val NONCE_LENGTH = 32
   private const val SIGNATURE_LENGTH = 64
+
+  /**
+   * RFC 8410 SubjectPublicKeyInfo: SEQUENCE AlgorithmIdentifier OID
+   * 1.3.101.112 (Ed25519), BIT STRING (32 raw public-key bytes).
+   * Do not rely on platform-specific EdECPublicKey/format/algorithm labels:
+   * AndroidKeyStore keys can have a different JCA representation from a JDK.
+   * Reject alternate DER, another curve, extra trailing bytes and parameters.
+   */
+  private val ed25519SpkiPrefix = byteArrayOf(
+    0x30, 0x2a, 0x30, 0x05, 0x06, 0x03,
+    0x2b, 0x65, 0x70, 0x03, 0x21, 0x00
+  )
+
+  private fun canonicalEd25519Spki(key: PublicKey): ByteArray? {
+    val encoded = key.encoded ?: return null
+    if (encoded.size != ed25519SpkiPrefix.size + 32) return null
+    if (!MessageDigest.isEqual(
+        ed25519SpkiPrefix, encoded.copyOfRange(0, ed25519SpkiPrefix.size)
+      )) return null
+    return encoded
+  }
 
   /** Explicit stable wire identifiers. Never use enum ordinals. */
   private fun wireCode(operation: ProtectedOperation): Int = when (operation) {
@@ -44,17 +64,11 @@ internal object SyntheticSignedDeviceProofLab {
    * EXACT public key, not simply accept a client-supplied key in a request.
    */
   fun fingerprint(publicKey: PublicKey): DeviceKeyFingerprint? {
-    if (!isEd25519(publicKey)) return null
-    val bytes = publicKey.encoded ?: return null
-    if (bytes.isEmpty() || bytes.size > 128) return null
+    val bytes = canonicalEd25519Spki(publicKey) ?: return null
     val hash = MessageDigest.getInstance("SHA-256").digest(bytes)
     val hex = hash.joinToString("") { "%02x".format(it.toInt() and 0xff) }
     return DeviceKeyFingerprint.parse(hex)
   }
-
-  private fun isEd25519(publicKey: PublicKey): Boolean =
-    publicKey is EdECPublicKey && publicKey.params.name == "Ed25519" &&
-      publicKey.format == "X.509"
 
   /**
    * Canonical, unambiguous challenge encoding. nonce MUST be independently
@@ -95,7 +109,7 @@ internal object SyntheticSignedDeviceProofLab {
     presentedNonce: ByteArray?,
     signature: ByteArray?
   ): Boolean {
-    if (enrolledPublicKey == null || !isEd25519(enrolledPublicKey) ||
+    if (enrolledPublicKey == null || canonicalEd25519Spki(enrolledPublicKey) == null ||
       independentlyIssuedNonce == null || independentlyIssuedNonce.size != NONCE_LENGTH ||
       presentedNonce == null || presentedNonce.size != NONCE_LENGTH ||
       signature == null || signature.size != SIGNATURE_LENGTH ||
