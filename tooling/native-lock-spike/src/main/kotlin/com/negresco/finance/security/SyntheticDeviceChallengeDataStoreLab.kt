@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import kotlinx.coroutines.flow.first
 import java.security.PublicKey
+import java.security.Provider
 import java.security.SecureRandom
 
 /**
@@ -54,7 +55,10 @@ internal class PendingSyntheticChallenge(
 }
 
 internal class SyntheticDeviceChallengeDataStoreLab(
-  private val store: DataStore<Preferences>
+  private val store: DataStore<Preferences>,
+  // Only portable crypto fixture tests may supply a software JCA provider.
+  // No production enrollment, native authorization, or JS bridge exists here.
+  private val labVerifierProvider: Provider? = null
 ) {
   private val rng = SecureRandom()
   private val hexPattern = Regex("[0-9a-f]{64}")
@@ -196,7 +200,7 @@ internal class SyntheticDeviceChallengeDataStoreLab(
       val pending = view.pending ?: throw StaleSyntheticDeviceLedger()
       if (pending.claim != claim) throw StaleSyntheticDeviceLedger()
       if (!SyntheticSignedDeviceProofLab.verify(claim, enrolledPublicKey,
-          pending.nonceCopy(), presentedNonce, signature)) {
+          pending.nonceCopy(), presentedNonce, signature, labVerifierProvider)) {
         throw UnverifiedSyntheticDeviceProof()
       }
       before.toMutablePreferences().apply {
