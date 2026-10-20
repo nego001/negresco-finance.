@@ -37,11 +37,11 @@ From the repository root with JDK 17, Android SDK **36**, AGP **8.10.1** and Gra
 gradle -p tooling/sqlcipher-android-lab compileDebugKotlin compileDebugAndroidTestKotlin --no-daemon
 ```
 
-GitHub Actions has a separate `sqlcipher-android-lab` job that compiles Kotlin against the Zetetic AAR and **nine Android instrumentation scenarios**. A separate `sqlcipher-android-emulator` job, restricted to pull requests, attempts to **execute** these tests in a disposable Android API 35 x86_64 emulator after the compile job succeeds. It uses the Android emulator runner pinned to commit `a421e43855164a8197daf9d8d40fe71c6996bb0d`, Gradle 8.11.1 and an ephemeral SDK 36. It never installs the Negresco Finance APK or connects to Samsung. A job being configured or queued does not count as executed; see GitHub Actions logs for actual results.
+GitHub Actions has a separate `sqlcipher-android-lab` job that compiles Kotlin against the Zetetic AAR and **nine Android instrumentation scenarios**. A separate `sqlcipher-android-emulator` job, restricted to pull requests, attempts to **execute** these tests in a disposable Android API 35 x86_64 emulator after the compile job succeeds. It uses the Android emulator runner pinned to commit `a421e43855164a8197daf9d8d40fe71c6996bb0d`, Gradle 8.11.1 and an ephemeral SDK 36. It never installs the Negresco Finance APK or connects to Samsung. A job being configured or queued does not count as executed; see GitHub Actions logs for actual results. The core suite previously passed **9/9** on the emulated Android runner (PR #6). A subsequent three-test integrity/WAL extension is a separate unapproved revision until re-executed.
 
 ## Mandatory next gates
 
-1. **Execute and pass** all nine Android tests on the disposable emulator: correct/wrong key, SQLite plaintext, reopen, missing file, duplicate create, truncated file, `cipher_integrity_check`, rolled-back transaction, and scan for a known synthetic marker in main DB/WAL. Tests for actual process death, power loss, corruption/bit flips and WAL recovery remain pending. Absence of a synthetic plaintext marker is useful evidence, not a complete confidentiality proof.
+1. **Execute and pass** all twelve Android tests on the disposable emulator: correct/wrong key, SQLite plaintext, reopen, missing file, duplicate create, truncated file, `cipher_integrity_check`, rolled-back transaction, and scan for a known synthetic marker in main DB/WAL. The added cases cover a deliberate encrypted-page bit flip, committed WAL durability after clean keyed reopen, and an aborted WAL transaction. Sudden process death, power loss, torn writes, hot WAL recovery, broader corruption coverage and multi-device restores are still pending. Absence of a synthetic plaintext marker is useful evidence, not a complete confidentiality proof.
 2. Verify the actual native .so binaries and license compliance for supported ABIs, 16-KiB memory pages, app signing and distribution security.
 3. Design a dedicated random SQLCipher page key, Keystore-backed wrapping and **CryptoObject** authorization with lifecycle revocation, as distinct from existing AES record/HMAC lab keys. No hardcoded passphrase, plaintext storage or JavaScript proof.
 4. Independently review creation/open/migration and backup/recovery. Never silently migrate plaintext or delete user files.
@@ -64,3 +64,22 @@ This is a test expectation correction plus a stricter native read, **not a
 waiver, skipped test or automatic corruption recovery**. The first 8/9
 result is not treated as approval: the full Android emulator suite must
 pass again on the new commit. No Samsung, Expo or user data is involved.
+
+
+## Next adversarial suite: page corruption and WAL durability
+
+Three additional isolated instrumentation cases are authored for the disposable
+Android emulator:
+
+1. Tamper one encrypted page byte **after a clean database close**, then
+   require `openExistingSynthetic()` to fail and leave the damaged file
+   untouched for manual investigation. This is synthetic fault injection,
+   never tampering with production databases.
+2. Commit a WAL transaction, close and keyed-reopen; the marker must remain.
+3. Abort a WAL transaction, close and keyed-reopen; the previously committed
+   marker must survive while the aborted row remains absent.
+
+**These are not process-kill or power-loss tests**. A clean close plus a
+transaction rollback only verifies normal WAL behavior. No reliability claim
+for emergency shutdown is authorized until an independent test actually
+kills a separate process mid-transaction and validates the outcome.
