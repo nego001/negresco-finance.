@@ -260,6 +260,40 @@ com `SyntheticDeviceChallengeDataStoreLab.issue/consume` nesta fase;
 a ligação futura terá de ser nativa e auditar atomicidade, cancelamento,
 expiração, revogação e o estado remoto antes de qualquer acesso.
 
+### Verificação dupla na mesma transação DataStore (SEC-05)
+
+A revisão atual adiciona
+`SyntheticDeviceChallengeDataStoreLab.consumeWithSignedAuthorityFloorForDisposableLab`.
+Na **mesma transação DataStore.updateData**, essa função lê a versão
+persistida, verifica o testemunho de estado assinado pela autoridade
+(`SyntheticSignedTrustFloorLab.inspect`) e valida a assinatura Ed25519
+da operação do dispositivo antes de consumir o desafio e avançar o
+contador. Um desafio inválido, chave de autoridade ausente, revisão ou
+epoch divergente, assinatura adulterada, dispositivo trocado, revogação
+feita entre emissão e consumo ou sequência duplicada não alteram o estado.
+
+A chave da autoridade sintética é fornecida no **construtor de laboratório**,
+e não por cada requisição de consumo. **Isto não substitui provisionamento
+autenticado**: o teste ainda escolhe a chave e não existe servidor que
+garanta que a resposta represente o estado atual. O desafio de autoridade
+também é fornecido pelo chamador e não possui emissão única, validade
+temporal ou confirmação de consumo por uma autoridade independente.
+O fluxo ainda não é um mecanismo de autenticação confiável para produção.
+
+Foram adicionados **12 cenários de integração Kotlin/JVM**, um novo teste
+instrumentado Android em diretório descartável (suíte total **15 casos**)
+e testes de contrato Node. Em Android, tanto a geração quanto a
+verificação das duas assinaturas usam provedor Bouncy Castle de **software
+somente na suíte de testes**. Nenhuma chave de usuário, banco financeiro ou
+permissão real é envolvida. As contagens devem ser consideradas aprovadas
+somente após o CI da revisão corrente terminar.
+
+**Promover somente depois de:** serviço que realmente mantenha versão,
+epoch e contadores atuais, cliente que valide chave pública de autoridade
+confiável, protocolo de nonce de uso único com expiração vinculada à
+conta e dispositivo, autenticação nativa Android/Keystore, prova de
+persistência anti-rollback fora do DataStore e auditoria independente.
+
 ## Laboratório de auditoria, sem coleta de dados pessoais (SEC-08)
 
 `SecurityAuditEventLab` gera somente eventos estruturados com código,
