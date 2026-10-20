@@ -171,3 +171,36 @@ Regras: um `Cipher` só é aceito se for a **mesma instância** usada na operaç
 **Permanecem pendentes**: provisionamento/inscrição biométrica em emulador de teste apropriado, aceitação via prompt real, cancelamento/erro nativos, invalidação da chave após nova impressão digital, suspensão/retorno da Activity durante o prompt e testes físicos no Samsung A55, além de recuperação/migração, StrongBox quando compatível, auditoria e integração Expo/SQLCipher de produção.
 
 Estado da etapa: **laboratório somente com dados sintéticos, sem alterar o APK ou a main**.
+
+
+## Gate Android real: ciclo de vida e prova de autenticação (20/10/2026)
+
+**Resultado anterior confirmado:** a suíte de 25 testes Android instrumentados foi aprovada no run [39364403723](https://github.com/nego001/negresco-finance./actions/runs/39364403723) para a revisão `ff9be58`.
+
+Nova evolução **somente no laboratório separado**, não no aplicativo:
+- `SyntheticBiometricTestActivity` é uma `FragmentActivity` não exportada registrada apenas no manifesto do projeto de laboratório, acompanhada da permissão Android `USE_BIOMETRIC`.
+- `BiometricPlatformPreflightInstrumentedTest` acrescenta **dois testes**: rejeição por uma Activity que já passou a `CREATED` (fora de primeiro plano) e recusa de provisionar chave quando `BIOMETRIC_STRONG` não está cadastrado. Esse segundo teste usa `Assume` e é **ignorado se o dispositivo já tiver biometria forte cadastrada**, pois só faz sentido em um aparelho sem biometria.
+- `BiometricManualRealPromptInstrumentedTest` acrescenta **um cenário separado e explicitamente opcional**: usar `BiometricPrompt.CryptoObject` real duas vezes (cifrar e depois recuperar uma senha descartável de 32 bytes), comparando os bytes. O usuário/testador precisa aprovar duas autenticações reais, e há limite de 120 segundos. Nunca usa dados financeiros nem apaga/recria automaticamente um alias já existente. Requer Android API 30+ com biometria forte.
+- Esta configuração é **desligada por padrão** por meio do argumento `negrescoBiometricManual=false`. Na execução automática, esse cenário será contabilizado como **ignorado/skip**, NÃO como prova de teste biométrico aprovado. A suíte passa a ter **28 testes detectáveis: 27 automáticos (um condicional ao estado biométrico) e um opt-in manual**.
+
+### Execução manual autorizada, apenas em dispositivo/emulador de teste
+
+Com JDK 17, SDK 36, Gradle 8.11.1 e `BIOMETRIC_STRONG` já cadastrado, usar o laboratório independente:
+
+```bash
+gradle -p tooling/sqlcipher-android-lab connectedDebugAndroidTest -PnegrescoBiometricManual=true --no-daemon
+```
+
+O prompt precisa permanecer em primeiro plano para duas leituras autênticas. Em emulador com biometria previamente cadastrada pode ser usado `adb emu finger touch 1` **somente enquanto o prompt estiver aguardando**; esse comando não cadastra uma digital por si só. Testar matrícula/cancelamento/invalidação em cenários separados e nunca presumir que todo emulador, firmware ou leitor biométrico reproduza um aparelho real.
+
+**Observação de execução:** o comando acima habilita o teste opt-in e também pode executar outros testes do laboratório. Apenas usá-lo num ambiente descartável e nunca no Android pessoal sem revisão e autorização. O roteiro de teste físico no A55 e a recuperação segura ainda precisam de aprovação explícita antes de instalar qualquer laboratório no dispositivo do titular.
+
+### Aprovação ainda necessária
+
+- [ ] CI no novo commit: confirmar compilação e cenários Android automáticos; registrar contagens de sucesso/skip corretamente.
+- [ ] Biometria real aprovada duas vezes num emulador configurado ou aparelho descartável, com resultado comprovado.
+- [ ] Cancelamento e suspensão do **BiometricPrompt real** durante a operação, não apenas teste determinístico de callback.
+- [ ] Invalidação após nova digital cadastrada, troca do PIN e reinstalação, sem perda automática de dados.
+- [ ] Revisão de segurança da recuperação/migração, testes físicos autorizados no Samsung A55 e auditoria independente.
+
+**O módulo de teste não está vinculado ao Expo nem aos dados financeiros de produção.**
