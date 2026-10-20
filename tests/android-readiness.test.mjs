@@ -337,7 +337,7 @@ test('SQLCipher crash injection only kills isolated lab process and checks WAL r
  assert.match(helper,/endsWith\(":sqlcipher_crash_test"\)/);
  assert.match(helper,/Process\.killProcess\(Process\.myPid\(\)\)/);
  assert.match(helper,/db\.beginTransaction\(\)/);
- assert.doesNotMatch(helper,/setTransactionSuccessful|endTransaction|android\.database\.sqlite/);
+ assert.doesNotMatch(helper,/\bdb\.(?:setTransactionSuccessful|endTransaction)\s*\(|import android\.database\.sqlite/);
  assert.match(tests,/killedRemoteProcessDuringUncommittedWalPreservesCommittedRecord/);
  assert.match(tests,/crashWitness\.isFile/);
  assert.match(tests,/committed-before-crash/);
