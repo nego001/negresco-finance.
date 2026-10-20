@@ -123,6 +123,16 @@ internal class SuspendingNativeLockCoordinator(
     unlockedRevision = null
   }
 
+  /**
+   * A failed explicit disk read cannot leave any earlier biometric grant
+   * alive while its persisted policy can no longer be confirmed.
+   * Revocation is synchronous; a later healthy read requires a NEW prompt.
+   */
+  private fun revokeOnUnsafeRead(result: LockResult): LockResult {
+    lockNow()
+    return result
+  }
+
   private fun beginTicket(): Long? = synchronized(lifecycleGuard) {
     if (foreground && observationReady && !observationFailed) generation else null
   }
@@ -200,10 +210,10 @@ internal class SuspendingNativeLockCoordinator(
     val ticket = beginTicket() ?: return@withLock LockResult.DENIED
     val before = try { repository.read() } catch (cancelled: CancellationException) { throw cancelled }
       catch (_: Exception) {
-      return@withLock LockResult.STORAGE_ERROR
-    } ?: return@withLock LockResult.MIGRATION_REQUIRED
-    if (rejectContradictoryRead(before)) return@withLock LockResult.STORAGE_ERROR
-    if (!before.enabled || before.disablePending) return@withLock LockResult.DENIED
+      return@withLock revokeOnUnsafeRead(LockResult.STORAGE_ERROR)
+    } ?: return@withLock revokeOnUnsafeRead(LockResult.MIGRATION_REQUIRED)
+    if (rejectContradictoryRead(before)) return@withLock revokeOnUnsafeRead(LockResult.STORAGE_ERROR)
+    if (!before.enabled || before.disablePending) return@withLock revokeOnUnsafeRead(LockResult.DENIED)
 
     val authenticated = try { biometric.authenticate(LockAction.UNLOCK) }
       catch (cancelled: CancellationException) { throw cancelled }
@@ -213,11 +223,11 @@ internal class SuspendingNativeLockCoordinator(
 
     val after = try { repository.read() } catch (cancelled: CancellationException) { throw cancelled }
       catch (_: Exception) {
-      return@withLock LockResult.STORAGE_ERROR
-    } ?: return@withLock LockResult.MIGRATION_REQUIRED
-    if (rejectContradictoryRead(after)) return@withLock LockResult.STORAGE_ERROR
+      return@withLock revokeOnUnsafeRead(LockResult.STORAGE_ERROR)
+    } ?: return@withLock revokeOnUnsafeRead(LockResult.MIGRATION_REQUIRED)
+    if (rejectContradictoryRead(after)) return@withLock revokeOnUnsafeRead(LockResult.STORAGE_ERROR)
     if (!after.enabled || after.disablePending || after.revision != before.revision)
-      return@withLock LockResult.STALE
+      return@withLock revokeOnUnsafeRead(LockResult.STALE)
     finishUnlocked(ticket, after.revision)
   }
 
