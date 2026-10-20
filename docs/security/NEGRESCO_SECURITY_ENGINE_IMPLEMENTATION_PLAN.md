@@ -127,6 +127,40 @@ hardware-backed, validação de Play Integrity, assinaturas reais em Android
 nem conexão segura com serviço de dispositivos. Seu resultado continua
 **pré-requisito de uma autorização separada**, não autorização financeira.
 
+### Persistência de desafio e contador no DataStore (SEC-05, laboratório)
+
+`SyntheticDeviceChallengeDataStoreLab.kt` acrescenta um fluxo **single-device
+descartável**, sem dados bancários:
+
+- Cadastro inicial **somente sintético** pelo método explícito
+  `seedForDisposableLab`, que aceita um fingerprint não autenticado.
+  **NÃO é um cadastro de aparelho seguro para produção**.
+- Um desafio `SecureRandom` de 32 bytes é guardado em Jetpack DataStore
+  com a operação, sequência, revisão e epoch específicos.
+- Não há sobrescrita de desafio pendente. Operação, identidade ou sequência
+  incorretas e arquivo ausente/inválido falham sem criar novo registro.
+- A verificação Ed25519, comparação com o desafio persistido, avanço do
+  contador e exclusão do desafio acontecem **na mesma transação
+  `DataStore.updateData`**. Duas chamadas concorrentes não conseguem consumir
+  o mesmo desafio mais de uma vez na mesma instância do DataStore.
+- O desafio e o contador persistem após fechar e reabrir o DataStore,
+  permitindo rejeitar a sequência já consumida após a reabertura normal.
+- **14 cenários JVM** e **3 testes instrumentados Android adicionais**:
+  persistência/reabertura, assinaturas falsas, operação diferente, desafio
+  alterado, concorrência, corrupção e arquivo não inicializado. A suíte
+  instrumentada de bloqueio/DataStore passa de 10 para **13 casos**.
+  Contagens só valem como resultados depois de CI concluído.
+
+**Limites críticos:** DataStore não é armazenamento anti-rollback. Restaurar
+o arquivo para uma versão antiga pode restaurar desafios/contadores
+antigos. Falta uma âncora independente, monotônica, durável, autenticada
+e um serviço de cadastro de chaves públicas previamente verificadas. Os
+desafios não têm expiração de tempo (um bloqueio intencionalmente conservador
+até recuperação segura), não há reconhecimento do titular, nem hardware
+Keystore ou token de autorização final. Nenhuma migração real ou integração
+Expo foi realizada. O teste de reinicialização fecha e reabre o DataStore,
+mas não simula um reset completo do sistema ou restauração de backup antigo.
+
 ## Laboratório de auditoria, sem coleta de dados pessoais (SEC-08)
 
 `SecurityAuditEventLab` gera somente eventos estruturados com código,
