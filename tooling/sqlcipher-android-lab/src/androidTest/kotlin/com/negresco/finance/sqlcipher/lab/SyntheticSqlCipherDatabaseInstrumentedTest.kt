@@ -192,6 +192,33 @@ class SyntheticSqlCipherDatabaseInstrumentedTest {
   }
 
   @Test
+  fun abortedWalTransactionDoesNotLoseEarlierCommittedRecord() {
+    fixtureOwned = true
+    SyntheticSqlCipherDatabase.createFreshSynthetic(context, passphrase).use { db ->
+      db.rawQuery("PRAGMA journal_mode=WAL", null).use { cursor ->
+        assertTrue(cursor.moveToFirst())
+        assertEquals("wal", cursor.getString(0))
+      }
+      db.execSQL("INSERT INTO lab_probe(id, marker) VALUES (1, 'durable')")
+      db.beginTransaction()
+      try {
+        db.execSQL("INSERT INTO lab_probe(id, marker) VALUES (2, 'must-rollback')")
+        // Simulate a normally aborted transaction; NOT sudden power loss.
+      } finally {
+        db.endTransaction()
+      }
+    }
+    SyntheticSqlCipherDatabase.openExistingSynthetic(context, passphrase).use { reopened ->
+      reopened.rawQuery("SELECT id, marker FROM lab_probe ORDER BY id", null).use { cursor ->
+        assertTrue(cursor.moveToFirst())
+        assertEquals(1L, cursor.getLong(0))
+        assertEquals("durable", cursor.getString(1))
+        assertFalse("Aborted WAL row was incorrectly persisted", cursor.moveToNext())
+      }
+    }
+  }
+
+  @Test
   fun committedWalTransactionSurvivesKeyedReopen() {
     fixtureOwned = true
     SyntheticSqlCipherDatabase.createFreshSynthetic(context, passphrase).use { db ->
