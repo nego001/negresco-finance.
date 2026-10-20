@@ -65,6 +65,8 @@ Status: **em andamento**. Esta fase é pré-requisito para iniciar a Fase 2 (con
 
 - [x] Módulo `tooling/sqlcipher-android-lab` separado da aplicação com SQLCipher Community `4.19.1` e AndroidX SQLite `2.7.0` oficiais, compilação CI isolada, APIs de criação sintética explícita e abertura existente com chave (nunca fallback para SQLite comum). Doze cenários JVM validam recusa de cabeçalho plaintext, arquivo ausente/truncado e passphrase sintética; seis testes instrumentados Android foram **escritos/compilados, não executados**. **Não é banco financeiro real, não há chaves autorizadas por biometria e a licença/nativos/ABIs exigem auditoria.** Ver `tooling/sqlcipher-android-lab/README.md`.
 
+- [x] 9/9 cenários instrumentados de SQLCipher passaram no emulador Android (GitHub Actions do PR #6). Foram adicionados **três cenários adversariais** de adulteração de página cifrada, WAL confirmado e WAL abortado; sua execução no emulador exige aprovação do CI desta revisão. **Não são testes de desligamento abrupto, recuperação após perda de energia ou QA Samsung.**
+
 ## Ainda pendente para concluir a Fase 1
 - [ ] **Homologação no Samsung:** executar [roteiro de QA da V3.1](ANDROID_QA_V3.1.md), registrar falhas e corrigi-las. Sem execução física não declarar aprovado.
   - [x] Ferramenta **somente leitura** de pré-diagnóstico ADB/versão/hash preparada para Windows; sem validação física até o usuário executar no Samsung.
