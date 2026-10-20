@@ -11,6 +11,8 @@ test('single-use device challenge is bound to the same DataStore transaction as 
  assert.match(lab,/fun consume\(/);
  assert.match(lab,/SecureRandom\(\)/);
  assert.match(lab,/SyntheticSignedDeviceProofLab\.verify\(/);
+ assert.match(lab,/private val labVerifierProvider: Provider\? = null/);
+ assert.match(lab,/signature, labVerifierProvider/);
  assert.match(lab,/remove\(SyntheticDeviceLedgerKeys\.challengeHex\)/);
  assert.match(lab,/this\[SyntheticDeviceLedgerKeys\.lastSequence\] = claim\.sequence/);
  assert.match(lab,/store\.updateData/);
@@ -24,6 +26,8 @@ test('signed challenges survive isolated emulator restarts and fail closed after
  assert.match(tests,/deviceChallengePersistsAndSingleUseSurvivesReopeningRealDataStore/);
  assert.match(tests,/racingValidSignedDeviceProofConsumesOneRealDataStoreTransaction/);
  assert.match(tests,/fakeSignatureDoesNotConsumeDeviceChallengeOnRealDataStore/);
+ assert.match(tests,/SyntheticDeviceChallengeDataStoreLab\(first\.raw, testEd25519Provider\)/);
+ assert.match(tests,/SyntheticDeviceChallengeDataStoreLab\(fixture\.raw, testEd25519Provider\)/);
  assert.match(tests,/cancelledSignedChallengeStaysInvalidAcrossAndroidDataStoreReopen/);
  assert.match(tests,/targetContext.noBackupFilesDir/);
  assert.match(tests,/isolatedDirectory.deleteRecursively\(\)/);
