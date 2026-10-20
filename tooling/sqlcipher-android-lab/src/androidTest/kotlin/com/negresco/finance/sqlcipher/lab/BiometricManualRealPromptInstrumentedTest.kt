@@ -1,12 +1,16 @@
 package com.negresco.finance.sqlcipher.lab
 
 import androidx.biometric.BiometricManager
+import androidx.lifecycle.Lifecycle
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import java.security.SecureRandom
 import javax.crypto.Cipher
 import java.util.concurrent.atomic.AtomicReference
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertArrayEquals
@@ -49,6 +53,40 @@ class BiometricManualRealPromptInstrumentedTest {
       }
       assertTrue("A non-prompt Cipher must not use the authenticated key",
         attempt.isFailure)
+    }
+  }
+
+  @Test fun backgroundingAnActiveSystemPromptMustDenyAuthorization() {
+    val options = InstrumentationRegistry.getArguments()
+    assumeTrue("Explicit manual prompt test opt-in required",
+      options.getString("negrescoBiometricManual") == "true")
+
+    ActivityScenario.launch(SyntheticBiometricTestActivity::class.java).use { scenario ->
+      val activity = AtomicReference<SyntheticBiometricTestActivity>()
+      scenario.onActivity { activity.set(it) }
+      assertTrue("Enrolled strong biometrics are required",
+        BiometricManager.from(activity.get()).canAuthenticate(
+          BiometricManager.Authenticators.BIOMETRIC_STRONG
+        ) == BiometricManager.BIOMETRIC_SUCCESS)
+
+      val result = runBlocking {
+        withTimeout(10_000) {
+          val pending = async(Dispatchers.Default) {
+            runCatching {
+              BiometricCipherAuthorizationLab.authorize(
+                activity.get(), Cipher.getInstance("AES/GCM/NoPadding")
+              )
+            }.exceptionOrNull()
+          }
+          // This test intentionally never supplies a fingerprint. Giving the
+          // system time to open a real prompt tests actual lifecycle revocation.
+          delay(500)
+          scenario.moveToState(Lifecycle.State.CREATED)
+          pending.await()
+        }
+      }
+      assertTrue("Backgrounding during a real prompt must fail closed",
+        result is BiometricCipherAuthorizationLab.Unavailable)
     }
   }
 
