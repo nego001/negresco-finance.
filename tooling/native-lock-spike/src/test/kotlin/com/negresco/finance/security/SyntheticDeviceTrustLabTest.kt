@@ -179,5 +179,17 @@ internal fun runSyntheticDeviceTrustScenarios() {
   // 20. A verified signature, monotonic durable anchor and replay storage
   // remain required: this preflight never returns an unlock token.
   check(DeviceTrustGate.entries.none { it.name == "ALLOW" || it.name == "UNLOCKED" })
-  println("PASS: 20 device trust/replay scenarios and 256 synthetic state combinations (JVM only)")
+  // 21. Caller-owned mutable collections cannot rewrite the stored registry.
+  val mutableActive = mutableSetOf(a)
+  val mutableSequences = mutableMapOf(a to 0L)
+  val supplied = first.copy(active = mutableActive, lastSequence = mutableSequences)
+  val isolated = SyntheticDeviceTrustCoordinator(supplied)
+  mutableActive.clear()
+  mutableSequences[a] = Long.MAX_VALUE
+  check(isolated.preflight(claim(), floor) ==
+    DeviceTrustGate.PROCEED_TO_INDEPENDENT_NATIVE_VERIFICATION)
+  check(isolated.snapshotForLabOnly().lastSequence[a] == 0L)
+  check(isolated.snapshotForLabOnly().active == setOf(a))
+
+  println("PASS: 21 device trust/replay scenarios and 256 synthetic state combinations (JVM only)")
 }
