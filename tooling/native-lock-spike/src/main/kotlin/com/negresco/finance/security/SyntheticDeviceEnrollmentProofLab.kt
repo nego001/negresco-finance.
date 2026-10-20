@@ -5,6 +5,7 @@ import java.io.DataOutputStream
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.security.PublicKey
+import java.security.Provider
 import java.security.Signature
 
 /**
@@ -80,9 +81,13 @@ internal object SyntheticDeviceEnrollmentProofLab {
     }.toByteArray()
   }
 
-  private fun verifyEd25519(publicKey: PublicKey, payload: ByteArray, signature: ByteArray): Boolean =
+  private fun verifyEd25519(
+    publicKey: PublicKey, payload: ByteArray, signature: ByteArray,
+    labVerifierProvider: Provider?
+  ): Boolean =
     try {
-      val verifier = Signature.getInstance("Ed25519")
+      val verifier = if (labVerifierProvider == null) Signature.getInstance("Ed25519")
+        else Signature.getInstance("Ed25519", labVerifierProvider)
       verifier.initVerify(publicKey)
       verifier.update(payload)
       verifier.verify(signature)
@@ -106,7 +111,10 @@ internal object SyntheticDeviceEnrollmentProofLab {
     issuedChallenge: ByteArray?,
     returnedChallenge: ByteArray?,
     approvingSignature: ByteArray?,
-    candidateSignature: ByteArray?
+    candidateSignature: ByteArray?,
+    // Only disposable Android test fixtures may supply a JCA provider.
+    // Production authorization must fix and audit its implementation.
+    labVerifierProvider: Provider? = null
   ): SyntheticEnrollmentGate {
     if (registry == null || !SyntheticDeviceTrustPolicy.wellFormed(registry)) {
       return SyntheticEnrollmentGate.DENY_MALFORMED_REGISTRY
@@ -145,12 +153,12 @@ internal object SyntheticDeviceEnrollmentProofLab {
     }
     if (approvingSignature == null || approvingSignature.size != ED25519_SIGNATURE_SIZE ||
         !verifyEd25519(alreadyApprovedDeviceKey,
-          payload(intent, returnedChallenge, false), approvingSignature.copyOf())) {
+          payload(intent, returnedChallenge, false), approvingSignature.copyOf(), labVerifierProvider)) {
       return SyntheticEnrollmentGate.DENY_APPROVAL_SIGNATURE
     }
     if (candidateSignature == null || candidateSignature.size != ED25519_SIGNATURE_SIZE ||
         !verifyEd25519(candidateDeviceKey,
-          payload(intent, returnedChallenge, true), candidateSignature.copyOf())) {
+          payload(intent, returnedChallenge, true), candidateSignature.copyOf(), labVerifierProvider)) {
       return SyntheticEnrollmentGate.DENY_CANDIDATE_SIGNATURE
     }
     return SyntheticEnrollmentGate.PROCEED_TO_INDEPENDENT_PERSISTENT_ENROLLMENT_PROTOCOL
