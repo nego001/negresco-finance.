@@ -245,3 +245,30 @@ A política `BiometricRecoveryGateLab` impõe dois comportamentos sem atalho: pa
 6. Somente após código nativo auditado, teste de restauração e homologação física aprovada, considerar integração no aplicativo.
 
 **Status:** contrato e quatro testes sintéticos adicionados; teste de rematrícula biométrica e recuperação independente **ainda não implementados**. Nenhuma alteração do APK 3.1.2, main ou dados Samsung.
+
+
+## Duas fases no emulador: invalidação após nova digital cadastrada
+
+**Implementação exclusivamente experimental:** `BiometricEnrollmentInvalidationInstrumentedTest.kt` contém dois testes independentes, `setupDisposableKeyBeforeChangingEnrolledFingerprint` e `verifyKeyPermanentlyInvalidatedAfterOperatorEnrollsNewFingerprint`, que só são habilitados quando o operador fornece explicitamente a fase correta. Ambos exigem Android 11+ em um **emulador descartável reconhecido pelo build**, nunca no Samsung pessoal.
+
+1. No emulador descartável, cadastrar a **primeira digital forte** pelo menu do Android e verificar que ela funciona. Guardar o emulador e sua instalação de teste entre as duas fases.
+2. Executar a fase `setup` (o argumento `negrescoEnrollmentPhase=setup`) na instalação do laboratório. Ela só cria o alias exclusivo `negresco_disposable_enrollment_probe_v1` se não existir e grava um testemunho **não secreto** uma única vez em `noBackupFilesDir`; não apaga, substitui ou exporta nenhuma chave. Se existir uma instalação anterior, **não reutilizar**: criar outro emulador descartável.
+3. **Fora do aplicativo e manualmente**, adicionar **uma NOVA digital** pelo menu Android desse mesmo emulador. O teste não altera o cadastro biométrico e não tenta simular pessoa real.
+4. Executar `negrescoEnrollmentPhase=verify` sem reinstalar, restaurar snapshot ou excluir os dados do laboratório. O teste exige alias e testemunho originais e **uma indicação explícita de `KeyPermanentlyInvalidatedException`** ao tentar inicializar o `Cipher`. Uma chave ausente ou uma exceção genérica NÃO conta como prova de invalidação.
+5. Preservar os arquivos/alias do laboratório para análise. **Não** limpar automaticamente, não gerar outro alias e não tentar acessar dados do titular.
+
+Com Gradle 8.11.1, JDK 17 e SDK Android 36 configurados, os comandos ilustrativos são:
+
+```bash
+gradle -p tooling/sqlcipher-android-lab connectedDebugAndroidTest -PnegrescoEnrollmentPhase=setup --no-daemon
+# Inscrever outra digital manualmente no MESMO emulador
+gradle -p tooling/sqlcipher-android-lab connectedDebugAndroidTest -PnegrescoEnrollmentPhase=verify --no-daemon
+```
+
+Esses comandos executam também os testes instrumentados usuais; o argumento `negrescoBiometricManual` continua desligado por padrão. A prova exige que a pessoa documente qual biometria foi adicionada e confirme a integridade do mesmo emulador, além do sinal criptográfico observado. **Nenhum teste de invalidação foi executado nesta etapa; somente código/roteiro.**
+
+### Contagem e gates
+
+A suíte declara agora **37 cenários**: **32 automáticos** (um deles condicionado à ausência de biometria forte) e **5 opt-in** (3 com prompt real e 2 da experiência em duas fases). No CI padrão, os 5 devem ficar marcados `SKIPPED`, não `PASSED`. Um resultado verde do CI não comprova nenhuma alteração real de digitais cadastradas. Faltam prova de falha de decriptação real usando a chave antiga, recuperação independente entre dispositivos, invalidação após remoção/alteração de credenciais e testes físicos formalmente autorizados.
+
+**Status:** implementação de teste no laboratório do PR #6, sem tocar `main`, APK 3.1.2 ou Samsung.
