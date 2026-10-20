@@ -20,6 +20,7 @@ internal enum class DeviceTrustGate {
   DENY_STALE_REGISTRY_REVISION,
   DENY_REPLAY_OR_INVALID_SEQUENCE,
   DENY_EXTERNAL_PROOF_MISSING,
+  DENY_INVALID_DEVICE_SIGNATURE,
   PROCEED_TO_INDEPENDENT_NATIVE_VERIFICATION,
   SYNTHETIC_SEQUENCE_RECORDED,
   SYNTHETIC_DEVICE_REVOKED
@@ -146,6 +147,35 @@ internal class SyntheticDeviceTrustCoordinator(initial: DeviceTrustSnapshot) {
     proofVerified: Boolean
   ): DeviceTrustGate {
     if (!proofVerified) return DeviceTrustGate.DENY_EXTERNAL_PROOF_MISSING
+    return recordSequenceAfterTrustedVerification(claim, floor)
+  }
+
+  /**
+   * Genuine Ed25519 verification for one SYNTHETIC claim, followed by an
+   * atomic in-process sequence update. Trusted enrollment, challenge issue,
+   * durable nonce consumption and revocation floor still do not exist here.
+   *
+   * The public key MUST originate from a trusted enrollment record,
+   * NEVER a self-declared key from an incoming operation.
+   */
+  fun recordSignedSyntheticOperation(
+    claim: PresentedDeviceOperation,
+    floor: DeviceTrustFloor?,
+    enrolledPublicKey: java.security.PublicKey?,
+    independentlyIssuedNonce: ByteArray?,
+    presentedNonce: ByteArray?,
+    signature: ByteArray?
+  ): DeviceTrustGate {
+    if (!SyntheticSignedDeviceProofLab.verify(
+        claim, enrolledPublicKey, independentlyIssuedNonce, presentedNonce, signature
+      )) return DeviceTrustGate.DENY_INVALID_DEVICE_SIGNATURE
+    return recordSequenceAfterTrustedVerification(claim, floor)
+  }
+
+  private fun recordSequenceAfterTrustedVerification(
+    claim: PresentedDeviceOperation,
+    floor: DeviceTrustFloor?
+  ): DeviceTrustGate {
     while (true) {
       val current = state.get()
       val gate = SyntheticDeviceTrustPolicy.inspect(current, floor, claim)
