@@ -1,0 +1,260 @@
+package com.negresco.finance.security
+
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.mutablePreferencesOf
+import java.io.File
+import java.nio.file.Files
+import java.security.KeyPair
+import java.security.KeyPairGenerator
+import java.security.SecureRandom
+import java.security.Signature
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.coroutineScope
+
+/** Real DataStore files, fake registry and software test keys only. */
+private class InviteFileHarness(
+  file: File,
+  registry: DeviceTrustSnapshot?,
+  floor: DeviceTrustFloor?,
+  approver: java.security.PublicKey?
+) {
+  private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+  val raw: DataStore<Preferences> = PreferenceDataStoreFactory.create(scope = scope) { file }
+  val invites = SyntheticEnrollmentInviteDataStoreLab(raw, registry, floor, approver)
+  suspend fun close() { scope.coroutineContext[Job]!!.cancelAndJoin() }
+}
+
+internal suspend fun runPersistentEnrollmentInviteScenarios() {
+  val approver = KeyPairGenerator.getInstance("Ed25519").generateKeyPair()
+  val candidate = KeyPairGenerator.getInstance("Ed25519").generateKeyPair()
+  val stranger = KeyPairGenerator.getInstance("Ed25519").generateKeyPair()
+  val approverId = SyntheticSignedDeviceProofLab.fingerprint(approver.public)!!
+  val candidateId = SyntheticSignedDeviceProofLab.fingerprint(candidate.public)!!
+  val strangerId = SyntheticSignedDeviceProofLab.fingerprint(stranger.public)!!
+  val registry = SyntheticDeviceTrustPolicy.createSyntheticFirstDevice(approverId)
+  val floor = DeviceTrustFloor(1L, 1L)
+  val intent = SyntheticDeviceEnrollmentIntent(approverId, candidateId, 1L, 1L, 1L)
+  fun sign(key: KeyPair, nonce: ByteArray, candidateRole: Boolean,
+    request: SyntheticDeviceEnrollmentIntent = intent): ByteArray {
+    val signer = Signature.getInstance("Ed25519")
+    signer.initSign(key.private)
+    signer.update(SyntheticDeviceEnrollmentProofLab.payload(request, nonce, candidateRole))
+    return signer.sign()
+  }
+  suspend fun fixture(
+    state: DeviceTrustSnapshot? = registry,
+    baseFloor: DeviceTrustFloor? = floor,
+    approverKey: java.security.PublicKey? = approver.public,
+    body: suspend (InviteFileHarness) -> Unit
+  ) {
+    val dir = Files.createTempDirectory("negresco-enrollment-invite-").toFile()
+    val h = InviteFileHarness(File(dir, "invite.preferences_pb"),
+      state, baseFloor, approverKey)
+    try { body(h) } finally { h.close(); check(dir.deleteRecursively()) }
+  }
+  suspend fun consume(
+    h: InviteFileHarness, nonce: ByteArray,
+    approvingKey: KeyPair = approver,
+    candidateKey: KeyPair = candidate,
+    request: SyntheticDeviceEnrollmentIntent = intent
+  ) = h.invites.consume(request, candidateKey.public, nonce,
+    sign(approvingKey, nonce, false, request),
+    sign(candidateKey, nonce, true, request))
+
+  // 1. Empty store never silently creates or registers a device.
+  fixture { h ->
+    check(h.invites.read() == null)
+    check(runCatching { consume(h, ByteArray(32)) }.exceptionOrNull()
+      is InvalidSyntheticInvite)
+  }
+
+  // 2. A challenge must be generated and persisted before two signatures.
+  fixture { h ->
+    val issued = h.invites.issue(intent, candidate.public)
+    check(issued.status == SyntheticInviteStatus.PENDING)
+    check(issued.intent == intent)
+    check(issued.pendingNonceCopy()!!.size == 32)
+    check(candidateId !in registry.active)
+  }
+
+  // 3. Both valid signatures mark invite consumed, but never enroll candidate.
+  fixture { h ->
+    val nonce = h.invites.issue(intent, candidate.public).pendingNonceCopy()!!
+    val consumed = consume(h, nonce)
+    check(consumed.status == SyntheticInviteStatus.CONSUMED)
+    check(consumed.pendingNonceCopy() == null)
+    check(h.invites.read()!!.status == SyntheticInviteStatus.CONSUMED)
+    check(candidateId !in registry.active)
+  }
+
+  // 4. Same signed invite cannot be consumed or issued a second time.
+  fixture { h ->
+    val nonce = h.invites.issue(intent, candidate.public).pendingNonceCopy()!!
+    consume(h, nonce)
+    check(runCatching { consume(h, nonce) }.exceptionOrNull() is StaleSyntheticInvite)
+    check(runCatching { h.invites.issue(intent, candidate.public) }
+      .exceptionOrNull() is StaleSyntheticInvite)
+  }
+
+  // 5. Cancellation erases pending nonce and is terminal, never enrollment.
+  fixture { h ->
+    val nonce = h.invites.issue(intent, candidate.public).pendingNonceCopy()!!
+    val cancelled = h.invites.cancel(intent)
+    check(cancelled.status == SyntheticInviteStatus.CANCELLED)
+    check(cancelled.pendingNonceCopy() == null)
+    check(runCatching { consume(h, nonce) }.exceptionOrNull() is StaleSyntheticInvite)
+    check(runCatching { h.invites.cancel(intent) }.exceptionOrNull() is StaleSyntheticInvite)
+    check(runCatching { h.invites.issue(intent, candidate.public) }
+      .exceptionOrNull() is StaleSyntheticInvite)
+  }
+
+  // 6. Valid old approver signature + forged candidate signature fails closed.
+  fixture { h ->
+    val nonce = h.invites.issue(intent, candidate.public).pendingNonceCopy()!!
+    check(runCatching { consume(h, nonce, candidateKey = stranger) }
+      .exceptionOrNull() is UnverifiedSyntheticInvite)
+    check(h.invites.read()!!.pendingNonceCopy()!!.contentEquals(nonce))
+  }
+
+  // 7. Candidate approval alone cannot replace signature from registered key.
+  fixture { h ->
+    val nonce = h.invites.issue(intent, candidate.public).pendingNonceCopy()!!
+    check(runCatching { consume(h, nonce, approvingKey = stranger) }
+      .exceptionOrNull() is UnverifiedSyntheticInvite)
+    check(h.invites.read()!!.status == SyntheticInviteStatus.PENDING)
+  }
+
+  // 8. A changed nonce, even with both valid signatures on wrong nonce,
+  // cannot replace the persisted one.
+  fixture { h ->
+    val nonce = h.invites.issue(intent, candidate.public).pendingNonceCopy()!!
+    val changed = nonce.copyOf().also { it[0] = (it[0].toInt() xor 1).toByte() }
+    check(runCatching { consume(h, changed) }.exceptionOrNull()
+      is UnverifiedSyntheticInvite)
+    check(h.invites.read()!!.pendingNonceCopy()!!.contentEquals(nonce))
+  }
+
+  // 9. Altering the candidate/revision while invite is pending fails.
+  fixture { h ->
+    val nonce = h.invites.issue(intent, candidate.public).pendingNonceCopy()!!
+    check(runCatching { consume(h, nonce, request = intent.copy(candidateDevice = strangerId)) }
+      .exceptionOrNull() is StaleSyntheticInvite)
+    check(runCatching { consume(h, nonce, request = intent.copy(revision = 2L)) }
+      .exceptionOrNull() is StaleSyntheticInvite)
+  }
+
+  // 10. Unknown fixture approver cannot mint an invitation.
+  fixture(approverKey = stranger.public) { h ->
+    check(runCatching { h.invites.issue(intent, candidate.public) }
+      .exceptionOrNull() is UnverifiedSyntheticInvite)
+    check(h.invites.read() == null)
+  }
+
+  // 11. Revoked candidate or missing external floor cannot get an invite.
+  fixture(state = registry.copy(revoked = setOf(candidateId))) { h ->
+    check(runCatching { h.invites.issue(intent, candidate.public) }
+      .exceptionOrNull() is UnverifiedSyntheticInvite)
+  }
+  fixture(baseFloor = null) { h ->
+    check(runCatching { h.invites.issue(intent, candidate.public) }
+      .exceptionOrNull() is UnverifiedSyntheticInvite)
+  }
+
+  // 12. Only one out of 16 concurrent valid consumers can commit.
+  fixture { h ->
+    val nonce = h.invites.issue(intent, candidate.public).pendingNonceCopy()!!
+    val oldSig = sign(approver, nonce, false)
+    val newSig = sign(candidate, nonce, true)
+    val results = coroutineScope {
+      (1..16).map { async(Dispatchers.IO) {
+        runCatching { h.invites.consume(intent, candidate.public, nonce, oldSig, newSig) }
+      } }.map { it.await() }
+    }
+    check(results.count { it.isSuccess } == 1)
+    check(results.count { it.exceptionOrNull() is StaleSyntheticInvite } == 15)
+    check(h.invites.read()!!.status == SyntheticInviteStatus.CONSUMED)
+  }
+
+  // 13. Concurrent cancel and consume can produce ONE terminal state only.
+  fixture { h ->
+    val nonce = h.invites.issue(intent, candidate.public).pendingNonceCopy()!!
+    val oldSig = sign(approver, nonce, false)
+    val newSig = sign(candidate, nonce, true)
+    val results = coroutineScope {
+      listOf(
+        async(Dispatchers.IO) {
+          runCatching { h.invites.consume(intent, candidate.public, nonce, oldSig, newSig) }
+        },
+        async(Dispatchers.IO) { runCatching { h.invites.cancel(intent) } }
+      ).map { it.await() }
+    }
+    check(results.count { it.isSuccess } == 1)
+    check(results.count { it.exceptionOrNull() is StaleSyntheticInvite } == 1)
+    check(h.invites.read()!!.status != SyntheticInviteStatus.PENDING)
+  }
+
+  // 14. Cancelled tombstone survives file close/reopening, no nonce revived.
+  run {
+    val dir = Files.createTempDirectory("negresco-invite-reopen-").toFile()
+    val file = File(dir, "invite.preferences_pb")
+    val first = InviteFileHarness(file, registry, floor, approver.public)
+    try {
+      first.invites.issue(intent, candidate.public)
+      first.invites.cancel(intent)
+    } finally { first.close() }
+    val reopened = InviteFileHarness(file, registry, floor, approver.public)
+    try {
+      check(reopened.invites.read()!!.status == SyntheticInviteStatus.CANCELLED)
+      check(reopened.invites.read()!!.pendingNonceCopy() == null)
+      check(runCatching { reopened.invites.issue(intent, candidate.public) }
+        .exceptionOrNull() is StaleSyntheticInvite)
+    } finally { reopened.close(); check(dir.deleteRecursively()) }
+  }
+
+  // 15. Consumed tombstone survives close/reopen and denies replay.
+  run {
+    val dir = Files.createTempDirectory("negresco-consumed-reopen-").toFile()
+    val file = File(dir, "invite.preferences_pb")
+    val first = InviteFileHarness(file, registry, floor, approver.public)
+    val nonce = try {
+      val pending = first.invites.issue(intent, candidate.public).pendingNonceCopy()!!
+      consume(first, pending)
+      pending
+    } finally { first.close() }
+    val reopened = InviteFileHarness(file, registry, floor, approver.public)
+    try {
+      check(reopened.invites.read()!!.status == SyntheticInviteStatus.CONSUMED)
+      check(runCatching { consume(reopened, nonce) }
+        .exceptionOrNull() is StaleSyntheticInvite)
+    } finally { reopened.close(); check(dir.deleteRecursively()) }
+  }
+
+  // 16. Partial/corrupt ledger never becomes a blank reusable invite.
+  fixture { h ->
+    h.raw.updateData { mutablePreferencesOf(SyntheticInviteKeys.version to 1) }
+    check(runCatching { h.invites.read() }.exceptionOrNull() is InvalidSyntheticInvite)
+    check(runCatching { h.invites.issue(intent, candidate.public) }
+      .exceptionOrNull() is InvalidSyntheticInvite)
+  }
+
+  // 17. Public challenge cannot be corrupted through returned ByteArray.
+  fixture { h ->
+    val issued = h.invites.issue(intent, candidate.public)
+    val mutated = issued.pendingNonceCopy()!!
+    mutated[0] = (mutated[0].toInt() xor 1).toByte()
+    check(!issued.pendingNonceCopy()!!.contentEquals(mutated))
+    check(h.invites.read()!!.status == SyntheticInviteStatus.PENDING)
+  }
+
+  // 18. The INVITE record is not an authorized active-device registry.
+  check(candidateId !in registry.active)
+  check(SyntheticInviteStatus.entries.none { it.name == "ACTIVE" || it.name == "APPROVED" })
+  println("PASS: 18 durable two-signature invite/tombstone scenarios (JVM lab, no trusted server)")
+}
