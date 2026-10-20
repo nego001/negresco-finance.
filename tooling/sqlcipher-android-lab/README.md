@@ -225,3 +225,23 @@ Permanecem pendentes invalidação de chave após alteração de digitais, biome
 `BiometricOperationGate` usa métodos sincronizados para serializar `approve`, `revoke` e `consume`, porque um cancelamento de coroutine pode acontecer fora da thread principal enquanto o Android entrega o callback de autenticação. O teste automático `concurrentCancellationCannotBeOverriddenByLateSuccess` exercita repetidamente a disputa entre conclusão e cancelamento: depois que a revogação ocorreu, nenhum callback tardio pode reabrir a autorização. A sincronização NÃO substitui o token criptográfico de uso único do AndroidKeyStore.
 
 **Nova contagem:** 31 testes detectáveis, sendo três opt-in manuais e um automático que pode ser ignorado dependendo do estado de matrícula biométrica no emulador. Cada `skip` deve ser informado separadamente de `pass`. Nenhum desses testes usa o APK instalado, fotos, digital real do titular ou dados financeiros. A última execução do CI desta revisão precisa ser verificada antes de qualquer aprovação.
+
+
+## Leitura não destrutiva do estado da chave e recuperação bloqueada
+
+`BiometricKeyHealthLab.kt` acrescenta inspeção **sem provisionar, substituir ou excluir** a chave AES-256-GCM sintética. A leitura retorna `MISSING`, `AUTHENTICATION_REQUIRED`, `INVALIDATED_OR_UNRECOVERABLE` ou `UNAVAILABLE`. `AUTHENTICATION_REQUIRED` significa apenas que uma instância de `Cipher` foi inicializada, **NÃO** que o segredo possa ser decriptado sem `BiometricPrompt.CryptoObject`. A perda do alias não confirma, por si só, que uma nova digital foi cadastrada: uma reinstalação, perfil removido ou falha do Keystore também pode explicá-la.
+
+A política `BiometricRecoveryGateLab` impõe dois comportamentos sem atalho: para chave inexistente/inválida, **manter banco cifrado e exigir recuperação independente**; para erro temporário de Keystore, **manter trancado e tentar novamente mais tarde**, sem reemitir chaves nem apagar o envelope. A política **não implementa restauração**, não dá acesso a dados reais e não tem API de desbloqueio.
+
+`BiometricKeyHealthInstrumentedTest.kt` adiciona quatro testes automáticos de inspeção não destrutiva, bloqueio em chave ausente/inválida, erro temporário e garantia de que o estado disponível ainda pede biometria. A contagem planejada sobe de **31 para 35 testes detectáveis**: 32 automáticos e 3 opt-in de biometria real. Na verificação final, informar separadamente os testes ignorados (`SKIPPED`) dos efetivamente executados. CI verde **não prova** mudança real de digitais cadastradas.
+
+### Procedimento futuro de invalidação real, NÃO executado
+
+1. Usar um emulador com `BIOMETRIC_STRONG` cadastrado ou um Android **descartável com permissão explícita**; nunca modificar cadastro de digital do aparelho pessoal como parte de teste remoto.
+2. Em sessão de teste, provisionar alias descartável, validar duas autenticações reais e salvar somente artefato de teste cifrado conforme protocolo isolado a ser implementado.
+3. Manter o mesmo UID/instalação e adicionar/remover biometria nas configurações do Android, de modo deliberado e documentado.
+4. Confirmar por teste nativo que a chave anterior não pode executar decriptação, e que nenhuma chave nova é provisionada automaticamente nem é apagado qualquer arquivo.
+5. Inspecionar diagnósticos sem assumir que `MISSING` prova alteração de biometria; comprovar recuperação com caminho **independente** testado antes de envolver dados financeiros verdadeiros.
+6. Somente após código nativo auditado, teste de restauração e homologação física aprovada, considerar integração no aplicativo.
+
+**Status:** contrato e quatro testes sintéticos adicionados; teste de rematrícula biométrica e recuperação independente **ainda não implementados**. Nenhuma alteração do APK 3.1.2, main ou dados Samsung.
