@@ -305,6 +305,33 @@ class NativeLockDataStoreInstrumentedTest {
       assertEquals(1L, ledger.read()!!.lastSequence)
     }
 
+  @Test fun cancelledSignedChallengeStaysInvalidAcrossAndroidDataStoreReopen() =
+    runBlocking {
+      val file = File(isolatedDirectory, "device_cancelled.preferences_pb")
+      val pair = KeyPairGenerator.getInstance("Ed25519").generateKeyPair()
+      val id = SyntheticSignedDeviceProofLab.fingerprint(pair.public)!!
+      val claim = PresentedDeviceOperation(id, 1L, 1L, 1L,
+        ProtectedOperation.REVOKE_DEVICE)
+      val floor = DeviceTrustFloor(1L, 1L)
+      val first = Fixture(file).also { instances.add(it) }
+      val ledger = SyntheticDeviceChallengeDataStoreLab(first.raw)
+      ledger.seedForDisposableLab(id)
+      val issued = ledger.issue(claim, floor)
+      val signed = signDeviceLab(pair, claim, issued.nonceCopy())
+      assertEquals(2L,
+        ledger.cancelPendingForDisposableLab(1L, 1L, floor).epoch)
+      first.close()
+
+      val reopened = Fixture(file).also { instances.add(it) }
+      val afterRestart = SyntheticDeviceChallengeDataStoreLab(reopened.raw)
+      assertEquals(2L, afterRestart.read()!!.revision)
+      assertNull(afterRestart.read()!!.pending)
+      assertTrue(runCatching {
+        afterRestart.consume(claim, floor, pair.public, issued.nonceCopy(), signed)
+      }.exceptionOrNull() is StaleSyntheticDeviceLedger)
+      assertEquals(0L, afterRestart.read()!!.lastSequence)
+    }
+
   @Test fun healthyEnabledRecordCannotBeDisabledByEnableOnlyWriter() = runBlocking {
     val store = open().repository
     store.migrateLegacyLocked("enabled", null)
