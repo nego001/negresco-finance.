@@ -70,6 +70,22 @@ class BiometricOperationGateInstrumentedTest {
     assertNull(gate.consume(resumed = true))
   }
 
+  @Test fun concurrentCancellationCannotBeOverriddenByLateSuccess() {
+    repeat(64) {
+      val expected = cipher()
+      val gate = BiometricOperationGate(expected)
+      val lateCallback = Thread {
+        gate.approve(expected, resumed = true)
+      }
+      lateCallback.start()
+      gate.revoke()
+      lateCallback.join(3000)
+      assertFalse("Biometric callback thread did not complete", lateCallback.isAlive)
+      assertNull("Cancellation must be final even if success races with it",
+        gate.consume(resumed = true))
+    }
+  }
+
   @Test fun repeatedCallbacksCannotReuseACompletedAuthorization() {
     val expected = cipher()
     val gate = BiometricOperationGate(expected)
