@@ -201,6 +201,16 @@ matrícula biométrica. A verificação normal do `SyntheticSignedDeviceProofLab
 continua exigindo um SPKI RFC 8410 canônico de 44 bytes e uma assinatura
 Ed25519 real, nunca um teste baseado só no rótulo da API.
 
+Para demonstrar que o mesmo provedor de software verifica a assinatura
+produzida pelo teste, `SyntheticDeviceChallengeDataStoreLab` aceita uma
+**instância JCA `Provider` injetável somente no laboratório**. O teste Android
+passa explicitamente o mesmo objeto Bouncy Castle para geração, assinatura e
+verificação. `Signature.verify` continua indispensável; o teste nega chave,
+assinatura, nonce ou operação adulterados. Essa injeção **não deve fazer parte
+de um autorizador de produção**, pois um chamador não confiável poderia
+escolher um provedor malicioso. A versão real deve fixar uma implementação
+revisada e não aceitar parâmetros de provedor de JavaScript, IA ou rede.
+
 **Nenhuma conclusão de proteção por hardware** pode ser tirada dos 14 testes
 de DataStore e desafios assinados. Um módulo futuro separado deve demonstrar
 material de chave não exportável, atestado quando disponível, algoritmo
