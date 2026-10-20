@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import kotlinx.coroutines.flow.first
 import java.security.MessageDigest
 import java.security.PublicKey
+import java.security.Provider
 import java.security.SecureRandom
 
 /**
@@ -53,7 +54,9 @@ internal class SyntheticEnrollmentInviteDataStoreLab(
   private val store: DataStore<Preferences>,
   labRegistry: DeviceTrustSnapshot?,
   private val labFloor: DeviceTrustFloor?,
-  private val labApprovedKey: PublicKey?
+  private val labApprovedKey: PublicKey?,
+  // Disposable test-only provider. Never accepted from a remote operation.
+  private val labVerifierProvider: Provider? = null
 ) {
   private val rng = SecureRandom()
 
@@ -123,7 +126,7 @@ internal class SyntheticEnrollmentInviteDataStoreLab(
     try {
       val preflight = SyntheticDeviceEnrollmentProofLab.inspect(
         labRegistry, labFloor, intent, labApprovedKey, candidateKey,
-        generated, generated, null, null
+        generated, generated, null, null, labVerifierProvider
       )
       if (preflight != SyntheticEnrollmentGate.DENY_APPROVAL_SIGNATURE) {
         throw UnverifiedSyntheticInvite()
@@ -172,7 +175,8 @@ internal class SyntheticEnrollmentInviteDataStoreLab(
       }
       val gate = SyntheticDeviceEnrollmentProofLab.inspect(
         labRegistry, labFloor, intent, labApprovedKey, candidateKey,
-        issuedNonce, receivedNonce, approvingSignature, candidateSignature
+        issuedNonce, receivedNonce, approvingSignature, candidateSignature,
+        labVerifierProvider
       )
       if (gate != SyntheticEnrollmentGate.PROCEED_TO_INDEPENDENT_PERSISTENT_ENROLLMENT_PROTOCOL) {
         throw UnverifiedSyntheticInvite()
