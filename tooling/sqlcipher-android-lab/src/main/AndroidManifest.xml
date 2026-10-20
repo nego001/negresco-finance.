@@ -1,5 +1,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <uses-permission android:name="android.permission.USE_BIOMETRIC" />
   <application>
+    <!-- Isolated test host, never exported and never linked into mobile APK. -->
+    <activity
+      android:name="com.negresco.finance.sqlcipher.lab.SyntheticBiometricTestActivity"
+      android:exported="false"
+      android:theme="@android:style/Theme.Material.Light.NoActionBar" />
     <!-- Disposable SQLCipher lab only. A private helper process is deliberately
          terminated by one instrumented test while a transaction is uncommitted.
          This library is NOT linked to the Negresco Finance APK. -->
