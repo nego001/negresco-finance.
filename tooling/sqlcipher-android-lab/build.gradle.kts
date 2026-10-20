@@ -22,6 +22,8 @@ dependencies {
   // Exact versions are pinned for isolated laboratory reproducibility.
   implementation("net.zetetic:sqlcipher-android:4.19.1")
   implementation("androidx.sqlite:sqlite:2.7.0")
+  implementation("androidx.biometric:biometric:1.1.0")
+  implementation("androidx.fragment:fragment-ktx:1.8.6")
   implementation("androidx.datastore:datastore-preferences:1.2.1")
   implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
   androidTestImplementation("junit:junit:4.13.2")
