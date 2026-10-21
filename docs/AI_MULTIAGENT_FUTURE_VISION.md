@@ -70,3 +70,7 @@ Com conexão **futura e consentida** a provedores autorizados, sincronizar event
 6. Testes adversariais de vazamento entre agentes, conselhos contraditórios, fraude, stale pricing, dados ausentes e falhas de fontes. Nenhum agente deve autoatribuir permissão superior.
 
 **Não misturar escopos:** Negresco Finance contém finanças e recursos de compra/economia; Security Black é um projeto independente de cibersegurança.
+
+## Arquitetura social avançada e processo vivo (fase futura independente)
+
+Complemento detalhado inspirado na arquitetura social do NegrecoDroid, **adaptado exclusivamente ao Negresco Finance**: [Arquitetura de IAs Sociais do Finance v1](ai-social/ARQUITETURA-IAS-SOCIAIS-NEGRESCO-V1.md) e [Plano S0–S8, dependências e testes adversariais](ai-social/PLANO-IAS-SOCIAIS-NEGRESCO-V1.md). Esses documentos incluem chat coletivo real, preview de processos, vozes, relações sociais, memoriais e notificações por nome. **Somente documentação futura**, nenhuma conversa/voz/integração instalada. SEC-05K permanece a etapa de desenvolvimento atual.
