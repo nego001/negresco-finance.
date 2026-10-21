@@ -33,7 +33,7 @@ test('native lock Android tests operate only on disposable no-backup fixtures',(
 test('seventeen native DataStore checks cover lock sessions and signed device challenge persistence',()=>{
  const source=read('tooling/native-lock-android-lab/src/androidTest/kotlin/com/negresco/finance/security/NativeLockDataStoreInstrumentedTest.kt');
  const gradle=read('tooling/native-lock-android-lab/build.gradle.kts');
- assert.equal((source.match(/@Test fun /g)||[]).length,17);
+ assert.equal((source.match(/@Test fun /g)||[]).length,18);
  assert.match(source,/deviceChallengePersistsAndSingleUseSurvivesReopeningRealDataStore/);
  assert.match(source,/fakeSignatureDoesNotConsumeDeviceChallengeOnRealDataStore/);
  assert.match(source,/racingValidSignedDeviceProofConsumesOneRealDataStoreTransaction/);
