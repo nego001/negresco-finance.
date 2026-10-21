@@ -40,21 +40,22 @@ fun main(args: Array<String>) {
       "--sec05k-commit-halt-after-active-fixture-only"
     )) {
     val secret = ByteArray(32)
-    try {
+    val check = try {
       java.io.DataInputStream(System.`in`).readFully(secret)
       val crash = if (args[0] == "--sec05k-commit-halt-after-marker-fixture-only")
         SyntheticJournalCrashLab.AFTER_COMMIT_SYNC
       else SyntheticJournalCrashLab.AFTER_ACTIVE_REPLACE
       val backupBytes = java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(args[4]))
-      val check = SyntheticDurableRekeyJournalLab(
+      SyntheticDurableRekeyJournalLab(
         java.nio.file.Paths.get(args[1])
       ).commitFixtureOnly(args[2], args[3], backupBytes, secret, crash).check
-      if (check != SyntheticJournalCheckLab.SIMULATED_CRASH) {
-        System.err.println("SEC05K_CHILD_DENIED=" + check.name)
-        kotlin.system.exitProcess(4)
-      }
     } finally {
+      // Scrub before either exitProcess or Runtime.halt.
       secret.fill(0)
+    }
+    if (check != SyntheticJournalCheckLab.SIMULATED_CRASH) {
+      System.err.println("SEC05K_CHILD_DENIED=" + check.name)
+      kotlin.system.exitProcess(4)
     }
     // No normal JVM teardown. Returns only after the injected filesystem
     // checkpoint has completed. Do NOT call outside disposable test fixtures.
