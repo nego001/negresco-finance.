@@ -37,7 +37,7 @@ private class SyntheticJdbcBoundProofRehearsalLab {
   private val url = System.getenv("NEGRESCO_LAB_PG_URL")
     ?: error("SEC-05E may execute ONLY with explicit disposable PostgreSQL URL")
   private val user = System.getenv("NEGRESCO_LAB_PG_USER") ?: "postgres"
-  private val password = System.getenv("NEGRESCO_LAB_PG_PASSWORD") ?: ""
+  private val password = System.getenv("NEGRESCO_LAB_PG_PASSWORD") ?: System.getenv("PGPASSWORD") ?: ""
   private val schema = "negresco_sec05c_lab"
 
   private fun connection(): Connection = DriverManager.getConnection(url, user, password)
