@@ -250,16 +250,17 @@ private class SyntheticJdbcBoundProofRehearsalLab {
           "INSERT INTO $schema.invites(account_id,invitation_id,approver_fingerprint," +
             "candidate_fingerprint,candidate_spki,registry_revision,registry_epoch," +
             "approving_sequence,nonce_digest,issued_at,expires_at,owner_auth_generation) " +
-            "VALUES (?,?,?,?,?,1,1,1,?," +
-            "clock_timestamp() - (? * INTERVAL '1 minute')," +
-            "clock_timestamp() - (? * INTERVAL '1 minute') + INTERVAL '5 minutes',?)"
+            "SELECT ?,?,?,?,?,1,1,1,?,fixed_time.issued," +
+            "fixed_time.issued + INTERVAL '5 minutes',? " +
+            "FROM (SELECT clock_timestamp() - (? * INTERVAL '1 minute') AS issued) fixed_time"
         ).use { st ->
           st.setObject(1,account);st.setObject(2,invite)
           st.setBytes(3,oldFp.hex.hexToBytes());st.setBytes(4,candidateFp.hex.hexToBytes())
           st.setBytes(5,candidate.public.encoded)
           st.setBytes(6,MessageDigest.getInstance("SHA-256").digest(nonce))
-          st.setInt(7,issuedMinutesAgo);st.setInt(8,issuedMinutesAgo)
-          st.setLong(9,ownerGeneration);check(st.executeUpdate()==1)
+          st.setLong(7,ownerGeneration)
+          st.setInt(8,issuedMinutesAgo)
+          check(st.executeUpdate()==1)
         }
         db.commit()
       } catch (ex:Exception) {
@@ -401,7 +402,6 @@ fun main() {
   val expiredAccount=id();val expiredInvite=id();val expiredNonce=nonce()
   lab.seed(expiredAccount,expiredInvite,keygen.generateKeyPair(),
     keygen.generateKeyPair(),expiredNonce,issuedMinutesAgo=10)
-  val expiredOld=keygen.generateKeyPair()
   // Expiry must be checked BEFORE cryptographic validation.
   deny("DENY_EXPIRED") {
     lab.rehearse(LabProof(expiredAccount,expiredInvite,expiredNonce,
