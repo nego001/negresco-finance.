@@ -23,14 +23,15 @@ test('two-signature invites reject forgery, double-use, cancellation, races and 
  const runner=read('tooling/native-lock-spike/src/test/kotlin/com/negresco/finance/security/NativeLockCoordinatorTest.kt');
  const android=read('tooling/native-lock-android-lab/src/androidTest/kotlin/com/negresco/finance/security/NativeLockDataStoreInstrumentedTest.kt');
  assert.match(runner,/runPersistentEnrollmentInviteScenarios\(\)/);
- assert.match(tests,/PASS: 25 durable invite, expiry and tombstone scenarios/);
+ assert.match(tests,/PASS: 28 durable invite, expiry and tombstone scenarios/);
  assert.match(tests,/is UnverifiedSyntheticInvite/);
  assert.match(tests,/is StaleSyntheticInvite/);
  assert.match(tests,/async\(Dispatchers.IO\)/);
  assert.match(tests,/reopened\.invites\.read/);
  assert.match(android,/dualSignedInvitationIsConsumedOnceAfterAndroidDataStoreReopen/);
  assert.match(android,/expiredDualSignedInvitePersistsTerminalTombstoneAfterAndroidReopen/);
- assert.equal((android.match(/@Test fun /g)||[]).length,17);
+ assert.match(android,/expiredPendingInviteIsTombstonedByReadAndLateCancelOnAndroid/);
+ assert.equal((android.match(/@Test fun /g)||[]).length,18);
 });
 
 test('invitation ledger remains isolated from Expo, backend and real user registration',()=>{
