@@ -111,7 +111,7 @@ test('SEC-05K fresh-JVM detached kit recovery checks every encrypted record with
   const runner = read(fixtures + 'NativeLockCoordinatorTest.kt');
   assert.match(code, /VERIFIED_DETACHED_BACKUP_FIXTURE_ONLY/);
   assert.match(code, /verifyDetachedBackupAfterRestartFixtureOnly/);
-  assert.match(code, /Files\.exists\(journal\) \|\| Files\.exists\(pending\)/);
+  assert.match(code, /existsNoFollow\(journal\) \|\| existsNoFollow\(pending\)/);
   assert.match(code, /current\.records\.values\.all/);
   assert.match(code, /clear\?\.fill\(0\)/);
   assert.match(code, /dataKey\.fill\(0\)/);
@@ -125,4 +125,22 @@ test('SEC-05K fresh-JVM detached kit recovery checks every encrypted record with
   assert.match(cases, /rollback\/stale expected generation/);
   assert.match(cases, /corrupted durable active ciphertext fails closed/);
   assert.doesNotMatch(runner, /--sec05k-verify-detached-fixture-only",[\s\S]{0,200}s\.newSecret/);
+});
+
+test('SEC-05K filesystem fixture refuses symlink and dangling aliases without following them', () => {
+  const code = read(kotlin + 'SyntheticDurableRekeyJournalLab.kt');
+  const cases = read(fixtures + 'SyntheticDurableRekeyJournalLabTest.kt');
+  assert.match(code, /LinkOption\.NOFOLLOW_LINKS/);
+  assert.match(code, /Files\.isSymbolicLink\(directory\)/);
+  assert.match(code, /listOf\(active, pending, journal, lockPath\)\.none\(Files::isSymbolicLink\)/);
+  assert.match(code, /private fun existsNoFollow/);
+  assert.match(code, /Files\.isRegularFile\(path, LinkOption\.NOFOLLOW_LINKS\)/);
+  assert.match(cases, /Files\.createSymbolicLink\(dir\.resolve\("active\.snapshot"\)/);
+  assert.match(cases, /Files\.createSymbolicLink\(dir\.resolve\("pending\.snapshot"\)/);
+  assert.match(cases, /Files\.createSymbolicLink\(dir\.resolve\("migration\.journal"\)/);
+  assert.match(cases, /Files\.createSymbolicLink\(dir\.resolve\("migration\.lock"\)/);
+  assert.match(cases, /Files\.createSymbolicLink\(alias, dir\)/);
+  assert.match(cases, /Files\.createSymbolicLink\(dangling,/);
+  assert.match(cases, /symlinked fixture root directory cannot be trusted/);
+  assert.match(cases, /dangling pending alias is not misclassified/);
 });
