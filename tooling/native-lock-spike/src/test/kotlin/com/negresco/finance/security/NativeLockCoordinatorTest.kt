@@ -270,5 +270,6 @@ fun main(args: Array<String>) {
     runSyntheticRecoveryKitCeremonyScenarios()
     runSyntheticCompromisedKitRotationScenarios()
     runSyntheticDurableRekeyJournalScenarios()
+    runSyntheticJournalAuthorityReconciliationPolicyScenarios()
   }
 }
