@@ -117,6 +117,23 @@ A nova matriz testa arquivos com **zero byte**, com **36 bytes** (abaixo do mín
 
 **Atenção:** o marcador `provisioned.guard` serve somente para reconhecer um diretório de teste previamente inicializado em falhas **parciais**. Não é autenticado por uma chave externa, não impede remoção simultânea de marcador+snapshot por atacante ou perda total da mídia e **não é uma fonte monotônica externa de geração**. Não equivale a uma garantia de backup, autenticação do titular, recuperação de SQLCipher nem prontidão para produção. As restaurações efetuadas nos testes usam cópias sintéticas preparadas pelo próprio laboratório; não representam uma recuperação real de dispositivo perdido.
 
+## Teste adicional: testemunha de geração com HMAC em diretório destacado
+
+A SEC-05K ganhou o módulo **`SyntheticDetachedGenerationWitnessLab`**. É uma prova exclusivamente **JVM, sintética e opcional** de vínculo entre um snapshot cifrado e um recibo de geração mantido em outra pasta descartável. A testemunha armazena apenas conta opaca, ID do kit, versão, geração e SHA-256 dos bytes completos do snapshot, todos autenticados com um **HMAC-SHA-256** que inclui domínio criptográfico próprio. A chave secreta de 32 bytes é entregue na memória ao laboratório; **não é escrita no recibo, journal, APK nem usada como chave financeira**.
+
+**Operações distintas:**
+- `bootstrapFixtureOnly`: cadastro inicial **explícito**, somente quando a testemunha ainda não existe. Não ocorre automaticamente ao validar o snapshot.
+- `advanceFixtureOnly`: atualiza um recibo autenticado, verificando o snapshot **anterior exato**, mesma conta, kit renovado e avanço estrito de **uma** versão e **uma** geração. Grava em arquivo temporário, sincroniza, renomeia atomicamente e sincroniza o diretório.
+- `verifyFixtureOnly`: compara a identidade, geração e hash da cópia cifrada informada com o recibo assinado. Retorna status, **sem decriptar dados ou conceder acesso**. Testa recusa de assinatura inválida, estado local antigo, falta da testemunha, chave errada, caminho via symlink e localização da testemunha dentro da própria pasta do journal.
+
+**Falha importante detectada:** se `active.snapshot` e `provisioned.guard` forem apagados juntos, o guard local não impede sozinho que um diretório pareça virgem. Depois de uma **recriação sintética** da geração local, a testemunha destacada **ainda existente e não adulterada** rejeita o novo estado. Uma cópia velha de `active.snapshot` também falha quando comparada com um recibo atualizado que o atacante não substituiu.
+
+**Limitações fundamentais demonstradas por teste negativo:** HMAC prova autenticidade dos bytes do recibo, **não irreversibilidade nem avanço monotônico verdadeiro**. Se alguém puder restaurar tanto uma versão antiga do snapshot quanto um **recibo antigo validamente assinado**, o par volta a verificar **mesmo sem conhecer a chave HMAC**. O teste registra explicitamente esse ataque de *replay de par assinado*. Como o witness está apenas em **outra pasta do mesmo host** e o teste fornece a chave em memória, não existe uma autoridade independente real, contador seguro, servidor, HSM, comprovação de backup fora do dispositivo, nem autorização do titular.
+
+Outro limite: este módulo **não é integrado como policy gate das transações** do journal, não faz CAS com servidor nem autentica uma decisão `COMMITTED` que permaneceu pendente. Entre `COMMITTED` e atualização do witness existe uma janela operacional que requer protocolo de reconciliação, idempotência e tratamento de falhas de rede antes de qualquer uso real. O laboratório não tem proteção contra escritor concorrente no diretório da testemunha nem substituição de pasta ancestral.
+
+**Gate de produção:** permanece BLOQUEADO até existir uma âncora de geração genuinamente independente, autenticada e monotônica, protocolo pós-crash/commit consistente, autorização real de usuário, armazenamento Android isolado/SQLCipher integrado, backup durável verificável e testes físicos de queda de energia. Não tratar este componente como solução final de rollback ou recuperação de backup.
+
 ## Faltam antes de produção
 
 - **Backup externo real confirmado:** o parâmetro de envelope+segredo verifica criptografia, mas **não demonstra que o usuário salvou o segredo fora do dispositivo**. Queda após a decisão de commit pode tornar os dados inacessíveis se o único segredo ficou na memória do processo. Deve existir cerimônia de backup externo com prova segura, persistente e independente **antes** do commit, sem guardar o segredo em claro.
