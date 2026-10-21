@@ -22,7 +22,7 @@ import java.security.SecureRandom
  * UNAUTHENTICATED TEST FIXTURES. DataStore is NOT anti-rollback storage.
  * Restoring an older DataStore file, replacing the fixture or restarting with
  * stale registry data breaks real anti-replay. No account-bound server ledger,
- * owner strong auth, trustworthy issuer, expiry or Android Keystore exists.
+ * owner strong auth, trustworthy clock, issuer or Android Keystore exists.
  */
 internal object SyntheticInviteKeys {
   val version = intPreferencesKey("negresco.lab.invite.version")
@@ -33,17 +33,22 @@ internal object SyntheticInviteKeys {
   val epoch = longPreferencesKey("negresco.lab.invite.epoch")
   val sequence = longPreferencesKey("negresco.lab.invite.sequence")
   val pendingNonce = stringPreferencesKey("negresco.lab.invite.pending_nonce")
+  val issuedAt = longPreferencesKey("negresco.lab.invite.issued_at_ms")
+  val expiresAt = longPreferencesKey("negresco.lab.invite.expires_at_ms")
 }
 
-internal enum class SyntheticInviteStatus { PENDING, CONSUMED, CANCELLED }
+internal enum class SyntheticInviteStatus { PENDING, CONSUMED, CANCELLED, EXPIRED }
 
 internal class InvalidSyntheticInvite : IllegalStateException("Enrollment invite state invalid")
 internal class StaleSyntheticInvite : IllegalStateException("Invite already finished or stale")
 internal class UnverifiedSyntheticInvite : IllegalStateException("Enrollment signatures denied")
+internal class InvalidSyntheticInviteClock : IllegalStateException("Lab invite clock cannot be trusted")
 
 internal class SyntheticInviteView(
   val intent: SyntheticDeviceEnrollmentIntent,
   val status: SyntheticInviteStatus,
+  val issuedAtMillis: Long,
+  val expiresAtMillis: Long,
   nonce: ByteArray?
 ) {
   private val savedNonce = nonce?.copyOf()
@@ -56,8 +61,14 @@ internal class SyntheticEnrollmentInviteDataStoreLab(
   private val labFloor: DeviceTrustFloor?,
   private val labApprovedKey: PublicKey?,
   // Disposable test-only provider. Never accepted from a remote operation.
-  private val labVerifierProvider: Provider? = null
+  private val labVerifierProvider: Provider? = null,
+  // LAB-ONLY replaceable wall clock, NOT authenticated. Real expiry requires
+  // server-enforced time and a protected global invitation ledger.
+  private val labClockMillis: () -> Long = { System.currentTimeMillis() }
 ) {
+  companion object {
+    const val MAX_INVITE_LIFETIME_MS: Long = 5L * 60L * 1000L
+  }
   private val rng = SecureRandom()
 
   // Defense against mutation of input collections during a transaction.
@@ -71,7 +82,8 @@ internal class SyntheticEnrollmentInviteDataStoreLab(
     SyntheticInviteKeys.version, SyntheticInviteKeys.status,
     SyntheticInviteKeys.approving, SyntheticInviteKeys.candidate,
     SyntheticInviteKeys.revision, SyntheticInviteKeys.epoch,
-    SyntheticInviteKeys.sequence, SyntheticInviteKeys.pendingNonce
+    SyntheticInviteKeys.sequence, SyntheticInviteKeys.pendingNonce,
+    SyntheticInviteKeys.issuedAt, SyntheticInviteKeys.expiresAt
   )
 
   private fun encodeHex(bytes: ByteArray): String =
@@ -89,12 +101,16 @@ internal class SyntheticEnrollmentInviteDataStoreLab(
     val revision = prefs[k.revision] ?: throw InvalidSyntheticInvite()
     val epoch = prefs[k.epoch] ?: throw InvalidSyntheticInvite()
     val sequence = prefs[k.sequence] ?: throw InvalidSyntheticInvite()
+    val issuedAt = prefs[k.issuedAt] ?: throw InvalidSyntheticInvite()
+    val expiresAt = prefs[k.expiresAt] ?: throw InvalidSyntheticInvite()
     val oldId = try { DeviceKeyFingerprint.parse(old) }
       catch (_: IllegalArgumentException) { throw InvalidSyntheticInvite() }
     val newId = try { DeviceKeyFingerprint.parse(fresh) }
       catch (_: IllegalArgumentException) { throw InvalidSyntheticInvite() }
     if (oldId == newId || revision < 1L || epoch < 1L || epoch > revision ||
-        sequence <= 0L || sequence == Long.MAX_VALUE) throw InvalidSyntheticInvite()
+        sequence <= 0L || sequence == Long.MAX_VALUE ||
+        issuedAt <= 0L || issuedAt > Long.MAX_VALUE - MAX_INVITE_LIFETIME_MS ||
+        expiresAt != issuedAt + MAX_INVITE_LIFETIME_MS) throw InvalidSyntheticInvite()
     val nonceHex = prefs[k.pendingNonce]
     val bytes = if (status == SyntheticInviteStatus.PENDING) {
       if (nonceHex == null || !Regex("[0-9a-f]{64}").matches(nonceHex)) {
@@ -107,7 +123,7 @@ internal class SyntheticEnrollmentInviteDataStoreLab(
     }
     return SyntheticInviteView(
       SyntheticDeviceEnrollmentIntent(oldId, newId, revision, epoch, sequence),
-      status, bytes
+      status, issuedAt, expiresAt, bytes
     )
   }
 
@@ -132,6 +148,10 @@ internal class SyntheticEnrollmentInviteDataStoreLab(
         throw UnverifiedSyntheticInvite()
       }
       val updated = store.updateData { before ->
+        val issuedAt = labClockMillis()
+        if (issuedAt <= 0L || issuedAt > Long.MAX_VALUE - MAX_INVITE_LIFETIME_MS) {
+          throw InvalidSyntheticInviteClock()
+        }
         if (before.asMap().isNotEmpty()) {
           decode(before) // corrupt bytes must fail, too
           throw StaleSyntheticInvite()
@@ -145,6 +165,8 @@ internal class SyntheticEnrollmentInviteDataStoreLab(
           this[SyntheticInviteKeys.epoch] = intent.epoch
           this[SyntheticInviteKeys.sequence] = intent.approvingSequence
           this[SyntheticInviteKeys.pendingNonce] = encodeHex(generated)
+          this[SyntheticInviteKeys.issuedAt] = issuedAt
+          this[SyntheticInviteKeys.expiresAt] = issuedAt + MAX_INVITE_LIFETIME_MS
         }
       }
       return decode(updated) ?: throw InvalidSyntheticInvite()
@@ -168,6 +190,15 @@ internal class SyntheticEnrollmentInviteDataStoreLab(
       val view = decode(before) ?: throw InvalidSyntheticInvite()
       if (view.status != SyntheticInviteStatus.PENDING ||
           view.intent != intent) throw StaleSyntheticInvite()
+      val now = labClockMillis()
+      if (now < view.issuedAtMillis) throw InvalidSyntheticInviteClock()
+      if (now >= view.expiresAtMillis) {
+        // Persist an EXPIRED tombstone instead of throwing before commit.
+        before.toMutablePreferences().apply {
+          this[SyntheticInviteKeys.status] = SyntheticInviteStatus.EXPIRED.name
+          remove(SyntheticInviteKeys.pendingNonce)
+        }
+      } else {
       val issuedNonce = view.pendingNonceCopy() ?: throw InvalidSyntheticInvite()
       if (receivedNonce == null || receivedNonce.size != 32 ||
           !MessageDigest.isEqual(issuedNonce, receivedNonce)) {
@@ -185,8 +216,11 @@ internal class SyntheticEnrollmentInviteDataStoreLab(
         this[SyntheticInviteKeys.status] = SyntheticInviteStatus.CONSUMED.name
         remove(SyntheticInviteKeys.pendingNonce)
       }
+      }
     }
-    return decode(updated) ?: throw InvalidSyntheticInvite()
+    val terminal = decode(updated) ?: throw InvalidSyntheticInvite()
+    if (terminal.status == SyntheticInviteStatus.EXPIRED) throw StaleSyntheticInvite()
+    return terminal
   }
 
   /**
