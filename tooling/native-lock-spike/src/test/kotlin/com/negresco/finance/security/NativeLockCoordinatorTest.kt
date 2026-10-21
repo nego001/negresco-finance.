@@ -181,5 +181,6 @@ fun main() {
     runAllDevicesLostRecoveryScenarios()
     runSyntheticOfflineRecoveryKitScenarios()
     runSyntheticPortableRecoveryEnvelopeScenarios()
+    runSyntheticRecoveryKitCeremonyScenarios()
   }
 }
