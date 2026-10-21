@@ -178,5 +178,6 @@ fun main() {
     runPersistentEnrollmentInviteScenarios()
     runSyntheticAccountBoundInviteProofScenarios()
     runSyntheticAccountInviteAuthorityScenarios()
+    runAllDevicesLostRecoveryScenarios()
   }
 }
