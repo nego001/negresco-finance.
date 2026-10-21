@@ -97,7 +97,7 @@ private class SyntheticJdbcRekeyCasPersistenceLab {
       before.version >= Long.MAX_VALUE - 1 || before.generation >= Long.MAX_VALUE - 1 ||
       after.version != before.version+1 || after.generation != before.generation+1)
       return "DENY_INVALID"
-    connection().use { db ->
+    return connection().use { db ->
       db.autoCommit=false
       db.transactionIsolation=Connection.TRANSACTION_READ_COMMITTED
       fun finish(status:String):String { db.commit(); return status }
