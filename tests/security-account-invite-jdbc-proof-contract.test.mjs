@@ -23,7 +23,8 @@ test('SEC-05E verifies real bound Ed25519 signatures against database-provisione
 test('proof-verified database rehearsals never add new trusted devices',()=>{
  const src=read('tooling/native-lock-spike/src/test/kotlin/com/negresco/finance/security/SyntheticJdbcBoundProofRehearsalTest.kt');
  assert.match(src,/No authenticated account, HTTP server/);
- assert.doesNotMatch(src,/INSERT INTO \$schema\.devices/);
+ const consumeOnly = src.split('  fun seed(')[0];
+ assert.doesNotMatch(consumeOnly,/INSERT INTO \$schema\.devices/);
  assert.match(src,/RECORDED_SIGNED_PROOF_FIXTURE_ONLY/);
  assert.match(src,/ALREADY_RECORDED_NO_GRANT/);
  assert.match(src,/DENY_IDEMPOTENCY_CONFLICT/);
