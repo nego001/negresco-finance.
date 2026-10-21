@@ -183,5 +183,6 @@ fun main() {
     runSyntheticPortableRecoveryEnvelopeScenarios()
     runSyntheticRecoveryKitCeremonyScenarios()
     runSyntheticCompromisedKitRotationScenarios()
+    runSyntheticDurableRekeyJournalScenarios()
   }
 }
