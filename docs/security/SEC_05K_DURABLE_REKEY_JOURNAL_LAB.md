@@ -91,6 +91,17 @@ Foram adicionadas duas corrupções intencionais, exclusivas do laboratório: `T
 
 **Limites explícitos:** duas leituras de checksum **não fornecem exclusão mútua contra processos hostis que ignoram o lock**, nem impedem substituição posterior ao último check, arquivo hardlinkado, diretorios pais controlados por atacante, TOCTOU em operações de rename/remove, corrupção de energia ou adulteração com SHA-256 recalculado. A proteção de produção dependerá de diretório privado, primitivas do SO, credenciais/geração monotônica autenticadas e revisão da arquitetura nativa. Não confundir este teste com solução completa para concorrência ou prevenção de tamper.
 
+## Ensaio adicional: escritor não cooperativo (independente do FileLock)
+
+O `FileLock` protege **escritores cooperativos** no laboratório, mas não deve ser confundido com proteção contra outro processo que ignore o bloqueio. Para deixar esse risco explícito, foi acrescentado o modo de teste de JVM `--sec05k-noncooperative-candidate-fixture-only`, **restrito aos diretórios temporários descartáveis** `negresco-sec05k-disposable-*`. O processo pai segura `migration.lock` enquanto o processo filho modifica o primeiro byte de `pending.snapshot`, sem adquirir o lock, sincronizando a alteração.
+
+Casos previstos:
+- Alteração por outra JVM enquanto existe `PREPARED`: o commit recusa o candidato inconsistente (`FAIL_CLOSED`) e uma nova JVM pode descartar o candidato ao reverter `PREPARED`, mantendo a geração antiga. Depois da limpeza, uma nova preparação íntegra continua permitida.
+- Alteração por outra JVM **depois** de `COMMITTED`: a recuperação **não volta silenciosamente** para a geração antiga, retorna `FAIL_CLOSED` e preserva o journal para reparo sob política segura.
+- Janela determinística `TAMPER_PENDING_AFTER_FINAL_CHECK_FIXTURE_ONLY`: corrupção é injetada **após a última comparação do candidato e imediatamente antes do rename**. A verificação pós-publicação detecta que o novo snapshot não corresponde ao `newHash`, retorna `FAIL_CLOSED` e não elimina o journal.
+
+**Esse ensaio não impede o ataque; mede e registra a contenção de dano em janelas específicas.** Uma alteração concorrente pode manter os dados indisponíveis, e os hashes SHA-256 locais não autenticam a autoria da mudança. Proteção efetiva ainda requer isolamento de armazenamento por permissões do SO, controle de identidade, resistência a substituição de diretórios e proteção externa de geração monotônica. É proibido interpretar `FAIL_CLOSED` como `BACKUP_RECUPERADO` ou `PRONTO_PARA_PRODUCAO`.
+
 ## Faltam antes de produção
 
 - **Backup externo real confirmado:** o parâmetro de envelope+segredo verifica criptografia, mas **não demonstra que o usuário salvou o segredo fora do dispositivo**. Queda após a decisão de commit pode tornar os dados inacessíveis se o único segredo ficou na memória do processo. Deve existir cerimônia de backup externo com prova segura, persistente e independente **antes** do commit, sem guardar o segredo em claro.
