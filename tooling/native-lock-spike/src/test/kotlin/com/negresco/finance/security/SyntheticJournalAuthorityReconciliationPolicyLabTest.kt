@@ -53,7 +53,7 @@ internal fun runSyntheticJournalAuthorityReconciliationPolicyScenarios() {
       active = A.NEW_AUTHENTICATED, authorityGeneration = G.NEW_CURRENT)
   )
   for (evidence in listOf(E.MISSING_OR_OFFLINE, E.REPLAYABLE_DETACHED_HMAC_ONLY,
-    E.INVALID_OR_STALE)) {
+    E.SIGNED_CHALLENGE_FIXTURE_ONLY_NO_LIVE_AUTHORITY, E.INVALID_OR_STALE)) {
     for (case in safeCases) {
       verify(policy.decide(case.copy(authorityEvidence = evidence)),
         D.HOLD_EXTERNAL_AUTHORITY_REQUIRED,
