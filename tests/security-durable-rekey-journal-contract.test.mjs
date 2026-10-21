@@ -67,3 +67,21 @@ test('SEC-05K lab and future multiagent charter stay outside the mobile runtime'
   assert.match(roadmap, /AI_MULTIAGENT_FUTURE_VISION/);
   assert.doesNotMatch(mobile, /SyntheticDurableRekeyJournalLab/);
 });
+
+
+test('SEC-05K child JVM performs independent recovery without passing secret material', () => {
+  const cases = read(fixtures + 'SyntheticDurableRekeyJournalLabTest.kt');
+  const runner = read(fixtures + 'NativeLockCoordinatorTest.kt');
+  assert.match(runner, /fun main\(args: Array<String>\)/);
+  assert.match(runner, /--sec05k-recover-fixture-only/);
+  assert.match(runner, /SEC05K_CHILD_RESULT=/);
+  assert.match(cases, /ProcessBuilder\(/);
+  assert.match(cases, /java\.class\.path/);
+  assert.match(cases, /recoverInIndependentJvm/);
+  assert.match(cases, /FileChannel\.open/);
+  assert.match(cases, /SyntheticJournalCheckLab\.DENY_BUSY/);
+  assert.match(cases, /SyntheticJournalCheckLab\.RECOVERED_PREPARE_ROLLBACK/);
+  assert.match(cases, /SyntheticJournalCheckLab\.RECOVERED_COMMIT_FINALIZED/);
+  assert.match(cases, /SyntheticJournalCheckLab\.FAIL_CLOSED/);
+  assert.doesNotMatch(cases, /"--sec05k-recover-fixture-only",[\s\S]{0,200}(oldSecret|newSecret|oldKey)/);
+});
