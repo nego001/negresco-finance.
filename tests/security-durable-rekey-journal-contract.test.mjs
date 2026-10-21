@@ -85,3 +85,22 @@ test('SEC-05K child JVM performs independent recovery without passing secret mat
   assert.match(cases, /SyntheticJournalCheckLab\.FAIL_CLOSED/);
   assert.doesNotMatch(cases, /"--sec05k-recover-fixture-only",[\s\S]{0,200}(oldSecret|newSecret|oldKey)/);
 });
+
+test('SEC-05K abrupt child JVM termination checks detached export without leaking kit secret via argv', () => {
+  const cases = read(fixtures + 'SyntheticDurableRekeyJournalLabTest.kt');
+  const runner = read(fixtures + 'NativeLockCoordinatorTest.kt');
+  assert.match(runner, /--sec05k-commit-halt-after-marker-fixture-only/);
+  assert.match(runner, /--sec05k-commit-halt-after-active-fixture-only/);
+  assert.match(runner, /DataInputStream\(System\.\`in\`\)\.readFully\(secret\)/);
+  assert.match(runner, /secret\.fill\(0\)/);
+  assert.match(runner, /Runtime\.getRuntime\(\)\.halt\(73\)/);
+  assert.match(runner, /SEC05K_CHILD_DENIED=/);
+  assert.match(cases, /exportBackupFixtureOnly/);
+  assert.match(cases, /channel\.force\(true\)/);
+  assert.match(cases, /child\.outputStream\.use \{ it\.write\(secret\)/);
+  assert.match(cases, /hardStopCommitInIndependentJvm/);
+  assert.match(cases, /RECOVERED_COMMIT_FINALIZED/);
+  assert.match(cases, /RECOVERED_PREPARE_ROLLBACK/);
+  assert.match(cases, /secret = randomKey\(\)/);
+  assert.doesNotMatch(cases, /mode, dir\.toAbsolutePath\(\)\.toString\(\), account, s\.before\.kitId,\s*(oldSecret|newSecret|oldKey)/);
+});
