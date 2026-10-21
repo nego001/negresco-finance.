@@ -31,7 +31,8 @@ import java.util.UUID
 internal enum class SyntheticJournalPhaseLab { PREPARED, COMMITTED }
 internal enum class SyntheticJournalCrashLab {
   NONE, AFTER_PENDING_SYNC, AFTER_PREPARE_SYNC, AFTER_COMMIT_SYNC, AFTER_ACTIVE_REPLACE,
-  TAMPER_PENDING_BEFORE_PUBLISH_FIXTURE_ONLY, TAMPER_ACTIVE_AFTER_PUBLISH_FIXTURE_ONLY
+  TAMPER_PENDING_BEFORE_PUBLISH_FIXTURE_ONLY, TAMPER_ACTIVE_AFTER_PUBLISH_FIXTURE_ONLY,
+  TAMPER_PENDING_AFTER_FINAL_CHECK_FIXTURE_ONLY
 }
 internal enum class SyntheticJournalCheckLab {
   SEEDED_FIXTURE_ONLY,
@@ -421,6 +422,11 @@ internal class SyntheticDurableRekeyJournalLab(private val directory: Path) {
       // Revalidate the candidate after the commit decision but before promotion.
       if (!same(readBytes(pending), j.newHash))
         return@exclusive result(SyntheticJournalCheckLab.FAIL_CLOSED)
+      // Fault injection: represent a noncooperative writer changing candidate
+      // AFTER the final pre-publish checksum while this process owns FileLock.
+      // The post-publish readback must still reject this unexpected content.
+      if (crash == SyntheticJournalCrashLab.TAMPER_PENDING_AFTER_FINAL_CHECK_FIXTURE_ONLY)
+        tamperFirstByteFixtureOnly(pending)
       Files.move(pending, active,
         StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
       syncDirectory()
