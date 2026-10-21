@@ -144,3 +144,28 @@ test('SEC-05K filesystem fixture refuses symlink and dangling aliases without fo
   assert.match(cases, /symlinked fixture root directory cannot be trusted/);
   assert.match(cases, /dangling pending alias is not misclassified/);
 });
+
+test('SEC-05K journal cleanup requires post-publish readback and descriptor-bound nofollow reads', () => {
+  const code = read(kotlin + 'SyntheticDurableRekeyJournalLab.kt');
+  const cases = read(fixtures + 'SyntheticDurableRekeyJournalLabTest.kt');
+  assert.match(code, /FileChannel\.open\(path, StandardOpenOption\.READ, LinkOption\.NOFOLLOW_LINKS\)/);
+  assert.match(code, /val size = channel\.size\(\)/);
+  assert.match(code, /require\(channel\.size\(\) == size\)/);
+  assert.match(code, /TAMPER_PENDING_BEFORE_PUBLISH_FIXTURE_ONLY/);
+  assert.match(code, /TAMPER_ACTIVE_AFTER_PUBLISH_FIXTURE_ONLY/);
+  assert.match(code, /tamperFirstByteFixtureOnly\(pending\)/);
+  assert.match(code, /tamperFirstByteFixtureOnly\(active\)/);
+  const commit = code.slice(code.indexOf('fun commitFixtureOnly('), code.indexOf('fun recoverFixtureOnly()'));
+  const move = commit.indexOf('Files.move(pending, active');
+  const attested = commit.indexOf('if (!same(readBytes(active), j.newHash))');
+  const cleanup = commit.lastIndexOf('remove(journal)');
+  assert.ok(move >= 0 && attested > move && cleanup > attested);
+  const recovery = code.slice(code.indexOf('fun recoverFixtureOnly()'), code.indexOf('fun verifyDetachedBackupAfterRestartFixtureOnly('));
+  const recoverMove = recovery.lastIndexOf('Files.move(pending, active');
+  const recoverAttested = recovery.lastIndexOf('if (!same(readBytes(active), j.newHash))');
+  const recoverCleanup = recovery.lastIndexOf('remove(journal)');
+  assert.ok(recoverMove >= 0 && recoverAttested > recoverMove && recoverCleanup > recoverAttested);
+  assert.match(cases, /tamper after durable commit decision is rejected/);
+  assert.match(cases, /post-promotion corruption is detected/);
+  assert.match(cases, /COMMITTED journal remains/);
+});
