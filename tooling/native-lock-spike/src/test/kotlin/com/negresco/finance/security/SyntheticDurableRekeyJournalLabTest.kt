@@ -1,0 +1,308 @@
+package com.negresco.finance.security
+
+import java.nio.file.Files
+import java.nio.file.Path
+import java.security.SecureRandom
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+
+/** SEC-05K: restart/crash matrix with disposable encrypted data only. */
+internal fun runSyntheticDurableRekeyJournalScenarios() {
+  val random = SecureRandom()
+  val account = "c".repeat(32)
+  val otherAccount = "d".repeat(32)
+  var checks = 0
+  fun verify(ok: Boolean, reason: String) {
+    check(ok) { "SEC-05K: $reason" }
+    checks++
+  }
+  fun randomKey() = ByteArray(32).also { random.nextBytes(it) }
+  data class Scenario(
+    val before: SyntheticRekeySnapshotLab,
+    val after: SyntheticRekeySnapshotLab,
+    val oldFile: ByteArray, val newFile: ByteArray,
+    val oldSecret: ByteArray, val newSecret: ByteArray,
+    val oldKey: ByteArray
+  )
+  fun scenario(): Scenario {
+    val dek = randomKey()
+    val first = SyntheticOfflineRecoveryKitCryptoLab.sealFixtureOnly(
+      account, dek, 1L, 2L
+    )
+    val firstFile = SyntheticPortableRecoveryEnvelopeLab.exportEnvelopeBytesFixtureOnly(
+      first.envelope
+    )
+    val lab = SyntheticCompromisedKitRotationLab.seedFixtureOnly(
+      account, dek, first, linkedMapOf(
+        "game" to "synthetic game purchase".toByteArray(),
+        "subscription" to "synthetic subscription".toByteArray()
+      )
+    )
+    val before = lab.snapshotFixtureOnly()
+    val rotated = lab.rotateCompromisedKitFixtureOnly(
+      account, before.kitId, firstFile, first.recoverySecretCopyForFixtureOnly()
+    )
+    check(rotated.check == SyntheticRekeyCheck.REKEYED_FIXTURE_ONLY_NOT_AUTHORIZATION)
+    val nextKit = rotated.freshKitFixtureOnly!!
+    return Scenario(
+      before, lab.snapshotFixtureOnly(), firstFile, lab.encryptedBackupFixtureOnly(),
+      first.recoverySecretCopyForFixtureOnly(), nextKit.recoverySecretCopyForFixtureOnly(), dek
+    )
+  }
+  fun root() = Files.createTempDirectory("negresco-sec05k-disposable-")
+  fun journal(dir: Path) = SyntheticDurableRekeyJournalLab(dir)
+  fun seed(dir: Path, s: Scenario) =
+    journal(dir).seedFixtureOnly(s.before, s.oldFile)
+  fun prepare(
+    dir: Path, s: Scenario, crash: SyntheticJournalCrashLab = SyntheticJournalCrashLab.NONE
+  ) = journal(dir).prepareFixtureOnly(
+    account, s.before.kitId, s.oldSecret, s.after, s.newFile, s.newSecret, crash
+  )
+  fun commit(
+    dir: Path, s: Scenario, crash: SyntheticJournalCrashLab = SyntheticJournalCrashLab.NONE
+  ) = journal(dir).commitFixtureOnly(
+    account, s.before.kitId, s.newFile, s.newSecret, crash
+  )
+  fun checkOld(result: SyntheticJournalResultLab, s: Scenario, reason: String) {
+    verify(result.snapshotFixtureOnly!!.kitId == s.before.kitId, reason)
+  }
+  fun checkNew(result: SyntheticJournalResultLab, s: Scenario, reason: String) {
+    verify(result.snapshotFixtureOnly!!.kitId == s.after.kitId, reason)
+  }
+  fun flipFirstByte(path: Path) {
+    val data = Files.readAllBytes(path)
+    data[0] = (data[0].toInt() xor 1).toByte()
+    Files.write(path, data)
+  }
+
+  run {
+    val s = scenario()
+    val dir = root()
+    verify(seed(dir, s).check == SyntheticJournalCheckLab.SEEDED_FIXTURE_ONLY,
+      "seeds disposable ciphertext")
+    checkOld(journal(dir).recoverFixtureOnly(), s, "clean restart retains old generation")
+    verify(Files.exists(dir.resolve("active.snapshot")), "active bytes are durable")
+    verify(!Files.exists(dir.resolve("migration.journal")), "clean state has no marker")
+    verify(seed(dir, s).check == SyntheticJournalCheckLab.DENY_INVALID_OR_STALE,
+      "seed cannot overwrite already provisioned state")
+  }
+  run {
+    val s = scenario()
+    val dir = root()
+    seed(dir, s)
+    verify(prepare(dir, s, SyntheticJournalCrashLab.AFTER_PENDING_SYNC).check ==
+      SyntheticJournalCheckLab.SIMULATED_CRASH, "crash after pending sync")
+    verify(Files.exists(dir.resolve("pending.snapshot")), "orphan candidate exists")
+    val recovered = journal(dir).recoverFixtureOnly()
+    verify(recovered.check == SyntheticJournalCheckLab.CONSISTENT_FIXTURE_ONLY,
+      "orphan without journal discards pending")
+    checkOld(recovered, s, "orphan never publishes new generation")
+    verify(!Files.exists(dir.resolve("pending.snapshot")), "orphan cleaned")
+    verify(prepare(dir, s).check == SyntheticJournalCheckLab.PREPARED_FIXTURE_ONLY,
+      "can safely retry after orphan crash")
+  }
+  run {
+    val s = scenario()
+    val dir = root()
+    seed(dir, s)
+    verify(prepare(dir, s, SyntheticJournalCrashLab.AFTER_PREPARE_SYNC).check ==
+      SyntheticJournalCheckLab.SIMULATED_CRASH, "crash after PREPARED marker")
+    verify(Files.exists(dir.resolve("migration.journal")), "prepared marker durable")
+    val recovered = journal(dir).recoverFixtureOnly()
+    verify(recovered.check == SyntheticJournalCheckLab.RECOVERED_PREPARE_ROLLBACK,
+      "restarted process rolls back uncommitted state")
+    checkOld(recovered, s, "prepared rollback chooses old ciphertext")
+    verify(!Files.exists(dir.resolve("pending.snapshot")) &&
+      !Files.exists(dir.resolve("migration.journal")), "rollback cleans artifacts")
+    verify(prepare(dir, s).check == SyntheticJournalCheckLab.PREPARED_FIXTURE_ONLY,
+      "rollback is retryable")
+  }
+  run {
+    val s = scenario()
+    val dir = root()
+    seed(dir, s)
+    verify(journal(dir).prepareFixtureOnly(otherAccount, s.before.kitId,
+      s.oldSecret, s.after, s.newFile, s.newSecret).check ==
+      SyntheticJournalCheckLab.DENY_INVALID_OR_STALE, "wrong account denied")
+    verify(journal(dir).prepareFixtureOnly(account, s.after.kitId,
+      s.oldSecret, s.after, s.newFile, s.newSecret).check ==
+      SyntheticJournalCheckLab.DENY_INVALID_OR_STALE, "wrong old kit denied")
+    verify(journal(dir).prepareFixtureOnly(account, s.before.kitId,
+      randomKey(), s.after, s.newFile, s.newSecret).check ==
+      SyntheticJournalCheckLab.DENY_RECOVERY_PROOF, "wrong old secret denied")
+    verify(journal(dir).prepareFixtureOnly(account, s.before.kitId,
+      s.oldSecret, s.after, s.newFile, randomKey()).check ==
+      SyntheticJournalCheckLab.DENY_RECOVERY_PROOF, "wrong new secret denied")
+    verify(!Files.exists(dir.resolve("pending.snapshot")), "denied proofs do not persist")
+    val mutated = s.after.records.mapValues { (_, record) ->
+      val cipher = record.ciphertextCopy()
+      cipher[0] = (cipher[0].toInt() xor 1).toByte()
+      SyntheticEncryptedRecordLab(record.id, record.version, record.generation,
+        record.nonceCopy(), cipher)
+    }
+    val tampered = SyntheticRekeySnapshotLab(
+      s.after.accountId, s.after.kitId, s.after.version, s.after.generation,
+      mutated, s.after.retiredKitIds
+    )
+    verify(journal(dir).prepareFixtureOnly(account, s.before.kitId,
+      s.oldSecret, tampered, s.newFile, s.newSecret).check ==
+      SyntheticJournalCheckLab.DENY_RECOVERY_PROOF, "AEAD corruption of new ciphertext denied")
+    checkOld(journal(dir).recoverFixtureOnly(), s, "tampered prepare leaves old state")
+  }
+  run {
+    val s = scenario()
+    val dir = root()
+    seed(dir, s)
+    prepare(dir, s)
+    verify(prepare(dir, s).check == SyntheticJournalCheckLab.DENY_INVALID_OR_STALE,
+      "cannot prepare twice while pending")
+    verify(journal(dir).commitFixtureOnly(otherAccount, s.before.kitId,
+      s.newFile, s.newSecret).check ==
+      SyntheticJournalCheckLab.DENY_INVALID_OR_STALE, "wrong account commit denied")
+    verify(journal(dir).commitFixtureOnly(account, s.after.kitId,
+      s.newFile, s.newSecret).check ==
+      SyntheticJournalCheckLab.DENY_INVALID_OR_STALE, "stale expected kit commit denied")
+    verify(journal(dir).commitFixtureOnly(account, s.before.kitId,
+      s.oldFile, s.newSecret).check ==
+      SyntheticJournalCheckLab.DENY_RECOVERY_PROOF, "unrelated backup file denied")
+    verify(journal(dir).commitFixtureOnly(account, s.before.kitId,
+      s.newFile, randomKey()).check ==
+      SyntheticJournalCheckLab.DENY_RECOVERY_PROOF, "wrong new detached secret denied")
+    verify(journal(dir).commitFixtureOnly(account, s.before.kitId,
+      s.newFile, "123456".toByteArray()).check ==
+      SyntheticJournalCheckLab.DENY_RECOVERY_PROOF, "PIN is not backup secret")
+    val rollback = journal(dir).recoverFixtureOnly()
+    verify(rollback.check == SyntheticJournalCheckLab.RECOVERED_PREPARE_ROLLBACK,
+      "failed approval never moves to commit")
+    checkOld(rollback, s, "rejected backup leaves old generation")
+  }
+  run {
+    val s = scenario()
+    val dir = root()
+    seed(dir, s)
+    prepare(dir, s)
+    verify(commit(dir, s, SyntheticJournalCrashLab.AFTER_COMMIT_SYNC).check ==
+      SyntheticJournalCheckLab.SIMULATED_CRASH, "crash immediately after COMMITTED marker")
+    val recovered = journal(dir).recoverFixtureOnly()
+    verify(recovered.check == SyntheticJournalCheckLab.RECOVERED_COMMIT_FINALIZED,
+      "restart must finalize committed migration")
+    checkNew(recovered, s, "committed marker chooses new ciphertext")
+    val next = SyntheticPortableRecoveryEnvelopeLab.importEnvelopeBytesFixtureOnly(
+      s.newFile, account
+    ).envelope!!
+    val freshKey = SyntheticOfflineRecoveryKitCryptoLab.recoverDataKeyFixtureOnly(
+      next, s.newSecret
+    )!!.copyForFixtureOnly()
+    try {
+      for (record in recovered.snapshotFixtureOnly!!.records.values) {
+        verify(SyntheticRecordCipherLab.decryptFixtureOnly(account, record, s.oldKey) == null,
+          "retired DEK cannot decrypt committed record")
+        val clear = SyntheticRecordCipherLab.decryptFixtureOnly(account, record, freshKey)
+        verify(clear != null, "fresh DEK decrypts committed record")
+        clear?.fill(0)
+      }
+    } finally { freshKey.fill(0) }
+    checkNew(journal(dir).recoverFixtureOnly(), s, "second restart stays committed")
+    verify(prepare(dir, s).check == SyntheticJournalCheckLab.DENY_INVALID_OR_STALE,
+      "old kit cannot replay a committed migration")
+  }
+  run {
+    val s = scenario()
+    val dir = root()
+    seed(dir, s)
+    prepare(dir, s)
+    verify(commit(dir, s, SyntheticJournalCrashLab.AFTER_ACTIVE_REPLACE).check ==
+      SyntheticJournalCheckLab.SIMULATED_CRASH, "crash after active replacement")
+    val recovered = journal(dir).recoverFixtureOnly()
+    verify(recovered.check == SyntheticJournalCheckLab.RECOVERED_COMMIT_FINALIZED,
+      "committed active replacement is idempotent")
+    checkNew(recovered, s, "no revert after published active")
+    verify(!Files.exists(dir.resolve("migration.journal")) &&
+      !Files.exists(dir.resolve("pending.snapshot")), "finalize cleans pending and marker")
+  }
+  run {
+    val s = scenario()
+    val dir = root()
+    seed(dir, s)
+    prepare(dir, s)
+    val committed = commit(dir, s)
+    verify(committed.check == SyntheticJournalCheckLab.COMMITTED_FIXTURE_ONLY_NOT_AUTHORIZATION,
+      "normal two-phase publication")
+    checkNew(committed, s, "normal commit publishes new ciphertext")
+    checkNew(journal(dir).recoverFixtureOnly(), s, "normal commit persists across restart")
+    verify(commit(dir, s).check == SyntheticJournalCheckLab.DENY_INVALID_OR_STALE,
+      "commit cannot be replayed after cleanup")
+  }
+  run {
+    val s = scenario()
+    val dir = root()
+    seed(dir, s)
+    prepare(dir, s, SyntheticJournalCrashLab.AFTER_PREPARE_SYNC)
+    flipFirstByte(dir.resolve("pending.snapshot"))
+    verify(journal(dir).recoverFixtureOnly().check ==
+      SyntheticJournalCheckLab.RECOVERED_PREPARE_ROLLBACK,
+      "corrupted uncommitted pending can be safely discarded")
+    checkOld(journal(dir).recoverFixtureOnly(), s, "rollback keeps original intact")
+  }
+  run {
+    val s = scenario()
+    val dir = root()
+    seed(dir, s)
+    prepare(dir, s)
+    commit(dir, s, SyntheticJournalCrashLab.AFTER_COMMIT_SYNC)
+    flipFirstByte(dir.resolve("pending.snapshot"))
+    verify(journal(dir).recoverFixtureOnly().check == SyntheticJournalCheckLab.FAIL_CLOSED,
+      "committed missing valid pending must not revert to old")
+    verify(Files.exists(dir.resolve("migration.journal")),
+      "failed committed recovery retains journal for forensic handling")
+  }
+  run {
+    val s = scenario()
+    val dir = root()
+    seed(dir, s)
+    prepare(dir, s)
+    flipFirstByte(dir.resolve("migration.journal"))
+    verify(journal(dir).recoverFixtureOnly().check == SyntheticJournalCheckLab.FAIL_CLOSED,
+      "corrupted journal must fail closed")
+    verify(Files.exists(dir.resolve("pending.snapshot")),
+      "corrupt journal does not silently discard candidate")
+  }
+  run {
+    val s = scenario()
+    val dir = root()
+    seed(dir, s)
+    flipFirstByte(dir.resolve("active.snapshot"))
+    verify(journal(dir).recoverFixtureOnly().check == SyntheticJournalCheckLab.FAIL_CLOSED,
+      "corrupted active state must fail closed")
+    verify(prepare(dir, s).check == SyntheticJournalCheckLab.FAIL_CLOSED,
+      "cannot migrate corrupted active state")
+  }
+  run {
+    val s = scenario()
+    val dir = root()
+    seed(dir, s)
+    val pool = Executors.newFixedThreadPool(2)
+    val gate = CountDownLatch(1)
+    try {
+      val tasks = (0 until 2).map {
+        pool.submit<SyntheticJournalCheckLab> {
+          gate.await()
+          prepare(dir, s).check
+        }
+      }
+      gate.countDown()
+      val outcomes = tasks.map { it.get(10, TimeUnit.SECONDS) }
+      verify(outcomes.count { it == SyntheticJournalCheckLab.PREPARED_FIXTURE_ONLY } == 1,
+        "filesystem lock permits a single staged generation")
+      verify(outcomes.all {
+        it in setOf(SyntheticJournalCheckLab.PREPARED_FIXTURE_ONLY,
+          SyntheticJournalCheckLab.DENY_INVALID_OR_STALE, SyntheticJournalCheckLab.DENY_BUSY)
+      }, "competing process cannot replace pending journal")
+      verify(journal(dir).recoverFixtureOnly().check ==
+        SyntheticJournalCheckLab.RECOVERED_PREPARE_ROLLBACK, "race rollback retains old")
+    } finally { pool.shutdownNow() }
+  }
+
+  println("PASS: SEC-05K $checks durable-restart journal checks (disposable JVM fixtures)")
+}
