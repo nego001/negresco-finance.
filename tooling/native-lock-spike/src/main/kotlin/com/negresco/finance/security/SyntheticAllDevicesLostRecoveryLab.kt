@@ -37,6 +37,7 @@ internal enum class SyntheticRecoveryCheck {
   DENY_ACTIVE_DEVICE_EXISTS,
   DENY_REVOKED_OR_KNOWN_CANDIDATE,
   DENY_PENDING_REVIEW,
+  DENY_RECOVERY_ALREADY_REVIEWED,
   DENY_MISSING_PINNED_AUTHORITY,
   DENY_CLOCK,
   DENY_TERMINAL_TICKET,
@@ -45,6 +46,7 @@ internal enum class SyntheticRecoveryCheck {
   DENY_WRONG_CANDIDATE,
   DENY_REVIEW_SIGNATURE,
   DENY_CANDIDATE_SIGNATURE,
+  REVIEW_OPENED_NOT_ENROLLED,
   PROOF_RECORDED_NOT_ENROLLED
 }
 
@@ -163,7 +165,8 @@ internal class SyntheticAllDevicesLostRecoveryLab(
   companion object { const val REVIEW_WINDOW_MILLIS = 10L * 60L * 1000L }
   private data class Account(
     var registry: DeviceTrustSnapshot,
-    var ownerGeneration: Long
+    var ownerGeneration: Long,
+    var proofAlreadyRecorded: Boolean = false
   )
   private class Ticket(
     val accountId: String,
@@ -242,6 +245,8 @@ internal class SyntheticAllDevicesLostRecoveryLab(
         return@synchronized SyntheticRecoveryCheck.DENY_ACTIVE_DEVICE_EXISTS to null
       if (state.revoked.isEmpty())
         return@synchronized SyntheticRecoveryCheck.DENY_INVALID_STATE to null
+      if (account.proofAlreadyRecorded)
+        return@synchronized SyntheticRecoveryCheck.DENY_RECOVERY_ALREADY_REVIEWED to null
       val candidate = SyntheticSignedDeviceProofLab.fingerprint(candidatePublicKey)
         ?: return@synchronized SyntheticRecoveryCheck.DENY_WRONG_CANDIDATE to null
       if (candidate in state.revoked || candidate in state.active)
@@ -259,7 +264,7 @@ internal class SyntheticAllDevicesLostRecoveryLab(
         state.revision, state.epoch, account.ownerGeneration,
         now, now + REVIEW_WINDOW_MILLIS, nonce)
       tickets[accountId to ticket.id] = ticket
-      SyntheticRecoveryCheck.PROOF_RECORDED_NOT_ENROLLED to view(ticket)
+      SyntheticRecoveryCheck.REVIEW_OPENED_NOT_ENROLLED to view(ticket)
     }
 
   fun inspectFixtureOnly(accountId: String, ticketId: String):
@@ -270,7 +275,7 @@ internal class SyntheticAllDevicesLostRecoveryLab(
         ?: return@synchronized SyntheticRecoveryCheck.DENY_UNKNOWN_TICKET to null
       val timeCheck = expire(ticket)
       if (timeCheck != null) return@synchronized timeCheck to null
-      SyntheticRecoveryCheck.PROOF_RECORDED_NOT_ENROLLED to view(ticket)
+      SyntheticRecoveryCheck.REVIEW_OPENED_NOT_ENROLLED to view(ticket)
     }
 
   fun confirmReviewProofOnly(
@@ -288,6 +293,8 @@ internal class SyntheticAllDevicesLostRecoveryLab(
     if (check != null) return@synchronized check
     if (ticket.status != SyntheticRecoveryStatus.PENDING_REVIEW)
       return@synchronized SyntheticRecoveryCheck.DENY_TERMINAL_TICKET
+    if (account.proofAlreadyRecorded)
+      return@synchronized SyntheticRecoveryCheck.DENY_RECOVERY_ALREADY_REVIEWED
     if (account.registry.active.isNotEmpty() ||
         !SyntheticDeviceTrustPolicy.wellFormed(account.registry))
       return@synchronized SyntheticRecoveryCheck.DENY_INVALID_STATE
@@ -312,6 +319,7 @@ internal class SyntheticAllDevicesLostRecoveryLab(
     if (result != SyntheticRecoveryCheck.PROOF_RECORDED_NOT_ENROLLED)
       return@synchronized result
     finish(ticket, SyntheticRecoveryStatus.PROOF_ONLY_RECORDED)
+    account.proofAlreadyRecorded = true
     // No registry mutation: the new device is STILL UNKNOWN and cannot unlock.
     SyntheticRecoveryCheck.PROOF_RECORDED_NOT_ENROLLED
   }
@@ -324,6 +332,7 @@ internal class SyntheticAllDevicesLostRecoveryLab(
           account.registry.revision == Long.MAX_VALUE ||
           account.registry.epoch == Long.MAX_VALUE) return@synchronized false
       account.ownerGeneration++
+      account.proofAlreadyRecorded = false
       account.registry = copyRegistry(account.registry.copy(
         revision = account.registry.revision + 1L,
         epoch = account.registry.epoch + 1L
