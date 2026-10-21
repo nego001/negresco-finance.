@@ -16,17 +16,24 @@ test('expiry time is persisted, bounded and verified inside consumption transact
  assert.match(src,/SyntheticInviteStatus\.EXPIRED\.name/);
  assert.match(src,/remove\(SyntheticInviteKeys\.pendingNonce\)/);
  assert.match(src,/if \(terminal\.status == SyntheticInviteStatus\.EXPIRED\) throw StaleSyntheticInvite\(\)/);
+ assert.match(src,/decode\(store\.updateData \{ before ->/);
+ assert.match(src,/expireOnDeadline\(before, view\)/);
+ assert.match(src,/suspend fun cancel\(/);
+ assert.match(src,/val deadlineChecked = expireOnDeadline\(before, view\)/);
 });
 
 test('expired invitation tombstone is tested across JVM file and Android DataStore reopen',()=>{
  const tests=read('tooling/native-lock-spike/src/test/kotlin/com/negresco/finance/security/SyntheticEnrollmentInviteDataStoreLabTest.kt');
  const android=read('tooling/native-lock-android-lab/src/androidTest/kotlin/com/negresco/finance/security/NativeLockDataStoreInstrumentedTest.kt');
- assert.match(tests,/PASS: 25 durable invite, expiry and tombstone scenarios/);
+ assert.match(tests,/PASS: 28 durable invite, expiry and tombstone scenarios/);
  assert.match(tests,/negresco-expired-reopen-/);
  assert.match(tests,/InvalidSyntheticInviteClock/);
  assert.match(tests,/invite\.expiresAtMillis - 1L/);
  assert.match(android,/expiredDualSignedInvitePersistsTerminalTombstoneAfterAndroidReopen/);
- assert.equal((android.match(/@Test fun /g)||[]).length,17);
+ assert.match(android,/expiredPendingInviteIsTombstonedByReadAndLateCancelOnAndroid/);
+ assert.match(tests,/Late cancellation cannot falsely label/);
+ assert.match(tests,/A backwards wall clock rejects BOTH inspection and cancellation/);
+ assert.equal((android.match(/@Test fun /g)||[]).length,18);
 });
 
 test('fixture clock is not misrepresented as authenticated time or native enrollment',()=>{
