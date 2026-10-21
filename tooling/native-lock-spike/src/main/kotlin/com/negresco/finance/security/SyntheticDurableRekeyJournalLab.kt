@@ -30,7 +30,8 @@ import java.util.UUID
  */
 internal enum class SyntheticJournalPhaseLab { PREPARED, COMMITTED }
 internal enum class SyntheticJournalCrashLab {
-  NONE, AFTER_PENDING_SYNC, AFTER_PREPARE_SYNC, AFTER_COMMIT_SYNC, AFTER_ACTIVE_REPLACE
+  NONE, AFTER_PENDING_SYNC, AFTER_PREPARE_SYNC, AFTER_COMMIT_SYNC, AFTER_ACTIVE_REPLACE,
+  TAMPER_PENDING_BEFORE_PUBLISH_FIXTURE_ONLY, TAMPER_ACTIVE_AFTER_PUBLISH_FIXTURE_ONLY
 }
 internal enum class SyntheticJournalCheckLab {
   SEEDED_FIXTURE_ONLY,
@@ -96,9 +97,34 @@ internal class SyntheticDurableRekeyJournalLab(private val directory: Path) {
 
   private fun readBytes(path: Path): ByteArray? {
     if (!existsNoFollow(path)) return null
-    require(Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS) &&
-      Files.size(path) in 37L..maxFileSize.toLong())
-    return Files.readAllBytes(path)
+    require(Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS))
+    // Keep validation and bounded read on the SAME opened file descriptor.
+    // Opening NOFOLLOW_LINKS refuses symlinks swapped in after the preflight.
+    return FileChannel.open(path, StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS).use { channel ->
+      val size = channel.size()
+      require(size in 37L..maxFileSize.toLong())
+      val buffer = ByteBuffer.allocate(size.toInt())
+      while (buffer.hasRemaining()) {
+        require(channel.read(buffer) > 0) { "Truncated or nonprogressing ciphertext file" }
+      }
+      require(channel.size() == size) { "Concurrent ciphertext file resize" }
+      buffer.array()
+    }
+  }
+  /**
+   * Inject deterministic ciphertext corruption only into a DISPOSABLE fixture.
+   * This is NOT an emulation of a race-free hostile filesystem.
+   */
+  private fun tamperFirstByteFixtureOnly(path: Path) {
+    FileChannel.open(path, StandardOpenOption.READ, StandardOpenOption.WRITE,
+      LinkOption.NOFOLLOW_LINKS).use { channel ->
+      require(channel.size() >= 37)
+      val original = ByteBuffer.allocate(1)
+      require(channel.read(original, 0L) == 1)
+      val altered = byteArrayOf((original.array()[0].toInt() xor 1).toByte())
+      require(channel.write(ByteBuffer.wrap(altered), 0L) == 1)
+      channel.force(true)
+    }
   }
   private fun syncDirectory() {
     FileChannel.open(directory, StandardOpenOption.READ).use { it.force(true) }
@@ -390,11 +416,22 @@ internal class SyntheticDurableRekeyJournalLab(private val directory: Path) {
       )))
       if (crash == SyntheticJournalCrashLab.AFTER_COMMIT_SYNC)
         return@exclusive result(SyntheticJournalCheckLab.SIMULATED_CRASH)
+      if (crash == SyntheticJournalCrashLab.TAMPER_PENDING_BEFORE_PUBLISH_FIXTURE_ONLY)
+        tamperFirstByteFixtureOnly(pending)
+      // Revalidate the candidate after the commit decision but before promotion.
+      if (!same(readBytes(pending), j.newHash))
+        return@exclusive result(SyntheticJournalCheckLab.FAIL_CLOSED)
       Files.move(pending, active,
         StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
       syncDirectory()
       if (crash == SyntheticJournalCrashLab.AFTER_ACTIVE_REPLACE)
         return@exclusive result(SyntheticJournalCheckLab.SIMULATED_CRASH)
+      if (crash == SyntheticJournalCrashLab.TAMPER_ACTIVE_AFTER_PUBLISH_FIXTURE_ONLY)
+        tamperFirstByteFixtureOnly(active)
+      // NEVER erase the COMMITTED decision before reading back the published
+      // bytes. A mismatch is fail-closed and keeps the journal for diagnosis.
+      if (!same(readBytes(active), j.newHash))
+        return@exclusive result(SyntheticJournalCheckLab.FAIL_CLOSED)
       remove(journal)
       result(SyntheticJournalCheckLab.COMMITTED_FIXTURE_ONLY_NOT_AUTHORIZATION, next)
     }
@@ -445,9 +482,14 @@ internal class SyntheticDurableRekeyJournalLab(private val directory: Path) {
       if (current.snapshot.accountId != j.account || current.snapshot.kitId != j.oldKit ||
           next.snapshot.accountId != j.account || next.snapshot.kitId != j.newKit)
         return@exclusive result(SyntheticJournalCheckLab.FAIL_CLOSED)
+      // Revalidate again immediately before promoting the prepared snapshot.
+      if (!same(readBytes(pending), j.newHash))
+        return@exclusive result(SyntheticJournalCheckLab.FAIL_CLOSED)
       Files.move(pending, active,
         StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
       syncDirectory()
+      if (!same(readBytes(active), j.newHash))
+        return@exclusive result(SyntheticJournalCheckLab.FAIL_CLOSED)
       remove(journal)
       result(SyntheticJournalCheckLab.RECOVERED_COMMIT_FINALIZED, next)
     }
