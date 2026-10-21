@@ -53,6 +53,16 @@ Esses testes diferenciam **nova instância JVM** de **novo processo JVM**, que a
 
 **Atenção:** injeção de crash por ponto de parada **não equivale** a teste de energia cortada ou falha de armazenamento físico. Sincronização de diretório e rename atômico dependem das garantias efetivas do sistema operacional e filesystem; é necessário verificar em hardware e sistemas de arquivos suportados.
 
+## Rehearsal adicional: encerramento abrupto da JVM e exportação destacada
+
+O reforço `SEC-05K` exercita agora um **processo Java filho que executa `commitFixtureOnly` e termina abruptamente via `Runtime.halt(73)`** depois de dois pontos de checkpoint possíveis: persistência do journal `COMMITTED`, ou substituição/sincronização do arquivo ativo. Um **terceiro processo** (outra JVM) retoma a migração. Esse teste verifica independência de heap e estado do processo anterior; o código de saída 73 comprova que o encerramento foi intencional no fixture, não resultado de falha genérica.
+
+O segredo sintético de 32 bytes é transmitido ao processo filho por **stdin**, e não via linha de comando, ambiente ou log. O processo zera sua cópia antes do encerramento. O envelope cifrado portátil é exportado em **outro diretório descartável**, com escrita + fsync do arquivo; o processo filho lê essa cópia e recusa completar o commit se o segredo estiver incorreto ou o envelope tiver sido adulterado.
+
+A exportação separada é **somente uma simulação de backup independente**: diretórios distintos no mesmo host **não comprovam mídia externa**, controle efetivo do usuário, durabilidade após incêndio/perda do aparelho nem retenção do segredo fora da RAM. O laboratório ainda não possui uma cerimônia de backup com confirmação externa confiável e não cria essa garantia apenas por concluir o teste.
+
+**Limites importantes:** o `Runtime.halt` ocorre **imediatamente depois** de a função de teste retornar no checkpoint de falha injetada; ele não mata a JVM no meio de uma chamada de filesystem, não interrompe uma `fsync` em andamento, não representa falha de energia e não demonstra comportamento em um dispositivo Android físico. O teste verifica uma janela concreta de queda de processo com dados sintéticos, mas **não libera o gate de produção**.
+
 ## Faltam antes de produção
 
 - **Backup externo real confirmado:** o parâmetro de envelope+segredo verifica criptografia, mas **não demonstra que o usuário salvou o segredo fora do dispositivo**. Queda após a decisão de commit pode tornar os dados inacessíveis se o único segredo ficou na memória do processo. Deve existir cerimônia de backup externo com prova segura, persistente e independente **antes** do commit, sem guardar o segredo em claro.
