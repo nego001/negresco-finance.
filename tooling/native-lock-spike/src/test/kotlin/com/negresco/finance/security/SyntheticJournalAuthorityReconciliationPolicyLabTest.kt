@@ -11,8 +11,7 @@ import com.negresco.finance.security.SyntheticRekeyReconciliationDecisionLab as 
 internal fun runSyntheticJournalAuthorityReconciliationPolicyScenarios() {
   val policy = SyntheticJournalAuthorityReconciliationPolicyLab
   var checks = 0
-  fun verify(actual: SyntheticRekeyReconciliationDecisionLab,
-             expected: SyntheticRekeyReconciliationDecisionLab, reason: String) {
+  fun verify(actual: D, expected: D, reason: String) {
     check(actual == expected) { "SEC-05K recon: $reason, actual $actual expected $expected" }
     checks++
   }
