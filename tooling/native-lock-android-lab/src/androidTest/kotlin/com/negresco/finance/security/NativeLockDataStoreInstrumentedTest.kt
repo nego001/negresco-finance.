@@ -453,6 +453,54 @@ class NativeLockDataStoreInstrumentedTest {
       assertFalse(newId in state.active)
     }
 
+  @Test fun expiredDualSignedInvitePersistsTerminalTombstoneAfterAndroidReopen() =
+    runBlocking {
+      // An adjustable clock is ONLY a throwaway testing fixture, not trusted
+      // Android time or an online account-wide expiration authority.
+      val file = File(isolatedDirectory, "expired_dual_invite.preferences_pb")
+      val approver = createDisposableSoftwareEd25519KeyPair()
+      val candidate = createDisposableSoftwareEd25519KeyPair()
+      val id = requireCanonicalLabFingerprint(approver.public)
+      val newId = requireCanonicalLabFingerprint(candidate.public)
+      val registry = SyntheticDeviceTrustPolicy.createSyntheticFirstDevice(id)
+      val floor = DeviceTrustFloor(1L, 1L)
+      val intent = SyntheticDeviceEnrollmentIntent(id, newId, 1L, 1L, 1L)
+      var clock = 10_000_000L
+
+      val original = Fixture(file).also { instances.add(it) }
+      val invites = SyntheticEnrollmentInviteDataStoreLab(
+        original.raw, registry, floor, approver.public, testEd25519Provider
+      ) { clock }
+      val issued = invites.issue(intent, candidate.public)
+      val nonce = issued.pendingNonceCopy()!!
+      fun signature(key: KeyPair, candidateRole: Boolean) =
+        Signature.getInstance("Ed25519", testEd25519Provider).run {
+          initSign(key.private)
+          update(SyntheticDeviceEnrollmentProofLab.payload(intent, nonce, candidateRole))
+          sign()
+        }
+      val approval = signature(approver, false)
+      val possession = signature(candidate, true)
+      clock = issued.expiresAtMillis
+      assertTrue(runCatching {
+        invites.consume(intent, candidate.public, nonce, approval, possession)
+      }.exceptionOrNull() is StaleSyntheticInvite)
+      assertEquals(SyntheticInviteStatus.EXPIRED, invites.read()!!.status)
+      assertNull(invites.read()!!.pendingNonceCopy())
+      original.close()
+
+      clock = issued.issuedAtMillis + 100L
+      val reopened = Fixture(file).also { instances.add(it) }
+      val persistent = SyntheticEnrollmentInviteDataStoreLab(
+        reopened.raw, registry, floor, approver.public, testEd25519Provider
+      ) { clock }
+      assertEquals(SyntheticInviteStatus.EXPIRED, persistent.read()!!.status)
+      assertTrue(runCatching {
+        persistent.consume(intent, candidate.public, nonce, approval, possession)
+      }.exceptionOrNull() is StaleSyntheticInvite)
+      assertFalse(newId in registry.active)
+    }
+
   @Test fun healthyEnabledRecordCannotBeDisabledByEnableOnlyWriter() = runBlocking {
     val store = open().repository
     store.migrateLegacyLocked("enabled", null)
