@@ -352,5 +352,17 @@ internal fun runSyntheticAccountInviteAuthorityScenarios() {
     }.isFailure)
   }
 
-  println("PASS: 25 account-scoped invitation authority scenarios (in-memory lab, no real backend)")
+  // 26. Malformed untrusted caller intent must not destroy an honest invite.
+  run {
+    clock = 12_000_000L
+    val lab = make()
+    val issued = lab.issue(accountA, intent, candidate.public)
+    denied(SyntheticAuthorityDeny.INVALID_PROOF) {
+      attempt(lab, issued, request = intent.copy(approvingSequence = 2L))
+    }
+    check(lab.inspect(accountA, issued.invitationId).status == SyntheticAuthorityInviteStatus.PENDING)
+    check(attempt(lab, issued).status == SyntheticAuthorityInviteStatus.CONSUMED_PROOF_ONLY)
+  }
+
+  println("PASS: 26 account-scoped invitation authority scenarios (in-memory lab, no real backend)")
 }
