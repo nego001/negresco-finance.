@@ -377,6 +377,38 @@ e revogação verificáveis, transação atômica no backend e cerimônia de
 recuperação para perda de todos os aparelhos. Até existir esse serviço,
 **não ligar este ledger ao Expo nem tratar `CONSUMED` como `ENROLLED`**.
 
+### Prazo de cinco minutos para convites (SEC-05, somente laboratório)
+
+O ledger `SyntheticEnrollmentInviteDataStoreLab` agora usa um prazo
+**experimental fixo de cinco minutos** (`MAX_INVITE_LIFETIME_MS`).
+Emissão e vencimento são persistidos no mesmo arquivo que o nonce.
+Versão antiga/arquivo parcial, metadados impossíveis, horários nulos,
+negativos ou que causariam overflow são negados em vez de ajustados
+automaticamente. Ao tentar consumir exatamente no prazo ou depois dele,
+uma transação `DataStore.updateData` grava o estado terminal `EXPIRED`
+e remove o nonce **antes de comunicar a negação**. Isso também impede
+reutilização após fechamento e reabertura normal do arquivo. Um relógio
+que volte para antes da emissão faz o método de consumo falhar fechado.
+
+Foram adicionados **sete cenários JVM**, aumentando os testes do ledger
+de convites de 18 para **25**, e **um caso Android instrumentado**, ampliando
+a suíte Android de 16 para **17 testes**. Também há contratos Node para
+consumo no limite exato, tombstone persistido, horário inválido e ausência
+de integração Expo. Estes números só são considerados aprovados após
+verificação no CI do HEAD respectivo.
+
+**Limitação crítica:** `labClockMillis` vem de um relógio **local,
+injetável e não autenticado**. Um atacante que atrase o relógio para
+um valor ainda dentro da janela pode impedir o vencimento; restaurar um
+arquivo antigo de DataStore pode restaurar o desafio pendente. Os testes
+não afirmam proteção contra adulteração do relógio nem restauração de
+backup. Um serviço futuro deve gerar identificadores de convite únicos
+globais, controlar expiração com tempo confiável, invalidar convites
+independentemente de relógio do cliente, persistir consumo e revogação
+num registro monotônico e vincular tudo à conta/titular com autenticação
+forte. O ledger continua sem mutar a lista de dispositivos ativos nem
+emitir credencial financeira.
+
 ## Laboratório de auditoria, sem coleta de dados pessoais (SEC-08)
 
 `SecurityAuditEventLab` gera somente eventos estruturados com código,
