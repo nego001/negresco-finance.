@@ -121,8 +121,8 @@ internal class SyntheticRecoveryKitCeremonyLab private constructor(
       val hash = MessageDigest.getInstance("SHA-256")
       return SyntheticKitCeremonyCheck.PREPARED_NOT_STORED to
         SyntheticRecoveryKitCeremonyLab(
-          expectedAccountId, parsed.envelope.kitId, hash.digest(envelopeBytes.copyOf()),
-          hash.digest(sourceDataKeyFixture.copyOf()), labClockMillis, timestamp
+          expectedAccountId, parsed.envelope.kitId, hash.digest(envelopeBytes),
+          hash.digest(sourceDataKeyFixture), labClockMillis, timestamp
         )
     }
   }
