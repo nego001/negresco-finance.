@@ -283,3 +283,28 @@ test('SEC-05K signed generation challenge verifier cannot promote signature fixt
   );
   assert.doesNotMatch(resultEnum, /VERIFIED_LIVE_CURRENT/);
 });
+
+test('SEC-05K CAS lost response is idempotent only for exact request and never confers live authority', () => {
+  const code = read(kotlin + 'SyntheticRekeyAuthorityCasTimeoutLab.kt');
+  const cases = read(fixtures + 'SyntheticRekeyAuthorityCasTimeoutLabTest.kt');
+  const runner = read(fixtures + 'NativeLockCoordinatorTest.kt');
+  assert.match(code, /@Synchronized/);
+  assert.match(code, /loseResponseAfterCommit: Boolean = false/);
+  assert.match(code, /state\.current = desiredAfter/);
+  assert.match(code, /state\.operations\[operationId\] = Applied/);
+  assert.match(code, /if \(loseResponseAfterCommit\) return null/);
+  assert.match(code, /DENY_CONFLICTING_OPERATION_ID/);
+  assert.match(code, /ALREADY_APPLIED_CURRENT_FIXTURE_ONLY/);
+  assert.match(code, /DENY_STALE_OR_CONFLICTING_GENERATION/);
+  assert.match(code, /signedCurrentFixtureOnly/);
+  assert.match(code, /Signature\.getInstance\("Ed25519"\)/);
+  assert.match(code, /newGeneration|after\.generation == before\.generation \+ 1/);
+  assert.match(cases, /server CAS advances but network reply disappears/);
+  assert.match(cases, /retry same id and payload does not advance twice/);
+  assert.match(cases, /fixture signature cannot authorize journal promotion/);
+  assert.match(cases, /signed reads follow current in-memory generation after two advances/);
+  assert.match(cases, /only one concurrent compare-and-swap advances generation/);
+  assert.match(cases, /second concurrent writer sees stale predecessor/);
+  assert.match(runner, /runSyntheticRekeyAuthorityCasTimeoutScenarios/);
+  assert.doesNotMatch(code, /VERIFIED_LIVE_CURRENT/);
+});
