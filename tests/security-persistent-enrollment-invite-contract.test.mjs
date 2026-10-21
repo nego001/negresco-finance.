@@ -5,7 +5,7 @@ const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
 
 test('a disposable invitation has a single durable terminal state, never active membership',()=>{
  const source=read('tooling/native-lock-spike/src/main/kotlin/com/negresco/finance/security/SyntheticEnrollmentInviteDataStoreLab.kt');
- assert.match(source,/enum class SyntheticInviteStatus \{ PENDING, CONSUMED, CANCELLED \}/);
+ assert.match(source,/enum class SyntheticInviteStatus \{ PENDING, CONSUMED, CANCELLED, EXPIRED \}/);
  assert.match(source,/suspend fun issue\(/);
  assert.match(source,/suspend fun consume\(/);
  assert.match(source,/suspend fun cancel\(/);
@@ -23,7 +23,7 @@ test('two-signature invites reject forgery, double-use, cancellation, races and 
  const runner=read('tooling/native-lock-spike/src/test/kotlin/com/negresco/finance/security/NativeLockCoordinatorTest.kt');
  const android=read('tooling/native-lock-android-lab/src/androidTest/kotlin/com/negresco/finance/security/NativeLockDataStoreInstrumentedTest.kt');
  assert.match(runner,/runPersistentEnrollmentInviteScenarios\(\)/);
- assert.match(tests,/PASS: 18 durable two-signature invite\/tombstone scenarios/);
+ assert.match(tests,/PASS: 25 durable invite, expiry and tombstone scenarios/);
  assert.match(tests,/is UnverifiedSyntheticInvite/);
  assert.match(tests,/is StaleSyntheticInvite/);
  assert.match(tests,/async\(Dispatchers.IO\)/);
