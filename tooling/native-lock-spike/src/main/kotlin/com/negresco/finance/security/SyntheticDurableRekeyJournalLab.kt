@@ -402,7 +402,8 @@ internal class SyntheticDurableRekeyJournalLab(private val directory: Path) {
         return@exclusive result(SyntheticJournalCheckLab.CONSISTENT_FIXTURE_ONLY, current)
       }
       val j = decodeJournal(markerBytes)
-      val pendingBytes = readBytes(pending)
+      // In PREPARED, a torn candidate can be discarded without reading it.
+      // In COMMITTED, active may already be new; a leftover candidate is irrelevant.
       if (j.phase == SyntheticJournalPhaseLab.PREPARED) {
         if (!same(activeBytes, j.oldHash))
           return@exclusive result(SyntheticJournalCheckLab.FAIL_CLOSED)
@@ -422,6 +423,8 @@ internal class SyntheticDurableRekeyJournalLab(private val directory: Path) {
         remove(journal)
         return@exclusive result(SyntheticJournalCheckLab.RECOVERED_COMMIT_FINALIZED, current)
       }
+      // Only require pending when the active snapshot is still the old one.
+      val pendingBytes = readBytes(pending)
       if (!same(activeBytes, j.oldHash) || !same(pendingBytes, j.newHash))
         return@exclusive result(SyntheticJournalCheckLab.FAIL_CLOSED)
       val current = decodeState(activeBytes)
