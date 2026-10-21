@@ -2,6 +2,8 @@ package com.negresco.finance.security
 
 import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.channels.FileChannel
+import java.nio.file.StandardOpenOption
 import java.security.SecureRandom
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
@@ -70,6 +72,36 @@ internal fun runSyntheticDurableRekeyJournalScenarios() {
   fun checkNew(result: SyntheticJournalResultLab, s: Scenario, reason: String) {
     verify(result.snapshotFixtureOnly!!.kitId == s.after.kitId, reason)
   }
+  /**
+   * A completely new JVM starts without the parent's DEK/kit secrets.
+   * Only a disposable directory is passed as a process argument.
+   */
+  fun recoverInIndependentJvm(dir: Path): SyntheticJournalCheckLab {
+    val os = System.getProperty("os.name").lowercase()
+    val javaBinary = java.nio.file.Paths.get(
+      System.getProperty("java.home"), "bin",
+      if (os.contains("win")) "java.exe" else "java"
+    )
+    val child = ProcessBuilder(
+      javaBinary.toString(),
+      "-cp", System.getProperty("java.class.path"),
+      "com.negresco.finance.security.NativeLockCoordinatorTestKt",
+      "--sec05k-recover-fixture-only",
+      dir.toAbsolutePath().toString()
+    ).redirectErrorStream(true).start()
+    if (!child.waitFor(30L, TimeUnit.SECONDS)) {
+      child.destroyForcibly()
+      child.waitFor(5L, TimeUnit.SECONDS)
+      error("SEC-05K separate JVM recovery timed out")
+    }
+    val output = child.inputStream.bufferedReader().use { it.readText() }
+    check(child.exitValue() == 0) { "SEC-05K child process failed (exit ${child.exitValue()})" }
+    val token = "SEC05K_CHILD_RESULT="
+    val line = output.lineSequence().firstOrNull { it.startsWith(token) }
+      ?: error("SEC-05K child did not return its recovery outcome")
+    return SyntheticJournalCheckLab.valueOf(line.removePrefix(token).trim())
+  }
+
   fun flipFirstByte(path: Path) {
     val data = Files.readAllBytes(path)
     data[0] = (data[0].toInt() xor 1).toByte()
@@ -302,6 +334,80 @@ internal fun runSyntheticDurableRekeyJournalScenarios() {
       verify(journal(dir).recoverFixtureOnly().check ==
         SyntheticJournalCheckLab.RECOVERED_PREPARE_ROLLBACK, "race rollback retains old")
     } finally { pool.shutdownNow() }
+  }
+
+  // SEC-05K real process boundary: a fresh JVM starts with no parent heap state.
+  // These checks complement, but do not replace, power-loss/physical fs QA.
+  run {
+    val s = scenario()
+    val dir = root()
+    seed(dir, s)
+    verify(recoverInIndependentJvm(dir) == SyntheticJournalCheckLab.CONSISTENT_FIXTURE_ONLY,
+      "separate JVM opens durable initial snapshot")
+    verify(prepare(dir, s, SyntheticJournalCrashLab.AFTER_PENDING_SYNC).check ==
+      SyntheticJournalCheckLab.SIMULATED_CRASH, "separate JVM orphan setup")
+    verify(recoverInIndependentJvm(dir) == SyntheticJournalCheckLab.CONSISTENT_FIXTURE_ONLY,
+      "separate JVM removes orphan candidate")
+    verify(!Files.exists(dir.resolve("pending.snapshot")),
+      "orphan removed by separate JVM")
+    prepare(dir, s, SyntheticJournalCrashLab.AFTER_PREPARE_SYNC)
+    verify(recoverInIndependentJvm(dir) == SyntheticJournalCheckLab.RECOVERED_PREPARE_ROLLBACK,
+      "separate JVM PREPARED rolls back safely")
+    verify(prepare(dir, s).check == SyntheticJournalCheckLab.PREPARED_FIXTURE_ONLY,
+      "after child rollback, prepare can retry")
+    commit(dir, s, SyntheticJournalCrashLab.AFTER_COMMIT_SYNC)
+    verify(recoverInIndependentJvm(dir) == SyntheticJournalCheckLab.RECOVERED_COMMIT_FINALIZED,
+      "separate JVM COMMITTED finalizes new snapshot")
+    verify(recoverInIndependentJvm(dir) == SyntheticJournalCheckLab.CONSISTENT_FIXTURE_ONLY,
+      "second child JVM sees consistent committed snapshot")
+    checkNew(journal(dir).recoverFixtureOnly(), s,
+      "post-child recovery keeps latest generation")
+  }
+  run {
+    val s = scenario()
+    val dir = root()
+    seed(dir, s)
+    prepare(dir, s)
+    commit(dir, s, SyntheticJournalCrashLab.AFTER_ACTIVE_REPLACE)
+    verify(recoverInIndependentJvm(dir) == SyntheticJournalCheckLab.RECOVERED_COMMIT_FINALIZED,
+      "child finalizes COMMITTED after active replacement")
+    checkNew(journal(dir).recoverFixtureOnly(), s,
+      "child cannot return to old generation after active replacement")
+  }
+  run {
+    val s = scenario()
+    val dir = root()
+    seed(dir, s)
+    prepare(dir, s)
+    commit(dir, s, SyntheticJournalCrashLab.AFTER_COMMIT_SYNC)
+    flipFirstByte(dir.resolve("pending.snapshot"))
+    verify(recoverInIndependentJvm(dir) == SyntheticJournalCheckLab.FAIL_CLOSED,
+      "child process fails closed on torn committed candidate")
+    verify(Files.exists(dir.resolve("migration.journal")),
+      "cross-process failure retains committed evidence")
+  }
+  run {
+    val s = scenario()
+    val dir = root()
+    seed(dir, s)
+    prepare(dir, s, SyntheticJournalCrashLab.AFTER_PREPARE_SYNC)
+    flipFirstByte(dir.resolve("migration.journal"))
+    verify(recoverInIndependentJvm(dir) == SyntheticJournalCheckLab.FAIL_CLOSED,
+      "child process fails closed on damaged journal")
+  }
+  run {
+    val s = scenario()
+    val dir = root()
+    seed(dir, s)
+    FileChannel.open(dir.resolve("migration.lock"),
+      StandardOpenOption.WRITE, StandardOpenOption.CREATE).use { channel ->
+      channel.lock().use {
+        verify(recoverInIndependentJvm(dir) == SyntheticJournalCheckLab.DENY_BUSY,
+          "independent JVM cannot recover while lock belongs to parent process")
+      }
+    }
+    verify(recoverInIndependentJvm(dir) == SyntheticJournalCheckLab.CONSISTENT_FIXTURE_ONLY,
+      "independent JVM recovers after OS process lock released")
   }
 
   println("PASS: SEC-05K $checks durable-restart journal checks (disposable JVM fixtures)")
