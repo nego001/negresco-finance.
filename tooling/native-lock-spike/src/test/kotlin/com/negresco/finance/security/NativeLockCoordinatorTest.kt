@@ -179,5 +179,6 @@ fun main() {
     runSyntheticAccountBoundInviteProofScenarios()
     runSyntheticAccountInviteAuthorityScenarios()
     runAllDevicesLostRecoveryScenarios()
+    runSyntheticOfflineRecoveryKitScenarios()
   }
 }
