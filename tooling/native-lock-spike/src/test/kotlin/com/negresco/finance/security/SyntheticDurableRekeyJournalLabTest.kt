@@ -884,5 +884,137 @@ internal fun runSyntheticDurableRekeyJournalScenarios() {
       "failed COMMITTED recovery leaves encrypted snapshot for manual repair")
   }
 
+  // SEC-05K missing/truncated/oversize matrix. Never turn a lost snapshot
+  // into a fresh provisioning with a different owner, generation or kit.
+  for (size in listOf(0, 36, 131073)) {
+    val fixture = scenario()
+    val dir = root()
+    seed(dir, fixture)
+    val file = dir.resolve("active.snapshot")
+    val original = Files.readAllBytes(file)
+    Files.write(file, ByteArray(size))
+    verify(recoverInIndependentJvm(dir) == SyntheticJournalCheckLab.FAIL_CLOSED,
+      "invalid active file size $size fails closed across JVM restart")
+    verify(prepare(dir, fixture).check == SyntheticJournalCheckLab.FAIL_CLOSED,
+      "invalid active file size $size cannot start a rekey")
+    verify(Files.size(file) == size.toLong(),
+      "invalid active file size $size is never overwritten by recovery")
+    Files.write(file, original)
+    checkOld(journal(dir).recoverFixtureOnly(), fixture,
+      "restoring authentic active ciphertext after size $size resumes")
+  }
+  run {
+    val fixture = scenario()
+    val dir = root()
+    seed(dir, fixture)
+    val guard = dir.resolve("provisioned.guard")
+    val file = dir.resolve("active.snapshot")
+    val original = Files.readAllBytes(file)
+    verify(Files.exists(guard), "durable provision marker exists after first seeding")
+    Files.delete(file)
+    verify(recoverInIndependentJvm(dir) == SyntheticJournalCheckLab.FAIL_CLOSED,
+      "missing provisioned snapshot cannot be treated as a clean restart")
+    verify(seed(dir, fixture).check == SyntheticJournalCheckLab.DENY_INVALID_OR_STALE,
+      "missing active with durable provision marker is denied re-provision")
+    verify(!Files.exists(file), "failed re-provision does not recreate missing active")
+    Files.write(file, original)
+    checkOld(journal(dir).recoverFixtureOnly(), fixture,
+      "restoring saved ciphertext resolves lost active without new provisioning")
+  }
+  run {
+    val fixture = scenario()
+    val dir = root()
+    seed(dir, fixture)
+    val guard = dir.resolve("provisioned.guard")
+    val original = Files.readAllBytes(guard)
+    flipFirstByte(guard)
+    verify(journal(dir).recoverFixtureOnly().check == SyntheticJournalCheckLab.FAIL_CLOSED,
+      "corrupted provision marker prevents normal recovery")
+    verify(seed(dir, fixture).check == SyntheticJournalCheckLab.FAIL_CLOSED,
+      "corrupted provision marker cannot be replaced through seed")
+    Files.write(guard, original)
+    checkOld(journal(dir).recoverFixtureOnly(), fixture,
+      "restoring valid marker allows consistent read of existing ciphertext")
+    Files.delete(guard)
+    verify(recoverInIndependentJvm(dir) == SyntheticJournalCheckLab.FAIL_CLOSED,
+      "absent provision marker with surviving active is not trusted")
+    Files.write(guard, original)
+    checkOld(journal(dir).recoverFixtureOnly(), fixture,
+      "marker restoration permits consistent recovery without changing records")
+  }
+  // An uncommitted candidate is safely disposable; a damaged COMMITTED
+  // candidate is NOT. The latter retains the durable decision for repair.
+  for (size in listOf(0, 36, 131073)) {
+    val fixture = scenario()
+    val dir = root()
+    seed(dir, fixture)
+    prepare(dir, fixture, SyntheticJournalCrashLab.AFTER_PREPARE_SYNC)
+    Files.write(dir.resolve("pending.snapshot"), ByteArray(size))
+    verify(recoverInIndependentJvm(dir) ==
+      SyntheticJournalCheckLab.RECOVERED_PREPARE_ROLLBACK,
+      "PREPARED may discard malformed pending size $size")
+    checkOld(journal(dir).recoverFixtureOnly(), fixture,
+      "malformed uncommitted size $size never publishes a generation")
+  }
+  for (size in listOf(0, 36, 131073)) {
+    val fixture = scenario()
+    val dir = root()
+    seed(dir, fixture)
+    prepare(dir, fixture)
+    commit(dir, fixture, SyntheticJournalCrashLab.AFTER_COMMIT_SYNC)
+    val file = dir.resolve("pending.snapshot")
+    val original = Files.readAllBytes(file)
+    Files.write(file, ByteArray(size))
+    verify(recoverInIndependentJvm(dir) == SyntheticJournalCheckLab.FAIL_CLOSED,
+      "COMMITTED candidate malformed size $size must fail closed")
+    verify(Files.exists(dir.resolve("migration.journal")),
+      "COMMITTED decision must survive malformed pending size $size")
+    Files.write(file, original)
+    verify(recoverInIndependentJvm(dir) ==
+      SyntheticJournalCheckLab.RECOVERED_COMMIT_FINALIZED,
+      "restored valid COMMITTED candidate $size rolls forward, never back")
+    checkNew(journal(dir).recoverFixtureOnly(), fixture,
+      "only the new generation is active after restoring size $size")
+  }
+  run {
+    val fixture = scenario()
+    val dir = root()
+    seed(dir, fixture)
+    prepare(dir, fixture)
+    commit(dir, fixture, SyntheticJournalCrashLab.AFTER_COMMIT_SYNC)
+    val file = dir.resolve("pending.snapshot")
+    val original = Files.readAllBytes(file)
+    Files.delete(file)
+    verify(recoverInIndependentJvm(dir) == SyntheticJournalCheckLab.FAIL_CLOSED,
+      "missing COMMITTED pending cannot silently restore old active generation")
+    verify(Files.exists(dir.resolve("migration.journal")),
+      "missing candidate does not erase committed decision")
+    Files.write(file, original)
+    verify(recoverInIndependentJvm(dir) ==
+      SyntheticJournalCheckLab.RECOVERED_COMMIT_FINALIZED,
+      "restoring missing candidate permits finishing prior COMMITTED decision")
+    checkNew(journal(dir).recoverFixtureOnly(), fixture,
+      "recovered missing candidate promotes only the committed generation")
+  }
+  for (size in listOf(0, 36, 131073)) {
+    val fixture = scenario()
+    val dir = root()
+    seed(dir, fixture)
+    prepare(dir, fixture, SyntheticJournalCrashLab.AFTER_PREPARE_SYNC)
+    val file = dir.resolve("migration.journal")
+    val original = Files.readAllBytes(file)
+    Files.write(file, ByteArray(size))
+    verify(recoverInIndependentJvm(dir) == SyntheticJournalCheckLab.FAIL_CLOSED,
+      "malformed journal size $size does not guess PREPARED or COMMITTED")
+    verify(Files.exists(dir.resolve("pending.snapshot")),
+      "malformed journal size $size does not discard candidate")
+    Files.write(file, original)
+    verify(recoverInIndependentJvm(dir) ==
+      SyntheticJournalCheckLab.RECOVERED_PREPARE_ROLLBACK,
+      "restoring valid journal size $size resumes safe PREPARED rollback")
+    checkOld(journal(dir).recoverFixtureOnly(), fixture,
+      "journal size $size recovery leaves original generation active")
+  }
+
   println("PASS: SEC-05K $checks durable-restart journal checks (disposable JVM fixtures)")
 }
