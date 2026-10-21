@@ -182,5 +182,6 @@ fun main() {
     runSyntheticOfflineRecoveryKitScenarios()
     runSyntheticPortableRecoveryEnvelopeScenarios()
     runSyntheticRecoveryKitCeremonyScenarios()
+    runSyntheticCompromisedKitRotationScenarios()
   }
 }
