@@ -181,6 +181,17 @@ internal class SyntheticCompromisedKitRotationLab private constructor(
 
   fun encryptedBackupFixtureOnly(): ByteArray = synchronized(mutex) { activeFile.copyOf() }
 
+  /** Fault injection ONLY: corrupts a disposable encrypted record. */
+  fun corruptRecordFixtureOnly(id: String): Boolean = synchronized(mutex) {
+    val item = records[id] ?: return@synchronized false
+    val ciphertext = item.ciphertextCopy()
+    ciphertext[0] = (ciphertext[0].toInt() xor 1).toByte()
+    records = records + (id to SyntheticEncryptedRecordLab(
+      id, item.version, item.generation, item.nonceCopy(), ciphertext
+    ))
+    true
+  }
+
   /**
    * All-or-nothing IN-MEMORY staging. The old file/secret and historical
    * ciphertext remain decryptable by anyone already possessing their copy.
