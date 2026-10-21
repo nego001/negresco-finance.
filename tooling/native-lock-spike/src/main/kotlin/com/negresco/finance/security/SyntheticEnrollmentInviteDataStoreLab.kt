@@ -5,7 +5,6 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
-import kotlinx.coroutines.flow.first
 import java.security.MessageDigest
 import java.security.PublicKey
 import java.security.Provider
@@ -127,7 +126,30 @@ internal class SyntheticEnrollmentInviteDataStoreLab(
     )
   }
 
-  suspend fun read(): SyntheticInviteView? = decode(store.data.first())
+  /**
+   * A pending invitation is checked on every read. At the deadline, the nonce
+   * is erased and EXPIRED is committed in the same DataStore transaction.
+   * This uses an UNTRUSTED lab clock, not account-wide expiration authority.
+   */
+  suspend fun read(): SyntheticInviteView? =
+    decode(store.updateData { before ->
+      val view = decode(before) ?: return@updateData before
+      expireOnDeadline(before, view)
+    })
+
+  /** Must be invoked INSIDE the DataStore transaction for any pending state. */
+  private fun expireOnDeadline(before: Preferences, view: SyntheticInviteView): Preferences {
+    if (view.status != SyntheticInviteStatus.PENDING) return before
+    val now = labClockMillis()
+    if (now < view.issuedAtMillis) throw InvalidSyntheticInviteClock()
+    if (now >= view.expiresAtMillis) {
+      return before.toMutablePreferences().apply {
+        this[SyntheticInviteKeys.status] = SyntheticInviteStatus.EXPIRED.name
+        remove(SyntheticInviteKeys.pendingNonce)
+      }
+    }
+    return before
+  }
 
   /**
    * ISSUE ONLY if supplied synthetic registry and both public-key bindings
@@ -190,14 +212,9 @@ internal class SyntheticEnrollmentInviteDataStoreLab(
       val view = decode(before) ?: throw InvalidSyntheticInvite()
       if (view.status != SyntheticInviteStatus.PENDING ||
           view.intent != intent) throw StaleSyntheticInvite()
-      val now = labClockMillis()
-      if (now < view.issuedAtMillis) throw InvalidSyntheticInviteClock()
-      if (now >= view.expiresAtMillis) {
-        // Persist an EXPIRED tombstone instead of throwing before commit.
-        before.toMutablePreferences().apply {
-          this[SyntheticInviteKeys.status] = SyntheticInviteStatus.EXPIRED.name
-          remove(SyntheticInviteKeys.pendingNonce)
-        }
+      val deadlineChecked = expireOnDeadline(before, view)
+      if (deadlineChecked !== before) {
+        deadlineChecked // Never throw before the EXPIRED tombstone is committed.
       } else {
       val issuedNonce = view.pendingNonceCopy() ?: throw InvalidSyntheticInvite()
       if (receivedNonce == null || receivedNonce.size != 32 ||
@@ -232,11 +249,18 @@ internal class SyntheticEnrollmentInviteDataStoreLab(
       val view = decode(before) ?: throw InvalidSyntheticInvite()
       if (view.status != SyntheticInviteStatus.PENDING ||
           view.intent != intent) throw StaleSyntheticInvite()
-      before.toMutablePreferences().apply {
-        this[SyntheticInviteKeys.status] = SyntheticInviteStatus.CANCELLED.name
-        remove(SyntheticInviteKeys.pendingNonce)
+      val deadlineChecked = expireOnDeadline(before, view)
+      if (deadlineChecked !== before) {
+        deadlineChecked
+      } else {
+        before.toMutablePreferences().apply {
+          this[SyntheticInviteKeys.status] = SyntheticInviteStatus.CANCELLED.name
+          remove(SyntheticInviteKeys.pendingNonce)
+        }
       }
     }
-    return decode(updated) ?: throw InvalidSyntheticInvite()
+    val terminal = decode(updated) ?: throw InvalidSyntheticInvite()
+    if (terminal.status == SyntheticInviteStatus.EXPIRED) throw StaleSyntheticInvite()
+    return terminal
   }
 }
