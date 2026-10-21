@@ -202,6 +202,32 @@ internal fun runSyntheticDurableRekeyJournalScenarios() {
     return SyntheticJournalCheckLab.valueOf(outcome.removePrefix(tag).trim())
   }
 
+  /**
+   * JVM process ignoring the migration.lock, constrained to disposable test
+   * candidate files. Demonstrates OS FileLock is advisory against hostile code.
+   */
+  fun mutatePendingWithoutLockInIndependentJvm(dir: Path) {
+    val javaBinary = java.nio.file.Paths.get(
+      System.getProperty("java.home"), "bin",
+      if (System.getProperty("os.name").lowercase().contains("win")) "java.exe" else "java"
+    )
+    val child = ProcessBuilder(
+      javaBinary.toString(), "-cp", System.getProperty("java.class.path"),
+      "com.negresco.finance.security.NativeLockCoordinatorTestKt",
+      "--sec05k-noncooperative-candidate-fixture-only", dir.toAbsolutePath().toString()
+    ).redirectErrorStream(true).start()
+    if (!child.waitFor(30L, TimeUnit.SECONDS)) {
+      child.destroyForcibly()
+      child.waitFor(5L, TimeUnit.SECONDS)
+      error("SEC-05K noncooperative writer JVM timed out")
+    }
+    val outcome = child.inputStream.bufferedReader().use { it.readText() }
+    check(child.exitValue() == 0 &&
+      outcome.lineSequence().any {
+        it == "SEC05K_NONCOOPERATIVE_CANDIDATE_MUTATED=FIXTURE_ONLY"
+      }) { "SEC-05K child writer did not mutate disposable candidate" }
+  }
+
   fun flipFirstByte(path: Path) {
     val data = Files.readAllBytes(path)
     data[0] = (data[0].toInt() xor 1).toByte()
@@ -788,6 +814,74 @@ internal fun runSyntheticDurableRekeyJournalScenarios() {
     verify(journal(dir).recoverFixtureOnly().check ==
       SyntheticJournalCheckLab.CONSISTENT_FIXTURE_ONLY,
       "verified ciphertext remains consistent in later JVM fixture")
+  }
+
+  // Deterministic race immediately AFTER the final hash check: a writer
+  // that ignores FileLock can change pending just before the atomic rename.
+  // Publication must fail closed and retain the COMMITTED marker.
+  run {
+    val s = scenario()
+    val dir = root()
+    seed(dir, s)
+    prepare(dir, s)
+    verify(commit(dir, s,
+      SyntheticJournalCrashLab.TAMPER_PENDING_AFTER_FINAL_CHECK_FIXTURE_ONLY).check ==
+      SyntheticJournalCheckLab.FAIL_CLOSED,
+      "mutation after last pre-move checksum fails post-publish attestation")
+    verify(Files.exists(dir.resolve("migration.journal")),
+      "COMMITTED marker retained after a corrupted candidate was promoted")
+    verify(journal(dir).recoverFixtureOnly().check == SyntheticJournalCheckLab.FAIL_CLOSED,
+      "failed attestation cannot be silently treated as a valid commit")
+    verify(!Files.exists(dir.resolve("pending.snapshot")),
+      "failed post-publish attestation does not manufacture a fresh candidate")
+  }
+  // Real independent JVM deliberately skips OS advisory lock. Catch the
+  // changed bytes at commit and prove PREPARED rollback remains safe.
+  run {
+    val s = scenario()
+    val dir = root()
+    seed(dir, s)
+    prepare(dir, s)
+    FileChannel.open(dir.resolve("migration.lock"),
+      StandardOpenOption.CREATE, StandardOpenOption.WRITE).use { channel ->
+      channel.lock().use {
+        mutatePendingWithoutLockInIndependentJvm(dir)
+      }
+    }
+    verify(commit(dir, s).check == SyntheticJournalCheckLab.FAIL_CLOSED,
+      "commit rejects external noncooperative mutation of PREPARED candidate")
+    verify(recoverInIndependentJvm(dir) == SyntheticJournalCheckLab.RECOVERED_PREPARE_ROLLBACK,
+      "PREPARED rollback discards concurrently tampered candidate")
+    checkOld(journal(dir).recoverFixtureOnly(), s,
+      "original generation survives noncooperative JVM mutation before commit")
+    verify(prepare(dir, s).check == SyntheticJournalCheckLab.PREPARED_FIXTURE_ONLY,
+      "after rollback a clean candidate can be staged again")
+    verify(commit(dir, s).check ==
+      SyntheticJournalCheckLab.COMMITTED_FIXTURE_ONLY_NOT_AUTHORIZATION,
+      "legitimate retry succeeds after hostile test candidate removed")
+  }
+  // Once COMMITTED is durable, a noncooperative writer must NOT trigger an
+  // incorrect rollback to the old generation when new pending is corrupted.
+  run {
+    val s = scenario()
+    val dir = root()
+    seed(dir, s)
+    prepare(dir, s)
+    verify(commit(dir, s, SyntheticJournalCrashLab.AFTER_COMMIT_SYNC).check ==
+      SyntheticJournalCheckLab.SIMULATED_CRASH,
+      "durable COMMITTED state prepared for independent-writer rehearsal")
+    FileChannel.open(dir.resolve("migration.lock"),
+      StandardOpenOption.CREATE, StandardOpenOption.WRITE).use { channel ->
+      channel.lock().use {
+        mutatePendingWithoutLockInIndependentJvm(dir)
+      }
+    }
+    verify(recoverInIndependentJvm(dir) == SyntheticJournalCheckLab.FAIL_CLOSED,
+      "COMMITTED recovery rejects candidate corrupted by JVM ignoring lock")
+    verify(Files.exists(dir.resolve("migration.journal")),
+      "COMMITTED recovery preserves evidence after foreign mutation")
+    verify(Files.exists(dir.resolve("active.snapshot")),
+      "failed COMMITTED recovery leaves encrypted snapshot for manual repair")
   }
 
   println("PASS: SEC-05K $checks durable-restart journal checks (disposable JVM fixtures)")
