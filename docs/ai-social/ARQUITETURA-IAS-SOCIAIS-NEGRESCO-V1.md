@@ -40,7 +40,26 @@ Nome exibido é identidade visível; cargo é atribuição formal; `agent_id` é
 
 **Regra de identidade revisada em 21/10/2026:** os nomes de exibição foram escolhidos novamente pelo proprietário. **Nilo é o Assistente Virtual Principal e Cecília é a Diretora de Assinaturas.** O nome antigo Pandora do kit portátil não define cargo neste projeto. O aplicativo mantém o nome comercial **Negresco Finance**; nomes de agentes não mudam o produto, a autenticação ou permissões. Como os IDs são apenas propostas (nenhum agente implantado), os IDs acima foram normalizados por função, sem acoplamento ao nome de exibição.
 
-Novas especialidades (pesquisa, cupons, investimentos, Open Finance, Pix) entram em registry com IDs e nomes futuros aprovados; **não inventar nomes oficiais**. A equipe pode ser expandida modularmente sem renomear os sete agentes canônicos.
+### Expansão aprovada para o backlog futuro: dez especialistas adicionais
+
+| Agent ID proposto | Nome exibido | Cargo | Âmbito e limites |
+|---|---|---|---|
+| `agent.shopping.director` | **Valentina** | Diretora de Compras Inteligentes | produtos, lojas, reputação e preço final |
+| `agent.deals.specialist` | **Yasmin** | Especialista em Promoções e Cupons | histórico, regras de cupons, cashback e promoção real |
+| `agent.open_finance.specialist` | **Isabela** | Especialista em Open Finance | conexão e leitura de dados autorizados, sincronização e consentimento |
+| `agent.cards.specialist` | **Beatriz** | Especialista em Cartões | limites, faturas, parcelamentos e vencimentos |
+| `agent.payments.specialist` | **Enzo** | Especialista em Pix e Pagamentos | revisão de pagamentos e destinatário, sem pagamento automático |
+| `agent.investments.specialist` | **Arthur** | Especialista em Investimentos | simulações, risco, diversificação e adequação de objetivos |
+| `agent.credit.specialist` | **Gabriel** | Especialista em Crédito e Dívidas | taxas, dívidas, financiamento e alternativas de quitação |
+| `agent.documents.specialist` | **Clara** | Especialista em Documentos Financeiros | comprovantes, recibos e documentos consentidos |
+| `agent.bills.specialist` | **Bianca** | Especialista em Contas e Vencimentos | contas obrigatórias, boletos e calendário de pagamentos |
+| `agent.forecasting.analyst` | **Leonardo** | Analista de Previsões Financeiras | cenários, projeções e explicação de incerteza |
+
+As dez novas IAs são **propostas de identidade para a fase futura**, sem módulos operacionais. Preservam-se os sete cargos originais. Os 17 nomes, aparência sugerida e etapa **S7 de notificação por nome e avatar** são detalhados no [Catálogo Visual e de Notificações v1](CATALOGO-17-IAS-IDENTIDADE-VISUAL-NOTIFICACOES-V1.md). Novos agentes adicionais dependerão de escopo, métricas e aprovação.
+
+**Aparência individual:** cada agente terá avatar versionado, visual 3D/2D semirrealista, roupas, assinatura cromática, microexpressões e voz potencialmente personalizáveis pelo usuário. Animação só representa atividade comprovada e fala efetivamente em execução, não simula sentimentos nem progresso.
+
+**Notificações S7:** `Negresco Finance` é o aplicativo remetente; o título e o conteúdo identificam o agente verdadeiro pelo `agent_id`, nome e cargo, com avatar opcional conforme capacidade do Android. Fonte do evento, dedupe, controle de privacidade, consentimento, lockscreen e alertas por agente são obrigatórios. **S7 não está implementada.**
 
 ## 3. Autoridade e colaboração, sem confundir cargos com privilégios
 
@@ -170,7 +189,7 @@ Mensagens com voz respeitam criticidade, consentimento e acessibilidade. Usuári
 
 ## 11. Critérios universais de aceitação
 
-1. Identidade correta das sete IAs, nomes exibidos personalizados e cargos preservados, sem importação de registro do NegrecoDroid.
+1. Identidade correta das 17 IAs planejadas, nomes exibidos personalizados e cargos preservados, sem importação de registro do NegrecoDroid.
 2. Personalidades reconhecivelmente distintas em texto/voz sem mudança de fatos, números ou autorizações.
 3. Divergências sustentadas em dados e incertezas sem coerção; conclusão preserva discordâncias materiais.
 4. `SIMULATION_DEMO` explicitamente diferente de `REAL_AGENT_EVENT` e `REAL_SYSTEM_EVENT`; nenhum pensamento interno bruto revelado.
