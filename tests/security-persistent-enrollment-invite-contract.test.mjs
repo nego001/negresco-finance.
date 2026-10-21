@@ -29,7 +29,8 @@ test('two-signature invites reject forgery, double-use, cancellation, races and 
  assert.match(tests,/async\(Dispatchers.IO\)/);
  assert.match(tests,/reopened\.invites\.read/);
  assert.match(android,/dualSignedInvitationIsConsumedOnceAfterAndroidDataStoreReopen/);
- assert.equal((android.match(/@Test fun /g)||[]).length,16);
+ assert.match(android,/expiredDualSignedInvitePersistsTerminalTombstoneAfterAndroidReopen/);
+ assert.equal((android.match(/@Test fun /g)||[]).length,17);
 });
 
 test('invitation ledger remains isolated from Expo, backend and real user registration',()=>{
