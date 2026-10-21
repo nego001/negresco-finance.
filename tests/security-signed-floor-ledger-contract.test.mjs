@@ -19,7 +19,7 @@ test('signed authority floor and Ed25519 device proof share atomic ledger snapsh
  assert.doesNotMatch(fn,/\bALLOW\b|\bUNLOCKED\b/);
 });
 
-test('two-signature policy has 12 JVM and 16 isolated Android fixtures',()=>{
+test('two-signature policy has 12 JVM and 17 isolated Android fixtures',()=>{
  const runner=read('tooling/native-lock-spike/src/test/kotlin/com/negresco/finance/security/NativeLockCoordinatorTest.kt');
  const tests=read('tooling/native-lock-spike/src/test/kotlin/com/negresco/finance/security/SyntheticSignedFloorLedgerIntegrationTest.kt');
  const android=read('tooling/native-lock-android-lab/src/androidTest/kotlin/com/negresco/finance/security/NativeLockDataStoreInstrumentedTest.kt');
@@ -29,7 +29,7 @@ test('two-signature policy has 12 JVM and 16 isolated Android fixtures',()=>{
  assert.match(tests,/is UnverifiedSyntheticDeviceProof/);
  assert.match(tests,/runCatching/);
  assert.match(android,/signedAuthorityAndDeviceProofConsumeOneAndroidDataStoreCounter/);
- assert.equal((android.match(/@Test fun /g)||[]).length,16);
+ assert.equal((android.match(/@Test fun /g)||[]).length,17);
 });
 
 test('authority proof integration stays detached from Expo and production keys',()=>{
