@@ -196,5 +196,7 @@ jobs:
             -f tooling/security-authority-protocol-lab/postgres/003_sec05d_ci_receipt_rehearsal.sql
           PGHOST=localhost PGUSER=postgres PGDATABASE=negresco_sec05c_lab \
             python3 tooling/security-authority-protocol-lab/tests/sec05d_multi_connection_smoke.py
+          psql -h localhost -U postgres -d negresco_sec05c_lab -v ON_ERROR_STOP=1 \
+            -f tooling/security-authority-protocol-lab/postgres/004_sec05k_cas_persistence_lab.sql
           NEGRESCO_LAB_PG_URL=jdbc:postgresql://localhost:5432/negresco_sec05c_lab \
-            PGUSER=postgres gradle -p tooling/native-lock-spike pgBoundProofCheck --no-daemon
+            PGUSER=postgres gradle -p tooling/native-lock-spike pgBoundProofCheck pgRekeyCasCheck --no-daemon
