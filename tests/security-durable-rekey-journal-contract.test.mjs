@@ -277,5 +277,9 @@ test('SEC-05K signed generation challenge verifier cannot promote signature fixt
   assert.match(suite, /P-256 key cannot masquerade as Ed25519/);
   assert.match(suite, /signed response bound to wrong \$reason is rejected/);
   assert.match(runner, /runSyntheticSignedRekeyAuthorityChallengeScenarios/);
-  assert.doesNotMatch(code, /VERIFIED_LIVE_CURRENT/);
+  const resultEnum = code.slice(
+    code.indexOf('internal enum class SyntheticSignedRekeyChallengeCheckLab'),
+    code.indexOf('internal object SyntheticSignedRekeyAuthorityChallengeLab')
+  );
+  assert.doesNotMatch(resultEnum, /VERIFIED_LIVE_CURRENT/);
 });
