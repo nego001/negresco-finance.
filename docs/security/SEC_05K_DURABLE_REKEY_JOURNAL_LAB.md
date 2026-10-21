@@ -73,6 +73,14 @@ O runner JVM oferece `--sec05k-verify-detached-fixture-only` para execução **e
 
 **Limite crítico:** esta prova demonstra que o envelope e o segredo **fornecidos no teste** continuam capazes de abrir a geração atual. **Não comprova que o usuário salvou a frase/segredo fora do aparelho, nem que possui uma mídia externa íntegra**. O segredo é passado na memória temporária do cenário; não existe cerimônia real de confirmação de cópia, restauração física em outro dispositivo, SQLCipher integrado ou autorização de pessoa. O checksum e a igualdade de snapshots não implementam anti-rollback contra atacante ativo. Portanto, o gate de backup externo e o gate de produção permanecem **BLOQUEADOS**.
 
+## Reforço do filesystem: impedir redirecionamento via symlink
+
+O journal sintético não deve aceitar arquivos indiretos ou `dangling symlinks` como `active.snapshot`, `pending.snapshot`, `migration.journal`, `migration.lock` ou como diretório raiz do fixture. O laboratório agora aplica `LinkOption.NOFOLLOW_LINKS` em verificações de presença/tipo e na abertura do arquivo de lock, além de rejeitar caminhos reservados que sejam links simbólicos **antes da operação**.
+
+A matriz da SEC-05K cobre aliases para snapshots válidos fora do diretório, candidatos em `PREPARED`, links para journal, lock externo e diretório raiz redirecionado, incluindo pendência de link sem destino. Espera-se `FAIL_CLOSED`, preservação dos alvos externos e retomada segura somente depois de remover o alias. Isso inclui reinício com uma segunda JVM.
+
+**Limites:** é um reforço local que demonstra rejeição de aliases no **fixture**. Não é uma solução completa para symlink races/TOCTOU entre validação e uso, hardlinks, montagens de diretório, permissões inseguras de diretórios ascendentes ou processo hostil com acesso de escrita à pasta. Implementação real exige diretório privado com permissões restritas, operações atômicas seguras para o sistema operacional alvo, auditoria e testes de hardware. Nenhum desses controles é aprovado no APK.
+
 ## Faltam antes de produção
 
 - **Backup externo real confirmado:** o parâmetro de envelope+segredo verifica criptografia, mas **não demonstra que o usuário salvou o segredo fora do dispositivo**. Queda após a decisão de commit pode tornar os dados inacessíveis se o único segredo ficou na memória do processo. Deve existir cerimônia de backup externo com prova segura, persistente e independente **antes** do commit, sem guardar o segredo em claro.
