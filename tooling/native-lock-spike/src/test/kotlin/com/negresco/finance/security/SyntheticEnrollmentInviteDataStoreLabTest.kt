@@ -16,6 +16,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.coroutineScope
 
 /** Real DataStore files, fake registry and software test keys only. */
@@ -296,7 +297,10 @@ internal suspend fun runPersistentEnrollmentInviteScenarios() {
       now = invite.issuedAtMillis - 1L
       check(runCatching { consume(h, invite.pendingNonceCopy()!!) }
         .exceptionOrNull() is InvalidSyntheticInviteClock)
-      check(h.invites.read()!!.status == SyntheticInviteStatus.PENDING)
+      check(runCatching { h.invites.read() }.exceptionOrNull()
+        is InvalidSyntheticInviteClock)
+      // Reading with a reversed test clock must not alter persistent bytes.
+      check(h.raw.data.first()[SyntheticInviteKeys.status] == SyntheticInviteStatus.PENDING.name)
     }
   }
 
@@ -365,5 +369,54 @@ internal suspend fun runPersistentEnrollmentInviteScenarios() {
     }
   }
 
-  println("PASS: 25 durable invite, expiry and tombstone scenarios (JVM lab, no trusted clock)")
+  // 26. Just displaying an expired pending invitation must erase its nonce
+  // and preserve the EXPIRED marker. No signed consume attempt is required.
+  run {
+    var now = 6_000_000L
+    fixture(labClock = { now }) { h ->
+      val issued = h.invites.issue(intent, candidate.public)
+      val nonce = issued.pendingNonceCopy()!!
+      now = issued.expiresAtMillis
+      val expired = h.invites.read()!!
+      check(expired.status == SyntheticInviteStatus.EXPIRED)
+      check(expired.pendingNonceCopy() == null)
+      check(h.raw.data.first()[SyntheticInviteKeys.status] == SyntheticInviteStatus.EXPIRED.name)
+      check(runCatching { consume(h, nonce) }.exceptionOrNull() is StaleSyntheticInvite)
+      check(candidateId !in registry.active)
+    }
+  }
+
+  // 27. Late cancellation cannot falsely label an already-expired challenge
+  // as CANCELLED, and the original nonce is removed in the same transaction.
+  run {
+    var now = 7_000_000L
+    fixture(labClock = { now }) { h ->
+      val issued = h.invites.issue(intent, candidate.public)
+      val nonce = issued.pendingNonceCopy()!!
+      now = issued.expiresAtMillis + 1L
+      check(runCatching { h.invites.cancel(intent) }.exceptionOrNull()
+        is StaleSyntheticInvite)
+      check(h.invites.read()!!.status == SyntheticInviteStatus.EXPIRED)
+      check(h.invites.read()!!.pendingNonceCopy() == null)
+      check(runCatching { consume(h, nonce) }.exceptionOrNull() is StaleSyntheticInvite)
+    }
+  }
+
+  // 28. A backwards wall clock rejects BOTH inspection and cancellation.
+  // No transaction is permitted to reset, renew or consume a pending nonce.
+  run {
+    var now = 8_000_000L
+    fixture(labClock = { now }) { h ->
+      val issued = h.invites.issue(intent, candidate.public)
+      now = issued.issuedAtMillis - 1L
+      check(runCatching { h.invites.read() }.exceptionOrNull()
+        is InvalidSyntheticInviteClock)
+      check(runCatching { h.invites.cancel(intent) }.exceptionOrNull()
+        is InvalidSyntheticInviteClock)
+      check(h.raw.data.first()[SyntheticInviteKeys.status] == SyntheticInviteStatus.PENDING.name)
+      check(h.raw.data.first()[SyntheticInviteKeys.pendingNonce] != null)
+    }
+  }
+
+  println("PASS: 28 durable invite, expiry and tombstone scenarios (JVM lab, no trusted clock)")
 }
