@@ -230,3 +230,25 @@ test('SEC-05K detached signed generation witness detects local rollback but docu
   assert.match(cases, /external witness cannot be stored inside local journal directory/);
   assert.doesNotMatch(mobile, /SyntheticDetachedGenerationWitnessLab/);
 });
+
+test('SEC-05K reconciliation requires genuinely fresh pinned authority and never treats HMAC witness as live monotonic authority', () => {
+  const code = read(kotlin + 'SyntheticJournalAuthorityReconciliationPolicyLab.kt');
+  const cases = read(fixtures + 'SyntheticJournalAuthorityReconciliationPolicyLabTest.kt');
+  const runner = read(fixtures + 'NativeLockCoordinatorTest.kt');
+  const mobile = read('apps/mobile/package.json');
+  assert.match(code, /VERIFIED_LIVE_CURRENT/);
+  assert.match(code, /REPLAYABLE_DETACHED_HMAC_ONLY/);
+  assert.match(code, /MISSING_OR_OFFLINE/);
+  assert.match(code, /INVALID_OR_STALE/);
+  assert.match(code, /MAY_DISCARD_PREPARED_CANDIDATE_ONLY/);
+  assert.match(code, /MAY_FINALIZE_COMMITTED_NEW_SNAPSHOT_ONLY/);
+  assert.match(code, /MAY_CLEAR_COMMITTED_MARKER_ONLY/);
+  assert.match(code, /HOLD_EXTERNAL_AUTHORITY_REQUIRED/);
+  assert.match(code, /input\.authorityEvidence != SyntheticRekeyAuthorityEvidenceLab\.VERIFIED_LIVE_CURRENT/);
+  assert.match(code, /input\.newGeneration != input\.oldGeneration \+ 1L/);
+  assert.match(code, /input\.newVersion != input\.oldVersion \+ 1L/);
+  assert.match(cases, /replaying old advance request|already-published NEW with OLD authority|COMMITTED local with authority still OLD/);
+  assert.match(cases, /runSyntheticJournalAuthorityReconciliationPolicyScenarios/);
+  assert.match(runner, /runSyntheticJournalAuthorityReconciliationPolicyScenarios/);
+  assert.doesNotMatch(mobile, /SyntheticJournalAuthorityReconciliationPolicyLab/);
+});
