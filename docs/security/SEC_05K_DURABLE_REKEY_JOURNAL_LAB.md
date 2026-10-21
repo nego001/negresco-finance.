@@ -102,6 +102,21 @@ Casos previstos:
 
 **Esse ensaio não impede o ataque; mede e registra a contenção de dano em janelas específicas.** Uma alteração concorrente pode manter os dados indisponíveis, e os hashes SHA-256 locais não autenticam a autoria da mudança. Proteção efetiva ainda requer isolamento de armazenamento por permissões do SO, controle de identidade, resistência a substituição de diretórios e proteção externa de geração monotônica. É proibido interpretar `FAIL_CLOSED` como `BACKUP_RECUPERADO` ou `PRONTO_PARA_PRODUCAO`.
 
+## Reinicialização negada e matriz de falhas de armazenamento
+
+**Risco demonstrado:** no fixture anterior, a ausência isolada de `active.snapshot` e de um journal podia parecer um diretório inicial vazio e permitir que `seedFixtureOnly` aceitasse uma identidade/geração nova. O reforço inclui `provisioned.guard`, um marcador local, sincronizado e de conteúdo estático, escrito **antes** de publicar o primeiro snapshot. Um novo `seed` não sobrescreve este marcador. Se o arquivo ativo sumir mas o marcador sobreviver, a recuperação responde `FAIL_CLOSED` e uma tentativa de re-provisionamento recebe `DENY_INVALID_OR_STALE`.
+
+O marcador é verificado em cada operação com um checksum de conteúdo fixo; marcador danificado, ausente em diretório que ainda contém snapshot/journal ou representado por link simbólico deve resultar em recusa, sem criação automática de novos registros. Se a gravação do marcador ocorrer mas a gravação inicial do snapshot falhar, o fixture **fica bloqueado para re-provisionamento automático** e exige tratamento manual em ambiente descartável.
+
+A nova matriz testa arquivos com **zero byte**, com **36 bytes** (abaixo do mínimo de envelope validável) e com **131073 bytes** (acima do limite de 128 KiB):
+- Snapshot ativo inválido: `FAIL_CLOSED` no reinício e na tentativa de migração; após restauração *manual do mesmo ciphertext sintético*, recuperação pode ser repetida.
+- Candidato ainda `PREPARED`: conteúdo inválido é descartável, e a recuperação pode reverter ao snapshot antigo validado.
+- Candidato **COMMITTED** truncado, grande demais ou ausente: `FAIL_CLOSED` e journal preservado; restauração do candidato criptografado correspondente ao commit permite finalizar a nova geração sem rollback silencioso.
+- Journal truncado/grande demais: `FAIL_CLOSED` sem descartar candidato; restaurar o journal correto reabre a via de recuperação.
+- Marcador de provisionamento adulterado ou ausente: bloqueio do acesso normal e da inicialização que poderia sobrescrever dados históricos.
+
+**Atenção:** o marcador `provisioned.guard` serve somente para reconhecer um diretório de teste previamente inicializado em falhas **parciais**. Não é autenticado por uma chave externa, não impede remoção simultânea de marcador+snapshot por atacante ou perda total da mídia e **não é uma fonte monotônica externa de geração**. Não equivale a uma garantia de backup, autenticação do titular, recuperação de SQLCipher nem prontidão para produção. As restaurações efetuadas nos testes usam cópias sintéticas preparadas pelo próprio laboratório; não representam uma recuperação real de dispositivo perdido.
+
 ## Faltam antes de produção
 
 - **Backup externo real confirmado:** o parâmetro de envelope+segredo verifica criptografia, mas **não demonstra que o usuário salvou o segredo fora do dispositivo**. Queda após a decisão de commit pode tornar os dados inacessíveis se o único segredo ficou na memória do processo. Deve existir cerimônia de backup externo com prova segura, persistente e independente **antes** do commit, sem guardar o segredo em claro.
