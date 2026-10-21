@@ -134,6 +134,30 @@ Outro limite: este módulo **não é integrado como policy gate das transações
 
 **Gate de produção:** permanece BLOQUEADO até existir uma âncora de geração genuinamente independente, autenticada e monotônica, protocolo pós-crash/commit consistente, autorização real de usuário, armazenamento Android isolado/SQLCipher integrado, backup durável verificável e testes físicos de queda de energia. Não tratar este componente como solução final de rollback ou recuperação de backup.
 
+## Política de reconciliação: autoridade atual versus journal local
+
+A SEC-05K agora contém `SyntheticJournalAuthorityReconciliationPolicyLab`, **um decisor puro sem efeitos colaterais**, para examinar conflitos entre o journal local e uma autoridade de geração **verdadeiramente atual**. O código **não** consulta um servidor, autentica uma chave de autoridade, aplica o journal, sincroniza o banco, libera acesso financeiro ou grava contadores. Apenas retorna estados tipados de **ação permitida para análise futura** ou **bloqueio**. A suíte independente `SyntheticJournalAuthorityReconciliationPolicyLabTest` percorre combinações de fase, snapshot, candidato e geração da autoridade, incluindo formatos inválidos.
+
+**Pré-condição obrigatória:** `VERIFIED_LIVE_CURRENT` representa *somente* uma resposta criptograficamente autenticada, com frescor comprovado e chave de confiança fixada por um verificador **que ainda não foi construído** para a geração do journal. O recibo HMAC destacado atual é explicitamente classificado `REPLAYABLE_DETACHED_HMAC_ONLY` e sempre leva a `HOLD_EXTERNAL_AUTHORITY_REQUIRED`; assim ele nunca se transforma automaticamente em autoridade monotônica.
+
+**Matriz conservadora planejada:**
+
+| Journal | Snapshot ativo | Autoridade comprovadamente atual | Resultado sem efeitos colaterais |
+| --- | --- | --- | --- |
+| CLEAN | Mesmo snapshot autenticado | Mesma geração | `VERIFIED_STABLE_READ_ONLY` |
+| PREPARED | Geração antiga autenticada | Geração antiga | `MAY_DISCARD_PREPARED_CANDIDATE_ONLY` |
+| COMMITTED | Antigo, candidato novo autenticado disponível | Geração nova | `MAY_FINALIZE_COMMITTED_NEW_SNAPSHOT_ONLY` |
+| COMMITTED | Novo autenticado já publicado | Geração nova | `MAY_CLEAR_COMMITTED_MARKER_ONLY` |
+| COMMITTED | Antigo ou novo | Geração antiga | `HOLD_EXTERNAL_AUTHORITY_REQUIRED` (sem avançar autoridade a partir de journal local) |
+| CLEAN | Antigo | Geração nova | `DENY_LOCAL_ROLLBACK_OR_UNRECOGNIZED` |
+| CLEAN | Novo | Geração antiga | `DENY_LOCAL_ROLLBACK_OR_UNRECOGNIZED` |
+| Qualquer fase | Snapshot/candidato não reconhecido, journal corrompido | Qualquer | `DENY_CORRUPT_OR_INCONSISTENT` |
+| Qualquer fase | Qualquer | Offline, HMAC replayável, assinatura inválida | `HOLD_EXTERNAL_AUTHORITY_REQUIRED` |
+
+Os estados `MAY_*` **NÃO são permissões operacionais**: um motor de reconciliação futuro precisa verificar a identidade real do titular, account/kit/versão, origem e desafio fresco de uma autoridade fora do dispositivo, integridade de snapshots e journal, operações atômicas e rechecagem depois de qualquer I/O. O critério de sequência só autoriza avanços unitários válidos, sem overflow. Em caso de rede offline, recibo replayável, assinatura inválida ou divergência indecidível, bloquear é preferível a reverter `COMMITTED` ou inventar confirmação de atualização.
+
+**Riscos ainda abertos:** não há autoridade independente implantada, contador remoto realmente monotônico, assinaturas de geração ligadas ao snapshot com prova de frescor, banco SQLCipher integrado, compensação quando a autoridade avançou mas o arquivo não foi publicado, idempotência interprocesso/interdevice, autenticação do titular ou backup externo verdadeiro. Os resultados deste arquivo permanecem **LABORATÓRIO / NÃO PRODUÇÃO**.
+
 ## Faltam antes de produção
 
 - **Backup externo real confirmado:** o parâmetro de envelope+segredo verifica criptografia, mas **não demonstra que o usuário salvou o segredo fora do dispositivo**. Queda após a decisão de commit pode tornar os dados inacessíveis se o único segredo ficou na memória do processo. Deve existir cerimônia de backup externo com prova segura, persistente e independente **antes** do commit, sem guardar o segredo em claro.
