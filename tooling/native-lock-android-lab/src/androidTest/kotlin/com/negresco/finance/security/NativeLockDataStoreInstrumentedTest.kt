@@ -501,6 +501,41 @@ class NativeLockDataStoreInstrumentedTest {
       assertFalse(newId in registry.active)
     }
 
+  @Test fun expiredPendingInviteIsTombstonedByReadAndLateCancelOnAndroid() =
+    runBlocking {
+      // Only software test keys, synthetic registry and adjustable lab clock.
+      val file = File(isolatedDirectory, "expired_read_invite.preferences_pb")
+      val approver = createDisposableSoftwareEd25519KeyPair()
+      val candidate = createDisposableSoftwareEd25519KeyPair()
+      val id = requireCanonicalLabFingerprint(approver.public)
+      val newId = requireCanonicalLabFingerprint(candidate.public)
+      val registry = SyntheticDeviceTrustPolicy.createSyntheticFirstDevice(id)
+      val floor = DeviceTrustFloor(1L, 1L)
+      val intent = SyntheticDeviceEnrollmentIntent(id, newId, 1L, 1L, 1L)
+      var clock = 16_000_000L
+      val original = Fixture(file).also { instances.add(it) }
+      val invites = SyntheticEnrollmentInviteDataStoreLab(
+        original.raw, registry, floor, approver.public, testEd25519Provider
+      ) { clock }
+      val issued = invites.issue(intent, candidate.public)
+      clock = issued.expiresAtMillis
+      assertEquals(SyntheticInviteStatus.EXPIRED, invites.read()!!.status)
+      assertNull(invites.read()!!.pendingNonceCopy())
+      assertTrue(runCatching { invites.cancel(intent) }.exceptionOrNull()
+        is StaleSyntheticInvite)
+      original.close()
+
+      // Rolling back this fixture clock does not resurrect the persisted nonce.
+      clock = issued.issuedAtMillis + 1L
+      val reopened = Fixture(file).also { instances.add(it) }
+      val persistent = SyntheticEnrollmentInviteDataStoreLab(
+        reopened.raw, registry, floor, approver.public, testEd25519Provider
+      ) { clock }
+      assertEquals(SyntheticInviteStatus.EXPIRED, persistent.read()!!.status)
+      assertNull(persistent.read()!!.pendingNonceCopy())
+      assertFalse(newId in registry.active)
+    }
+
   @Test fun healthyEnabledRecordCannotBeDisabledByEnableOnlyWriter() = runBlocking {
     val store = open().repository
     store.migrateLegacyLocked("enabled", null)
