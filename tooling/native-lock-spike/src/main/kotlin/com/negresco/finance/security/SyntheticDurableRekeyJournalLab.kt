@@ -8,6 +8,7 @@ import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 import java.nio.channels.OverlappingFileLockException
 import java.nio.file.Files
+import java.nio.file.LinkOption
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 import java.nio.file.StandardOpenOption
@@ -87,9 +88,16 @@ internal class SyntheticDurableRekeyJournalLab(private val directory: Path) {
     return ByteArray(length).also { readFully(it) }
   }
   private fun DataInputStream.done() { require(available() == 0) }
+  // Refuse symlinks, including dangling ones, instead of reading arbitrary
+  // files through a redirected snapshot/journal path. Lab-only preflight:
+  // not a substitute for secure parent directories or race-free openat.
+  private fun existsNoFollow(path: Path): Boolean =
+    Files.exists(path, LinkOption.NOFOLLOW_LINKS)
+
   private fun readBytes(path: Path): ByteArray? {
-    if (!Files.exists(path)) return null
-    require(Files.isRegularFile(path) && Files.size(path) in 37L..maxFileSize.toLong())
+    if (!existsNoFollow(path)) return null
+    require(Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS) &&
+      Files.size(path) in 37L..maxFileSize.toLong())
     return Files.readAllBytes(path)
   }
   private fun syncDirectory() {
@@ -117,8 +125,12 @@ internal class SyntheticDurableRekeyJournalLab(private val directory: Path) {
   private fun <T> exclusive(onBusy: T, onError: T, body: () -> T): T {
     return try {
       Files.createDirectories(directory)
+      // Reserved paths must not be symlinks; reject even dangling aliases.
+      require(!Files.isSymbolicLink(directory))
+      require(listOf(active, pending, journal, lockPath).none(Files::isSymbolicLink))
       FileChannel.open(lockPath,
-        StandardOpenOption.CREATE, StandardOpenOption.WRITE).use { channel ->
+        StandardOpenOption.CREATE, StandardOpenOption.WRITE,
+        LinkOption.NOFOLLOW_LINKS).use { channel ->
         val held = try { channel.tryLock() }
           catch (_: OverlappingFileLockException) { null }
         if (held == null) onBusy
@@ -250,7 +262,7 @@ internal class SyntheticDurableRekeyJournalLab(private val directory: Path) {
   /** First fixture only: exclusive process lock and durable initial ciphertext. */
   fun seedFixtureOnly(snapshot: SyntheticRekeySnapshotLab, envelope: ByteArray) =
     exclusive(result(SyntheticJournalCheckLab.DENY_BUSY), result(SyntheticJournalCheckLab.FAIL_CLOSED)) {
-      if (Files.exists(active) || Files.exists(journal) || Files.exists(pending))
+      if (existsNoFollow(active) || existsNoFollow(journal) || existsNoFollow(pending))
         return@exclusive result(SyntheticJournalCheckLab.DENY_INVALID_OR_STALE)
       val state = Stored(snapshot, envelope.copyOf())
       validate(state)
@@ -269,7 +281,7 @@ internal class SyntheticDurableRekeyJournalLab(private val directory: Path) {
     crash: SyntheticJournalCrashLab = SyntheticJournalCrashLab.NONE
   ): SyntheticJournalResultLab =
     exclusive(result(SyntheticJournalCheckLab.DENY_BUSY), result(SyntheticJournalCheckLab.FAIL_CLOSED)) {
-      if (Files.exists(journal) || Files.exists(pending))
+      if (existsNoFollow(journal) || existsNoFollow(pending))
         return@exclusive result(SyntheticJournalCheckLab.DENY_INVALID_OR_STALE)
       val activeBytes = readBytes(active)
         ?: return@exclusive result(SyntheticJournalCheckLab.FAIL_CLOSED)
@@ -459,7 +471,7 @@ internal class SyntheticDurableRekeyJournalLab(private val directory: Path) {
     exclusive(result(SyntheticJournalCheckLab.DENY_BUSY), result(SyntheticJournalCheckLab.FAIL_CLOSED)) {
       // Proof is meaningful only after all outstanding migration decisions
       // have been recovered. Never implicitly clean or commit while verifying.
-      if (Files.exists(journal) || Files.exists(pending))
+      if (existsNoFollow(journal) || existsNoFollow(pending))
         return@exclusive result(SyntheticJournalCheckLab.DENY_INVALID_OR_STALE)
       val bytes = readBytes(active)
         ?: return@exclusive result(SyntheticJournalCheckLab.FAIL_CLOSED)
