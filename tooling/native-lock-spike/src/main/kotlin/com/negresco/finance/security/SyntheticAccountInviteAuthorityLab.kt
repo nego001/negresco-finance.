@@ -215,7 +215,11 @@ internal class SyntheticAccountInviteAuthorityLab(
     if (i.status != SyntheticAuthorityInviteStatus.PENDING)
       throw SyntheticAuthorityRejected(SyntheticAuthorityDeny.NOT_PENDING)
     val state = scope.registry
-    if (i.intent != expectedIntent || i.intent.revision != state.revision ||
+    // A malformed caller claim must NOT sabotage a valid outstanding invite.
+    // Invalidate only when the AUTHORITY'S CURRENT REGISTRY actually changed.
+    if (i.intent != expectedIntent)
+      throw SyntheticAuthorityRejected(SyntheticAuthorityDeny.INVALID_PROOF)
+    if (i.intent.revision != state.revision ||
         i.intent.epoch != state.epoch ||
         i.intent.approvingDevice !in state.active ||
         i.intent.approvingDevice in state.revoked ||
