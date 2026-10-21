@@ -32,11 +32,13 @@ internal fun runSyntheticAccountInviteAuthorityScenarios() {
     )
   ) = SyntheticAccountInviteAuthorityLab(seeds) { clock }
 
-  fun signature(key: KeyPair, request: SyntheticDeviceEnrollmentIntent,
-    nonce: ByteArray, candidateRole: Boolean): ByteArray =
+  fun signature(key: KeyPair, account: String, invite: String,
+    request: SyntheticDeviceEnrollmentIntent, nonce: ByteArray,
+    candidateRole: Boolean): ByteArray =
     Signature.getInstance("Ed25519").run {
       initSign(key.private)
-      update(SyntheticDeviceEnrollmentProofLab.payload(request, nonce, candidateRole))
+      update(SyntheticAccountBoundInviteProofLab.payload(
+        account, invite, request, nonce, candidateRole))
       sign()
     }
 
@@ -50,8 +52,8 @@ internal fun runSyntheticAccountInviteAuthorityScenarios() {
     nonce: ByteArray = invitation.pendingNonceCopy()!!
   ): SyntheticAccountInviteView = authority.consumeProofOnly(
     account, invitation.invitationId, request, candidateFrom.public, nonce,
-    signature(proofFrom, request, nonce, false),
-    signature(candidateFrom, request, nonce, true)
+    signature(proofFrom, account, invitation.invitationId, request, nonce, false),
+    signature(candidateFrom, account, invitation.invitationId, request, nonce, true)
   )
 
   fun denied(expected: SyntheticAuthorityDeny, block: () -> Any?) {
@@ -364,5 +366,65 @@ internal fun runSyntheticAccountInviteAuthorityScenarios() {
     check(attempt(lab, issued).status == SyntheticAuthorityInviteStatus.CONSUMED_PROOF_ONLY)
   }
 
-  println("PASS: 26 account-scoped invitation authority scenarios (in-memory lab, no real backend)")
+  // 27. A signature for another account cannot consume this account's
+  // invitation, even when a valid key and identical stored nonce are used.
+  run {
+    clock = 13_000_000L
+    val lab = make()
+    val issued = lab.issue(accountA, intent, candidate.public)
+    val nonce = issued.pendingNonceCopy()!!
+    denied(SyntheticAuthorityDeny.INVALID_PROOF) {
+      lab.consumeProofOnly(accountA, issued.invitationId, intent, candidate.public,
+        nonce,
+        signature(approver, accountB, issued.invitationId, intent, nonce, false),
+        signature(candidate, accountB, issued.invitationId, intent, nonce, true))
+    }
+    check(lab.inspect(accountA, issued.invitationId).status == SyntheticAuthorityInviteStatus.PENDING)
+    check(attempt(lab, issued).status == SyntheticAuthorityInviteStatus.CONSUMED_PROOF_ONLY)
+  }
+
+  // 28. An otherwise-valid signature for a different invitation UUID fails.
+  run {
+    clock = 14_000_000L
+    val lab = make()
+    val issued = lab.issue(accountA, intent, candidate.public)
+    val nonce = issued.pendingNonceCopy()!!
+    val otherInvite = "123e4567-e89b-42d3-a456-426614174000"
+    check(otherInvite != issued.invitationId)
+    denied(SyntheticAuthorityDeny.INVALID_PROOF) {
+      lab.consumeProofOnly(accountA, issued.invitationId, intent, candidate.public,
+        nonce,
+        signature(approver, accountA, otherInvite, intent, nonce, false),
+        signature(candidate, accountA, otherInvite, intent, nonce, true))
+    }
+    check(attempt(lab, issued).status == SyntheticAuthorityInviteStatus.CONSUMED_PROOF_ONLY)
+  }
+
+  // 29. Reusing the approver signature as candidate proof cannot work.
+  run {
+    clock = 15_000_000L
+    val lab = make()
+    val issued = lab.issue(accountA, intent, candidate.public)
+    val nonce = issued.pendingNonceCopy()!!
+    val approverProof = signature(approver, accountA, issued.invitationId, intent, nonce, false)
+    denied(SyntheticAuthorityDeny.INVALID_PROOF) {
+      lab.consumeProofOnly(accountA, issued.invitationId, intent, candidate.public,
+        nonce, approverProof, approverProof)
+    }
+    check(lab.inspect(accountA, issued.invitationId).status == SyntheticAuthorityInviteStatus.PENDING)
+  }
+
+  // 30. A signed proof cannot be moved to another registry epoch/sequence.
+  run {
+    clock = 16_000_000L
+    val lab = make()
+    val issued = lab.issue(accountA, intent, candidate.public)
+    val nonce = issued.pendingNonceCopy()!!
+    denied(SyntheticAuthorityDeny.INVALID_PROOF) {
+      attempt(lab, issued, request = intent.copy(epoch = 2L, revision = 2L))
+    }
+    check(attempt(lab, issued).status == SyntheticAuthorityInviteStatus.CONSUMED_PROOF_ONLY)
+  }
+
+  println("PASS: 30 account-scoped invitation authority scenarios (in-memory lab, no real backend)")
 }
