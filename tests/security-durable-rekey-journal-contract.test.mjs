@@ -169,3 +169,19 @@ test('SEC-05K journal cleanup requires post-publish readback and descriptor-boun
   assert.match(cases, /post-promotion corruption is detected/);
   assert.match(cases, /COMMITTED journal remains/);
 });
+
+test('SEC-05K ignores advisory lock in restricted child fixture yet never clears unverified COMMITTED journal', () => {
+  const code = read(kotlin + 'SyntheticDurableRekeyJournalLab.kt');
+  const cases = read(fixtures + 'SyntheticDurableRekeyJournalLabTest.kt');
+  const runner = read(fixtures + 'NativeLockCoordinatorTest.kt');
+  assert.match(code, /TAMPER_PENDING_AFTER_FINAL_CHECK_FIXTURE_ONLY/);
+  assert.match(code, /tamperFirstByteFixtureOnly\(pending\)/);
+  assert.match(cases, /mutation after last pre-move checksum fails post-publish attestation/);
+  assert.match(cases, /mutatePendingWithoutLockInIndependentJvm/);
+  assert.match(cases, /COMMITTED marker retained after a corrupted candidate was promoted/);
+  assert.match(cases, /PREPARED rollback discards concurrently tampered candidate/);
+  assert.match(cases, /COMMITTED recovery rejects candidate corrupted by JVM ignoring lock/);
+  assert.match(runner, /--sec05k-noncooperative-candidate-fixture-only/);
+  assert.match(runner, /dir\.fileName\.toString\(\)\.startsWith\("negresco-sec05k-disposable-"\)/);
+  assert.match(runner, /SEC05K_NONCOOPERATIVE_CANDIDATE_MUTATED=FIXTURE_ONLY/);
+});
