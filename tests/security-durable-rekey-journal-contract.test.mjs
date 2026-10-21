@@ -206,3 +206,27 @@ test('SEC-05K provision guard and bounded malformed storage prevent silent repro
   assert.match(cases, /malformed journal size \$size does not guess/);
   assert.match(cases, /missing COMMITTED pending cannot silently restore old active generation/);
 });
+
+test('SEC-05K detached signed generation witness detects local rollback but documents signed-pair replay', () => {
+  const code = read(kotlin + 'SyntheticDetachedGenerationWitnessLab.kt');
+  const cases = read(fixtures + 'SyntheticDurableRekeyJournalLabTest.kt');
+  const mobile = read('apps/mobile/package.json');
+  assert.match(code, /Mac\.getInstance\("HmacSHA256"\)/);
+  assert.match(code, /macDomain/);
+  assert.match(code, /MessageDigest\.isEqual/);
+  assert.match(code, /LinkOption\.NOFOLLOW_LINKS/);
+  assert.match(code, /StandardCopyOption\.ATOMIC_MOVE/);
+  assert.match(code, /channel\.force\(true\)/);
+  assert.match(code, /bootstrapFixtureOnly/);
+  assert.match(code, /advanceFixtureOnly/);
+  assert.match(code, /verifyFixtureOnly/);
+  assert.match(code, /after\.generation != expectedBefore\.generation \+ 1/);
+  assert.match(code, /detachedMacKey\.size != 32/);
+  assert.match(cases, /replayed old ciphertext is detected by independently retained witness/);
+  assert.match(cases, /external witness detects locally reseeded state after paired file wipe/);
+  assert.match(cases, /tampered signed generation receipt fails HMAC verification/);
+  assert.match(cases, /loss of detached receipt must fail closed/);
+  assert.match(cases, /known limitation: replaying BOTH signed witness and old ciphertext remains possible/);
+  assert.match(cases, /external witness cannot be stored inside local journal directory/);
+  assert.doesNotMatch(mobile, /SyntheticDetachedGenerationWitnessLab/);
+});
