@@ -32,6 +32,34 @@ fun main(args: Array<String>) {
     println("SEC05K_CHILD_RESULT=" + state.check.name)
     return
   }
+  // SEC-05K controlled hard-stop rehearsal: only disposable JVM fixtures.
+  // The detached recovery secret travels through stdin, NEVER command-line
+  // arguments or logs; the envelope is read from an independent test export.
+  if (args.size == 5 && args[0] in setOf(
+      "--sec05k-commit-halt-after-marker-fixture-only",
+      "--sec05k-commit-halt-after-active-fixture-only"
+    )) {
+    val secret = ByteArray(32)
+    try {
+      java.io.DataInputStream(System.`in`).readFully(secret)
+      val crash = if (args[0] == "--sec05k-commit-halt-after-marker-fixture-only")
+        SyntheticJournalCrashLab.AFTER_COMMIT_SYNC
+      else SyntheticJournalCrashLab.AFTER_ACTIVE_REPLACE
+      val backupBytes = java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(args[4]))
+      val check = SyntheticDurableRekeyJournalLab(
+        java.nio.file.Paths.get(args[1])
+      ).commitFixtureOnly(args[2], args[3], backupBytes, secret, crash).check
+      if (check != SyntheticJournalCheckLab.SIMULATED_CRASH) {
+        System.err.println("SEC05K_CHILD_DENIED=" + check.name)
+        kotlin.system.exitProcess(4)
+      }
+    } finally {
+      secret.fill(0)
+    }
+    // No normal JVM teardown. Returns only after the injected filesystem
+    // checkpoint has completed. Do NOT call outside disposable test fixtures.
+    Runtime.getRuntime().halt(73)
+  }
   require(args.isEmpty()) { "Unexpected arguments to isolated policy runner" }
   run {
     val storage = MemoryAtomicStore()
