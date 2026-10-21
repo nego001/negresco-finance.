@@ -28,7 +28,7 @@ Modelar e testar as invariantes que um futuro serviço de confiança precisaria 
 | Persistência transacional durável compartilhada por todas as instâncias da autoridade | **Ausente**. Memória desaparece no restart e não existe quorum/replicação. |
 | Identidade de conta autenticada por sessão/token externo com prevenção de confusão entre contas | **Ausente**. Identificadores das fixtures não autenticam ninguém. |
 | Aprovação forte e recente do titular, com prevenção de fraude e política de recuperação | **Ausente**. O método da fixture não comprova consentimento. |
-| Binding criptográfico **explícito** da conta e do identificador do convite nos dois payloads assinados | **Pendente**. O payload Ed25519 reutilizado do SEC-05 vincula fingerprints/revisão/epoch/nonce, **não** conta/ID. O nonce aleatório e índice por conta ajudam o laboratório, mas não substituem um formato de produção com domínio, conta e convite assinados. |
+| Binding criptográfico **explícito** da conta e do identificador do convite nos dois payloads assinados | **Implementado somente no SEC-05C do laboratório**: payload binário Ed25519 com conta, UUID do convite, os dois fingerprints, revisão/época, sequência, nonce e domínios por papel. A conta/chave aprovadora continuam fixtures não autenticadas; não é protocolo de produção. Ver `SEC_05C_TRANSACTIONAL_ACCOUNT_BOUND_PROTOCOL.md`. |
 | Tempo confiável de servidor, validade única e retenção/purga de tombstones | **Ausente**. O relógio é injetado pelo teste. |
 | Certificado e chave pública da autoridade provisionados por canal confiável, rotação e assinatura de recibos | **Ausente**. Não há emissor, HSM, recibo remoto autenticado ou pinning. |
 | Resiliência contra restauração de backup/rollback remoto, interrupção após commit e múltiplos nós | **Ausente**. Mutex JVM não é transação ACID distribuída. |
@@ -63,7 +63,7 @@ O acesso offline não pode aceitar como frescos convites ou revogações que dep
 
 ## Evidência e limites de QA
 
-- 26 cenários Kotlin/JVM incluem assinaturas verdadeiras de chaves descartáveis, replay, prazo, clock invertido, cancelamento tardio, contas diferentes, sequência monotônica, revogação, snapshot antigo e concorrência.
+- 30 cenários Kotlin/JVM incluem assinaturas verdadeiras de chaves descartáveis, replay, prazo, clock invertido, cancelamento tardio, contas diferentes, sequência monotônica, revogação, snapshot antigo e concorrência.
 - `tests/security-account-invite-authority-contract.test.mjs` impede a remoção silenciosa das invariantes e confirma que o laboratório não está importado no Expo.
 - O relatório deste estágio só pode dizer **"testes aprovados" quando os jobs da revisão atual concluírem com sucesso**.
 - A implementação não altera APK, assinatura, banco do usuário, `main`, ou qualquer dispositivo cadastrado.
