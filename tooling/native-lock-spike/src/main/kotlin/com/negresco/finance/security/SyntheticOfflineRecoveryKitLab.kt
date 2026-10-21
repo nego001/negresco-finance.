@@ -144,7 +144,7 @@ internal object SyntheticOfflineRecoveryKitCryptoLab {
       val cipher = Cipher.getInstance("AES/GCM/NoPadding")
       cipher.init(Cipher.ENCRYPT_MODE, SecretKeySpec(key, "AES"), GCMParameterSpec(GCM_TAG_BITS, nonce))
       cipher.updateAAD(associatedData(opaqueAccountId, kitId, keyVersion, ownerGeneration, salt, nonce))
-      val ciphertext = cipher.doFinal(dataKeyFixture.copyOf())
+      val ciphertext = cipher.doFinal(dataKeyFixture)
       return SyntheticRecoveryKitExportLab(
         SyntheticRecoveryKitEnvelopeLab(
           opaqueAccountId, kitId, keyVersion, ownerGeneration,
@@ -173,7 +173,7 @@ internal object SyntheticOfflineRecoveryKitCryptoLab {
     val encrypted = envelope.ciphertextCopy()
     if (salt.size != SALT_BYTES || nonce.size != NONCE_BYTES ||
       encrypted.size != CIPHERTEXT_BYTES) return null
-    val key = deriveAesKey(secret.copyOf(), salt)
+    val key = deriveAesKey(secret, salt)
     try {
       val cipher = Cipher.getInstance("AES/GCM/NoPadding")
       cipher.init(Cipher.DECRYPT_MODE, SecretKeySpec(key, "AES"), GCMParameterSpec(GCM_TAG_BITS, nonce))
