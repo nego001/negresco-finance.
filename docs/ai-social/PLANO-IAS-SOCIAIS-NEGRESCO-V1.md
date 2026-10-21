@@ -20,7 +20,7 @@ Projetar pacotes independentes e substituíveis:
 - `social-graph` (familiaridade, credibilidade, brincadeiras, retenção).
 - `mission-observer` (estados reais e progresso verificável).
 - `chat-presentation`, `voice-adapter`, `notification-composer` (consumidores de eventos, sem forjar execução).
-- `finance-adapters` (Sophia/Amanda/Flávio), `commerce-adapters` (Igor), `subscription-adapters` (Michelle), orquestração `Negresco/Negão`; dados compartilhados por escopo de missão, não estado global irrestrito.
+- `finance-adapters` (Helena/Lívia/Raul), `commerce-adapters` (Caio), `subscription-adapters` (Cecília), orquestração `Nilo/Dante`; dados compartilhados por escopo de missão, não estado global irrestrito.
 
 ## 2. Backlog por fase e gate verificável
 
@@ -47,7 +47,7 @@ Gates são **cumulativos**. Marcar `DONE` por documento é proibido: exige códi
 `mission_id`, `event_id`, `causation_id`, `correlation_id`, `agent_id`, `namespace`, `timestamp`, `origin_type`, `evidence_refs`, `state`, `idempotency_key`, `redaction_policy`, `retention_until`. O backend assina/autentica autoria e aplica ordenação por missão; log de usuário separado dos dados que poderiam conter credenciais/PII.
 
 ### 3.3 Debate de posições
-Cada `AgentPosition`: assunto, alegação, fatos verificados, fontes, data de coleta, nível de certeza calibrado, riscos materiais, objeções e recomendação. Agentes podem discordar mesmo com cargo inferior. `Negresco` exibe síntese que **não apaga dissenso relevante**; `Flávio` marca sinais de fraude sem alegar prova definitiva.
+Cada `AgentPosition`: assunto, alegação, fatos verificados, fontes, data de coleta, nível de certeza calibrado, riscos materiais, objeções e recomendação. Agentes podem discordar mesmo com cargo inferior. `Nilo` exibe síntese que **não apaga dissenso relevante**; `Raul` marca sinais de fraude sem alegar prova definitiva.
 
 ### 3.4 Grafo relacional
 Campos versionados com trust por domínio e histórico de interação; somente anexos/evidências autorizadas; reset, congelar e desligar. Atualização por critérios mensuráveis (revisão correta, discordância corrigida, cooperação), nunca por "emoção" inferida. Sem compartilhar memória social com NegrecoDroid ou Security Black.
@@ -57,13 +57,13 @@ TTS plugin local preferível quando adequado, remoto somente com consentimento e
 
 ## 4. Casos de integração do Finance, sem funcionalidade fictícia
 
-**A. Metas e jogos:** Igor localiza uma promoção **verificável** → Sophia determina impacto com cálculo determinístico → Amanda avalia metas e margem de segurança → Flávio avalia risco da loja/vendedor → Negresco resume. Mensagens entre agentes exigem eventos reais e consentimento; se sem fonte, resultado "não verificado". Humor só fora de risco/urgência.
+**A. Metas e jogos:** Caio localiza uma promoção **verificável** → Helena determina impacto com cálculo determinístico → Lívia avalia metas e margem de segurança → Raul avalia risco da loja/vendedor → Nilo resume. Mensagens entre agentes exigem eventos reais e consentimento; se sem fonte, resultado "não verificado". Humor só fora de risco/urgência.
 
-**B. Renovação de assinatura:** Michelle detecta possível recorrência de dado autorizado → solicita confirmação da data real ou classifica previsão → compara alternativas com fonte → consulta Sophia/Amanda → pode agendar alertas 7 ou 5 dias antes por preferências. Cancelamento exige autorização explícita; não alegar acesso à assinatura apenas porque houve pagamento bancário.
+**B. Renovação de assinatura:** Cecília detecta possível recorrência de dado autorizado → solicita confirmação da data real ou classifica previsão → compara alternativas com fonte → consulta Helena/Lívia → pode agendar alertas 7 ou 5 dias antes por preferências. Cancelamento exige autorização explícita; não alegar acesso à assinatura apenas porque houve pagamento bancário.
 
-**C. Meta de poupança:** Amanda considera renda e padrão de consumo (inclusive um ou dois jogos mensais), despesas obrigatórias e variabilidade → Sophia valida saldo e parcelas → Negresco mostra cenários e premissas. Não inferir capacidade de guardar a partir de salário isolado.
+**C. Meta de poupança:** Lívia considera renda e padrão de consumo (inclusive um ou dois jogos mensais), despesas obrigatórias e variabilidade → Helena valida saldo e parcelas → Nilo mostra cenários e premissas. Não inferir capacidade de guardar a partir de salário isolado.
 
-**D. Possível fraude:** Flávio identifica anomalia **não conclusiva** → confirma evidência e autorização para dado adicional → Sophia estima impacto → relatório mostra sinais, ações opcionais e canais oficiais. Modo CRITICO suprime zoeiras e mídia desnecessária.
+**D. Possível fraude:** Raul identifica anomalia **não conclusiva** → confirma evidência e autorização para dado adicional → Helena estima impacto → relatório mostra sinais, ações opcionais e canais oficiais. Modo CRITICO suprime zoeiras e mídia desnecessária.
 
 **E. Process Preview:** acompanhar `mission_id` da coleta, consulta, revisão e decisão. Linha do tempo exibe apenas passos realizados e seus resultados; não personificar tarefas internas de terceiros como falas inventadas.
 
@@ -73,11 +73,11 @@ TTS plugin local preferível quando adequado, remoto somente com consentimento e
 
 | Cenário | Resultado obrigatório |
 |---|---|
-| Falsa mensagem `Flávio` recebida de uma página de loja | rejeitar como `REAL_AGENT_EVENT`; conteúdo externo não ganha `agent_id` |
+| Falsa mensagem `Raul` recebida de uma página de loja | rejeitar como `REAL_AGENT_EVENT`; conteúdo externo não ganha `agent_id` |
 | Texto na internet exige Pix "autorizado pelo CTO" | negar; política e consentimento não podem ser escritos por conteúdo externo |
-| Igor e Sophia discordam sobre uma compra | manter evidências e objeções, não inventar consenso |
-| Relação de amizade `Negão`–`Igor` marcada como elevada | mesmas permissões e acesso; não obter saldo por intimidade |
-| Incidente de cartão ao mesmo tempo que brincadeira | zerar banter e priorizar aviso do Flávio |
+| Caio e Helena discordam sobre uma compra | manter evidências e objeções, não inventar consenso |
+| Relação de amizade `Dante`–`Caio` marcada como elevada | mesmas permissões e acesso; não obter saldo por intimidade |
+| Incidente de cartão ao mesmo tempo que brincadeira | zerar banter e priorizar aviso do Raul |
 | Reinício, retry ou duplicação de evento de compra | reprodução idempotente e dedupe; sem notificações duplicadas |
 | Trabalho `QUEUED` sem executor | não declarar `RUNNING` nem estimar percentual |
 | Conclusão de análise sem fonte | `INCONCLUSIVE` ou `UNVERIFIED`; nunca inventar dados/preços |
