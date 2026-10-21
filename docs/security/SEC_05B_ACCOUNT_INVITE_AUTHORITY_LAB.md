@@ -15,10 +15,11 @@ Modelar e testar as invariantes que um futuro serviço de confiança precisaria 
 2. **Emissão:** um único convite pendente por conta; desafio aleatório de 32 bytes; associação ao aprovador, candidato, revisão, época e sequência.
 3. **Prazo:** cinco minutos segundo relógio **substituível de laboratório**. Expiração no instante limite cria um estado terminal; cancelar tarde não substitui `EXPIRED`.
 4. **Assinaturas:** verificação Ed25519 real do aprovador previamente cadastrado **na fixture** e prova do candidato sobre o desafio. Chaves incorretas, nonce alterado e reutilização falham.
-5. **Atomicidade simulada:** `synchronized(mutex)` serializa chamadas na mesma instância JVM. Apenas uma concorrente consome o desafio; o contador do aprovador é avançado.
-6. **Revogação:** método explícito **somente fixture** invalida convites pendentes, retira o aprovador ativo e aumenta revisão/época. Não representa uma requisição autenticada.
-7. **Anti-rollback como política:** estado apresentado é comparado integralmente com a fotografia corrente **da fixture**. Match exato significa apenas coerência sintética, nunca permissão.
-8. **Sem concessão:** `CONSUMED_PROOF_ONLY` não inclui o candidato em `active`, não emite token, não abre SQLCipher e não autoriza operação financeira.
+5. **Resiliência contra interferência:** uma tentativa com dados de intenção adulterados é recusada sem invalidar o convite legítimo. Só uma mudança real do estado da autoridade justifica invalidá-lo.
+6. **Atomicidade simulada:** `synchronized(mutex)` serializa chamadas na mesma instância JVM. Apenas uma concorrente consome o desafio; o contador do aprovador é avançado.
+7. **Revogação:** método explícito **somente fixture** invalida convites pendentes, retira o aprovador ativo e aumenta revisão/época. Não representa uma requisição autenticada.
+8. **Anti-rollback como política:** estado apresentado é comparado integralmente com a fotografia corrente **da fixture**. Match exato significa apenas coerência sintética, nunca permissão.
+9. **Sem concessão:** `CONSUMED_PROOF_ONLY` não inclui o candidato em `active`, não emite token, não abre SQLCipher e não autoriza operação financeira.
 
 ## Lacunas deliberadas de segurança
 
@@ -62,7 +63,7 @@ O acesso offline não pode aceitar como frescos convites ou revogações que dep
 
 ## Evidência e limites de QA
 
-- 25 cenários Kotlin/JVM incluem assinaturas verdadeiras de chaves descartáveis, replay, prazo, clock invertido, cancelamento tardio, contas diferentes, sequência monotônica, revogação, snapshot antigo e concorrência.
+- 26 cenários Kotlin/JVM incluem assinaturas verdadeiras de chaves descartáveis, replay, prazo, clock invertido, cancelamento tardio, contas diferentes, sequência monotônica, revogação, snapshot antigo e concorrência.
 - `tests/security-account-invite-authority-contract.test.mjs` impede a remoção silenciosa das invariantes e confirma que o laboratório não está importado no Expo.
 - O relatório deste estágio só pode dizer **"testes aprovados" quando os jobs da revisão atual concluírem com sucesso**.
 - A implementação não altera APK, assinatura, banco do usuário, `main`, ou qualquer dispositivo cadastrado.
