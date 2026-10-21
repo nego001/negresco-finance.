@@ -272,5 +272,6 @@ fun main(args: Array<String>) {
     runSyntheticDurableRekeyJournalScenarios()
     runSyntheticJournalAuthorityReconciliationPolicyScenarios()
     runSyntheticSignedRekeyAuthorityChallengeScenarios()
+    runSyntheticRekeyAuthorityCasTimeoutScenarios()
   }
 }
