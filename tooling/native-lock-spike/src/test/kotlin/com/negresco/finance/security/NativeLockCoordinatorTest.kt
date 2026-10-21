@@ -21,7 +21,18 @@ private fun assertResult(expected: LockResult, actual: LockResult) {
   check(expected == actual) { "expected $expected, actual $actual" }
 }
 
-fun main() {
+fun main(args: Array<String>) {
+  // SEC-05K child-process recovery entrypoint for an isolated JVM, NOT a service.
+  // Only a temporary fixture directory crosses the process boundary. No DEK,
+  // secret, plaintext or financial data is passed in command-line arguments.
+  if (args.size == 2 && args[0] == "--sec05k-recover-fixture-only") {
+    val state = SyntheticDurableRekeyJournalLab(
+      java.nio.file.Paths.get(args[1])
+    ).recoverFixtureOnly()
+    println("SEC05K_CHILD_RESULT=" + state.check.name)
+    return
+  }
+  require(args.isEmpty()) { "Unexpected arguments to isolated policy runner" }
   run {
     val storage = MemoryAtomicStore()
     val coordinator = NativeLockCoordinator(storage) { true }
