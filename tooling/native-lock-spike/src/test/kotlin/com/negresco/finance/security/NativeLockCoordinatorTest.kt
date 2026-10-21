@@ -67,13 +67,17 @@ fun main(args: Array<String>) {
   if (args.size == 7 && args[0] == "--sec05k-verify-detached-fixture-only") {
     val secret = ByteArray(32)
     val check = try {
-      java.io.DataInputStream(System.`in`).readFully(secret)
-      val backup = java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(args[6]))
-      SyntheticDurableRekeyJournalLab(
-        java.nio.file.Paths.get(args[1])
-      ).verifyDetachedBackupAfterRestartFixtureOnly(
-        args[2], args[3], args[4].toLong(), args[5].toLong(), backup, secret
-      ).check
+      val received = System.`in`.readNBytes(secret, 0, secret.size)
+      if (received != secret.size) {
+        SyntheticJournalCheckLab.DENY_RECOVERY_PROOF
+      } else {
+        val backup = java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(args[6]))
+        SyntheticDurableRekeyJournalLab(
+          java.nio.file.Paths.get(args[1])
+        ).verifyDetachedBackupAfterRestartFixtureOnly(
+          args[2], args[3], args[4].toLong(), args[5].toLong(), backup, secret
+        ).check
+      }
     } finally { secret.fill(0) }
     println("SEC05K_DETACHED_PROOF=" + check.name)
     return
