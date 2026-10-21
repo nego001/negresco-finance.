@@ -24,3 +24,7 @@ Nomes, cargos, personalidades, vozes, avaliações independentes e módulos proa
 ### Backlog separado: IAs sociais e processo vivo
 
 [Arquitetura social do Negresco Finance v1](ai-social/ARQUITETURA-IAS-SOCIAIS-NEGRESCO-V1.md) e [Plano de implantação S0–S8](ai-social/PLANO-IAS-SOCIAIS-NEGRESCO-V1.md) aproveitam princípios gerais do NegrecoDroid sem importar nomes, hierarquia ou dados do outro aplicativo. Futuro chat de equipe, prévia de execução real, personalidade e voz, relação social simulada e notificação por nome. **Nenhum módulo implementado; não iniciar S1–S8 antes dos gates de segurança e da fase de IAs.** A etapa atual permanece **SEC-05K**.
+
+### Catálogo visual e notificações S7 (planejamento)
+
+O backlog multiagente passou a contemplar **17 inteligências planejadas**, cada uma com nome, cargo, aparência/avatar próprio e personalidade. Ver [Catálogo de 17 IAs: aparência e notificações](ai-social/CATALOGO-17-IAS-IDENTIDADE-VISUAL-NOTIFICACOES-V1.md). A aparência estática é especificada para S1, os avatares do chat/preview para S3/S4, vozes em S6 e notificações Android individualizadas por nome/ícone opcional na **S7**. Todas as entregas são futuras e **SEC-05K permanece a etapa atual**, sem alterações neste documento de planejamento.
