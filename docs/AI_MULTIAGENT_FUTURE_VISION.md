@@ -16,7 +16,7 @@ O **nome** identifica quem fala e aparece no chat, avatar, mensagens e título d
 | **Caio** | Especialista Gamer: compras de jogos, DLCs, edições, plataforma e confiabilidade |
 | **Cecília** | Diretora de Assinaturas: recorrências, renovações e comparação de planos |
 
-Novas especialidades poderão receber identidades próprias. Nome, cargo, perfil de voz e avatar serão editáveis sob política de permissões, preservando logs e identificadores estáveis.
+**Equipe futura ampliada: 17 inteligências.** Além das sete acima, foram propostas Valentina (Compras Inteligentes), Yasmin (Promoções e Cupons), Isabela (Open Finance), Beatriz (Cartões), Enzo (Pix e Pagamentos), Arthur (Investimentos), Gabriel (Crédito e Dívidas), Clara (Documentos Financeiros), Bianca (Contas e Vencimentos) e Leonardo (Previsões Financeiras). Veja o [Catálogo de 17 aparências e notificações](ai-social/CATALOGO-17-IAS-IDENTIDADE-VISUAL-NOTIFICACOES-V1.md). Cada IA poderá ter nome, cargo, avatar 2D/3D, aparência personalizável, voz e assinatura visual próprios, sem que isso modifique permissões. Todos são planejamento futuro, não agentes implementados.
 
 ## Missão compartilhada e discordância responsável
 
