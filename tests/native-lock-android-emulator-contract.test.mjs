@@ -30,16 +30,17 @@ test('native lock Android tests operate only on disposable no-backup fixtures',(
  assert.doesNotMatch(mobile,/native-lock-android-lab|NativeLockAndroidStore/);
 });
 
-test('sixteen native DataStore checks cover lock sessions and signed device challenge persistence',()=>{
+test('seventeen native DataStore checks cover lock sessions and signed device challenge persistence',()=>{
  const source=read('tooling/native-lock-android-lab/src/androidTest/kotlin/com/negresco/finance/security/NativeLockDataStoreInstrumentedTest.kt');
  const gradle=read('tooling/native-lock-android-lab/build.gradle.kts');
- assert.equal((source.match(/@Test fun /g)||[]).length,16);
+ assert.equal((source.match(/@Test fun /g)||[]).length,17);
  assert.match(source,/deviceChallengePersistsAndSingleUseSurvivesReopeningRealDataStore/);
  assert.match(source,/fakeSignatureDoesNotConsumeDeviceChallengeOnRealDataStore/);
  assert.match(source,/racingValidSignedDeviceProofConsumesOneRealDataStoreTransaction/);
  assert.match(source,/cancelledSignedChallengeStaysInvalidAcrossAndroidDataStoreReopen/);
  assert.match(source,/signedAuthorityAndDeviceProofConsumeOneAndroidDataStoreCounter/);
  assert.match(source,/dualSignedInvitationIsConsumedOnceAfterAndroidDataStoreReopen/);
+ assert.match(source,/expiredDualSignedInvitePersistsTerminalTombstoneAfterAndroidReopen/);
  assert.match(source,/deniedSecondAuthenticationRevokesPreviousGrantOnRealDataStore/);
  assert.match(source,/cancelledOptOutCannotRetainPriorGrantOrDisableRealDataStore/);
  assert.match(source,/absentPersistedRecordRevokesPreviouslyUnlockedSession/);
