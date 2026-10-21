@@ -1,14 +1,15 @@
 package com.negresco.finance.security
 
+import com.negresco.finance.security.SyntheticRekeyAuthorityEvidenceLab as E
+import com.negresco.finance.security.SyntheticRekeyJournalObservationLab as J
+import com.negresco.finance.security.SyntheticRekeyCiphertextObservationLab as A
+import com.negresco.finance.security.SyntheticRekeyCandidateObservationLab as P
+import com.negresco.finance.security.SyntheticRekeyAuthorityGenerationLab as G
+import com.negresco.finance.security.SyntheticRekeyReconciliationDecisionLab as D
+
 /** SEC-05K pure matrix: NO executable financial auth and no filesystem writes. */
 internal fun runSyntheticJournalAuthorityReconciliationPolicyScenarios() {
   val policy = SyntheticJournalAuthorityReconciliationPolicyLab
-  val E = SyntheticRekeyAuthorityEvidenceLab
-  val J = SyntheticRekeyJournalObservationLab
-  val A = SyntheticRekeyCiphertextObservationLab
-  val P = SyntheticRekeyCandidateObservationLab
-  val G = SyntheticRekeyAuthorityGenerationLab
-  val D = SyntheticRekeyReconciliationDecisionLab
   var checks = 0
   fun verify(actual: SyntheticRekeyReconciliationDecisionLab,
              expected: SyntheticRekeyReconciliationDecisionLab, reason: String) {
