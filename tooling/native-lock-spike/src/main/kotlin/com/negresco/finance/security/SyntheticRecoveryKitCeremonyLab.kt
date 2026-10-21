@@ -18,6 +18,7 @@ internal enum class SyntheticKitCeremonyState {
 
 internal enum class SyntheticKitCeremonyCheck {
   PREPARED_NOT_STORED,
+  CANCELLED_NOT_STORED,
   VERIFIED_OFFLINE_NOT_STORED_OR_AUTHORIZED,
   DENY_BAD_SOURCE,
   DENY_BAD_CLOCK,
@@ -178,6 +179,6 @@ internal class SyntheticRecoveryKitCeremonyLab private constructor(
   fun cancelFixtureOnly(): SyntheticKitCeremonyCheck = synchronized(guard) {
     advance()?.let { return@synchronized it }
     state = SyntheticKitCeremonyState.CANCELLED
-    SyntheticKitCeremonyCheck.DENY_TERMINAL
+    SyntheticKitCeremonyCheck.CANCELLED_NOT_STORED
   }
 }
