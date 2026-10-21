@@ -23,11 +23,13 @@ private class InviteFileHarness(
   file: File,
   registry: DeviceTrustSnapshot?,
   floor: DeviceTrustFloor?,
-  approver: java.security.PublicKey?
+  approver: java.security.PublicKey?,
+  labClock: () -> Long = { System.currentTimeMillis() }
 ) {
   private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
   val raw: DataStore<Preferences> = PreferenceDataStoreFactory.create(scope = scope) { file }
-  val invites = SyntheticEnrollmentInviteDataStoreLab(raw, registry, floor, approver)
+  val invites = SyntheticEnrollmentInviteDataStoreLab(raw, registry, floor, approver,
+    labClockMillis = labClock)
   suspend fun close() { scope.coroutineContext[Job]!!.cancelAndJoin() }
 }
 
@@ -52,11 +54,12 @@ internal suspend fun runPersistentEnrollmentInviteScenarios() {
     state: DeviceTrustSnapshot? = registry,
     baseFloor: DeviceTrustFloor? = floor,
     approverKey: java.security.PublicKey? = approver.public,
+    labClock: () -> Long = { System.currentTimeMillis() },
     body: suspend (InviteFileHarness) -> Unit
   ) {
     val dir = Files.createTempDirectory("negresco-enrollment-invite-").toFile()
     val h = InviteFileHarness(File(dir, "invite.preferences_pb"),
-      state, baseFloor, approverKey)
+      state, baseFloor, approverKey, labClock)
     try { body(h) } finally { h.close(); check(dir.deleteRecursively()) }
   }
   suspend fun consume(
@@ -256,5 +259,111 @@ internal suspend fun runPersistentEnrollmentInviteScenarios() {
   // 18. The INVITE record is not an authorized active-device registry.
   check(candidateId !in registry.active)
   check(SyntheticInviteStatus.entries.none { it.name == "ACTIVE" || it.name == "APPROVED" })
-  println("PASS: 18 durable two-signature invite/tombstone scenarios (JVM lab, no trusted server)")
+  // 19. EXACT five-minute deadline makes invitation terminal even with
+  // BOTH legitimately signed proofs. Expiry is persisted, never approved.
+  run {
+    var now = 1_000_000L
+    fixture(labClock = { now }) { h ->
+      val issued = h.invites.issue(intent, candidate.public)
+      val nonce = issued.pendingNonceCopy()!!
+      check(issued.expiresAtMillis - issued.issuedAtMillis ==
+        SyntheticEnrollmentInviteDataStoreLab.MAX_INVITE_LIFETIME_MS)
+      now = issued.expiresAtMillis
+      check(runCatching { consume(h, nonce) }.exceptionOrNull() is StaleSyntheticInvite)
+      val after = h.invites.read()!!
+      check(after.status == SyntheticInviteStatus.EXPIRED)
+      check(after.pendingNonceCopy() == null)
+      check(runCatching { h.invites.issue(intent, candidate.public) }
+        .exceptionOrNull() is StaleSyntheticInvite)
+    }
+  }
+
+  // 20. One millisecond BEFORE expiry permits both valid signatures.
+  run {
+    var now = 2_000_000L
+    fixture(labClock = { now }) { h ->
+      val invite = h.invites.issue(intent, candidate.public)
+      now = invite.expiresAtMillis - 1L
+      check(consume(h, invite.pendingNonceCopy()!!).status == SyntheticInviteStatus.CONSUMED)
+    }
+  }
+
+  // 21. Backward lab clock fails closed, without silently accepting a proof.
+  run {
+    var now = 3_000_000L
+    fixture(labClock = { now }) { h ->
+      val invite = h.invites.issue(intent, candidate.public)
+      now = invite.issuedAtMillis - 1L
+      check(runCatching { consume(h, invite.pendingNonceCopy()!!) }
+        .exceptionOrNull() is InvalidSyntheticInviteClock)
+      check(h.invites.read()!!.status == SyntheticInviteStatus.PENDING)
+    }
+  }
+
+  // 22. Expired tombstone persists when a disposable DataStore is closed
+  // and reopened, even if the test clock later moves backwards.
+  run {
+    val dir = Files.createTempDirectory("negresco-expired-reopen-").toFile()
+    val file = File(dir, "invite.preferences_pb")
+    var now = 4_000_000L
+    val first = InviteFileHarness(file, registry, floor, approver.public) { now }
+    val nonce = try {
+      val issued = first.invites.issue(intent, candidate.public)
+      now = issued.expiresAtMillis + 1L
+      check(runCatching { consume(first, issued.pendingNonceCopy()!!) }
+        .exceptionOrNull() is StaleSyntheticInvite)
+      issued.pendingNonceCopy()!!
+    } finally { first.close() }
+    now = 4_000_001L
+    val reopened = InviteFileHarness(file, registry, floor, approver.public) { now }
+    try {
+      check(reopened.invites.read()!!.status == SyntheticInviteStatus.EXPIRED)
+      check(reopened.invites.read()!!.pendingNonceCopy() == null)
+      check(runCatching { consume(reopened, nonce) }
+        .exceptionOrNull() is StaleSyntheticInvite)
+    } finally { reopened.close(); check(dir.deleteRecursively()) }
+  }
+
+  // 23. Corrupted issuance/expiry metadata never becomes a usable invite.
+  fixture { h ->
+    h.raw.updateData { mutablePreferencesOf(
+      SyntheticInviteKeys.version to 1,
+      SyntheticInviteKeys.status to SyntheticInviteStatus.EXPIRED.name,
+      SyntheticInviteKeys.approving to approverId.hex,
+      SyntheticInviteKeys.candidate to candidateId.hex,
+      SyntheticInviteKeys.revision to 1L,
+      SyntheticInviteKeys.epoch to 1L,
+      SyntheticInviteKeys.sequence to 1L,
+      SyntheticInviteKeys.issuedAt to 1_000L,
+      SyntheticInviteKeys.expiresAt to 2_000L
+    ) }
+    check(runCatching { h.invites.read() }.exceptionOrNull() is InvalidSyntheticInvite)
+    check(runCatching { h.invites.issue(intent, candidate.public) }
+      .exceptionOrNull() is InvalidSyntheticInvite)
+  }
+
+  // 24. Zero/overflow clock cannot create an invitation with invalid expiry.
+  for (badTime in listOf(0L, -1L, Long.MAX_VALUE, Long.MAX_VALUE - 1L)) {
+    fixture(labClock = { badTime }) { h ->
+      check(runCatching { h.invites.issue(intent, candidate.public) }
+        .exceptionOrNull() is InvalidSyntheticInviteClock)
+      check(h.invites.read() == null)
+    }
+  }
+
+  // 25. Expiry cannot be defeated by an incorrect signature presented
+  // at the deadline; expires before cryptographic proof checking.
+  run {
+    var now = 5_000_000L
+    fixture(labClock = { now }) { h ->
+      val invite = h.invites.issue(intent, candidate.public)
+      now = invite.expiresAtMillis
+      check(runCatching { consume(h, invite.pendingNonceCopy()!!,
+        approvingKey = stranger, candidateKey = stranger) }
+        .exceptionOrNull() is StaleSyntheticInvite)
+      check(h.invites.read()!!.status == SyntheticInviteStatus.EXPIRED)
+    }
+  }
+
+  println("PASS: 25 durable invite, expiry and tombstone scenarios (JVM lab, no trusted clock)")
 }
