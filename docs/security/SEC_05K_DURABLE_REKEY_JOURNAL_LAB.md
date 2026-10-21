@@ -63,6 +63,16 @@ A exportação separada é **somente uma simulação de backup independente**: d
 
 **Limites importantes:** o `Runtime.halt` ocorre **imediatamente depois** de a função de teste retornar no checkpoint de falha injetada; ele não mata a JVM no meio de uma chamada de filesystem, não interrompe uma `fsync` em andamento, não representa falha de energia e não demonstra comportamento em um dispositivo Android físico. O teste verifica uma janela concreta de queda de processo com dados sintéticos, mas **não libera o gate de produção**.
 
+## Nova prova SEC-05K: abertura via kit destacado após reiniciar
+
+O método `verifyDetachedBackupAfterRestartFixtureOnly` **não grava nem migra dados**. Exige que `active.snapshot` esteja consistente, que não haja journal ou candidato pendente e que o chamador indique explicitamente **conta, kit, versão e geração esperados**. Um envelope cifrado **fornecido à parte** precisa coincidir byte a byte com o envelope da geração ativa. Com um **segredo sintético de 256 bits** fornecido separadamente, o método tenta recuperar a DEK e descriptografar **todos os registros AES-GCM do snapshot atual**. Ele apaga as cópias temporárias de DEK e plaintext e retorna somente `VERIFIED_DETACHED_BACKUP_FIXTURE_ONLY`, sem devolver registros ou materiais secretos.
+
+O runner JVM oferece `--sec05k-verify-detached-fixture-only` para execução **em outro processo Java independente**: caminho para o snapshot de laboratório, metadados não secretos e caminho de envelope aparecem em argumentos; o segredo é transmitido exclusivamente por **stdin** e apagado da cópia local quando a operação termina. Entradas curtas são rejeitadas como prova inválida.
+
+**Matriz de regressão:** reinício depois de `Runtime.halt(73)` no commit, recuperação concluída em JVM independente, e então verificação de todos os registros em **terceira JVM**. Casos negativos testam segredo errado/curto, identificação de conta/kit errada, geração obsoleta, tentativa de validar candidato ainda `PREPARED`, exportação cifrada adulterada e snapshot ativo corrompido, com recusa determinística e sem publicação de dados incorretos.
+
+**Limite crítico:** esta prova demonstra que o envelope e o segredo **fornecidos no teste** continuam capazes de abrir a geração atual. **Não comprova que o usuário salvou a frase/segredo fora do aparelho, nem que possui uma mídia externa íntegra**. O segredo é passado na memória temporária do cenário; não existe cerimônia real de confirmação de cópia, restauração física em outro dispositivo, SQLCipher integrado ou autorização de pessoa. O checksum e a igualdade de snapshots não implementam anti-rollback contra atacante ativo. Portanto, o gate de backup externo e o gate de produção permanecem **BLOQUEADOS**.
+
 ## Faltam antes de produção
 
 - **Backup externo real confirmado:** o parâmetro de envelope+segredo verifica criptografia, mas **não demonstra que o usuário salvou o segredo fora do dispositivo**. Queda após a decisão de commit pode tornar os dados inacessíveis se o único segredo ficou na memória do processo. Deve existir cerimônia de backup externo com prova segura, persistente e independente **antes** do commit, sem guardar o segredo em claro.
