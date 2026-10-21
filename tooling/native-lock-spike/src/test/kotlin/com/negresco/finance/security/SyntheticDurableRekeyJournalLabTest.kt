@@ -1016,5 +1016,180 @@ internal fun runSyntheticDurableRekeyJournalScenarios() {
       "journal size $size recovery leaves original generation active")
   }
 
+  // Detached authenticated generation witness: HMAC key and witness file are
+  // outside the journal fixture. This is NOT an actual independent service,
+  // hardware monotonic counter, authenticated owner or physical backup.
+  fun witnessState(dir: Path, snapshot: SyntheticRekeySnapshotLab) =
+    SyntheticWitnessStateLab(
+      snapshot.accountId, snapshot.kitId, snapshot.version, snapshot.generation,
+      Files.readAllBytes(dir.resolve("active.snapshot"))
+    )
+  fun witness(dir: Path, root: Path) =
+    SyntheticDetachedGenerationWitnessLab(dir, root)
+
+  run {
+    val s = scenario()
+    val dir = root()
+    val remote = root()
+    val key = randomKey()
+    seed(dir, s)
+    val guard = witness(dir, remote)
+    val old = witnessState(dir, s.before)
+    verify(guard.bootstrapFixtureOnly(old, key) ==
+      SyntheticWitnessCheckLab.BOOTSTRAPPED_FIXTURE_ONLY,
+      "external fixture witness enrolled initial encrypted generation")
+    verify(guard.verifyFixtureOnly(old, key) ==
+      SyntheticWitnessCheckLab.VERIFIED_FIXTURE_ONLY,
+      "separate witness authenticates original ciphertext generation")
+    val originalCipher = old.ciphertextFile.copyOf()
+    prepare(dir, s)
+    commit(dir, s)
+    val fresh = witnessState(dir, s.after)
+    verify(guard.verifyFixtureOnly(fresh, key) ==
+      SyntheticWitnessCheckLab.DENY_STALE_OR_DIFFERENT,
+      "new local generation is untrusted until external witness advances")
+    verify(guard.advanceFixtureOnly(old, fresh, key) ==
+      SyntheticWitnessCheckLab.ADVANCED_FIXTURE_ONLY,
+      "witness advances only one expected version and generation")
+    verify(guard.verifyFixtureOnly(fresh, key) ==
+      SyntheticWitnessCheckLab.VERIFIED_FIXTURE_ONLY,
+      "post-commit ciphertext hash matches authenticated external receipt")
+    verify(guard.verifyFixtureOnly(old, key) ==
+      SyntheticWitnessCheckLab.DENY_STALE_OR_DIFFERENT,
+      "old generation blocked while newer witness retained")
+    verify(guard.advanceFixtureOnly(old, fresh, key) ==
+      SyntheticWitnessCheckLab.DENY_STALE_OR_DIFFERENT,
+      "replaying old advance request cannot lower external generation")
+    verify(guard.bootstrapFixtureOnly(old, key) ==
+      SyntheticWitnessCheckLab.DENY_STALE_OR_DIFFERENT,
+      "existing generation witness cannot be silently reenrolled")
+    verify(guard.verifyFixtureOnly(fresh, randomKey()) ==
+      SyntheticWitnessCheckLab.FAIL_CLOSED,
+      "wrong MAC key is rejected even with intact fixture snapshot")
+    val active = dir.resolve("active.snapshot")
+    Files.write(active, originalCipher)
+    verify(guard.verifyFixtureOnly(witnessState(dir, s.before), key) ==
+      SyntheticWitnessCheckLab.DENY_STALE_OR_DIFFERENT,
+      "replayed old ciphertext is detected by independently retained witness")
+    Files.write(active, fresh.ciphertextFile)
+    verify(guard.verifyFixtureOnly(witnessState(dir, s.after), key) ==
+      SyntheticWitnessCheckLab.VERIFIED_FIXTURE_ONLY,
+      "restored new ciphertext passes external generation check")
+  }
+  run {
+    val s = scenario()
+    val dir = root()
+    val remote = root()
+    val key = randomKey()
+    seed(dir, s)
+    val guard = witness(dir, remote)
+    val old = witnessState(dir, s.before)
+    verify(guard.bootstrapFixtureOnly(old, key) ==
+      SyntheticWitnessCheckLab.BOOTSTRAPPED_FIXTURE_ONLY,
+      "coordinated wipe fixture starts with authentic old witness")
+    prepare(dir, s)
+    commit(dir, s)
+    val fresh = witnessState(dir, s.after)
+    guard.advanceFixtureOnly(old, fresh, key)
+    Files.delete(dir.resolve("active.snapshot"))
+    Files.delete(dir.resolve("provisioned.guard"))
+    verify(journal(dir).recoverFixtureOnly().check == SyntheticJournalCheckLab.FAIL_CLOSED,
+      "missing local journal snapshot is not considered recovered")
+    val reset = scenario()
+    verify(seed(dir, reset).check == SyntheticJournalCheckLab.SEEDED_FIXTURE_ONLY,
+      "local guard alone cannot detect full replacement when wiped with active")
+    verify(guard.verifyFixtureOnly(witnessState(dir, reset.before), key) ==
+      SyntheticWitnessCheckLab.DENY_STALE_OR_DIFFERENT,
+      "external witness detects locally reseeded state after paired file wipe")
+    verify(guard.bootstrapFixtureOnly(witnessState(dir, reset.before), key) ==
+      SyntheticWitnessCheckLab.DENY_STALE_OR_DIFFERENT,
+      "existing witness prevents silent trusted bootstrap after paired wipe")
+    verify(guard.verifyFixtureOnly(fresh, key) ==
+      SyntheticWitnessCheckLab.VERIFIED_FIXTURE_ONLY,
+      "external witness still recognizes the previous committed ciphertext")
+  }
+  run {
+    val s = scenario()
+    val dir = root()
+    val remote = root()
+    val key = randomKey()
+    seed(dir, s)
+    val state = witnessState(dir, s.before)
+    val guard = witness(dir, remote)
+    verify(guard.verifyFixtureOnly(state, key) ==
+      SyntheticWitnessCheckLab.DENY_MISSING_WITNESS,
+      "read-only verification refuses missing detached authority")
+    guard.bootstrapFixtureOnly(state, key)
+    val receipt = remote.resolve("generation.witness")
+    val original = Files.readAllBytes(receipt)
+    flipFirstByte(receipt)
+    verify(guard.verifyFixtureOnly(state, key) ==
+      SyntheticWitnessCheckLab.FAIL_CLOSED,
+      "tampered signed generation receipt fails HMAC verification")
+    Files.write(receipt, original)
+    verify(guard.verifyFixtureOnly(state, key) ==
+      SyntheticWitnessCheckLab.VERIFIED_FIXTURE_ONLY,
+      "restoring authentic receipt preserves generation proof")
+    Files.delete(receipt)
+    verify(guard.verifyFixtureOnly(state, key) ==
+      SyntheticWitnessCheckLab.DENY_MISSING_WITNESS,
+      "loss of detached receipt must fail closed without local fallback")
+    Files.write(receipt, original)
+    verify(guard.verifyFixtureOnly(state, key) ==
+      SyntheticWitnessCheckLab.VERIFIED_FIXTURE_ONLY,
+      "restoring detached receipt reestablishes valid proof")
+    val detachedAlias = root().resolve("witness-target")
+    Files.write(detachedAlias, original)
+    Files.delete(receipt)
+    Files.createSymbolicLink(receipt, detachedAlias)
+    verify(guard.verifyFixtureOnly(state, key) ==
+      SyntheticWitnessCheckLab.FAIL_CLOSED,
+      "external receipt symlink fails closed without following redirected file")
+  }
+  // This explicit negative security finding is intentional: HMAC authenticates
+  // each saved receipt but an attacker who restores BOTH old witness and old
+  // snapshot can replay the old signed pair without possessing the MAC key.
+  run {
+    val s = scenario()
+    val dir = root()
+    val remote = root()
+    val key = randomKey()
+    seed(dir, s)
+    val guard = witness(dir, remote)
+    val old = witnessState(dir, s.before)
+    guard.bootstrapFixtureOnly(old, key)
+    val oldSignedWitness = Files.readAllBytes(remote.resolve("generation.witness"))
+    prepare(dir, s)
+    commit(dir, s)
+    val fresh = witnessState(dir, s.after)
+    verify(guard.advanceFixtureOnly(old, fresh, key) ==
+      SyntheticWitnessCheckLab.ADVANCED_FIXTURE_ONLY,
+      "test advances detached generation before replay attack")
+    Files.write(remote.resolve("generation.witness"), oldSignedWitness)
+    Files.write(dir.resolve("active.snapshot"), old.ciphertextFile)
+    verify(guard.verifyFixtureOnly(witnessState(dir, s.before), key) ==
+      SyntheticWitnessCheckLab.VERIFIED_FIXTURE_ONLY,
+      "known limitation: replaying BOTH signed witness and old ciphertext remains possible")
+    verify(guard.verifyFixtureOnly(fresh, key) ==
+      SyntheticWitnessCheckLab.DENY_STALE_OR_DIFFERENT,
+      "new generation is not verifiable after attacker replays entire witness store")
+  }
+  run {
+    val s = scenario()
+    val dir = root()
+    seed(dir, s)
+    val key = randomKey()
+    val state = witnessState(dir, s.before)
+    verify(witness(dir, dir.resolve("subdirectory")).bootstrapFixtureOnly(state, key) ==
+      SyntheticWitnessCheckLab.FAIL_CLOSED,
+      "external witness cannot be stored inside local journal directory")
+    verify(witness(dir, dir).bootstrapFixtureOnly(state, key) ==
+      SyntheticWitnessCheckLab.FAIL_CLOSED,
+      "external witness directory cannot equal journal directory")
+    verify(witness(dir, root()).bootstrapFixtureOnly(state, byteArrayOf(1, 2)) ==
+      SyntheticWitnessCheckLab.DENY_AUTHENTICATION,
+      "weak or short witness MAC key refused")
+  }
+
   println("PASS: SEC-05K $checks durable-restart journal checks (disposable JVM fixtures)")
 }
