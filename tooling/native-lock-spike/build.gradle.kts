@@ -35,3 +35,11 @@ tasks.register<JavaExec>("pgBoundProofCheck") {
   classpath = sourceSets["test"].runtimeClasspath
   mainClass.set("com.negresco.finance.security.SyntheticJdbcBoundProofRehearsalTestKt")
 }
+
+tasks.register<JavaExec>("pgRekeyCasCheck") {
+  group = "verification"
+  description = "Disposable SEC-05K PostgreSQL CAS persistence and fresh JVM idempotency lab, NOT an authority service"
+  dependsOn(tasks.named("testClasses"))
+  classpath = sourceSets["test"].runtimeClasspath
+  mainClass.set("com.negresco.finance.security.SyntheticJdbcRekeyCasPersistenceLabTestKt")
+}
