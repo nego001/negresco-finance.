@@ -69,6 +69,15 @@ test('undeployed PostgreSQL design has per-account uniqueness and terminal recei
  assert.match(sql,/expires_at = issued_at \+ INTERVAL '5 minutes'/);
  assert.match(sql,/PRIMARY KEY \(account_id, idempotency_digest\)/);
  assert.match(sql,/COMMIT;/);
+ const smoke=read('tooling/security-authority-protocol-lab/postgres/002_sec05c_schema_smoke.sql');
+ const workflow=read('.github/workflows/ci.yml');
+ assert.match(smoke,/PENDING uniqueness NOT enforced/);
+ assert.match(smoke,/TTL check NOT enforced/);
+ assert.match(smoke,/nonce replay uniqueness NOT enforced/);
+ assert.match(smoke,/duplicate receipt NOT rejected/);
+ assert.match(workflow,/authority-postgres-lab:/);
+ assert.match(workflow,/postgres:16/);
+ assert.match(workflow,/002_sec05c_schema_smoke.sql/);
 });
 
 test('documentation refuses to claim a server, authenticated accounts or production anti-rollback', () => {
