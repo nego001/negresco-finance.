@@ -14,3 +14,9 @@ Nenhum recurso futuro é considerado implementado apenas por aparecer neste rote
 Prioridade corrente: **Fase 1 — Base confiável**. Em seguida: Fase 2 (finanças manuais), Fase 3 (Negresco/CTO), Fase 4 (integrações autorizadas), Fase 5 (acabamento e lançamento). Essa ordem de entrega não muda a enumeração técnica P0–P5 acima.
 
 **Decisão de escopo:** [ADR 0001](decisions/0001-sqlcipher-zero-knowledge-negresco-only.md). SQLCipher nativo, Keystore e zero-knowledge serão desenvolvidos no Negresco Finance, **nunca como tarefa indireta do Security Black**. Nenhum desses mecanismos nativos está aprovado no APK atual.
+
+## Visão de IAs especializadas (planejamento futuro)
+
+Nomes, cargos, personalidades, vozes, avaliações independentes e módulos proativos de compras, jogos, assinaturas e economia estão descritos em [Visão Multiagente Futura](AI_MULTIAGENT_FUTURE_VISION.md). **Não são recursos implementados**, não possuem acesso bancário real e não alteram a ordem de entrega.
+
+**Etapa atual de segurança: SEC-05K**, journal durável e recuperação de migração criptográfica interrompida, limitada a fixtures descartáveis. Leia [SEC-05K](security/SEC_05K_DURABLE_REKEY_JOURNAL_LAB.md). PR #14 segue em rascunho e não autoriza APK/merge.
