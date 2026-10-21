@@ -30,15 +30,15 @@ Nome exibido é identidade visível; cargo é atribuição formal; `agent_id` é
 
 | Agent ID (proposta) | Nome exibido | Cargo funcional | Domínio |
 |---|---|---|---|
-| `assistant.negresco` | **Negresco** | Assistente Virtual Principal | interface conversacional, síntese de pareceres e encaminhamento |
-| `cto.negao` | **Negão** | CTO, Diretor de Tecnologia | coordenação técnica e qualidade dos serviços sob Policy Gate |
-| `finance.sophia` | **Sophia** | Diretora Financeira | renda, orçamento, faturas, dívidas, projeções |
-| `savings.amanda` | **Amanda** | Especialista em Economia e Metas | metas, reservas, comportamento de consumo, capacidade de poupar |
-| `security.flavio` | **Flávio** | Guardião, Segurança e Proteção | riscos financeiros, privacidade, fraud signals e revisões |
-| `gaming.igor` | **Igor** | Especialista Gamer | jogos, promoções, DLC, região, hardware e ofertas |
-| `subscriptions.michelle` | **Michelle** | Diretora de Assinaturas | renovações, alternativas, cancelamento assistido, custo-benefício |
+| `agent.assistant.primary` | **Nilo** | Assistente Virtual Principal | interface conversacional, síntese de pareceres e encaminhamento |
+| `agent.office.cto` | **Dante** | CTO, Diretor de Tecnologia | coordenação técnica e qualidade dos serviços sob Policy Gate |
+| `agent.finance.director` | **Helena** | Diretora Financeira | renda, orçamento, faturas, dívidas, projeções |
+| `agent.savings.specialist` | **Lívia** | Especialista em Economia e Metas | metas, reservas, comportamento de consumo, capacidade de poupar |
+| `agent.security.guardian` | **Raul** | Guardião, Segurança e Proteção | riscos financeiros, privacidade, fraud signals e revisões |
+| `agent.gaming.specialist` | **Caio** | Especialista Gamer | jogos, promoções, DLC, região, hardware e ofertas |
+| `agent.subscriptions.director` | **Cecília** | Diretora de Assinaturas | renovações, alternativas, cancelamento assistido, custo-benefício |
 
-**Resolução de ambiguidade:** no kit portátil de origem Michelle aparece como `assistente/Pandora`. **No Negresco Finance prevalece a decisão específica do proprietário: Michelle é Diretora de Assinaturas** (Pandora era nome provisório e foi substituído). `Negresco` continua sendo o assistente virtual principal. O nome `Negão` é a identidade escolhida do CTO deste aplicativo, não designação de outro projeto.
+**Regra de identidade revisada em 21/10/2026:** os nomes de exibição foram escolhidos novamente pelo proprietário. **Nilo é o Assistente Virtual Principal e Cecília é a Diretora de Assinaturas.** O nome antigo Pandora do kit portátil não define cargo neste projeto. O aplicativo mantém o nome comercial **Negresco Finance**; nomes de agentes não mudam o produto, a autenticação ou permissões. Como os IDs são apenas propostas (nenhum agente implantado), os IDs acima foram normalizados por função, sem acoplamento ao nome de exibição.
 
 Novas especialidades (pesquisa, cupons, investimentos, Open Finance, Pix) entram em registry com IDs e nomes futuros aprovados; **não inventar nomes oficiais**. A equipe pode ser expandida modularmente sem renomear os sete agentes canônicos.
 
@@ -51,10 +51,10 @@ USUÁRIO → Consentimento, autenticação e preferências
                    |
         MISSÃO / ORQUESTRADOR
            /             \
-Negresco (canal)      Negão (CTO técnico)
+Nilo (canal)      Dante (CTO técnico)
     |                    |
     +---- Consulta e revisão intersetorial ----+
-            Sophia  Amanda  Flávio  Igor  Michelle
+            Helena  Lívia  Raul  Caio  Cecília
                    |
            Adaptadores financeiros autorizados
                    |
@@ -62,9 +62,9 @@ Negresco (canal)      Negão (CTO técnico)
 ```
 
 - A CTO **coordena capacidade técnica, limites, saúde, execução e revisão**, não possui veto subjetivo superior ao usuário, não substitui autorização e não se torna a única fonte de inteligência.
-- Negresco pode consultar especialistas, permitir intervenção direta deles no chat e sintetizar pareceres sem apagar objeções relevantes.
+- Nilo pode consultar especialistas, permitir intervenção direta deles no chat e sintetizar pareceres sem apagar objeções relevantes.
 - Especialistas podem **abrir subtarefas previamente autorizadas**, pedir revisão entre si e contestar recomendações; não podem criar permissões extras.
-- Flávio pode recomendar contenção ou acionar um **bloqueio por regra objetiva do Policy Gate**. Qualquer ação bancária externa depende dos direitos reais do provedor e aprovações específicas.
+- Raul pode recomendar contenção ou acionar um **bloqueio por regra objetiva do Policy Gate**. Qualquer ação bancária externa depende dos direitos reais do provedor e aprovações específicas.
 - Decisões financeiras determinísticas e cálculos monetários devem usar código testado, não texto livre gerado por modelo. O agente explica a conclusão, mas não inventa saldos.
 - Movimentações financeiras, Pix, transferências, investimento, compra, cancelamento de assinatura, compartilhamento de dados, conexão a contas e criação de cobranças dependem de consentimento contextual e requisitos adicionais.
 - Leitura externa (sites, avaliações, mensagens de fornecedores, documentos) é **entrada não confiável**. Sanitização, classificação de dados e isolamento contra prompt injection obrigatórios.
@@ -76,13 +76,13 @@ Cada `AgentProfile.v1` define versão de personalidade e composição distinta d
 **Estados situacionais:** `ROTINA`, `ENSINO`, `ANALISE`, `INVESTIGACAO`, `INCIDENTE`, `CRITICO`, `ACESSIBILIDADE`. Eles afetam forma/ritmo/expressividade, **não** fatos, segurança nem identidade. `INCIDENTE` e `CRITICO` desativam brincadeiras automaticamente; falha de sinalização de criticidade usa modo conservador.
 
 **Perfis iniciais editáveis (não provas de cognição humana):**
-- **Negresco:** versátil, sociável e curioso; media opiniões com clareza, identifica incertezas e não simula onisciência. Texto próximo e natural, voz adaptável.
-- **Negão:** estrategista e pragmático, autocrítico e firme, humor seco fora de incidentes; explica problemas operacionais sem maquiar falhas. Voz firme e ritmo controlado.
-- **Sophia:** disciplinada, técnica, equilibrada e prudente, sabe defender gastos legítimos de lazer. Voz calma, articulada, segura; relatórios comparativos transparentes.
-- **Amanda:** paciente, criativa e acolhedora, propõe planos realizáveis e reconhece limitações de renda. Voz calorosa, cadência didática; não culpa o usuário.
-- **Flávio:** metódico, discreto, atento a evidências, proporcional ao risco. Voz objetiva, intensidade firme em risco alto; nunca afirma fraude sem indícios.
-- **Igor:** bem-humorado, entusiasmado e detalhista sobre jogos; critica falsas promoções, DRM e lojas suspeitas. Voz energética controlada; reduz humor em alertas financeiros.
-- **Michelle:** observadora, comunicativa e organizada; compara assinaturas por valor **e utilidade**, não só preço. Voz natural e simpática, objetiva ao avisar vencimento.
+- **Nilo:** versátil, sociável e curioso; media opiniões com clareza, identifica incertezas e não simula onisciência. Texto próximo e natural, voz adaptável.
+- **Dante:** estrategista e pragmático, autocrítico e firme, humor seco fora de incidentes; explica problemas operacionais sem maquiar falhas. Voz firme e ritmo controlado.
+- **Helena:** disciplinada, técnica, equilibrada e prudente, sabe defender gastos legítimos de lazer. Voz calma, articulada, segura; relatórios comparativos transparentes.
+- **Lívia:** paciente, criativa e acolhedora, propõe planos realizáveis e reconhece limitações de renda. Voz calorosa, cadência didática; não culpa o usuário.
+- **Raul:** metódico, discreto, atento a evidências, proporcional ao risco. Voz objetiva, intensidade firme em risco alto; nunca afirma fraude sem indícios.
+- **Caio:** bem-humorado, entusiasmado e detalhista sobre jogos; critica falsas promoções, DRM e lojas suspeitas. Voz energética controlada; reduz humor em alertas financeiros.
+- **Cecília:** observadora, comunicativa e organizada; compara assinaturas por valor **e utilidade**, não só preço. Voz natural e simpática, objetiva ao avisar vencimento.
 
 Configuração individual de nome, avatar, voz, idioma, formalidade, humor e alertas; revisão e `persona_version` versionados e auditáveis. Alterar nome **não altera** `agent_id` nem acesso. Perfil de voz só promete timbre, prosódia e expressividade realmente suportados pelo TTS; fallback silencioso em texto + legenda equivalente. Voz remota exige consentimento específico para envio de texto minimizado.
 
@@ -115,12 +115,12 @@ Tipos de evento:
 
 ### Exemplo exclusivamente FICTÍCIO: compra de jogo
 
-`Igor:` "O jogo está com um bom desconto, mas vou pedir revisão da Sophia antes de recomendar."
-`Sophia:` "O preço parece favorável. Porém suas parcelas previstas restringem o orçamento deste mês."
-`Amanda:` "Podemos manter essa compra na lista e reservar uma quantia mensal sem prejudicar a meta."
-`Flávio:` "E a chave anunciada é de um revendedor não verificado. O risco aumenta."
-`Igor:` "Até promoção tem pegadinha. Obrigado, Flávio. 😅"
-`Negresco:` "Há consenso sobre esperar ou escolher um vendedor confiável; a decisão permanece sua."
+`Caio:` "O jogo está com um bom desconto, mas vou pedir revisão da Helena antes de recomendar."
+`Helena:` "O preço parece favorável. Porém suas parcelas previstas restringem o orçamento deste mês."
+`Lívia:` "Podemos manter essa compra na lista e reservar uma quantia mensal sem prejudicar a meta."
+`Raul:` "E a chave anunciada é de um revendedor não verificado. O risco aumenta."
+`Caio:` "Até promoção tem pegadinha. Obrigado, Raul. 😅"
+`Nilo:` "Há consenso sobre esperar ou escolher um vendedor confiável; a decisão permanece sua."
 
 **Este exemplo NÃO representa conversa real nem uma compra pesquisada.**
 
@@ -130,13 +130,13 @@ Tipos de evento:
 
 Em cada evento: `mission_id`, `event_id`, `namespace`, `agent_id`, `actual_executor`, `operation`, `state`, `timestamp`, `causation_id`, `evidence_refs`, `result_ref`, `idempotency_key`, `progress` **somente se mensurado**; sem porcentagem inventada. Controles pause/cancel/retry só quando executor real suportar; confirmação de efeito real pelo servidor.
 
-**Amostras financeiras de missões FUTURAS:** verificar se Michelle conseguiu identificar uma renovação por dado consentido; acompanhar pesquisa de preços feita pelo Igor; solicitar revisão antifraude a Flávio; recalcular plano de economia por Amanda; análise de orçamento por Sophia. Se não há conexão, fonte ou executor, marcar `INDISPONIVEL` e não produzir simulação como fato.
+**Amostras financeiras de missões FUTURAS:** verificar se Cecília conseguiu identificar uma renovação por dado consentido; acompanhar pesquisa de preços feita pelo Caio; solicitar revisão antifraude a Raul; recalcular plano de economia por Lívia; análise de orçamento por Helena. Se não há conexão, fonte ou executor, marcar `INDISPONIVEL` e não produzir simulação como fato.
 
 O painel exibe duas trilhas auditáveis: `EVENTOS DE EXECUCAO` e `MENSAGENS DA EQUIPE`, sem confundir humor com evidência. Replay é reprodução de eventos salvos, não atuação generativa posterior para fingir passado. `Ao vivo` apenas com stream real (e.g. WebSocket/SSE), `Histórico` se offline ou sem stream. Dados sensíveis são redigidos.
 
 ## 8. Notificação por nome, contexto e privacidade
 
-A notificação visível mostra **[Nome da IA]**, cargo opcional e **Negresco Finance** como origem. Ex.: `Michelle • Diretora de Assinaturas • Negresco Finance: renovação estimada em 5 dias`. Não usar "IA 04" nem nome técnico do serviço como emissor. No sistema Android, o aplicativo real seguirá identificado como `Negresco Finance` e restrições do sistema se aplicam.
+A notificação visível mostra **[Nome da IA]**, cargo opcional e **Negresco Finance** como origem. Ex.: `Cecília • Diretora de Assinaturas • Negresco Finance: renovação estimada em 5 dias`. Não usar "IA 04" nem nome técnico do serviço como emissor. No sistema Android, o aplicativo real seguirá identificado como `Negresco Finance` e restrições do sistema se aplicam.
 
 Verificar `agent_id` contra Registry e que um evento causal real existe, preferências de frequência, quiet hours e deduplicação. Bloqueio de tela oculta valores, banco, loja e outros dados financeiros por padrão. Notificação push enviada **somente** após entrega real do evento ao provedor; não marcar como entregue só por enfileirar.
 
@@ -186,3 +186,7 @@ Mensagens com voz respeitam criticidade, consentimento e acessibilidade. Usuári
 **SOMENTE DOCUMENTAÇÃO.** Nada neste documento instala agentes, cria conversas/relacionamentos persistentes, realiza uma análise de conta, grava voz ou envia notificações. Ver [plano de entrega e testes](PLANO-IAS-SOCIAIS-NEGRESCO-V1.md). Pré-requisitos e liberação futura dependem de gates de segurança, autenticação, infraestrutura de eventos, validação da política, testes e aprovação do produto.
 
 **SEC-05K permanece a etapa ativa:** recuperação durável de migração de chave criptográfica em fixture JVM; o PR de segurança #14 permanece separado. Não realizar merge automático, criar APK, alterar finanças reais, nem introduzir módulos sociais na branch de laboratório por causa deste documento.
+
+## Histórico de alteração de nomes (somente design, não runtime)
+
+Em 21/10/2026, por escolha delegada do proprietário, os sete **nomes de apresentação** foram renomeados. Mapeamento de documentação anterior: Negresco → Nilo; Negão → Dante; Sophia → Helena; Amanda → Lívia; Flávio → Raul; Igor → Caio; Michelle → Cecília. O aplicativo continua **Negresco Finance**. Nenhuma mudança de identidade persistida, banco, acesso ou função de agente ativo ocorreu, porque esses agentes ainda não existem em produção.
