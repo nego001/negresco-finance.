@@ -231,12 +231,13 @@ internal class SyntheticAccountInviteAuthorityLab(
     if (receivedNonce == null || receivedNonce.size != 32 ||
         !MessageDigest.isEqual(storedNonce, receivedNonce))
       throw SyntheticAuthorityRejected(SyntheticAuthorityDeny.INVALID_PROOF)
-    val verified = SyntheticDeviceEnrollmentProofLab.inspect(
-      state, DeviceTrustFloor(state.revision, state.epoch), i.intent,
-      scope.approverPublicKey, candidatePublicKey, storedNonce, receivedNonce,
-      approverSignature, candidateSignature
+    // SEC-05C: signatures are bound to this EXACT account and invite ID,
+    // in addition to both device fingerprints, registry counters and nonce.
+    val verified = SyntheticAccountBoundInviteProofLab.inspect(
+      accountId, i.id, i.intent, scope.approverPublicKey, candidatePublicKey,
+      storedNonce, receivedNonce, approverSignature, candidateSignature
     )
-    if (verified != SyntheticEnrollmentGate.PROCEED_TO_INDEPENDENT_PERSISTENT_ENROLLMENT_PROTOCOL)
+    if (verified != SyntheticBoundInviteProofCheck.PROOF_VERIFIED_ONLY)
       throw SyntheticAuthorityRejected(SyntheticAuthorityDeny.INVALID_PROOF)
     // The test fixture remembers the approver sequence only. Never add
     // candidateDevice to active, and never return an authorization token.
