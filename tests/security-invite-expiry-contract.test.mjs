@@ -33,7 +33,7 @@ test('fixture clock is not misrepresented as authenticated time or native enroll
  const src=read('tooling/native-lock-spike/src/main/kotlin/com/negresco/finance/security/SyntheticEnrollmentInviteDataStoreLab.kt');
  const app=read('apps/mobile/package.json');
  assert.match(src,/NOT anti-rollback storage/);
- assert.match(src,/NOT authenticated/);
+ assert.match(src,/UNAUTHENTICATED TEST FIXTURES/);
  assert.match(src,/Real expiry requires/);
  assert.match(src,/Neither state grants new-device trust/);
  assert.doesNotMatch(app,/SyntheticEnrollmentInviteDataStoreLab|native-lock-spike/);
