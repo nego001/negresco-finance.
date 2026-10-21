@@ -8,6 +8,7 @@ import java.security.PublicKey
 import java.security.SecureRandom
 import java.security.Signature
 import java.util.UUID
+import com.negresco.finance.security.SyntheticSignedRekeyChallengeCheckLab as C
 
 /**
  * SEC-05K: detached Ed25519 challenge/response VERIFIER, disposable JVM only.
@@ -127,7 +128,6 @@ internal class SyntheticSignedRekeyChallengeSessionLab(
     signedClaim: SyntheticRekeyGenerationClaimLab?,
     signature: ByteArray?
   ): SyntheticSignedRekeyChallengeCheckLab {
-    val C = SyntheticSignedRekeyChallengeCheckLab
     val verifier = SyntheticSignedRekeyAuthorityChallengeLab
     if (used) return C.DENY_REUSED_OR_EXPIRED_SESSION
     used = true
