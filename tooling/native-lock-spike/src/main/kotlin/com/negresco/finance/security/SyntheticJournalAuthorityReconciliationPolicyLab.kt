@@ -16,6 +16,7 @@ internal enum class SyntheticRekeyAuthorityEvidenceLab {
   VERIFIED_LIVE_CURRENT, // only from a trusted, fresh and pinned verifier (NOT built yet)
   MISSING_OR_OFFLINE,
   REPLAYABLE_DETACHED_HMAC_ONLY,
+  SIGNED_CHALLENGE_FIXTURE_ONLY_NO_LIVE_AUTHORITY,
   INVALID_OR_STALE
 }
 internal enum class SyntheticRekeyJournalObservationLab {
