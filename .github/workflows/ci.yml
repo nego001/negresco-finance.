@@ -184,3 +184,8 @@ jobs:
             -f tooling/security-authority-protocol-lab/postgres/001_sec05c_schema.sql
           psql -h localhost -U postgres -d negresco_sec05c_lab -v ON_ERROR_STOP=1 \
             -f tooling/security-authority-protocol-lab/postgres/002_sec05c_schema_smoke.sql
+          # CI-only SQL function is not part of the proposed deployed schema.
+          psql -h localhost -U postgres -d negresco_sec05c_lab -v ON_ERROR_STOP=1 \
+            -f tooling/security-authority-protocol-lab/postgres/003_sec05d_ci_receipt_rehearsal.sql
+          PGHOST=localhost PGUSER=postgres PGDATABASE=negresco_sec05c_lab \
+            python3 tooling/security-authority-protocol-lab/tests/sec05d_multi_connection_smoke.py
