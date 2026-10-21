@@ -127,7 +127,7 @@ internal class SyntheticSignedRekeyChallengeSessionLab(
     returnedChallenge: ByteArray?,
     signedClaim: SyntheticRekeyGenerationClaimLab?,
     signature: ByteArray?
-  ): SyntheticSignedRekeyChallengeCheckLab {
+  ): C {
     val verifier = SyntheticSignedRekeyAuthorityChallengeLab
     if (used) return C.DENY_REUSED_OR_EXPIRED_SESSION
     used = true
