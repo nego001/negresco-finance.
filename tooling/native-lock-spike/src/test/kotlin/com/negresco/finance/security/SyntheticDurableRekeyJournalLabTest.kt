@@ -156,6 +156,52 @@ internal fun runSyntheticDurableRekeyJournalScenarios() {
     return exit
   }
 
+  /**
+   * Fresh JVM proof checks the post-restart ACTIVE ciphertext against a detached
+   * encrypted portable export plus a separately piped, disposable test secret.
+   * Parent DEKs are deliberately not passed to the child process.
+   */
+  fun verifyDetachedInIndependentJvm(
+    dir: Path, s: Scenario, export: Path,
+    expectedAccount: String = account,
+    expectedKit: String = s.after.kitId,
+    expectedVersion: Long = s.after.version,
+    expectedGeneration: Long = s.after.generation,
+    secret: ByteArray = s.newSecret
+  ): SyntheticJournalCheckLab {
+    val os = System.getProperty("os.name").lowercase()
+    val javaBinary = java.nio.file.Paths.get(
+      System.getProperty("java.home"), "bin",
+      if (os.contains("win")) "java.exe" else "java"
+    )
+    val child = ProcessBuilder(
+      javaBinary.toString(),
+      "-cp", System.getProperty("java.class.path"),
+      "com.negresco.finance.security.NativeLockCoordinatorTestKt",
+      "--sec05k-verify-detached-fixture-only",
+      dir.toAbsolutePath().toString(), expectedAccount, expectedKit,
+      expectedVersion.toString(), expectedGeneration.toString(),
+      export.toAbsolutePath().toString()
+    ).redirectErrorStream(true).start()
+    child.outputStream.use { output ->
+      output.write(secret)
+      output.flush()
+    }
+    if (!child.waitFor(30L, TimeUnit.SECONDS)) {
+      child.destroyForcibly()
+      child.waitFor(5L, TimeUnit.SECONDS)
+      error("SEC-05K detached backup proof child timed out")
+    }
+    val out = child.inputStream.bufferedReader().use { it.readText() }
+    check(child.exitValue() == 0) {
+      "SEC-05K detached backup verification JVM failed (exit ${child.exitValue()})"
+    }
+    val tag = "SEC05K_DETACHED_PROOF="
+    val outcome = out.lineSequence().firstOrNull { it.startsWith(tag) }
+      ?: error("SEC-05K detached verification JVM returned no status")
+    return SyntheticJournalCheckLab.valueOf(outcome.removePrefix(tag).trim())
+  }
+
   fun flipFirstByte(path: Path) {
     val data = Files.readAllBytes(path)
     data[0] = (data[0].toInt() xor 1).toByte()
@@ -521,6 +567,81 @@ internal fun runSyntheticDurableRekeyJournalScenarios() {
       "corrupted detached export does not authorize COMMITTED")
     verify(recoverInIndependentJvm(dir) == SyntheticJournalCheckLab.RECOVERED_PREPARE_ROLLBACK,
       "corrupt backup file leaves old generation usable")
+  }
+
+  // A detached recovery kit must decrypt every NEW record after the
+  // committing JVM has exited and another JVM has completed journal recovery.
+  run {
+    val s = scenario()
+    val dir = root()
+    seed(dir, s)
+    val export = exportBackupFixtureOnly(s)
+    prepare(dir, s)
+    verify(hardStopCommitInIndependentJvm(dir, s, export) == 73,
+      "separate child halts after sync of new DEK journal")
+    verify(recoverInIndependentJvm(dir) == SyntheticJournalCheckLab.RECOVERED_COMMIT_FINALIZED,
+      "independent JVM finishes interrupted durable commit")
+    verify(verifyDetachedInIndependentJvm(dir, s, export) ==
+      SyntheticJournalCheckLab.VERIFIED_DETACHED_BACKUP_FIXTURE_ONLY,
+      "fresh third JVM decrypts every current record via detached kit and export")
+    verify(verifyDetachedInIndependentJvm(dir, s, export, secret = randomKey()) ==
+      SyntheticJournalCheckLab.DENY_RECOVERY_PROOF,
+      "wrong detached recovery secret cannot prove ciphertext")
+    verify(verifyDetachedInIndependentJvm(dir, s, export, expectedGeneration = s.before.generation) ==
+      SyntheticJournalCheckLab.DENY_RECOVERY_PROOF,
+      "rollback/stale expected generation rejected after commit")
+    verify(verifyDetachedInIndependentJvm(dir, s, export, expectedKit = s.before.kitId) ==
+      SyntheticJournalCheckLab.DENY_RECOVERY_PROOF,
+      "retired recovery kit rejected as current")
+    verify(verifyDetachedInIndependentJvm(dir, s, export, expectedAccount = otherAccount) ==
+      SyntheticJournalCheckLab.DENY_RECOVERY_PROOF,
+      "detached kit cannot cross fixture account boundary")
+    verify(verifyDetachedInIndependentJvm(dir, s, export, secret = "123456".toByteArray()) ==
+      SyntheticJournalCheckLab.DENY_RECOVERY_PROOF,
+      "short human PIN cannot substitute for 256-bit recovery secret")
+    checkNew(journal(dir).recoverFixtureOnly(), s,
+      "failed detached proofs never modify committed snapshot")
+    verify(verifyDetachedInIndependentJvm(dir, s, export) ==
+      SyntheticJournalCheckLab.VERIFIED_DETACHED_BACKUP_FIXTURE_ONLY,
+      "valid detached recovery remains repeatable after denied proofs")
+  }
+  run {
+    val s = scenario()
+    val dir = root()
+    seed(dir, s)
+    val export = exportBackupFixtureOnly(s)
+    prepare(dir, s, SyntheticJournalCrashLab.AFTER_PREPARE_SYNC)
+    verify(verifyDetachedInIndependentJvm(dir, s, export) ==
+      SyntheticJournalCheckLab.DENY_INVALID_OR_STALE,
+      "outstanding PREPARED journal blocks detached proof until recovery")
+    verify(recoverInIndependentJvm(dir) ==
+      SyntheticJournalCheckLab.RECOVERED_PREPARE_ROLLBACK,
+      "prepared state rolls back before further backup proofs")
+    verify(verifyDetachedInIndependentJvm(dir, s, export) ==
+      SyntheticJournalCheckLab.DENY_RECOVERY_PROOF,
+      "uncommitted backup cannot prove old active generation as new")
+  }
+  run {
+    val s = scenario()
+    val dir = root()
+    seed(dir, s)
+    val export = exportBackupFixtureOnly(s)
+    prepare(dir, s)
+    commit(dir, s)
+    val corrupt = Files.readAllBytes(export)
+    corrupt[0] = (corrupt[0].toInt() xor 1).toByte()
+    Files.write(export, corrupt)
+    verify(verifyDetachedInIndependentJvm(dir, s, export) ==
+      SyntheticJournalCheckLab.DENY_RECOVERY_PROOF,
+      "altered detached envelope cannot prove ciphertext after restart")
+    val restored = exportBackupFixtureOnly(s)
+    verify(verifyDetachedInIndependentJvm(dir, s, restored) ==
+      SyntheticJournalCheckLab.VERIFIED_DETACHED_BACKUP_FIXTURE_ONLY,
+      "uncorrupted export recovers again after backup-file tamper")
+    flipFirstByte(dir.resolve("active.snapshot"))
+    verify(verifyDetachedInIndependentJvm(dir, s, restored) ==
+      SyntheticJournalCheckLab.FAIL_CLOSED,
+      "corrupted durable active ciphertext fails closed even with valid recovery kit")
   }
 
   println("PASS: SEC-05K $checks durable-restart journal checks (disposable JVM fixtures)")
