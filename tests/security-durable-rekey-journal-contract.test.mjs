@@ -132,7 +132,7 @@ test('SEC-05K filesystem fixture refuses symlink and dangling aliases without fo
   const cases = read(fixtures + 'SyntheticDurableRekeyJournalLabTest.kt');
   assert.match(code, /LinkOption\.NOFOLLOW_LINKS/);
   assert.match(code, /Files\.isSymbolicLink\(directory\)/);
-  assert.match(code, /listOf\(active, pending, journal, lockPath\)\.none\(Files::isSymbolicLink\)/);
+  assert.match(code, /listOf\(active, pending, journal, lockPath, provisioned\)\.none\(Files::isSymbolicLink\)/);
   assert.match(code, /private fun existsNoFollow/);
   assert.match(code, /Files\.isRegularFile\(path, LinkOption\.NOFOLLOW_LINKS\)/);
   assert.match(cases, /Files\.createSymbolicLink\(dir\.resolve\("active\.snapshot"\)/);
@@ -184,4 +184,25 @@ test('SEC-05K ignores advisory lock in restricted child fixture yet never clears
   assert.match(runner, /--sec05k-noncooperative-candidate-fixture-only/);
   assert.match(runner, /dir\.fileName\.toString\(\)\.startsWith\("negresco-sec05k-disposable-"\)/);
   assert.match(runner, /SEC05K_NONCOOPERATIVE_CANDIDATE_MUTATED=FIXTURE_ONLY/);
+});
+
+test('SEC-05K provision guard and bounded malformed storage prevent silent reprovision', () => {
+  const code = read(kotlin + 'SyntheticDurableRekeyJournalLab.kt');
+  const cases = read(fixtures + 'SyntheticDurableRekeyJournalLabTest.kt');
+  assert.match(code, /provisioned = directory\.resolve\("provisioned\.guard"\)/);
+  assert.match(code, /private fun provisionedBytes\(\)/);
+  assert.match(code, /atomicWrite\(provisioned, provisionedBytes\(\)\)/);
+  assert.match(code, /existsNoFollow\(provisioned\)/);
+  assert.match(code, /readBytes\(provisioned\)/);
+  assert.match(code, /MessageDigest\.isEqual\(/);
+  const seed = code.slice(code.indexOf('fun seedFixtureOnly('), code.indexOf('fun prepareFixtureOnly('));
+  assert.ok(seed.indexOf('atomicWrite(provisioned, provisionedBytes())') <
+    seed.indexOf('atomicWrite(active, encodeState(state))'));
+  assert.match(cases, /missing active with durable provision marker is denied re-provision/);
+  assert.match(cases, /corrupted provision marker prevents normal recovery/);
+  assert.match(cases, /absent provision marker with surviving active is not trusted/);
+  assert.match(cases, /invalid active file size \$size fails closed/);
+  assert.match(cases, /COMMITTED candidate malformed size \$size must fail closed/);
+  assert.match(cases, /malformed journal size \$size does not guess/);
+  assert.match(cases, /missing COMMITTED pending cannot silently restore old active generation/);
 });
