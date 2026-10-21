@@ -102,6 +102,60 @@ internal fun runSyntheticDurableRekeyJournalScenarios() {
     return SyntheticJournalCheckLab.valueOf(line.removePrefix(token).trim())
   }
 
+  /**
+   * Write ONLY the portable encrypted envelope to a physically separate test
+   * directory. This is not proof the user safely preserved the detached secret.
+   */
+  fun exportBackupFixtureOnly(s: Scenario): Path {
+    val destination = Files.createTempDirectory("sec05k-detached-export-fixture-")
+      .resolve("portable-envelope")
+    FileChannel.open(destination,
+      StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW).use { channel ->
+      val buffer = java.nio.ByteBuffer.wrap(s.newFile)
+      while (buffer.hasRemaining()) channel.write(buffer)
+      channel.force(true)
+    }
+    check(Files.readAllBytes(destination).contentEquals(s.newFile))
+    return destination
+  }
+
+  /**
+   * The child executes the commit then calls Runtime.halt(73) at a controlled
+   * checkpoint. The 32-byte disposable secret is piped on stdin, never argv.
+   */
+  fun hardStopCommitInIndependentJvm(
+    dir: Path, s: Scenario, export: Path,
+    afterActive: Boolean = false, secret: ByteArray = s.newSecret
+  ): Int {
+    val os = System.getProperty("os.name").lowercase()
+    val javaBinary = java.nio.file.Paths.get(
+      System.getProperty("java.home"), "bin",
+      if (os.contains("win")) "java.exe" else "java"
+    )
+    val mode = if (afterActive)
+      "--sec05k-commit-halt-after-active-fixture-only"
+    else "--sec05k-commit-halt-after-marker-fixture-only"
+    val child = ProcessBuilder(
+      javaBinary.toString(),
+      "-cp", System.getProperty("java.class.path"),
+      "com.negresco.finance.security.NativeLockCoordinatorTestKt",
+      mode, dir.toAbsolutePath().toString(), account, s.before.kitId,
+      export.toAbsolutePath().toString()
+    ).redirectErrorStream(true).start()
+    child.outputStream.use { it.write(secret); it.flush() }
+    if (!child.waitFor(30L, TimeUnit.SECONDS)) {
+      child.destroyForcibly()
+      child.waitFor(5L, TimeUnit.SECONDS)
+      error("SEC-05K abruptly terminated JVM did not exit")
+    }
+    val output = child.inputStream.bufferedReader().use { it.readText() }
+    val exit = child.exitValue()
+    check(exit == 4 || exit == 73) {
+      "SEC-05K hard-stop child failed unexpectedly (exit $exit): ${output.take(160)}"
+    }
+    return exit
+  }
+
   fun flipFirstByte(path: Path) {
     val data = Files.readAllBytes(path)
     data[0] = (data[0].toInt() xor 1).toByte()
@@ -408,6 +462,65 @@ internal fun runSyntheticDurableRekeyJournalScenarios() {
     }
     verify(recoverInIndependentJvm(dir) == SyntheticJournalCheckLab.CONSISTENT_FIXTURE_ONLY,
       "independent JVM recovers after OS process lock released")
+  }
+
+  // Actual abrupt child-process termination AFTER durable decision points.
+  // It is NOT a hardware power-loss simulation or proof of backup retention.
+  run {
+    val s = scenario()
+    val dir = root()
+    seed(dir, s)
+    val export = exportBackupFixtureOnly(s)
+    verify(prepare(dir, s).check == SyntheticJournalCheckLab.PREPARED_FIXTURE_ONLY,
+      "hard-stop setup successfully prepared migration")
+    verify(hardStopCommitInIndependentJvm(dir, s, export) == 73,
+      "fresh JVM stops abruptly after COMMITTED marker sync")
+    verify(recoverInIndependentJvm(dir) == SyntheticJournalCheckLab.RECOVERED_COMMIT_FINALIZED,
+      "new JVM rolls forward after previous JVM hard halt at commit marker")
+    checkNew(journal(dir).recoverFixtureOnly(), s,
+      "hard-halted commit marker does not lose new ciphertext")
+    verify(recoverInIndependentJvm(dir) == SyntheticJournalCheckLab.CONSISTENT_FIXTURE_ONLY,
+      "post-hard-halt restarted process is idempotent")
+  }
+  run {
+    val s = scenario()
+    val dir = root()
+    seed(dir, s)
+    val export = exportBackupFixtureOnly(s)
+    prepare(dir, s)
+    verify(hardStopCommitInIndependentJvm(dir, s, export, afterActive = true) == 73,
+      "fresh JVM stops abruptly after active replacement and sync")
+    verify(recoverInIndependentJvm(dir) == SyntheticJournalCheckLab.RECOVERED_COMMIT_FINALIZED,
+      "new JVM recognizes committed active snapshot after hard halt")
+    checkNew(journal(dir).recoverFixtureOnly(), s,
+      "hard-halted active replacement does not restore old ciphertext")
+  }
+  run {
+    val s = scenario()
+    val dir = root()
+    seed(dir, s)
+    val export = exportBackupFixtureOnly(s)
+    prepare(dir, s)
+    verify(hardStopCommitInIndependentJvm(dir, s, export, secret = randomKey()) == 4,
+      "hard-stop command refuses invalid detached secret and does NOT hard-halt")
+    verify(recoverInIndependentJvm(dir) == SyntheticJournalCheckLab.RECOVERED_PREPARE_ROLLBACK,
+      "invalid detached secret leaves PREPARED rollback intact")
+    checkOld(journal(dir).recoverFixtureOnly(), s,
+      "failed backup secret cannot advance to COMMITTED")
+  }
+  run {
+    val s = scenario()
+    val dir = root()
+    seed(dir, s)
+    val export = exportBackupFixtureOnly(s)
+    prepare(dir, s)
+    val corrupt = Files.readAllBytes(export)
+    corrupt[0] = (corrupt[0].toInt() xor 1).toByte()
+    Files.write(export, corrupt)
+    verify(hardStopCommitInIndependentJvm(dir, s, export) == 4,
+      "corrupted detached export does not authorize COMMITTED")
+    verify(recoverInIndependentJvm(dir) == SyntheticJournalCheckLab.RECOVERED_PREPARE_ROLLBACK,
+      "corrupt backup file leaves old generation usable")
   }
 
   println("PASS: SEC-05K $checks durable-restart journal checks (disposable JVM fixtures)")
