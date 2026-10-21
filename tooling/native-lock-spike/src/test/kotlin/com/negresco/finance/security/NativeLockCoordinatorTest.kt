@@ -82,6 +82,31 @@ fun main(args: Array<String>) {
     println("SEC05K_DETACHED_PROOF=" + check.name)
     return
   }
+  // Deliberately IGNORE the advisory migration.lock in a disposable fixture.
+  // The test parent holds the lock; this child modifies only the candidate
+  // of a randomly-named SEC-05K temp directory, never the active snapshot.
+  if (args.size == 2 && args[0] == "--sec05k-noncooperative-candidate-fixture-only") {
+    val dir = java.nio.file.Paths.get(args[1]).toAbsolutePath().normalize()
+    require(dir.fileName.toString().startsWith("negresco-sec05k-disposable-"))
+    require(java.nio.file.Files.isDirectory(dir, java.nio.file.LinkOption.NOFOLLOW_LINKS))
+    require(!java.nio.file.Files.isSymbolicLink(dir))
+    val target = dir.resolve("pending.snapshot")
+    java.nio.channels.FileChannel.open(
+      target, java.nio.file.StandardOpenOption.READ,
+      java.nio.file.StandardOpenOption.WRITE, java.nio.file.LinkOption.NOFOLLOW_LINKS
+    ).use { channel ->
+      require(channel.size() in 37L..131072L)
+      val first = java.nio.ByteBuffer.allocate(1)
+      require(channel.read(first, 0L) == 1)
+      val changed = java.nio.ByteBuffer.wrap(
+        byteArrayOf((first.array()[0].toInt() xor 1).toByte())
+      )
+      require(channel.write(changed, 0L) == 1)
+      channel.force(true)
+    }
+    println("SEC05K_NONCOOPERATIVE_CANDIDATE_MUTATED=FIXTURE_ONLY")
+    return
+  }
   require(args.isEmpty()) { "Unexpected arguments to isolated policy runner" }
   run {
     val storage = MemoryAtomicStore()
