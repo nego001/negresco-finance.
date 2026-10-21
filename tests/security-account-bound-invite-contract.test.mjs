@@ -88,3 +88,33 @@ test('documentation refuses to claim a server, authenticated accounts or product
  assert.match(spec,/recibo/);
  assert.match(spec,/Gate de produção SEC-05: BLOQUEADO/);
 });
+
+
+test('SEC-05D CI-only receipt rehearsal is isolated from production and never enrolls devices', () => {
+ const sql=read('tooling/security-authority-protocol-lab/postgres/003_sec05d_ci_receipt_rehearsal.sql');
+ const python=read('tooling/security-authority-protocol-lab/tests/sec05d_multi_connection_smoke.py');
+ const ci=read('.github/workflows/ci.yml');
+ assert.match(sql,/CI-ONLY TEST FUNCTION/);
+ assert.match(sql,/DO NOT DEPLOY OR EXPOSE AS AN API/);
+ assert.match(sql,/SECURITY INVOKER/);
+ assert.match(sql,/FROM negresco_sec05c_lab\.accounts\s+WHERE account_id = p_account FOR UPDATE/);
+ assert.match(sql,/checked_at := clock_timestamp\(\)/);
+ assert.match(sql,/DENY_STALE_ACCOUNT_STATE/);
+ assert.match(sql,/DENY_REPLAYED_SEQUENCE/);
+ assert.match(sql,/ALREADY_RECORDED_NO_GRANT/);
+ assert.match(sql,/RECORDED_FIXTURE_ONLY/);
+ assert.match(sql,/UPDATE negresco_sec05c_lab\.devices SET/);
+ assert.doesNotMatch(sql,/INSERT INTO negresco_sec05c_lab\.devices/);
+ assert.match(python,/ThreadPoolExecutor\(max_workers=8\)/);
+ assert.match(python,/BEGIN; SELECT/);
+ assert.match(python,/ROLLBACK;/);
+ assert.match(python,/DENY_IDEMPOTENCY_CONFLICT/);
+ assert.match(python,/DENY_UNKNOWN_INVITATION/);
+ assert.match(python,/DENY_EXPIRED/);
+ assert.match(python,/DENY_REVOKED_OR_UNKNOWN_APPROVER/);
+ assert.match(python,/zero device enrollment/);
+ assert.match(ci,/003_sec05d_ci_receipt_rehearsal\.sql/);
+ assert.match(ci,/sec05d_multi_connection_smoke\.py/);
+ const mainSchema=read('tooling/security-authority-protocol-lab/postgres/001_sec05c_schema.sql');
+ assert.doesNotMatch(mainSchema,/ci_rehearse_receipt_only/);
+});
