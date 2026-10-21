@@ -38,6 +38,19 @@ Os dados cifrados individuais usam AAD com conta, registro, versão e geração,
 
 O laboratório contém cenários de queda **após sync do candidato, após PREPARED, após COMMITTED e após substituição ativa**, com simulação de reinício por criação de nova instância. Inclui segredo errado, conta/kit obsoletos, alteração de ciphertext AES-GCM, alteração de arquivos do journal/estado, recusa de replay, nenhuma publicação parcial e corrida de dois escritores com `FileLock`. Os testes são conectados ao `policyCheck` JVM e há contrato Node para impedir importação pelo aplicativo Expo.
 
+### Reforço com processos JVM independentes
+
+O verificador `NativeLockCoordinatorTestKt` inclui o modo isolado `--sec05k-recover-fixture-only <pasta-temporaria>`, que **não recebe segredo, DEK, plaintext nem autorização** na linha de comando. O teste inicia um novo processo `java` com `ProcessBuilder` e confere a recuperação no diretório descartável com **heap e identificador de processo diferentes**. São exercitados:
+
+1. Reinício limpo e candidato órfão ainda sem journal;
+2. `PREPARED` retornando à geração antiga, com repetição permitida;
+3. `COMMITTED` concluindo a nova geração, inclusive pós-`active.snapshot` substituído e segundo reinício;
+4. Arquivo candidato comprometido após `COMMITTED` e journal alterado, ambos **fail closed**;
+5. Bloqueio `FileLock` detido por outro processo, com `DENY_BUSY`, liberando o acesso somente após saída do lock;
+6. Teste estático Node impedindo que os segredos sintéticos sejam repassados ao processo filho.
+
+Esses testes diferenciam **nova instância JVM** de **novo processo JVM**, que anteriormente não havia sido exercitado. Ainda não equivalem a matar fisicamente o processo com `SIGKILL` ou cortar energia; o sistema operacional e seu filesystem podem ter comportamento de persistência diferente.
+
 **Atenção:** injeção de crash por ponto de parada **não equivale** a teste de energia cortada ou falha de armazenamento físico. Sincronização de diretório e rename atômico dependem das garantias efetivas do sistema operacional e filesystem; é necessário verificar em hardware e sistemas de arquivos suportados.
 
 ## Faltam antes de produção
