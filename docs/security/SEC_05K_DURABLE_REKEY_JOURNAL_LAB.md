@@ -158,6 +158,16 @@ Os estados `MAY_*` **NÃO são permissões operacionais**: um motor de reconcili
 
 **Riscos ainda abertos:** não há autoridade independente implantada, contador remoto realmente monotônico, assinaturas de geração ligadas ao snapshot com prova de frescor, banco SQLCipher integrado, compensação quando a autoridade avançou mas o arquivo não foi publicado, idempotência interprocesso/interdevice, autenticação do titular ou backup externo verdadeiro. Os resultados deste arquivo permanecem **LABORATÓRIO / NÃO PRODUÇÃO**.
 
+## Ensaio assinado Ed25519: desafio de uso único vinculado à geração
+
+O componente JVM `SyntheticSignedRekeyAuthorityChallengeLab` acrescenta verificação **criptográfica** de resposta Ed25519 sobre um payload binário canônico com *domain separation*, conta opaca, ID do kit, versão, geração, SHA-256 do snapshot cifrado e desafio aleatório de **32 bytes** gerado pelo cliente de teste. Um `SyntheticSignedRekeyChallengeSessionLab` consome cada desafio na primeira tentativa de verificação, mesmo inválida; uma segunda tentativa no mesmo objeto é recusada. A chave pública de verificação é **fornecida de forma independente pelo teste** e é validada estritamente como Ed25519 usando o validador RFC 8410 já existente.
+
+O ensaio cobre assinatura válida sob a chave pinada, desafio trocado, repetição da assinatura anterior com desafio novo, assinatura alterada, chave alheia, algoritmo EC/P-256, assinatura ausente/curta, afirmação vazia/malformada, conta incorreta, kit alheio, versão desatualizada, geração diferente e hash cifrado alterado. Não há chave privada persistida, dados bancários ou serviços externos envolvidos.
+
+**NÃO é autoridade online implantada.** Mesmo com assinatura válida, o resultado da verificação é deliberadamente `VERIFIED_SIGNATURE_FIXTURE_ONLY_NOT_LIVE_AUTHORITY`; a política de reconciliação o classifica como `SIGNED_CHALLENGE_FIXTURE_ONLY_NO_LIVE_AUTHORITY` e responde `HOLD_EXTERNAL_AUTHORITY_REQUIRED`. Uma assinatura sobre um nonce **não comprova por si só que um emissor está conectado a um contador monotônico independente**, que sua chave foi provisionada de forma confiável ou que a resposta veio de um servidor com estado transacional atualizado. O desafio é consumido apenas em memória JVM: não existe gerenciamento durável de nonce, canal de comunicação, tempo de expiração auditável nem proteção contra outro processo com acesso privilegiado.
+
+**Próximos gates:** autoridade realmente independente com geração monotônica por conta, pinning de chave distribuído com segurança, desafio fresco com nonce persistido, vinculação ao commit/journal exato, atomicidade da atualização remota, reconciliação de timeout e testes entre dispositivos. Não conectar esse ensaio ao APK nem convertê-lo em autorização financeira.
+
 ## Faltam antes de produção
 
 - **Backup externo real confirmado:** o parâmetro de envelope+segredo verifica criptografia, mas **não demonstra que o usuário salvou o segredo fora do dispositivo**. Queda após a decisão de commit pode tornar os dados inacessíveis se o único segredo ficou na memória do processo. Deve existir cerimônia de backup externo com prova segura, persistente e independente **antes** do commit, sem guardar o segredo em claro.
