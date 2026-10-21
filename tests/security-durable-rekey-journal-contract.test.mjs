@@ -252,3 +252,30 @@ test('SEC-05K reconciliation requires genuinely fresh pinned authority and never
   assert.match(runner, /runSyntheticJournalAuthorityReconciliationPolicyScenarios/);
   assert.doesNotMatch(mobile, /SyntheticJournalAuthorityReconciliationPolicyLab/);
 });
+
+test('SEC-05K signed generation challenge verifier cannot promote signature fixture to live monotonic authority', () => {
+  const code = read(kotlin + 'SyntheticSignedRekeyAuthorityChallengeLab.kt');
+  const suite = read(fixtures + 'SyntheticSignedRekeyAuthorityChallengeLabTest.kt');
+  const policy = read(kotlin + 'SyntheticJournalAuthorityReconciliationPolicyLab.kt');
+  const cases = read(fixtures + 'SyntheticJournalAuthorityReconciliationPolicyLabTest.kt');
+  const runner = read(fixtures + 'NativeLockCoordinatorTest.kt');
+  assert.match(code, /Signature\.getInstance\("Ed25519"\)/);
+  assert.match(code, /SyntheticSignedDeviceProofLab\.fingerprint\(key\)/);
+  assert.match(code, /challenge\.copyOf\(\)/);
+  assert.match(code, /@Synchronized/);
+  assert.match(code, /used = true/);
+  assert.match(code, /MessageDigest\.isEqual\(challenge, returnedChallenge\)/);
+  assert.match(code, /VERIFIED_SIGNATURE_FIXTURE_ONLY_NOT_LIVE_AUTHORITY/);
+  assert.match(code, /ciphertextHash/);
+  assert.match(code, /out\.writeLong\(claim\.generation\)/);
+  assert.match(code, /out\.write\(freshChallenge\)/);
+  assert.match(policy, /SIGNED_CHALLENGE_FIXTURE_ONLY_NO_LIVE_AUTHORITY/);
+  assert.match(cases, /SIGNED_CHALLENGE_FIXTURE_ONLY_NO_LIVE_AUTHORITY/);
+  assert.match(suite, /signature replay using new challenge is rejected/);
+  assert.match(suite, /failed challenge attempt consumes nonce too/);
+  assert.match(suite, /valid signature from unpinned signer fails/);
+  assert.match(suite, /P-256 key cannot masquerade as Ed25519/);
+  assert.match(suite, /signed response bound to wrong \$reason is rejected/);
+  assert.match(runner, /runSyntheticSignedRekeyAuthorityChallengeScenarios/);
+  assert.doesNotMatch(code, /VERIFIED_LIVE_CURRENT/);
+});
