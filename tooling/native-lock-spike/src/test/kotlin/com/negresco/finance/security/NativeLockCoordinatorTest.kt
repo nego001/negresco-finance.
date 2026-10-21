@@ -61,6 +61,23 @@ fun main(args: Array<String>) {
     // checkpoint has completed. Do NOT call outside disposable test fixtures.
     Runtime.getRuntime().halt(73)
   }
+  // SEC-05K detached proof in a FRESH JVM without the original DEK in heap.
+  // A verified envelope is loaded from a separate disposable export file;
+  // a 32-byte test secret arrives on stdin and is wiped before returning.
+  if (args.size == 7 && args[0] == "--sec05k-verify-detached-fixture-only") {
+    val secret = ByteArray(32)
+    val check = try {
+      java.io.DataInputStream(System.`in`).readFully(secret)
+      val backup = java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(args[6]))
+      SyntheticDurableRekeyJournalLab(
+        java.nio.file.Paths.get(args[1])
+      ).verifyDetachedBackupAfterRestartFixtureOnly(
+        args[2], args[3], args[4].toLong(), args[5].toLong(), backup, secret
+      ).check
+    } finally { secret.fill(0) }
+    println("SEC05K_DETACHED_PROOF=" + check.name)
+    return
+  }
   require(args.isEmpty()) { "Unexpected arguments to isolated policy runner" }
   run {
     val storage = MemoryAtomicStore()
