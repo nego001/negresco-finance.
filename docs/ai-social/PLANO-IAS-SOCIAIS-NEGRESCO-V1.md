@@ -12,7 +12,7 @@ Antes de ligar agentes a dinheiro, exigem-se controles independentes de IA: iden
 Sequência de entrega definida para o Finance: Fase 1 base de segurança → Fase 2 finanças manuais → Fase 3 agentes com dados mock e camada social → Fase 4 integrações externas consentidas → Fase 5 refinamento e lançamento. É possível preparar contratos antes sem habilitar execução, desde que não desvie SEC-05K.
 
 Projetar pacotes independentes e substituíveis:
-- `agent-registry` (nomes, cargos, versões, status, locutor).
+- `agent-registry` (17 nomes, cargos, versões, status, locutor e referências de avatar).
 - `persona-engine` (traços, estilos textuais e modos contextuais).
 - `agent-policy` (capabilities e auditoria, **fora do modelo**).
 - `agent-event-bus` (eventos explícitos autorizados, origem/causalidade/idempotência).
@@ -27,13 +27,13 @@ Projetar pacotes independentes e substituíveis:
 | Fase | Entrega planejada | Dependências | Gate de aceite |
 |---|---|---|---|
 | **S0** | Visão adaptada, nomes, cargos, papéis, contratos, interfaces, fronteiras | aprovação de produto | docs rastreáveis + nenhuma alteração da etapa ativa |
-| **S1** | Agent Registry v1, Persona Engine, modos de criticidade | Fase 3 segura / mocks | sete identidades, nomes por namespace, traços individualizados, teste de consistência e rename sem escalada |
+| **S1** | Agent Registry v1, Persona Engine, modos de criticidade | Fase 3 segura / mocks | 17 perfis futuros, nomes por namespace, aparência/fallback 2D, traços individualizados e rename sem escalada |
 | **S2** | Policy Gate real, Agent Conversation Bus, Audit/Event Log | identidade, consentimento, event store | origem autenticada, causalidade, idempotência, retenção, nenhuma fala inventada |
 | **S3** | Chat individual e Sala das IAs | S1/S2 | rótulos REAL/DEMO, filtros, threads, histórico, acessibilidade, objeções rastreáveis |
 | **S4** | Mission Observer, Live Preview e replay | executores existentes + S2/S3 | somente RUNNING/COMPLETED reais, interrupções/erros preservados, porcentagem só medível |
 | **S5** | Social Graph, humor, intimidade simulada e controles | S2/S3, política de dados | evolução por evento real, banter 0–3, reset, silenciar no CRITICO, sem impacto em permissões |
 | **S6** | Diretor de Voz, TTS por IA, legendas | S1/S3, provider/opt-in | voz distinta quando suportada, legenda exata, fallback offline e privacidade |
-| **S7** | Notificações identificadas por IA | Registry + eventos reais + consentimento push | nome correto, origem, dedupe, lockscreen privado, silêncio e horários |
+| **S7** | Notificações identificadas por IA, avatar quando suportado, deep link, canais individuais | Registry + eventos reais + consentimento push | nome e origem corretos no Android, fallback de ícone, dedupe, lockscreen privado, silêncio e horários |
 | **S8** | Homologação e rollout gradual | S1–S7 + base de produção | Android real, TalkBack, carga, perda de rede, auditoria, custo, privacidade, incident response |
 
 Gates são **cumulativos**. Marcar `DONE` por documento é proibido: exige código, testes, CI no commit correspondente e avaliação manual onde aplicável. S0 é o único item que pode ser considerado **documentado**, não recurso entregue.
@@ -104,3 +104,9 @@ Registrar com dados sintéticos antes de integração: taxa de hallucination de 
 - Dados de produção não entram em laboratório SEC-05K. Não misturar build Android real nem testes de migração de DEK com a documentação social.
 - Todos os módulos S1–S8: `NOT_IMPLEMENTED`. Somente S0: `DOCS_DRAFT` até revisão/aprovação. Não marcar nenhum teste como PASS sem execução.
 - Sem merge automático desta documentação. PR apenas rascunho.
+
+## 8. Identidade visual e notificações S7 das 17 inteligências
+
+A expansão da equipe de sete para **17 agentes planejados** (incluindo Valentina, Yasmin, Isabela, Beatriz, Enzo, Arthur, Gabriel, Clara, Bianca e Leonardo), diretrizes de aparência própria e entrega da etapa de notificações S7 está documentada no [Catálogo de 17 IAs](CATALOGO-17-IAS-IDENTIDADE-VISUAL-NOTIFICACOES-V1.md).
+
+**S1:** definir identidade e assinatura visual estática/fallback; **S3–S4:** avatar no chat e preview apenas ligado a eventos de execução reais; **S6:** voz, legenda e lip-sync somente se realmente suportados; **S7:** push com nome/cargo/ícone quando permitido pelo Android, controle por IA, origem real e privacidade. **S8:** teste em aparelhos, performance, acessibilidade, sem payload financeiro sensível em lockscreen. Nada foi codificado ou disponibilizado por esta documentação. SEC-05K permanece ativa, sem alteração de branch de segurança.
