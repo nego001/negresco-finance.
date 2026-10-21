@@ -60,6 +60,7 @@ internal class SyntheticDurableRekeyJournalLab(private val directory: Path) {
   private val pending = directory.resolve("pending.snapshot")
   private val journal = directory.resolve("migration.journal")
   private val lockPath = directory.resolve("migration.lock")
+  private val provisioned = directory.resolve("provisioned.guard")
   private val stateMagic = 0x4e47534b // NGSK
   private val journalMagic = 0x4e474a4b // NGJK
   private val format = 1
@@ -73,6 +74,9 @@ internal class SyntheticDurableRekeyJournalLab(private val directory: Path) {
     val oldKit: String, val newKit: String, val oldHash: ByteArray,
     val newHash: ByteArray
   )
+
+  private fun provisionedBytes(): ByteArray =
+    frame("negresco.finance.sec05k.provisioned.disposable.v1".toByteArray(Charsets.US_ASCII))
 
   private fun sha256(bytes: ByteArray): ByteArray =
     MessageDigest.getInstance("SHA-256").digest(bytes)
@@ -154,7 +158,17 @@ internal class SyntheticDurableRekeyJournalLab(private val directory: Path) {
       Files.createDirectories(directory)
       // Reserved paths must not be symlinks; reject even dangling aliases.
       require(!Files.isSymbolicLink(directory))
-      require(listOf(active, pending, journal, lockPath).none(Files::isSymbolicLink))
+      require(listOf(active, pending, journal, lockPath, provisioned).none(Files::isSymbolicLink))
+      // Immutable fixture-era guard: a vanished active file must NOT permit
+      // silent re-provisioning. This is locally checksummed, NOT anti-rollback.
+      if (existsNoFollow(provisioned)) {
+        require(MessageDigest.isEqual(
+          readBytes(provisioned) ?: error("Missing provision marker"),
+          provisionedBytes()))
+      } else {
+        require(!existsNoFollow(active) && !existsNoFollow(pending) &&
+          !existsNoFollow(journal))
+      }
       FileChannel.open(lockPath,
         StandardOpenOption.CREATE, StandardOpenOption.WRITE,
         LinkOption.NOFOLLOW_LINKS).use { channel ->
@@ -289,10 +303,14 @@ internal class SyntheticDurableRekeyJournalLab(private val directory: Path) {
   /** First fixture only: exclusive process lock and durable initial ciphertext. */
   fun seedFixtureOnly(snapshot: SyntheticRekeySnapshotLab, envelope: ByteArray) =
     exclusive(result(SyntheticJournalCheckLab.DENY_BUSY), result(SyntheticJournalCheckLab.FAIL_CLOSED)) {
-      if (existsNoFollow(active) || existsNoFollow(journal) || existsNoFollow(pending))
+      if (existsNoFollow(active) || existsNoFollow(journal) ||
+          existsNoFollow(pending) || existsNoFollow(provisioned))
         return@exclusive result(SyntheticJournalCheckLab.DENY_INVALID_OR_STALE)
       val state = Stored(snapshot, envelope.copyOf())
       validate(state)
+      // Mark first; interrupted provisioning must fail closed rather than
+      // creating a fresh identity over previously lost/corrupt ciphertext.
+      atomicWrite(provisioned, provisionedBytes())
       atomicWrite(active, encodeState(state))
       result(SyntheticJournalCheckLab.SEEDED_FIXTURE_ONLY, state)
     }
