@@ -20,3 +20,7 @@ Prioridade corrente: **Fase 1 — Base confiável**. Em seguida: Fase 2 (finanç
 Nomes, cargos, personalidades, vozes, avaliações independentes e módulos proativos de compras, jogos, assinaturas e economia estão descritos em [Visão Multiagente Futura](AI_MULTIAGENT_FUTURE_VISION.md). **Não são recursos implementados**, não possuem acesso bancário real e não alteram a ordem de entrega.
 
 **Etapa atual de segurança: SEC-05K**, journal durável e recuperação de migração criptográfica interrompida, limitada a fixtures descartáveis. Leia [SEC-05K](security/SEC_05K_DURABLE_REKEY_JOURNAL_LAB.md). PR #14 segue em rascunho e não autoriza APK/merge.
+
+### Backlog separado: IAs sociais e processo vivo
+
+[Arquitetura social do Negresco Finance v1](ai-social/ARQUITETURA-IAS-SOCIAIS-NEGRESCO-V1.md) e [Plano de implantação S0–S8](ai-social/PLANO-IAS-SOCIAIS-NEGRESCO-V1.md) aproveitam princípios gerais do NegrecoDroid sem importar nomes, hierarquia ou dados do outro aplicativo. Futuro chat de equipe, prévia de execução real, personalidade e voz, relação social simulada e notificação por nome. **Nenhum módulo implementado; não iniciar S1–S8 antes dos gates de segurança e da fase de IAs.** A etapa atual permanece **SEC-05K**.
