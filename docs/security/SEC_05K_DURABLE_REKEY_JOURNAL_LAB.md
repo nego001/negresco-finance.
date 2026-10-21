@@ -81,6 +81,16 @@ A matriz da SEC-05K cobre aliases para snapshots válidos fora do diretório, ca
 
 **Limites:** é um reforço local que demonstra rejeição de aliases no **fixture**. Não é uma solução completa para symlink races/TOCTOU entre validação e uso, hardlinks, montagens de diretório, permissões inseguras de diretórios ascendentes ou processo hostil com acesso de escrita à pasta. Implementação real exige diretório privado com permissões restritas, operações atômicas seguras para o sistema operacional alvo, auditoria e testes de hardware. Nenhum desses controles é aprovado no APK.
 
+## Reforço de concorrência: leitura pelo descriptor e verificação pós-publicação
+
+O laboratório SEC-05K troca a leitura baseada em `Files.readAllBytes(path)` por `FileChannel.open(path, READ, NOFOLLOW_LINKS)`, mantém o **mesmo descriptor aberto** ao conferir tamanho e ler os bytes e recusa arquivo truncado, leitura sem progresso ou tamanho alterado durante a operação. Isso reduz a janela específica de troca de symlink **entre a inspeção de caminho e a abertura do arquivo**, além de limitar leituras a 128 KiB.
+
+A etapa de commit já escreve `COMMITTED` de forma síncrona **antes** de mover o candidato. Agora também revalida o hash do candidato após o marker e, **depois do rename e do fsync do diretório**, relê o `active.snapshot` para comparar seu hash com o `newHash` do journal **antes de apagar o marcador**. A retomada `COMMITTED` faz a mesma revalidação prévia e posterior à publicação quando precisa mover um candidato. Se o conteúdo publicado não corresponder, retorna `FAIL_CLOSED` e **preserva o marcador COMMITTED para diagnóstico**, em vez de relatar sucesso.
+
+Foram adicionadas duas corrupções intencionais, exclusivas do laboratório: `TAMPER_PENDING_BEFORE_PUBLISH_FIXTURE_ONLY` altera o candidato depois de sincronizar `COMMITTED`; `TAMPER_ACTIVE_AFTER_PUBLISH_FIXTURE_ONLY` altera a cópia ativa depois da substituição mas antes da verificação pós-publicação. Os testes precisam recusar ambas sem apagar o marcador, sem retorno de autorização financeira e sem rollback silencioso. Um commit normal continua verificável e limpa o journal.
+
+**Limites explícitos:** duas leituras de checksum **não fornecem exclusão mútua contra processos hostis que ignoram o lock**, nem impedem substituição posterior ao último check, arquivo hardlinkado, diretorios pais controlados por atacante, TOCTOU em operações de rename/remove, corrupção de energia ou adulteração com SHA-256 recalculado. A proteção de produção dependerá de diretório privado, primitivas do SO, credenciais/geração monotônica autenticadas e revisão da arquitetura nativa. Não confundir este teste com solução completa para concorrência ou prevenção de tamper.
+
 ## Faltam antes de produção
 
 - **Backup externo real confirmado:** o parâmetro de envelope+segredo verifica criptografia, mas **não demonstra que o usuário salvou o segredo fora do dispositivo**. Queda após a decisão de commit pode tornar os dados inacessíveis se o único segredo ficou na memória do processo. Deve existir cerimônia de backup externo com prova segura, persistente e independente **antes** do commit, sem guardar o segredo em claro.
