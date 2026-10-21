@@ -176,5 +176,6 @@ fun main() {
     runSignedAuthorityLedgerIntegrationScenarios()
     runSyntheticDeviceEnrollmentProofScenarios()
     runPersistentEnrollmentInviteScenarios()
+    runSyntheticAccountInviteAuthorityScenarios()
   }
 }
