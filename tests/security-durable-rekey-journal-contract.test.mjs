@@ -104,3 +104,25 @@ test('SEC-05K abrupt child JVM termination checks detached export without leakin
   assert.match(cases, /secret = randomKey\(\)/);
   assert.doesNotMatch(cases, /mode, dir\.toAbsolutePath\(\)\.toString\(\), account, s\.before\.kitId,\s*(oldSecret|newSecret|oldKey)/);
 });
+
+test('SEC-05K fresh-JVM detached kit recovery checks every encrypted record without owner authority', () => {
+  const code = read(kotlin + 'SyntheticDurableRekeyJournalLab.kt');
+  const cases = read(fixtures + 'SyntheticDurableRekeyJournalLabTest.kt');
+  const runner = read(fixtures + 'NativeLockCoordinatorTest.kt');
+  assert.match(code, /VERIFIED_DETACHED_BACKUP_FIXTURE_ONLY/);
+  assert.match(code, /verifyDetachedBackupAfterRestartFixtureOnly/);
+  assert.match(code, /Files\.exists\(journal\) \|\| Files\.exists\(pending\)/);
+  assert.match(code, /current\.records\.values\.all/);
+  assert.match(code, /clear\?\.fill\(0\)/);
+  assert.match(code, /dataKey\.fill\(0\)/);
+  assert.match(code, /MessageDigest\.isEqual\(snapshot\.envelope, externallySuppliedEnvelope\)/);
+  assert.match(runner, /--sec05k-verify-detached-fixture-only/);
+  assert.match(runner, /SEC05K_DETACHED_PROOF=/);
+  assert.match(runner, /readNBytes\(secret, 0, secret\.size\)/);
+  assert.match(cases, /verifyDetachedInIndependentJvm/);
+  assert.match(cases, /fresh third JVM decrypts every current record/);
+  assert.match(cases, /wrong detached recovery secret/);
+  assert.match(cases, /rollback\/stale expected generation/);
+  assert.match(cases, /corrupted durable active ciphertext fails closed/);
+  assert.doesNotMatch(runner, /--sec05k-verify-detached-fixture-only",[\s\S]{0,200}s\.newSecret/);
+});
