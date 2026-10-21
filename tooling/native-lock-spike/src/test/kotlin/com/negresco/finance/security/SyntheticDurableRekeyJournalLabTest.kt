@@ -644,5 +644,102 @@ internal fun runSyntheticDurableRekeyJournalScenarios() {
       "corrupted durable active ciphertext fails closed even with valid recovery kit")
   }
 
+  // Storage-path hardening: no snapshot, pending journal, lock file or fixture
+  // directory may resolve through an attacker-controlled symbolic link.
+  // This verifies fail-closed behavior in the JVM lab, NOT race-free filesystem
+  // integrity against an active adversary who can rewrite parent directories.
+  run {
+    val s = scenario()
+    val dir = root()
+    seed(dir, s)
+    val outside = root().resolve("external-valid-snapshot")
+    val original = Files.readAllBytes(dir.resolve("active.snapshot"))
+    Files.write(outside, original)
+    Files.delete(dir.resolve("active.snapshot"))
+    Files.createSymbolicLink(dir.resolve("active.snapshot"), outside)
+    verify(journal(dir).recoverFixtureOnly().check == SyntheticJournalCheckLab.FAIL_CLOSED,
+      "symlink active snapshot cannot be followed even if target is valid")
+    verify(Files.readAllBytes(outside).contentEquals(original),
+      "external snapshot target is unchanged on rejected symlink")
+    Files.delete(dir.resolve("active.snapshot"))
+    Files.write(dir.resolve("active.snapshot"), original)
+    checkOld(journal(dir).recoverFixtureOnly(), s,
+      "recovered after removing active snapshot symlink")
+  }
+  run {
+    val s = scenario()
+    val dir = root()
+    seed(dir, s)
+    prepare(dir, s, SyntheticJournalCrashLab.AFTER_PREPARE_SYNC)
+    val outside = root().resolve("external-pending-candidate")
+    Files.copy(dir.resolve("pending.snapshot"), outside)
+    Files.delete(dir.resolve("pending.snapshot"))
+    Files.createSymbolicLink(dir.resolve("pending.snapshot"), outside)
+    verify(recoverInIndependentJvm(dir) == SyntheticJournalCheckLab.FAIL_CLOSED,
+      "independent JVM refuses symlinked pending generation")
+    Files.delete(dir.resolve("pending.snapshot"))
+    verify(recoverInIndependentJvm(dir) == SyntheticJournalCheckLab.RECOVERED_PREPARE_ROLLBACK,
+      "legitimate PREPARED rollback works after symlink is removed")
+    checkOld(journal(dir).recoverFixtureOnly(), s,
+      "symlinked pending snapshot never publishes a generation")
+  }
+  run {
+    val s = scenario()
+    val dir = root()
+    seed(dir, s)
+    prepare(dir, s, SyntheticJournalCrashLab.AFTER_PREPARE_SYNC)
+    val oldJournal = Files.readAllBytes(dir.resolve("migration.journal"))
+    val outside = root().resolve("external-journal-marker")
+    Files.write(outside, oldJournal)
+    Files.delete(dir.resolve("migration.journal"))
+    Files.createSymbolicLink(dir.resolve("migration.journal"), outside)
+    verify(journal(dir).recoverFixtureOnly().check == SyntheticJournalCheckLab.FAIL_CLOSED,
+      "symlinked COMMIT/PREPARE marker is never followed")
+    Files.delete(dir.resolve("migration.journal"))
+    Files.write(dir.resolve("migration.journal"), oldJournal)
+    verify(recoverInIndependentJvm(dir) == SyntheticJournalCheckLab.RECOVERED_PREPARE_ROLLBACK,
+      "restored real journal marker permits safe rollback")
+  }
+  run {
+    val s = scenario()
+    val dir = root()
+    seed(dir, s)
+    val external = root().resolve("external-lock-target")
+    val marker = byteArrayOf(11, 22, 33, 44)
+    Files.write(external, marker)
+    Files.delete(dir.resolve("migration.lock"))
+    Files.createSymbolicLink(dir.resolve("migration.lock"), external)
+    verify(journal(dir).recoverFixtureOnly().check == SyntheticJournalCheckLab.FAIL_CLOSED,
+      "symlinked lock cannot acquire/redirect lock outside fixture")
+    verify(Files.readAllBytes(external).contentEquals(marker),
+      "rejecting a lock alias does not change its target")
+    Files.delete(dir.resolve("migration.lock"))
+    checkOld(journal(dir).recoverFixtureOnly(), s,
+      "real lock is recreated safely after alias removal")
+  }
+  run {
+    val s = scenario()
+    val dir = root()
+    seed(dir, s)
+    val alias = root().resolve("aliased-state-directory")
+    Files.createSymbolicLink(alias, dir)
+    verify(journal(alias).recoverFixtureOnly().check == SyntheticJournalCheckLab.FAIL_CLOSED,
+      "symlinked fixture root directory cannot be trusted")
+    checkOld(journal(dir).recoverFixtureOnly(), s,
+      "real directory is still readable after rejected alias")
+  }
+  run {
+    val s = scenario()
+    val dir = root()
+    seed(dir, s)
+    val dangling = dir.resolve("pending.snapshot")
+    Files.createSymbolicLink(dangling, dir.resolve("does-not-exist.snapshot"))
+    verify(journal(dir).recoverFixtureOnly().check == SyntheticJournalCheckLab.FAIL_CLOSED,
+      "dangling pending alias is not misclassified as an absent orphan")
+    Files.delete(dangling)
+    checkOld(journal(dir).recoverFixtureOnly(), s,
+      "recovery resumes only after dangling alias removal")
+  }
+
   println("PASS: SEC-05K $checks durable-restart journal checks (disposable JVM fixtures)")
 }
