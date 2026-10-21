@@ -741,5 +741,54 @@ internal fun runSyntheticDurableRekeyJournalScenarios() {
       "recovery resumes only after dangling alias removal")
   }
 
+  // SEC-05K publication boundary: a candidate can change after the first
+  // valid checksum check but before ATOMIC_MOVE. Preserve the COMMITTED marker
+  // and fail closed rather than publishing unverified bytes.
+  run {
+    val scenario = scenario()
+    val dir = root()
+    seed(dir, scenario)
+    val old = Files.readAllBytes(dir.resolve("active.snapshot"))
+    prepare(dir, scenario)
+    verify(commit(dir, scenario,
+      SyntheticJournalCrashLab.TAMPER_PENDING_BEFORE_PUBLISH_FIXTURE_ONLY).check ==
+      SyntheticJournalCheckLab.FAIL_CLOSED,
+      "tamper after durable commit decision is rejected before candidate promotion")
+    verify(Files.readAllBytes(dir.resolve("active.snapshot")).contentEquals(old),
+      "old active bytes remain untouched when staged candidate changes")
+    verify(Files.exists(dir.resolve("migration.journal")),
+      "COMMITTED journal remains after detecting a changed staged candidate")
+    verify(journal(dir).recoverFixtureOnly().check == SyntheticJournalCheckLab.FAIL_CLOSED,
+      "recovery does not silently roll back the corrupted COMMITTED candidate")
+  }
+  run {
+    val scenario = scenario()
+    val dir = root()
+    seed(dir, scenario)
+    prepare(dir, scenario)
+    verify(commit(dir, scenario,
+      SyntheticJournalCrashLab.TAMPER_ACTIVE_AFTER_PUBLISH_FIXTURE_ONLY).check ==
+      SyntheticJournalCheckLab.FAIL_CLOSED,
+      "post-promotion corruption is detected before journal cleanup")
+    verify(Files.exists(dir.resolve("migration.journal")),
+      "COMMITTED decision stays durable when published ciphertext is corrupted")
+    verify(journal(dir).recoverFixtureOnly().check == SyntheticJournalCheckLab.FAIL_CLOSED,
+      "broken published bytes cannot become a successful recovered generation")
+  }
+  run {
+    val scenario = scenario()
+    val dir = root()
+    seed(dir, scenario)
+    prepare(dir, scenario)
+    verify(commit(dir, scenario).check ==
+      SyntheticJournalCheckLab.COMMITTED_FIXTURE_ONLY_NOT_AUTHORIZATION,
+      "normal commit still succeeds with post-publication attestation")
+    verify(!Files.exists(dir.resolve("migration.journal")),
+      "successful verified commit safely removes journal")
+    verify(journal(dir).recoverFixtureOnly().check ==
+      SyntheticJournalCheckLab.CONSISTENT_FIXTURE_ONLY,
+      "verified ciphertext remains consistent in later JVM fixture")
+  }
+
   println("PASS: SEC-05K $checks durable-restart journal checks (disposable JVM fixtures)")
 }
