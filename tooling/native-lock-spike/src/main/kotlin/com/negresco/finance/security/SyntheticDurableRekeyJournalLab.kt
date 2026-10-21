@@ -33,6 +33,7 @@ internal enum class SyntheticJournalCrashLab {
 }
 internal enum class SyntheticJournalCheckLab {
   SEEDED_FIXTURE_ONLY,
+  VERIFIED_DETACHED_BACKUP_FIXTURE_ONLY,
   PREPARED_FIXTURE_ONLY,
   COMMITTED_FIXTURE_ONLY_NOT_AUTHORIZATION,
   RECOVERED_PREPARE_ROLLBACK,
@@ -437,5 +438,72 @@ internal class SyntheticDurableRekeyJournalLab(private val directory: Path) {
       syncDirectory()
       remove(journal)
       result(SyntheticJournalCheckLab.RECOVERED_COMMIT_FINALIZED, next)
+    }
+
+  /**
+   * SEC-05K detached recovery rehearsal AFTER journal recovery has settled.
+   *
+   * This proves that a supplied portable encrypted envelope plus a detached
+   * secret can still decrypt ALL current disposable records after a restart.
+   * Neither detached input is read from journal/storage by this method.
+   *
+   * NOT a backup-retention receipt, owner authorization, portable SQLCipher
+   * recovery, hardware security guarantee, or anti-rollback protection.
+   * The caller must independently supply the expected current generation.
+   */
+  fun verifyDetachedBackupAfterRestartFixtureOnly(
+    expectedAccount: String, expectedKitId: String,
+    expectedVersion: Long, expectedGeneration: Long,
+    externallySuppliedEnvelope: ByteArray, detachedSecret: ByteArray
+  ): SyntheticJournalResultLab =
+    exclusive(result(SyntheticJournalCheckLab.DENY_BUSY), result(SyntheticJournalCheckLab.FAIL_CLOSED)) {
+      // Proof is meaningful only after all outstanding migration decisions
+      // have been recovered. Never implicitly clean or commit while verifying.
+      if (Files.exists(journal) || Files.exists(pending))
+        return@exclusive result(SyntheticJournalCheckLab.DENY_INVALID_OR_STALE)
+      val bytes = readBytes(active)
+        ?: return@exclusive result(SyntheticJournalCheckLab.FAIL_CLOSED)
+      val snapshot = decodeState(bytes)
+      val current = snapshot.snapshot
+      if (current.accountId != expectedAccount ||
+          current.kitId != expectedKitId ||
+          current.version != expectedVersion ||
+          current.generation != expectedGeneration ||
+          !MessageDigest.isEqual(snapshot.envelope, externallySuppliedEnvelope) ||
+          detachedSecret.size != 32)
+        return@exclusive result(SyntheticJournalCheckLab.DENY_RECOVERY_PROOF)
+
+      val imported = SyntheticPortableRecoveryEnvelopeLab.importEnvelopeBytesFixtureOnly(
+        externallySuppliedEnvelope, expectedAccount
+      )
+      if (imported.check != SyntheticPortableEnvelopeCheck.PARSED_ONLY_NOT_AUTHENTICATED)
+        return@exclusive result(SyntheticJournalCheckLab.DENY_RECOVERY_PROOF)
+      val envelope = imported.envelope
+        ?: return@exclusive result(SyntheticJournalCheckLab.DENY_RECOVERY_PROOF)
+      if (envelope.kitId != current.kitId ||
+          envelope.keyVersion != current.version ||
+          envelope.ownerGeneration != current.generation)
+        return@exclusive result(SyntheticJournalCheckLab.DENY_RECOVERY_PROOF)
+
+      val dataKey = SyntheticOfflineRecoveryKitCryptoLab.recoverDataKeyFixtureOnly(
+        envelope, detachedSecret
+      )?.copyForFixtureOnly()
+        ?: return@exclusive result(SyntheticJournalCheckLab.DENY_RECOVERY_PROOF)
+      val verified = try {
+        current.records.values.all { record ->
+          val clear = SyntheticRecordCipherLab.decryptFixtureOnly(
+            expectedAccount, record, dataKey
+          )
+          try { clear != null }
+          finally { clear?.fill(0) }
+        }
+      } finally {
+        dataKey.fill(0)
+      }
+      if (!verified)
+        return@exclusive result(SyntheticJournalCheckLab.DENY_RECOVERY_PROOF)
+
+      // Do not return decrypted material or snapshot on successful proof.
+      result(SyntheticJournalCheckLab.VERIFIED_DETACHED_BACKUP_FIXTURE_ONLY)
     }
 }
