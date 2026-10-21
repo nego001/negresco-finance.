@@ -42,7 +42,7 @@ test('SEC-05E JDBC is test-scope only, CI-only, not an Android dependency or API
  const app=read('apps/mobile/app.json');
  assert.match(gradle,/testImplementation\("org\.postgresql:postgresql:/);
  assert.match(gradle,/tasks\.register<JavaExec>\("pgBoundProofCheck"\)/);
- assert.match(workflow,/pgBoundProofCheck --no-daemon/);
+ assert.match(workflow,/pgBoundProofCheck(?: pgRekeyCasCheck)? --no-daemon/);
  assert.match(workflow,/authority-postgres-lab:/);
  assert.doesNotMatch(mobile,/postgresql|pgBoundProofCheck|SyntheticJdbcBoundProofRehearsal/);
  assert.doesNotMatch(app,/postgresql|pgBoundProofCheck|SyntheticJdbcBoundProofRehearsal/);
