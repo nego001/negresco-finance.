@@ -308,3 +308,31 @@ test('SEC-05K CAS lost response is idempotent only for exact request and never c
   assert.match(runner, /runSyntheticRekeyAuthorityCasTimeoutScenarios/);
   assert.doesNotMatch(code, /VERIFIED_LIVE_CURRENT/);
 });
+
+test('SEC-05K PostgreSQL CAS retains operation receipts after process restart and lost reply', () => {
+  const ddl = read('tooling/security-authority-protocol-lab/postgres/004_sec05k_cas_persistence_lab.sql');
+  const tests = read(fixtures + 'SyntheticJdbcRekeyCasPersistenceLabTest.kt');
+  const gradle = read('tooling/native-lock-spike/build.gradle.kts');
+  const workflow = read('.github/workflows/ci.yml');
+  assert.match(ddl, /CREATE SCHEMA IF NOT EXISTS negresco_sec05k_cas_lab/);
+  assert.match(ddl, /CREATE TABLE IF NOT EXISTS negresco_sec05k_cas_lab\.generations/);
+  assert.match(ddl, /CREATE TABLE IF NOT EXISTS negresco_sec05k_cas_lab\.operation_receipts/);
+  assert.match(ddl, /PRIMARY KEY \(account_id,operation_id\)/);
+  assert.match(ddl, /CHECK \(after_generation = before_generation \+ 1\)/);
+  assert.match(tests, /SELECT kit_id,version,generation,ciphertext_sha256/);
+  assert.match(tests, /FOR UPDATE/);
+  assert.match(tests, /db\.transactionIsolation=Connection\.TRANSACTION_READ_COMMITTED/);
+  assert.match(tests, /state\.current|UPDATE \$schema\.generations/);
+  assert.match(tests, /INSERT INTO \$schema\.operation_receipts/);
+  assert.match(tests, /db\.rollback\(\)/);
+  assert.match(tests, /loseResponseAfterCommit: Boolean = false/);
+  assert.match(tests, /if\(loseResponseAfterCommit\) null/);
+  assert.match(tests, /DENY_IDEMPOTENCY_COLLISION/);
+  assert.match(tests, /DENY_STALE_RECEIPT_NOT_CURRENT/);
+  assert.match(tests, /ProcessBuilder\(/);
+  assert.match(tests, /--verify-persisted-cas-fixture-only/);
+  assert.match(tests, /only one of eight concurrent JDBC CAS sessions wins/);
+  assert.match(gradle, /tasks\.register<JavaExec>\("pgRekeyCasCheck"\)/);
+  assert.match(workflow, /004_sec05k_cas_persistence_lab\.sql/);
+  assert.match(workflow, /pgBoundProofCheck pgRekeyCasCheck --no-daemon/);
+});
