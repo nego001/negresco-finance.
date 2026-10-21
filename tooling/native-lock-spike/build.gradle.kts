@@ -11,6 +11,9 @@ dependencies {
   // Portable (Android-free) DataStore contract. Not linked into apps/mobile.
   implementation("androidx.datastore:datastore-preferences-core:1.2.1")
   implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
+  // JVM/CI-only PostgreSQL driver for SEC-05E transaction rehearsal.
+  // Never packaged into apps/mobile or an Android APK.
+  testImplementation("org.postgresql:postgresql:42.7.4")
 }
 
 tasks.register<JavaExec>("policyCheck") {
@@ -23,4 +26,12 @@ tasks.register<JavaExec>("policyCheck") {
 
 tasks.named("check") {
   dependsOn("policyCheck")
+}
+
+tasks.register<JavaExec>("pgBoundProofCheck") {
+  group = "verification"
+  description = "Disposable PostgreSQL+Ed25519 proof-only ACID lab, NOT a backend"
+  dependsOn(tasks.named("testClasses"))
+  classpath = sourceSets["test"].runtimeClasspath
+  mainClass.set("com.negresco.finance.security.SyntheticJdbcBoundProofRehearsalTestKt")
 }
