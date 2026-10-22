@@ -1,6 +1,7 @@
 package com.negresco.finance.security
 
 import android.content.Context
+import android.os.Build
 import java.io.File
 import java.nio.file.Files
 
@@ -19,7 +20,8 @@ internal object NativeLockFilePresenceDiagnostic {
   private const val MAX_DIAGNOSTIC_SIZE = 1_048_576L
 
   fun inspect(context: Context?): String {
-    if (context == null) return "UNAVAILABLE"
+    if (context == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.O)
+      return "UNAVAILABLE"
     return try {
       val folder = File(context.applicationContext.filesDir, "datastore")
       // Files.isSymbolicLink checks the path itself, not the followed target.
