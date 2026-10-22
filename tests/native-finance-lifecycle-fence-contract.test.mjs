@@ -27,7 +27,7 @@ test('Expo SDK54 lifecycle events revoke native diagnostic epochs, never confer 
   assert.match(gate, /generation == Long\.MAX_VALUE/);
   assert.doesNotMatch(gate, /SecretKey|CryptoObject|Cipher|SQLiteDatabase|Keystore|BiometricPrompt|unlock\(|grantAccess\(|disableLock\(|updateData/);
   const exported = [...module.matchAll(/AsyncFunction\("([^"]+)"\)/g)].map(x => x[1]);
-  assert.deepEqual(exported, ['getIntegrationInfo', 'inspectNativeLockStorePresence']);
+  assert.deepEqual(exported, ['getIntegrationInfo', 'inspectNativeLockStorePresence', 'inspectExistingNativeLockRecord']);
 });
 
 test('read-only DataStore snapshot is rejected when Activity leaves during an asynchronous read', () => {
