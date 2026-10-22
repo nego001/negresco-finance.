@@ -266,6 +266,7 @@ fun main(args:Array<String>) {
       "competing writers cannot produce multiple committed receipts")
   } finally {pool.shutdownNow()}
   runSyntheticJdbcJournalAuthorityDivergenceScenarios()
+  runSyntheticJdbcSignedReadRaceScenarios()
   println("PASS: SEC-05K $checks PostgreSQL durable CAS and restart checks (fixture only)")
   println("LIMIT: disposable DB, no real authority authentication, no SQLCipher integration")
 }
