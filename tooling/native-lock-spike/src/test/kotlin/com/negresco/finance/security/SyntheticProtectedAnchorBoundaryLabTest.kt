@@ -22,6 +22,7 @@ internal enum class SyntheticAnchorCasResultLab {
   BOOTSTRAPPED_FIXTURE_ONLY,
   ADVANCED_FIXTURE_ONLY,
   ALREADY_APPLIED_FIXTURE_ONLY,
+  DENY_STALE_RECEIPT_NOT_CURRENT,
   DENY_RESEED,
   DENY_UNENROLLED,
   DENY_PREDECESSOR,
@@ -59,12 +60,18 @@ internal class SyntheticProtectedAnchorFixtureLab {
 
   var reachableFixtureOnly = true
 
+  // Claim contains a mutable ByteArray. The test-double MUST NOT retain
+  // caller-owned arrays in the floor or the operation-receipt ledger.
+  private fun retainedCopy(c: SyntheticRekeyGenerationClaimLab) =
+    SyntheticRekeyGenerationClaimLab(c.accountId, c.kitId,
+      c.version, c.generation, c.ciphertextHash.copyOf())
+
   @Synchronized
   fun enrollFixtureOnly(claim: SyntheticRekeyGenerationClaimLab): SyntheticAnchorCasResultLab {
     if (!reachableFixtureOnly) return SyntheticAnchorCasResultLab.HOLD_OFFLINE
     if (!crypto.validClaimFixtureOnly(claim)) return SyntheticAnchorCasResultLab.DENY_TRANSITION
     if (floors.containsKey(claim.accountId)) return SyntheticAnchorCasResultLab.DENY_RESEED
-    floors[claim.accountId] = claim
+    floors[claim.accountId] = retainedCopy(claim)
     return SyntheticAnchorCasResultLab.BOOTSTRAPPED_FIXTURE_ONLY
   }
 
@@ -94,15 +101,20 @@ internal class SyntheticProtectedAnchorFixtureLab {
       if (!crypto.equivalentFixtureOnly(receipt.before, expected) ||
           !crypto.equivalentFixtureOnly(receipt.after, next))
         return SyntheticAnchorCasResultLab.DENY_COLLISION
-      return SyntheticAnchorCasResultLab.ALREADY_APPLIED_FIXTURE_ONLY
+      val current = floors[expected.accountId]
+      // A committed receipt proves *history*, NOT that the receipt's result
+      // remains the latest current generation after a later successful CAS.
+      return if (current != null && crypto.equivalentFixtureOnly(current, receipt.after))
+        SyntheticAnchorCasResultLab.ALREADY_APPLIED_FIXTURE_ONLY
+      else SyntheticAnchorCasResultLab.DENY_STALE_RECEIPT_NOT_CURRENT
     }
 
     val present = floors[expected.accountId] ?: return SyntheticAnchorCasResultLab.DENY_UNENROLLED
     if (!crypto.equivalentFixtureOnly(present, expected))
       return SyntheticAnchorCasResultLab.DENY_PREDECESSOR
 
-    floors[expected.accountId] = next
-    receipts[key] = SyntheticAnchorReceiptLab(expected, next)
+    floors[expected.accountId] = retainedCopy(next)
+    receipts[key] = SyntheticAnchorReceiptLab(retainedCopy(expected), retainedCopy(next))
     // Simulates a lost ACK, not a storage failure. Read+retry are mandatory.
     return if (dropReplyAfterCommit) SyntheticAnchorCasResultLab.LOST_REPLY_AFTER_ADVANCE
       else SyntheticAnchorCasResultLab.ADVANCED_FIXTURE_ONLY
@@ -254,6 +266,15 @@ internal fun runSyntheticProtectedAnchorBoundaryScenarios() {
     checkCase(anchor.observeFixtureOnly(old, old, pin) ==
       SyntheticAnchorBoundaryObservationLab.DENY_RESTORED_OR_DIVERGENT_STORES,
       "pair of old snapshots cannot be accepted after next advance")
+    checkCase(anchor.advanceFixtureOnly(operation, old, newer, pin) ==
+      SyntheticAnchorCasResultLab.DENY_STALE_RECEIPT_NOT_CURRENT,
+      "historical receipt cannot masquerade as latest after a later CAS")
+    checkCase(anchor.advanceFixtureOnly(UUID.randomUUID(), old, newer, pin) ==
+      SyntheticAnchorCasResultLab.DENY_PREDECESSOR,
+      "a fresh operation cannot commit from a stale read-only observation")
+    checkCase(anchor.observeFixtureOnly(newer, newer, pin) ==
+      SyntheticAnchorBoundaryObservationLab.DENY_RESTORED_OR_DIVERGENT_STORES,
+      "preflight matching before next CAS is not a reusable permission")
   } finally { racers.shutdownNow() }
 
   val anotherAccount = UUID.randomUUID().toString().replace("-", "")
@@ -269,6 +290,39 @@ internal fun runSyntheticProtectedAnchorBoundaryScenarios() {
     "cross-account generation takeover refused")
   checkCase(!crypto.equivalentFixtureOnly(newest, outside),
     "cross-account synthetic receipts are distinct")
+
+  // Caller-owned hash arrays are mutable. The independent register must keep
+  // defensive copies across enrollment, receipt insertion and CAS retries.
+  val aliasAccount = UUID.randomUUID().toString().replace("-", "")
+  val mutableOld = claim(aliasAccount, 3, 4)
+  val savedOld = SyntheticRekeyGenerationClaimLab(mutableOld.accountId,
+    mutableOld.kitId, mutableOld.version, mutableOld.generation,
+    mutableOld.ciphertextHash.copyOf())
+  checkCase(anchor.enrollFixtureOnly(mutableOld) ==
+    SyntheticAnchorCasResultLab.BOOTSTRAPPED_FIXTURE_ONLY,
+    "mutable input enrollment accepted once")
+  mutableOld.ciphertextHash[0] = (mutableOld.ciphertextHash[0].toInt() xor 1).toByte()
+  checkCase(anchor.observeFixtureOnly(savedOld, savedOld, pin) ==
+    SyntheticAnchorBoundaryObservationLab.OBSERVED_MATCH_ONLY_NOT_AUTHORIZATION,
+    "caller cannot silently edit the enrolled floor through a shared hash array")
+  val mutableNew = claim(aliasAccount, 4, 5)
+  val savedNew = SyntheticRekeyGenerationClaimLab(mutableNew.accountId,
+    mutableNew.kitId, mutableNew.version, mutableNew.generation,
+    mutableNew.ciphertextHash.copyOf())
+  val aliasOperation = UUID.randomUUID()
+  checkCase(anchor.advanceFixtureOnly(aliasOperation, savedOld, mutableNew, pin) ==
+    SyntheticAnchorCasResultLab.ADVANCED_FIXTURE_ONLY,
+    "transition stores defensively copied receipt and latest floor")
+  mutableNew.ciphertextHash[0] = (mutableNew.ciphertextHash[0].toInt() xor 1).toByte()
+  checkCase(anchor.observeFixtureOnly(savedNew, savedNew, pin) ==
+    SyntheticAnchorBoundaryObservationLab.OBSERVED_MATCH_ONLY_NOT_AUTHORIZATION,
+    "caller mutation after CAS cannot rewrite the authority's current generation")
+  checkCase(anchor.advanceFixtureOnly(aliasOperation, savedOld, savedNew, pin) ==
+    SyntheticAnchorCasResultLab.ALREADY_APPLIED_FIXTURE_ONLY,
+    "idempotent receipt remains intact after caller-owned array mutation")
+  checkCase(anchor.advanceFixtureOnly(aliasOperation, savedOld, mutableNew, pin) ==
+    SyntheticAnchorCasResultLab.DENY_COLLISION,
+    "tampered caller payload cannot masquerade as the original operation")
 
   // This harness does NOT implement a tamper-proof register: rebooting the
   // ANCHOR JVM itself loses everything. No production monotonicity is proven.
