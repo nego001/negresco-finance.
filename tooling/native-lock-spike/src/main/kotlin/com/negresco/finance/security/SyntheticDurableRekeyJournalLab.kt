@@ -55,6 +55,21 @@ internal class SyntheticJournalResultLab(
   override fun toString(): String = "SyntheticJournalResultLab($check,[synthetic records redacted])"
 }
 
+/**
+ * Read-only local-vs-fixture observation. The input is never classified as
+ * VERIFIED_LIVE_CURRENT because the PostgreSQL lab is not an authority.
+ * It is not a permission to commit, undo or decrypt user information.
+ */
+internal enum class SyntheticJournalObserveCheckLab {
+  OBSERVED_FIXTURE_ONLY_NOT_AUTHORITY,
+  DENY_BUSY,
+  FAIL_CLOSED
+}
+internal data class SyntheticJournalObserveResultLab(
+  val check: SyntheticJournalObserveCheckLab,
+  val observation: SyntheticRekeyReconciliationInputLab? = null
+)
+
 internal class SyntheticDurableRekeyJournalLab(private val directory: Path) {
   private val active = directory.resolve("active.snapshot")
   private val pending = directory.resolve("pending.snapshot")
@@ -516,6 +531,115 @@ internal class SyntheticDurableRekeyJournalLab(private val directory: Path) {
         return@exclusive result(SyntheticJournalCheckLab.FAIL_CLOSED)
       remove(journal)
       result(SyntheticJournalCheckLab.RECOVERED_COMMIT_FINALIZED, next)
+    }
+
+  /**
+   * Observes exact PREPARED/COMMITTED marker and ciphertext hashes under lock,
+   * without invoking recoverFixtureOnly, publishing a snapshot or deleting
+   * an orphan. Even a matching JDBC fixture stays NOT_LIVE_AUTHORITY.
+   *
+   * This is a LOCAL, read-only-for-journal rehearsal, not a verified external
+   * authority, and never supplies executable authorization.
+   */
+  fun observeAgainstCasFixtureOnly(
+    expectedBefore: SyntheticRekeyGenerationClaimLab,
+    expectedAfter: SyntheticRekeyGenerationClaimLab,
+    casCurrent: SyntheticRekeyGenerationClaimLab?
+  ): SyntheticJournalObserveResultLab =
+    exclusive(
+      SyntheticJournalObserveResultLab(SyntheticJournalObserveCheckLab.DENY_BUSY),
+      SyntheticJournalObserveResultLab(SyntheticJournalObserveCheckLab.FAIL_CLOSED)
+    ) {
+      val before = expectedBefore
+      val after = expectedAfter
+      val crypto = SyntheticSignedRekeyAuthorityChallengeLab
+      if (!crypto.validClaimFixtureOnly(before) ||
+          !crypto.validClaimFixtureOnly(after) ||
+          before.accountId != after.accountId ||
+          before.kitId == after.kitId ||
+          before.version >= Long.MAX_VALUE - 1 ||
+          before.generation >= Long.MAX_VALUE - 1 ||
+          after.version != before.version + 1 ||
+          after.generation != before.generation + 1)
+        return@exclusive SyntheticJournalObserveResultLab(
+          SyntheticJournalObserveCheckLab.FAIL_CLOSED
+        )
+
+      // Parse and validate the complete encrypted state, not just filenames.
+      // Compare hashes of exact persisted bytes to the caller-provided DB
+      // receipt claims. Those claims remain UNTRUSTED outside this fixture.
+      fun classify(bytes: ByteArray?): SyntheticRekeyCiphertextObservationLab {
+        if (bytes == null) return SyntheticRekeyCiphertextObservationLab.MISSING_OR_CORRUPT
+        val stored = decodeState(bytes)
+        val current = stored.snapshot
+        val hash = sha256(bytes)
+        fun sameClaim(c: SyntheticRekeyGenerationClaimLab) =
+          current.accountId == c.accountId && current.kitId == c.kitId &&
+            current.version == c.version &&
+            current.generation == c.generation &&
+            MessageDigest.isEqual(hash, c.ciphertextHash)
+        return when {
+          sameClaim(before) -> SyntheticRekeyCiphertextObservationLab.OLD_AUTHENTICATED
+          sameClaim(after) -> SyntheticRekeyCiphertextObservationLab.NEW_AUTHENTICATED
+          else -> SyntheticRekeyCiphertextObservationLab.UNRECOGNIZED
+        }
+      }
+      val activeBytes = readBytes(active)
+      val activeState = classify(activeBytes)
+      if (activeState == SyntheticRekeyCiphertextObservationLab.MISSING_OR_CORRUPT ||
+          activeState == SyntheticRekeyCiphertextObservationLab.UNRECOGNIZED)
+        return@exclusive SyntheticJournalObserveResultLab(
+          SyntheticJournalObserveCheckLab.FAIL_CLOSED
+        )
+      val journalBytes = readBytes(journal)
+      val marker = journalBytes?.let { decodeJournal(it) }
+      val phase = when (marker?.phase) {
+        null -> SyntheticRekeyJournalObservationLab.CLEAN
+        SyntheticJournalPhaseLab.PREPARED -> SyntheticRekeyJournalObservationLab.PREPARED
+        SyntheticJournalPhaseLab.COMMITTED -> SyntheticRekeyJournalObservationLab.COMMITTED
+      }
+      // Check that the journal itself binds to both exact expected ciphertext
+      // hashes. An attacker-controlled PG claim cannot create a valid marker.
+      if (marker != null && (marker.account != before.accountId ||
+          marker.oldKit != before.kitId || marker.newKit != after.kitId ||
+          !MessageDigest.isEqual(marker.oldHash, before.ciphertextHash) ||
+          !MessageDigest.isEqual(marker.newHash, after.ciphertextHash)))
+        return@exclusive SyntheticJournalObserveResultLab(
+          SyntheticJournalObserveCheckLab.FAIL_CLOSED
+        )
+      val pendingBytes = readBytes(pending)
+      val pendingState = when {
+        pendingBytes == null -> SyntheticRekeyCandidateObservationLab.ABSENT
+        classify(pendingBytes) == SyntheticRekeyCiphertextObservationLab.NEW_AUTHENTICATED ->
+          SyntheticRekeyCandidateObservationLab.NEW_AUTHENTICATED
+        else -> SyntheticRekeyCandidateObservationLab.UNRECOGNIZED
+      }
+      if (pendingState == SyntheticRekeyCandidateObservationLab.UNRECOGNIZED ||
+          (marker == null && pendingBytes != null) ||
+          (phase == SyntheticRekeyJournalObservationLab.PREPARED &&
+            activeState != SyntheticRekeyCiphertextObservationLab.OLD_AUTHENTICATED) ||
+          (phase == SyntheticRekeyJournalObservationLab.COMMITTED &&
+            activeState == SyntheticRekeyCiphertextObservationLab.OLD_AUTHENTICATED &&
+            pendingState != SyntheticRekeyCandidateObservationLab.NEW_AUTHENTICATED))
+        return@exclusive SyntheticJournalObserveResultLab(
+          SyntheticJournalObserveCheckLab.FAIL_CLOSED
+        )
+      val generation = when {
+        casCurrent != null && crypto.equivalentFixtureOnly(casCurrent, before) ->
+          SyntheticRekeyAuthorityGenerationLab.OLD_CURRENT
+        casCurrent != null && crypto.equivalentFixtureOnly(casCurrent, after) ->
+          SyntheticRekeyAuthorityGenerationLab.NEW_CURRENT
+        else -> SyntheticRekeyAuthorityGenerationLab.UNKNOWN_OR_OTHER
+      }
+      SyntheticJournalObserveResultLab(
+        SyntheticJournalObserveCheckLab.OBSERVED_FIXTURE_ONLY_NOT_AUTHORITY,
+        SyntheticRekeyReconciliationInputLab(
+          SyntheticRekeyAuthorityEvidenceLab.SIGNED_CHALLENGE_FIXTURE_ONLY_NO_LIVE_AUTHORITY,
+          phase, activeState, pendingState, generation,
+          true, before.version, after.version,
+          before.generation, after.generation
+        )
+      )
     }
 
   /**
