@@ -11,8 +11,17 @@ import expo.modules.kotlin.modules.ModuleDefinition
  * SQLCipher requires a separate native-only policy and full physical QA.
  */
 class NegrescoFinanceSecurityV1Module : Module() {
+  // Native lifecycle signals are revocation-only. There is no grant API.
+  private val diagnosticLifecycle = NativeLockLifecycleFence()
+
   override fun definition() = ModuleDefinition {
     Name("NegrescoFinanceSecurityV1")
+
+    OnActivityEntersForeground { diagnosticLifecycle.onForeground() }
+    OnUserLeavesActivity { diagnosticLifecycle.onBackground() }
+    OnActivityEntersBackground { diagnosticLifecycle.onBackground() }
+    OnActivityDestroys { diagnosticLifecycle.onDestroyed() }
+    OnDestroy { diagnosticLifecycle.onDestroyed() }
 
     // This is read-only, accepts no caller-supplied identity, money, key or
     // permission flag. All booleans are hardcoded false on the Kotlin side.
