@@ -58,18 +58,19 @@ class NegrescoFinanceSecurityV1Module : Module() {
     // Explicit, manual, read-only inspection of an EXISTING native lock
     // DataStore record. SDK 54 supports suspend function definitions.
     // Categorization is non-authoritative even if the record looks valid.
-    AsyncFunction("inspectExistingNativeLockRecord") {
-      SuspendBody {
-        val status = NativeLockExistingRecordDiagnostic.classifyExisting(
-          appContext.reactContext, diagnosticLifecycle
-        )
-        mapOf(
-          "status" to status,
-          "financialStorageAllowed" to false,
-          "keyReleaseAllowed" to false,
-          "migrationAllowed" to false
-        )
-      }
+    // Explicit zero-argument coroutine. SDK 54 supports the infix
+    // Coroutine builder, NOT SuspendBody. Suspending DataStore read stays
+    // inside Expo's module-scoped coroutine, never blocks the JS thread.
+    AsyncFunction("inspectExistingNativeLockRecord") Coroutine { ->
+      val status = NativeLockExistingRecordDiagnostic.classifyExisting(
+        appContext.reactContext, diagnosticLifecycle
+      )
+      mapOf(
+        "status" to status,
+        "financialStorageAllowed" to false,
+        "keyReleaseAllowed" to false,
+        "migrationAllowed" to false
+      )
     }
   }
 }
