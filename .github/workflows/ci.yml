@@ -57,7 +57,66 @@ jobs:
           kotlin.compiler.execution.strategy=in-process
           EOF
           cd android
-          ./gradlew :negresco-finance-security:compileDebugKotlin --no-daemon --stacktrace
+          ./gradlew :negresco-finance-security:compileDebugKotlin :negresco-finance-security:compileDebugAndroidTestKotlin --no-daemon --stacktrace
+
+  expo-native-diagnostic-emulator:
+    # Test-only AndroidKeyStore scenario in an isolated CI emulator.
+    # Builds only an instrumentation APK, never the app release APK.
+    if: github.event_name == 'pull_request'
+    needs: expo-native-diagnostic-compile
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Install disposable Expo dependencies
+        working-directory: apps/mobile
+        run: npm install --no-audit --no-fund
+      - name: Generate Android test Gradle project
+        working-directory: apps/mobile
+        run: npx expo prebuild --platform android --non-interactive --no-install
+      - name: Set bounded Gradle resources
+        working-directory: apps/mobile
+        run: |
+          cat >> android/gradle.properties <<'EOF'
+          org.gradle.jvmargs=-Xmx3g -XX:MaxMetaspaceSize=1536m -Dfile.encoding=UTF-8
+          org.gradle.parallel=false
+          org.gradle.workers.max=2
+          kotlin.compiler.execution.strategy=in-process
+          EOF
+      - name: Enable Android emulator acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-negresco-kvm.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Execute AndroidKeyStore synthetic module instrumentation
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
+        with:
+          api-level: 35
+          target: default
+          arch: x86_64
+          profile: pixel_6
+          emulator-boot-timeout: 600
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          script: |
+            cd apps/mobile/android
+            chmod +x gradlew
+            ./gradlew :negresco-finance-security:connectedDebugAndroidTest --no-daemon --stacktrace
+      - name: Upload synthetic module instrumentation reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: expo-native-synthetic-test-reports
+          path: apps/mobile/modules/negresco-finance-security/android/build/outputs/androidTest-results/connected/
+          if-no-files-found: ignore
+          retention-days: 3
 
   native-lock-spike:
     runs-on: ubuntu-latest
