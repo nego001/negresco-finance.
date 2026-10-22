@@ -14,7 +14,7 @@ import java.util.concurrent.TimeUnit
  * No API/authentication, deployed backend, financial SQLCipher, network authority,
  * trusted client identity, private keys or recovery-secret handling.
  */
-private class SyntheticJdbcRekeyCasPersistenceLab {
+internal class SyntheticJdbcRekeyCasPersistenceLab {
   private val url = System.getenv("NEGRESCO_LAB_PG_URL")
     ?: error("SEC-05K PG fixture requires explicit disposable JDBC URL")
   private val user = System.getenv("NEGRESCO_LAB_PG_USER")
