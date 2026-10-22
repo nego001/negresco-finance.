@@ -267,6 +267,7 @@ fun main(args:Array<String>) {
   } finally {pool.shutdownNow()}
   runSyntheticJdbcJournalAuthorityDivergenceScenarios()
   runSyntheticJdbcSignedReadRaceScenarios()
+  runSyntheticJdbcIsolatedFloorRollbackScenarios()
   println("PASS: SEC-05K $checks PostgreSQL durable CAS and restart checks (fixture only)")
   println("LIMIT: disposable DB, no real authority authentication, no SQLCipher integration")
 }
