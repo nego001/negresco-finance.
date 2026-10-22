@@ -36,6 +36,9 @@ dependencies {
   // module's implementation scope, nor any JS database or key API.
   androidTestImplementation 'net.zetetic:sqlcipher-android:4.19.1'
   androidTestImplementation 'androidx.sqlite:sqlite:2.7.0'
+  // BiometricPrompt.CryptoObject is a test-only wrapper here. This NEVER
+  // creates a prompt, grants a session, or adds biometric APIs to main/JS.
+  androidTestImplementation 'androidx.biometric:biometric:1.1.0'
   androidTestImplementation 'junit:junit:4.13.2'
   androidTestImplementation 'androidx.test:runner:1.6.2'
   androidTestImplementation 'androidx.test:core:1.6.1'
