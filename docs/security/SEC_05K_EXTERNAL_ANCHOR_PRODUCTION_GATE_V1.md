@@ -35,6 +35,18 @@ A viabilidade técnica de cada opção de armazenamento deve ser demonstrada doc
 
 Essa sequência ainda **não** é uma transação distribuída segura: não existem aqui garantia de commit end-to-end, serviço implantado, prova de disponibilidade, canal protegido de administração, recuperação material de chave ou política financeira real.
 
+## Ensaio SEC-05K: ordem de commits e recibos divergentes
+
+O fixture adicional `SyntheticJdbcCrossDomainCommitOrderLabTest.kt`, ligado ao `pgRekeyCasCheck`, executa três sequências com contas aleatórias do PostgreSQL isolado e uma âncora **volátil em RAM**. Ele não cria transação distribuída, nem backend implantado.
+
+**Autoridade primeiro:** a âncora avança OLD → NEW, perde a resposta e o PostgreSQL ainda está em OLD, sem recibo. Repetir o UUID corretamente na âncora confirma apenas seu próprio histórico. Se uma sessão SQL confirmar sob esse mesmo UUID um *outro* kit/hash com a mesma versão e geração, os dois lados armazenam recibos incompatíveis. Ambos devem recusar receber o payload do outro como retry idempotente, e o journal permanece HOLD.
+
+**PostgreSQL primeiro:** o CAS SQL confirma NEW e perde a resposta; a âncora está offline e não pode ser reconstituída a partir do banco. Quando retorna, ainda contém OLD. Uma confirmação independente, com payload divergente sob o mesmo UUID, demonstra que duas autoridades locais podem ter operações individualmente bem-sucedidas, porém globalmente conflitantes. Não tentar compensação silenciosa.
+
+**Resultados iguais não provam atomicidade:** mesmo que os dois lados sejam avançados sequencialmente para exatamente NEW, existiu uma janela em que discordavam. Uma leitura posterior em concordância continua `OBSERVED_MATCH_ONLY_NOT_AUTHORIZATION`, jamais prova de `VERIFIED_LIVE_CURRENT` ou autorização de publicação do journal. O ensaio não resolve falhas em que a própria âncora é restaurada.
+
+**Requisito de implantação:** os contratos de commit/recibo e a autorização do titular devem operar sob um domínio independente capaz de demonstrar ordenação, vinculação de account/UUID/predecessor/sucessor/kit/hash, idempotência e não reversão de histórico, inclusive quando PostgreSQL, testemunhas e os backups do serviço são restaurados. A transição de HOLD para ação operacional requer revisão e provas externas, não apenas saída de CI.
+
 ## Critérios de saída do gate
 
 - [ ] Escolher arquitetura de armazenamento monotônico e publicar modelo de ameaças com limites de controle do administrador/backup.
