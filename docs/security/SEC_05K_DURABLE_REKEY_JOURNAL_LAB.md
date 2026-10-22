@@ -352,3 +352,8 @@ O teste Kotlin `SyntheticAnchorLinearizationBoundaryLabTest.kt` demonstra uma co
 
 **Limite obrigatório:** esse monitor não sincroniza PostgreSQL, disco do Android, outras JVMs, chamadas de rede ou autorização do titular. O callback é **somente uma sonda diagnóstica**, jamais execução de uma ação financeira. Após sair do monitor, outra geração pode ser confirmada. Uma implementação real exigiria que verificação de geração, autorização e compromisso da operação fossem linearizados sob um mesmo domínio de confiança autenticado, com recibo durável e prova independente de impossibilidade de rollback. Os resultados continuam `OBSERVED_MATCH_ONLY_NOT_AUTHORIZATION` e `HOLD_EXTERNAL_AUTHORITY_REQUIRED`, sem promover `VERIFIED_LIVE_CURRENT`.
 
+
+
+## Próxima arquitetura: gate verificável de autoridade externa
+
+A especificação independente de implantação e aceite fica em [SEC_05K_EXTERNAL_ANCHOR_PRODUCTION_GATE_V1.md](./SEC_05K_EXTERNAL_ANCHOR_PRODUCTION_GATE_V1.md). Ela descreve o modelo de ameaça, proteção de histórico contra restore da própria autoridade, identidade e época pinadas, CAS e recibos atômicos, TOCTOU, resposta perdida, titular autorizado e os critérios ainda pendentes. O laboratório `SyntheticExternalAnchorAssuranceGateLabTest.kt` contém somente decisões HOLD/DENY; mesmo declarações positivas de fixture **não** representam prova independente de resistência a rollback e **não** autorizam `VERIFIED_LIVE_CURRENT`.
