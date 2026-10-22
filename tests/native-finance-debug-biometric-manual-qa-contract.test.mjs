@@ -12,6 +12,7 @@ const main = read(root + 'src/main/java/com/negresco/finance/security/NegrescoFi
 const ci = read('.github/workflows/ci.yml');
 const physicalGate = read(root + 'src/androidTest/java/com/negresco/finance/security/SyntheticPhysicalBiometricQaGate.kt');
 const physicalGateTests = read(root + 'src/androidTest/java/com/negresco/finance/security/SyntheticPhysicalBiometricQaGateTest.kt');
+const lifecycleNegative = read(root + 'src/androidTest/java/com/negresco/finance/security/SyntheticBiometricActivityLifecycleNegativeTest.kt');
 const executableActivity = activity
   .replace(/\/\*[\s\S]*?\*\//g, '')
   .replace(/^\s*\/\/.*$/gm, '');
@@ -61,6 +62,14 @@ test('unattended Android emulators cannot auto-approve biometric or run the inte
   assert.match(physicalGateTests, /defaultUnattendedExecutionAlwaysDeniesEvenPlausibleHardware/);
   assert.match(physicalGateTests, /debugQaScreenIsNotExportedToOtherAppsEvenInTestBuild/);
   assert.match(physicalGateTests, /assertFalse\("QA screen must not be exportable", activity\.exported\)/);
+  assert.match(lifecycleNegative, /launchingAndBackgroundingQaActivityDoesNotCreateKeysOrConsent/);
+  assert.match(lifecycleNegative, /ActivityScenario\.launch\(SyntheticBiometricManualQaActivity::class\.java\)/);
+  assert.match(lifecycleNegative, /scenario\.moveToState\(Lifecycle\.State\.CREATED\)/);
+  assert.match(lifecycleNegative, /scenario\.moveToState\(Lifecycle\.State\.RESUMED\)/);
+  assert.match(lifecycleNegative, /noStrongBiometricAlwaysHoldsWithoutCreatingAKeyOrPrompt/);
+  assert.match(lifecycleNegative, /BiometricManager\.Authenticators\.BIOMETRIC_STRONG/);
+  assert.match(lifecycleNegative, /HOLD_NOT_ENROLLED/);
+  assert.doesNotMatch(lifecycleNegative, /YES_PHYSICAL_CONSENT|BiometricPrompt\.authenticate\(/);
   assert.match(testSource, /ActivityScenario\.launch\(SyntheticBiometricManualQaActivity::class\.java\)/);
   assert.match(testSource, /completed\.await\(120, TimeUnit\.SECONDS\)/);
   assert.match(testSource, /assertEquals\("PASS_NATIVE_CRYPTO_ONLY", result\.get\(\)\)/);
