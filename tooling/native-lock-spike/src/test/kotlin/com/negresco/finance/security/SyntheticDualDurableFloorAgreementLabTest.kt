@@ -104,6 +104,7 @@ internal fun runSyntheticDualDurableFloorAgreementScenarios() {
   val account = UUID.randomUUID().toString().replace("-", "")
   val old = claim(account, 17, 21)
   val latest = claim(account, 18, 22)
+  val newer = claim(account, 19, 23)
   val rootA = Files.createTempDirectory("sec05k-dual-floor-a-")
   val rootB = Files.createTempDirectory("sec05k-dual-floor-b-")
   lateinit var pinnedA: PublicKey
@@ -169,10 +170,15 @@ internal fun runSyntheticDualDurableFloorAgreementScenarios() {
         qa.copy(nonce = y), qb) == H.HOLD_NONCE_OR_SIGNATURE,
         "unexpected returned nonce cannot validate")
 
-      // A signed quote from BEFORE the next advance does not become invalid
-      // retroactively. Reusing it here illustrates stale-read/TOCTOU risk.
+      // Both genuine signatures are obtained at LATEST. Advance both to
+      // NEWER before checking: signed OLD quotes do not expire on a commit.
+      verify(a.advance(latest, newer) == "OK_ADVANCED" &&
+        b.advance(latest, newer) == "OK_ADVANCED",
+        "two later commits make the earlier signed pair stale")
       verify(policy.inspect(pinnedA, pinnedB, x, y, qa, qb) == accepted,
-        "critical limit: previously signed pair stays valid if locally replayed")
+        "critical limit: stale pair still verifies AFTER both advanced to NEWER")
+      verify(inspect(a, b) == accepted,
+        "fresh quote pair sees NEWER, yet still cannot assert live authority")
     }
   }
 
@@ -183,7 +189,7 @@ internal fun runSyntheticDualDurableFloorAgreementScenarios() {
         "restarting both JVMs retains their originally pinned fixture keys")
       verify(inspect(a, b, pinnedA, pinnedB) ==
         H.AGREEMENT_FIXTURE_ONLY_NOT_LIVE_AUTHORITY,
-        "two durable files retain NEW across process restarts")
+        "two durable files retain NEWER across process restarts")
     }
   }
 
