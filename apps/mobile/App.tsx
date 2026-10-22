@@ -14,10 +14,11 @@ import { decodePreferences, createPreferenceWriteQueue, PREFERENCES_STORAGE_KEY 
 import { shouldClearSensitiveOnNavigation, shouldClearSensitiveOnAppState } from './guardiao/privacy';
 import {useLocalAppLock} from './security/useLocalAppLock';
 import {runKeystoreProbe, type KeystoreProbeResult} from './security/keystoreProbe';
+import {inspectNativeFinanceReadiness, type NativeFinanceReadiness} from './security/nativeFinanceReadiness';
 import * as LocalAuthentication from 'expo-local-authentication';
 import {LocalLockScreen} from './components/LocalLockScreen';
 import {ProtectedScreenCapture,shouldProtectScreenCapture} from './components/ProtectedScreenCapture';
-import { Animated, AppState, Easing, SafeAreaView, ScrollView, StatusBar, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Animated, AppState, Easing, SafeAreaView, ScrollView, StatusBar, Platform, NativeModules, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 type Page = 'Início' | 'Pix' | 'Contas' | 'Cartões' | 'Investimentos' | 'Metas' | 'Negresco' | 'Guardião' | 'Ajustes';
 const C = { bg:'#000000',panel:'#0D111A',raised:'#121A29',line:'#26354B',blue:'#78B5FF',muted:'#99A8BC',white:'#F7FAFF' };
@@ -61,6 +62,29 @@ export default function App() {
   const [keystoreProbeResult,setKeystoreProbeResult]=useState<KeystoreProbeResult|null>(null);
   const keystoreProbeEpoch=useRef(0);
   const keystoreProbeRunning=useRef(false);
+  const [nativeFinanceDiagnostic,setNativeFinanceDiagnostic]=useState<NativeFinanceReadiness|null>(null);
+  const [nativeFinanceDiagnosticBusy,setNativeFinanceDiagnosticBusy]=useState(false);
+  const nativeFinanceDiagnosticEpoch=useRef(0);
+  const nativeFinanceDiagnosticRunning=useRef(false);
+  const checkNativeFinanceDiagnostic=async()=>{
+    // Diagnóstico INFORMATIVO apenas; nenhum segredo ou autorização é enviado.
+    if(nativeFinanceDiagnosticRunning.current||AppState.currentState!=='active')return;
+    const ticket=++nativeFinanceDiagnosticEpoch.current;
+    nativeFinanceDiagnosticRunning.current=true;
+    setNativeFinanceDiagnosticBusy(true);
+    setNativeFinanceDiagnostic(null);
+    try{
+      const result=await inspectNativeFinanceReadiness(
+        Platform.OS,NativeModules.NegrescoFinanceSecurityV1);
+      if(ticket===nativeFinanceDiagnosticEpoch.current&&AppState.currentState==='active')
+        setNativeFinanceDiagnostic(result);
+    }finally{
+      if(ticket===nativeFinanceDiagnosticEpoch.current){
+        nativeFinanceDiagnosticRunning.current=false;
+        setNativeFinanceDiagnosticBusy(false);
+      }
+    }
+  };
   const checkKeystore=async()=>{
     if(localLock.status!=='unlocked'||keystoreProbeRunning.current||AppState.currentState!=='active')return;
     const ticket=++keystoreProbeEpoch.current;
@@ -87,6 +111,10 @@ export default function App() {
         keystoreProbeEpoch.current++;
         setKeystoreProbeResult(null);
         setKeystoreProbeBusy(false);
+        nativeFinanceDiagnosticEpoch.current++;
+        nativeFinanceDiagnosticRunning.current=false;
+        setNativeFinanceDiagnostic(null);
+        setNativeFinanceDiagnosticBusy(false);
       }
     });
     return()=>listener.remove();
@@ -95,6 +123,10 @@ export default function App() {
     if(page!=='Ajustes'){
       keystoreProbeEpoch.current++;
       setKeystoreProbeResult(null);
+      nativeFinanceDiagnosticEpoch.current++;
+      nativeFinanceDiagnosticRunning.current=false;
+      setNativeFinanceDiagnostic(null);
+      setNativeFinanceDiagnosticBusy(false);
     }
   },[page]);
   const [boletoLine,setBoletoLine]=useState('');
@@ -303,6 +335,14 @@ export default function App() {
             </TouchableOpacity>
             :<Text style={[s.visualFeatureBody,{color:'#DAB882'}]}>Primeiro ative e desbloqueie a proteção biométrica da prévia para executar este diagnóstico.</Text>}
           {keystoreProbeResult&&<Text style={[s.visualFeatureBody,{marginTop:10,color:keystoreProbeResult.status==='passed'?'#9DD9C8':'#E4C18E'}]}>{keystoreProbeResult.message}</Text>}
+        </View>
+        <View style={s.visualFeature}>
+          <Text style={s.visualFeatureTitle}>Segurança financeira nativa · integração pendente</Text>
+          <Text style={s.visualFeatureBody}>O SQLCipher, a gestão de chaves e a recuperação ainda estão em laboratórios separados. Este diagnóstico é somente leitura e nunca autoriza guardar dados financeiros.</Text>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Verificar presença do módulo financeiro nativo" disabled={nativeFinanceDiagnosticBusy} onPress={checkNativeFinanceDiagnostic} style={[s.actionButton,{backgroundColor:'#244876',marginTop:13}]}>
+            <Text style={s.actionText}>{nativeFinanceDiagnosticBusy?'Verificando integração...':'Verificar integração nativa'}</Text>
+          </TouchableOpacity>
+          {nativeFinanceDiagnostic&&<Text style={[s.visualFeatureBody,{marginTop:10,color:'#D9BD8D'}]}>{nativeFinanceDiagnostic.message}</Text>}
         </View>
         <View style={s.palette}><View style={[s.swatch,{backgroundColor:'#000000',borderColor:'#41536C'}]}/><View style={[s.swatch,{backgroundColor:blue,borderColor:blue}]}/><View style={[s.swatch,{backgroundColor:'#0D111A',borderColor:'#41536C'}]}/><Text style={s.paletteLabel}>PALETA ATIVA</Text></View><Notice title="Tema OLED ativo" body="O fundo preto absoluto foi preservado para telas AMOLED. Preferências visuais e personalidade são salvas neste aparelho. Não armazene dados financeiros nas opções de aparência."/>
       </>:<>
