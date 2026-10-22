@@ -192,3 +192,12 @@ A próxima etapa de implantação deve estabelecer **instância única DataStore
 ### Pendências de CI desta subetapa
 
 A CI anterior `39796759531` apresentou 7/9 jobs aprovados. O contrato Node falhou porque um teste antigo contava uma única função pública depois da adição do segundo método diagnóstico, e o novo emulador Expo não conseguiu conectar o daemon ADB durante o boot; este último erro ocorreu **antes de executar testes**. O contrato foi ajustado para enumerar os dois métodos existentes. Os novos testes de DataStore e eventuais correções de infraestrutura só devem ser considerados aprovados após logs do novo HEAD.
+
+
+## Leitor tipado com DataStore injetado, apenas em instrumentação
+
+A próxima pequena integração de Fase 1 adicionou `NativeLockReadOnlySnapshotReader.kt`. O leitor **aceita por injeção** um `DataStore<Preferences>` que já tem um responsável, chama `data.first()`, encaminha o snapshot a `NativeLockTypedSnapshotClassifier` e retorna apenas um rótulo de classificação. Ele não contém `PreferenceDataStoreFactory`, caminho de arquivo, operação `updateData`, migração, nem API de desbloqueio. Erros de leitura retornam `STORAGE_ERROR_LOCKED`; cancelamento de coroutine é propagado para preservar o ciclo de vida. `VALID_UNTRUSTED` continua sem autorizar qualquer operação.
+
+`SyntheticReadOnlyNativeLockReaderTest.kt` fornece a **única instância DataStore** para um arquivo aleatório sob `noBackupFilesDir`, nunca para o arquivo persistido do app. Cinco testes Android instrumentados cobrem snapshot ausente, estados ligado/desligado sem autenticação, `disablePending` contraditório ou pendente, valor com tipo errado e leituras concorrentes pela mesma instância. A criação/edição de preferências existe **exclusivamente no fixture de teste**, não no leitor e não no aplicativo distribuído. `tests/native-finance-readonly-datastore-contract.test.mjs` preserva essa fronteira.
+
+**Ainda não implementado:** instância única de DataStore de produção, observador contínuo de revogação na Activity, migração de preferências legadas, reconciliação com biometria e Keystore, desbloqueio nativo ou SQLCipher com autorização. Nenhum método de leitura do snapshot foi exportado ao módulo Expo. Este trabalho precisa passar na compilação Android e no emulador do commit exato antes de ser considerado validado. O APK instalado no telefone permanece inalterado.
