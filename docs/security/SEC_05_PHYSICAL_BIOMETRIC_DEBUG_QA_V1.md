@@ -8,7 +8,7 @@ A Activity `SyntheticBiometricManualQaActivity` está **somente em `apps/mobile/
 
 Ela cria um alias aleatório AndroidKeyStore AES-256-GCM, `AUTH_BIOMETRIC_STRONG`, `setUserAuthenticationRequired(true)`, validade **zero** e invalidação ao alterar cadastro biométrico. Com consentimento real do Android, duas operações exigem **duas** aprovações por `BiometricPrompt(CryptoObject)`: primeiro cifrar `negresco-test-only`, depois decifrar e comparar os bytes. O callback sozinho não autoriza nada; cada chamada `doFinal` deve ser aceita pelo sistema. A senha e o banco SQLCipher real do app não participam.
 
-O teste instrumentado `SyntheticBiometricManualQaOptInTest.kt` é desativado na CI normal via `Assume.assumeTrue`; nenhuma digital é simulada. Ele só abre a Activity em **dispositivo físico com bloqueio seguro e biometria forte cadastrada**, se receber argumento exato `negresco.manual.biometric=YES_PHYSICAL_CONSENT`. A Activity é não exportada, portanto o próprio teste autorizado inicia sua UI. O timeout de QA é 120 s e o teste falha se não houver resposta real.
+O teste instrumentado `SyntheticBiometricManualQaOptInTest.kt` é desativado na CI normal via `Assume.assumeTrue`; nenhuma digital é simulada. Ele só tenta abrir a Activity com **opt-in exato** `negresco.manual.biometric=YES_PHYSICAL_CONSENT`, bloqueio de tela seguro e biometria forte cadastrada. O novo `SyntheticPhysicalBiometricQaGate` rejeita perfis conhecidos de emulador (goldfish, ranchu, sdk_gphone, Genymotion etc.). Seu único estado não bloqueado chama-se **`HUMAN_REVIEW_REQUIRED_NOT_ATTESTED`**: esses metadados Android podem ser falsificados e **não comprovam** que o dispositivo é físico. Uma pessoa autorizada precisa conferir o aparelho de QA antes de prosseguir. A CI executa testes negativos para esses perfis e confirma no `PackageManager` que a Activity Debug não é exportada. A Activity é não exportada, portanto o próprio teste autorizado inicia sua UI. O timeout de QA é 120 s e o teste falha se não houver resposta real.
 
 ## Procedimento de QA manual autorizado
 
@@ -24,7 +24,9 @@ O teste instrumentado `SyntheticBiometricManualQaOptInTest.kt` é desativado na 
 
    Confirme antecipadamente que o Android Gradle Plugin instalado repassa esses runner arguments na versão utilizada. A opção `class` limita a execução ao único teste manual; nenhum flag está configurado no workflow GitHub.
 4. Realize **duas autenticações biométricas reais** na tela de QA. Verifique o resultado `PASS_NATIVE_CRYPTO_ONLY` e ausência de erros do provedor. Faça rodadas separadas cancelando no primeiro e segundo prompt, saindo do aplicativo, mudando de foco e revogando o cadastro biométrico no aparelho de teste. Após cada rodada, confira ausência de alias residual `negresco_manual_fixture_*`.
-5. Registre apenas resultado, versão Android, fingerprint/build do dispositivo de teste, cancelamento, foreground/background e logs **sem chaves, IV, dados pessoais ou biometria**. Não registre modelos biométricos, prints do leitor ou dados bancários.
+5. Registre apenas resultado, versão Android, fingerprint/build do dispositivo de teste, cancelamento, foreground/background e logs **sem chaves, IV, dados pessoais ou biometria**.
+
+**Proteção adicional:** o opt-in NÃO é certificação de aparelho físico. Os testes `SyntheticPhysicalBiometricQaGateTest.kt` recusam execução automática e emuladores conhecidos, mas nenhum valor de `Build.FINGERPRINT`, modelo ou fabricante é uma atestação confiável. A homologação positiva exige revisão humana e evidência de um dispositivo real. O gate não tenta contornar sensores virtuais e não fornece flag de sucesso financeiro. Não registre modelos biométricos, prints do leitor ou dados bancários.
 
 ## Gate binário Release na CI
 
