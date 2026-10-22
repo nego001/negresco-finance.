@@ -155,6 +155,34 @@ cadastro, key-loss, migração, backup e homologar no Samsung físico.
 Nenhuma interface JavaScript recebe chave, senha ou bit de autorização;
 `financialStorageAllowed=false` e `keyReleaseAllowed=false` continuam.
 
+## Teste de fronteira CryptoObject: callbacks forjados continuam sem autoridade
+
+O laboratório agora contém `SyntheticCryptoObjectCallbackFirewallTest.kt`
+somente em `src/androidTest`, com
+`androidTestImplementation 'androidx.biometric:biometric:1.1.0'`.
+O código prova uma propriedade negativa importante: construir um
+`BiometricPrompt.CryptoObject(cipher)` em Kotlin, ou fabricar uma suposta
+resposta de sucesso, **não autentica o usuário**. O fluxo sintético exige
+`KeyInfo` de uma chave verdadeira `AndroidKeyStore`, autenticação por
+operação (validade `-1`), a mesma instância de `Cipher`, um token único
+e um período foreground ainda vigente antes de tentar `Cipher.doFinal()`.
+Somente o próprio provedor Keystore pode permitir o uso criptográfico.
+Uma tentativa já consumida, callback associado a outra cifra, chave apenas
+em software ou foreground revogado terminam negados. Se o emulador não
+conseguir provisionar biometria forte, a ausência é tratada como
+pré-requisito **indisponível**, jamais como autenticação aprovada.
+
+O retorno `OBSERVED_CRYPTO_ONLY_NOT_AUTHORIZATION` é estritamente
+um indicador do laboratório, **não** uma autorização de aplicativo:
+nenhum caminho grava/saca finanças, libera senha SQLCipher, migra conta,
+exporta chave ou responde `financialStorageAllowed=true`.
+O experimento intencionalmente **não abre um BiometricPrompt real** nem
+executa um teste positivo com digital. Essa etapa requer uma Activity
+real de teste, consentimento Android genuíno e validação em aparelho
+físico antes de integrar o cofre. A autorização da operação deve ficar
+inteiramente no processo Kotlin e ser revalidada após perda de foco,
+cancelamento, rotação, timeout e troca de cadastro biométrico.
+
 ## Interface futura mínima (NÃO DISPONÍVEL)
 
 A implementação de diagnóstico usa um módulo local Expo Kotlin **identificado por versão**; qualquer API real de autenticação, persistência ou chaves depende integralmente dos gates abaixo. A superfície JS deve ser mínima:
