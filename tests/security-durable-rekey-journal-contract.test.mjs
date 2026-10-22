@@ -374,3 +374,25 @@ test('SEC-05K fresh signatures do not imply PostgreSQL linearizable current stat
   assert.match(suite, /locally restored database has no proof of previous committed operation/);
   assert.match(jdbc, /runSyntheticJdbcSignedReadRaceScenarios\(\)/);
 });
+
+test('SEC-05K independent child process floor exposes PostgreSQL rollback and volatile restart limit', () => {
+  const oracle = read(fixtures + 'SyntheticIndependentGenerationFloorFixtureLab.kt');
+  const suite = read(fixtures + 'SyntheticJdbcIsolatedFloorRollbackLabTest.kt');
+  const runner = read(fixtures + 'SyntheticJdbcRekeyCasPersistenceLabTest.kt');
+  assert.match(oracle, /--sec05k-independent-floor-fixture-only/);
+  assert.match(oracle, /KeyPairGenerator\.getInstance\("Ed25519"\)/);
+  assert.match(oracle, /Signature\.getInstance\("Ed25519"\)/);
+  assert.match(oracle, /DENY_PREDECESSOR/);
+  assert.match(oracle, /DENY_ALREADY_ENROLLED/);
+  assert.match(oracle, /crypto\.equivalentFixtureOnly\(previous, expected\)/);
+  assert.match(oracle, /next\.generation != expected\.generation \+ 1/);
+  assert.match(oracle, /ProcessBuilder\(/);
+  assert.match(oracle, /Trust-on-creation ONLY for fixture/);
+  assert.match(suite, /simulated admin rolls back only fixture generation/);
+  assert.match(suite, /independent floor reveals DB rollback even when SQL receipts were erased/);
+  assert.match(suite, /stale quote remains cryptographically valid after separate floor advanced/);
+  assert.match(suite, /ephemeral signed child evidence is never promoted to trusted live authority/);
+  assert.match(suite, /critical limit: newly restarted oracle has LOST its previous floor/);
+  assert.match(suite, /critical limit: a new child can enroll OLD absent persistent secure state/);
+  assert.match(runner, /runSyntheticJdbcIsolatedFloorRollbackScenarios\(\)/);
+});
