@@ -31,4 +31,18 @@ test('SEC-05K stale preflight and concurrent CAS are covered by deterministic re
   assert.match(suite, /JVM monitor never fences a PostgreSQL or Android commit across processes/);
   assert.match(runner, /runSyntheticAnchorLinearizationBoundaryScenarios\(\)/);
   assert.match(docs, /fronteira de linearização local/i);
+  assert.match(anchor, /DENY_DIAGNOSTIC_WINDOW_MUTATED/);
+  assert.match(anchor, /mutationSerialFixtureOnly/);
+  assert.match(anchor, /monitors are REENTRANT/i);
+  assert.match(suite, /reentrant rollback and re-advance to identical bytes is rejected as ABA/);
+  assert.match(suite, /normal read cannot detect erased mutation history/);
+  assert.match(suite, /reentrant CAS during matching callback cannot return successful observation/);
+  const jdbc = read(root + 'SyntheticJdbcLocalFenceDoesNotFencePgLabTest.kt');
+  const jdbcRunner = read(root + 'SyntheticJdbcRekeyCasPersistenceLabTest.kt');
+  assert.match(jdbc, /PostgreSQL CAS commits WHILE JVM anchor monitor is held/);
+  assert.match(jdbc, /local monitor reports OLD while PostgreSQL has already committed NEW/);
+  assert.match(jdbc, /HOLD_EXTERNAL_AUTHORITY_REQUIRED/);
+  assert.match(jdbcRunner, /runSyntheticJdbcLocalFenceDoesNotFencePgScenarios\(\)/);
+  assert.doesNotMatch(mobile, /SyntheticJdbcLocalFenceDoesNotFencePgLabTest/);
+
 });
