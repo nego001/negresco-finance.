@@ -44,6 +44,33 @@ gates de proteção financeira, opt-out atômico ou recuperação. A build
 automática de artefatos de CI nunca autoriza publicação estável ou instalação
 no aparelho existente.
 
+## SEC-05 | Prova de uso AndroidKeyStore dentro da estrutura Expo (emulador, não APK)
+
+O código de **instrumentação exclusivamente de teste** do módulo local está em
+`apps/mobile/modules/negresco-finance-security/android/src/androidTest/java/com/negresco/finance/security/SyntheticNativeKeystoreRoundTripTest.kt`.
+Ele cria uma chave **efêmera** AES-256-GCM no provider `AndroidKeyStore`, autentica
+a criptografia de bytes fictícios, reabre a chave no mesmo dispositivo, detecta
+adulteração da tag GCM e remove o alias aleatório em bloco `finally`. Não registra
+nem transmite chaves, IVs, dados ou ciphertext. A chave é criada **sem exigência
+de autenticação** (`setUserAuthenticationRequired(false)`), justamente para
+não confundir este teste do mecanismo criptográfico com aprovação de biometria,
+CryptoObject, hardware dedicado, armazenamento SQLCipher ou autorização financeira.
+
+O job CI `expo-native-diagnostic-compile` compila também as fontes de
+instrumentação, e o novo job `expo-native-diagnostic-emulator` as executa
+em um Android 35 descartável. O segundo job compila/instala um pacote
+**de teste instrumental**, NÃO gera APK de distribuição nem altera o app
+que o usuário tem instalado. O arquivo de produção
+`NegrescoFinanceSecurityV1Module.kt` continua expondo apenas
+`getIntegrationInfo()` como diagnóstico sem autoridade. O módulo não possui
+operação de dados financeiros, autorização, persistência, SQLCipher ou migração.
+
+**Critério pendente:** obter logs do emulador com os testes aprovados; em
+seguida integrar uma operação nativa com banco SQLCipher **também sintético**
+e, separadamente, autorização vinculada a BiometricPrompt/Keystore, sessão
+e lifecycle. Mesmo uma CI totalmente verde não comprova proteção em um
+Samsung real nem segurança contra rollback de um serviço externo.
+
 ## Interface futura mínima (NÃO DISPONÍVEL)
 
 A implementação de diagnóstico usa um módulo local Expo Kotlin **identificado por versão**; qualquer API real de autenticação, persistência ou chaves depende integralmente dos gates abaixo. A superfície JS deve ser mínima:
