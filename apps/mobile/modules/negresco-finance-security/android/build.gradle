@@ -32,6 +32,10 @@ dependencies {
   androidTestImplementation 'androidx.datastore:datastore-preferences:1.2.1'
   androidTestImplementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0'
   // Tests run only in isolated CI emulators; the app has NO Keystore API.
+  // The Zetetic AAR is TEST ONLY: no SQLCipher dependency in the APK-facing
+  // module's implementation scope, nor any JS database or key API.
+  androidTestImplementation 'net.zetetic:sqlcipher-android:4.19.1'
+  androidTestImplementation 'androidx.sqlite:sqlite:2.7.0'
   androidTestImplementation 'junit:junit:4.13.2'
   androidTestImplementation 'androidx.test:runner:1.6.2'
   androidTestImplementation 'androidx.test:core:1.6.1'
