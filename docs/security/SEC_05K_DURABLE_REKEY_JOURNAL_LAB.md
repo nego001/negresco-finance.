@@ -234,6 +234,18 @@ O experimento também confirma que **uma assinatura antiga emitida antes do avan
 
 **Para sair do laboratório:** autoridade em ambiente e domínio de falha verdadeiramente independentes, persistência monotônica contra rollback de backup, identidade de servidor com trust anchor provisionada fora do canal, atestação de frescor e época, CAS e recibos transacionais, alta disponibilidade e reconciliação idempotente com o journal do dispositivo. A SEC-05K continua bloqueada para produção e não manipula fundos nem dados pessoais reais.
 
+## SEC-05K: persistência independente entre reinícios (JVM e disco, fixture descartável)
+
+O novo laboratório SyntheticPersistentIndependentFloorFixtureLab guarda um piso de geração em uma **pasta local separada do PostgreSQL**. Sua JVM filha não utiliza JDBC. O arquivo floor.state é assinado com Ed25519 e publicado por rename atômico com fsync de arquivo e diretório. Os marcadores identity.guard e enrolled.guard são escritos antes de seus respectivos estados: ausência posterior de chave/geração resulta em **recusa**, não em re-provisionamento automático. O FileLock é advisory e só coordena processos cooperativos.
+
+O par de chaves Ed25519 é persistido fora do banco para que o processo novo mantenha a identidade anterior. **A chave privada PKCS8 está em claro na pasta temporária exclusiva do teste.** Isso não implementa isolamento criptográfico de produção, KMS, HSM, TEE, controle de acesso seguro nem provisionamento autenticado da chave pública. O cliente JVM do ensaio preserva/pina a chave pública recebida na criação; esse pinning não equivale à identidade de uma autoridade remota independente.
+
+O teste SyntheticJdbcPersistentFloorRollbackLabTest está ligado ao job pgRekeyCasCheck: após persistir geração nova, encerra e reinicia o processo isolado, restaura apenas a geração e o recibo de uma **conta fictícia** no PostgreSQL e consulta novamente o piso assinado. Uma restauração *somente* do banco não reduz a geração que a JVM nova lê do armazenamento separado. Arquivo de piso truncado ou apagado após enrollment é recusado. Uma cópia íntegra da geração atual pode ser reapresentada manualmente no fixture descartável.
+
+**Resultado negativo intencional: rollback da própria autoridade.** Ao restaurar um arquivo floor.state antigo com assinatura ainda válida, a nova JVM pode aceitar a geração antiga **mesmo mantendo a chave pública pinada**. Se a pasta e a chave privada também forem restauradas ou manipuladas pelo adversário, a fragilidade é ainda maior. Assinar um estado e sincronizá-lo em disco **não** produz monotonicidade irreversível. Uma cadeia de hashes inteiramente restaurável pelo mesmo adversário também não resolveria o problema. Essa limitação deve continuar explícita nos testes, sem maquiar o resultado.
+
+**Gates BLOQUEADOS:** contador antirrollback respaldado por domínio de falha e armazenamento não restaurável pelo mesmo adversário (ou serviço durável com garantia equivalente), raiz de confiança provisionada, autenticação do titular, operações CAS com recibos e reconciliação transacional entre autoridades, proteção de chave em hardware/KMS, recuperação de falha física, backups realmente externos e integração Android/SQLCipher. Nenhuma aprovação de produção, nenhum merge, APK, instalação ou alteração das IAs na PR #17.
+
 ## Faltam antes de produção
 
 - **Backup externo real confirmado:** o parâmetro de envelope+segredo verifica criptografia, mas **não demonstra que o usuário salvou o segredo fora do dispositivo**. Queda após a decisão de commit pode tornar os dados inacessíveis se o único segredo ficou na memória do processo. Deve existir cerimônia de backup externo com prova segura, persistente e independente **antes** do commit, sem guardar o segredo em claro.
