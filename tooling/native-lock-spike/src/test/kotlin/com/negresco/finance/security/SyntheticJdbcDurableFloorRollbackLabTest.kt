@@ -166,6 +166,24 @@ internal fun runSyntheticJdbcDurableFloorRollbackScenarios() {
       SyntheticSignedRekeyChallengeCheckLab.VERIFIED_SIGNATURE_FIXTURE_ONLY_NOT_LIVE_AUTHORITY,
       "critical limit: replayed floor produces VALID signature with original pin")
   }
+  // A guard only detects PARTIAL loss. Removing both guard and state is a
+  // deliberate negative test: ordinary disk files are not rollback-proof.
+  Files.delete(root.resolve("authority.state"))
+  verify(runCatching {
+    SyntheticDurableFloorClientFixtureLab(root).use { it.call("QUOTE|YQ==") }
+  }.isFailure, "guard prevents silent reenrollment when state alone disappears")
+  verify(!Files.exists(root.resolve("authority.state")),
+    "denied startup does not recreate missing state under surviving guard")
+
+  Files.delete(root.resolve("provisioned.guard"))
+  SyntheticDurableFloorClientFixtureLab(root).use { wiped ->
+    verify(wiped.signedCurrent(ByteArray(32)) == null,
+      "critical limit: complete removal of guard AND state reprovisions empty authority")
+    verify(!MessageDigest.isEqual(pinned.encoded, wiped.childPublicKey.encoded),
+      "critical limit: full authority wipe silently creates new unpinned key")
+    verify(wiped.enroll(old) == "OK_ENROLLED",
+      "critical limit: full authority wipe permits OLD reenrollment")
+  }
   println("PASS: SEC-05K " + checks +
     " durable independent JVM floor vs PostgreSQL-only rollback checks (fixture)")
   println("LIMIT: authority-file rollback still succeeds; no HSM, WORM, server or production trust")
