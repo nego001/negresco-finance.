@@ -9,6 +9,10 @@ const tests = read(base + 'src/androidTest/java/com/negresco/finance/security/Sy
 const production = read(base + 'src/main/java/com/negresco/finance/security/NegrescoFinanceSecurityV1Module.kt');
 const gradle = read(base + 'build.gradle');
 const workflow = read('.github/workflows/ci.yml');
+const executableTests = tests
+  .replace(/\/\*[\s\S]*?\*\//g, '')
+  .replace(/^\s*\/\/.*$/gm, '');
+
 
 test('Biometric positive dispatcher uses real OS prompt and CryptoObject in test-only code', () => {
   assert.match(harness, /BiometricPrompt\.AuthenticationCallback/);
@@ -36,7 +40,7 @@ test('positive prompt harness cannot accidentally become an app unlock API or ru
   assert.match(production, /"keyReleaseAllowed" to false/);
   assert.match(production, /"hardwareKeyAuthorizationIntegrated" to false/);
   assert.match(tests, /NO OS biometric approval is injected or forged/);
-  assert.doesNotMatch(tests, /requestWithRealOperatingSystemPrompt\(/);
+  assert.doesNotMatch(executableTests, /requestWithRealOperatingSystemPrompt\(/);
   assert.match(workflow, /:negresco-finance-security:compileDebugAndroidTestKotlin/);
   assert.match(workflow, /:negresco-finance-security:connectedDebugAndroidTest/);
 });
