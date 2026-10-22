@@ -38,7 +38,8 @@ internal enum class SyntheticAnchorBoundaryObservationLab {
   DENY_RESTORED_OR_DIVERGENT_STORES,
   DENY_WRONG_ANCHOR_PIN,
   HOLD_ANCHOR_UNAVAILABLE,
-  DENY_UNKNOWN_ACCOUNT
+  DENY_UNKNOWN_ACCOUNT,
+  DENY_DIAGNOSTIC_WINDOW_MUTATED
 }
 
 private data class SyntheticAnchorReceiptLab(
@@ -60,6 +61,15 @@ internal class SyntheticProtectedAnchorFixtureLab {
 
   var reachableFixtureOnly = true
 
+  // Volatile, in-process mutation serial (NOT tamper-proof or durable).
+  // This catches reentrant callback writes even when they restore the same
+  // bytes (an ABA state change) before returning from a diagnostic probe.
+  private var mutationSerialFixtureOnly = 0L
+  private fun noteMutationFixtureOnly() {
+    check(mutationSerialFixtureOnly != Long.MAX_VALUE)
+    mutationSerialFixtureOnly++
+  }
+
   // Claim contains a mutable ByteArray. The test-double MUST NOT retain
   // caller-owned arrays in the floor or the operation-receipt ledger.
   private fun retainedCopy(c: SyntheticRekeyGenerationClaimLab) =
@@ -72,6 +82,7 @@ internal class SyntheticProtectedAnchorFixtureLab {
     if (!crypto.validClaimFixtureOnly(claim)) return SyntheticAnchorCasResultLab.DENY_TRANSITION
     if (floors.containsKey(claim.accountId)) return SyntheticAnchorCasResultLab.DENY_RESEED
     floors[claim.accountId] = retainedCopy(claim)
+    noteMutationFixtureOnly()
     return SyntheticAnchorCasResultLab.BOOTSTRAPPED_FIXTURE_ONLY
   }
 
@@ -115,6 +126,7 @@ internal class SyntheticProtectedAnchorFixtureLab {
 
     floors[expected.accountId] = retainedCopy(next)
     receipts[key] = SyntheticAnchorReceiptLab(retainedCopy(expected), retainedCopy(next))
+    noteMutationFixtureOnly()
     // Simulates a lost ACK, not a storage failure. Read+retry are mandatory.
     return if (dropReplyAfterCommit) SyntheticAnchorCasResultLab.LOST_REPLY_AFTER_ADVANCE
       else SyntheticAnchorCasResultLab.ADVANCED_FIXTURE_ONLY
@@ -137,6 +149,7 @@ internal class SyntheticProtectedAnchorFixtureLab {
     require(older.version < current.version && older.generation < current.generation)
     floors[older.accountId] = retainedCopy(older)
     receipts.keys.removeAll { it.first == older.accountId }
+    noteMutationFixtureOnly()
   }
 
   @Synchronized
@@ -178,9 +191,16 @@ internal class SyntheticProtectedAnchorFixtureLab {
     onDiagnosticProbeFixtureOnly: () -> Unit
   ): SyntheticAnchorBoundaryObservationLab {
     val observed = observeFixtureOnly(rollbackableDatabase, rollbackableSignedFile, pinned)
-    if (observed == SyntheticAnchorBoundaryObservationLab.OBSERVED_MATCH_ONLY_NOT_AUTHORIZATION)
-      onDiagnosticProbeFixtureOnly()
-    return observed
+    if (observed != SyntheticAnchorBoundaryObservationLab.OBSERVED_MATCH_ONLY_NOT_AUTHORIZATION)
+      return observed
+    val before = mutationSerialFixtureOnly
+    onDiagnosticProbeFixtureOnly()
+    // Java monitors are REENTRANT. The callback could write this same object
+    // despite @Synchronized, including rolling back and advancing to the
+    // SAME bytes. Observing again alone would miss that ABA mutation.
+    if (mutationSerialFixtureOnly != before)
+      return SyntheticAnchorBoundaryObservationLab.DENY_DIAGNOSTIC_WINDOW_MUTATED
+    return observeFixtureOnly(rollbackableDatabase, rollbackableSignedFile, pinned)
   }
 }
 
