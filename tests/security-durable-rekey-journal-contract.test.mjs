@@ -356,3 +356,21 @@ test('SEC-05K PostgreSQL and journal reconciliation observations never promote u
   assert.match(cases, /fixture-only observation NEVER authorizes journal publication or cleanup/);
   assert.match(jdbc, /runSyntheticJdbcJournalAuthorityDivergenceScenarios\(\)/);
 });
+
+test('SEC-05K fresh signatures do not imply PostgreSQL linearizable current state', () => {
+  const suite = read(fixtures + 'SyntheticJdbcSignedReadRaceLabTest.kt');
+  const jdbc = read(fixtures + 'SyntheticJdbcRekeyCasPersistenceLabTest.kt');
+  assert.match(suite, /runSyntheticJdbcSignedReadRaceScenarios/);
+  assert.match(suite, /Signature\.getInstance\("Ed25519"\)/);
+  assert.match(suite, /SyntheticSignedRekeyChallengeSessionLab/);
+  assert.match(suite, /new generation commits after stale reply was signed/);
+  assert.match(suite, /valid Ed25519 signature remains valid even though response is NOW STALE/);
+  assert.match(suite, /HOLD_EXTERNAL_AUTHORITY_REQUIRED/);
+  assert.match(suite, /DENY_REUSED_OR_EXPIRED_SESSION/);
+  assert.match(suite, /DENY_SIGNATURE/);
+  assert.match(suite, /DELETE FROM negresco_sec05k_cas_lab\.operation_receipts WHERE account_id=\?/);
+  assert.match(suite, /UPDATE negresco_sec05k_cas_lab\.generations SET/);
+  assert.match(suite, /CRITICAL LIMIT: fresh signature can authenticate rolled-back SQL generation/);
+  assert.match(suite, /locally restored database has no proof of previous committed operation/);
+  assert.match(jdbc, /runSyntheticJdbcSignedReadRaceScenarios\(\)/);
+});
