@@ -164,3 +164,62 @@ test('native diagnostic timeout input cannot disable its bounded fail-closed tim
     alwaysDenied(result);
   }
 });
+
+test('manual native lock store presence is informational and never unlocks finance', async () => {
+  const variants = [
+    ['ABSENT', 'absent'],
+    ['PRESENT_UNVERIFIED', 'present-unverified'],
+    ['UNSAFE_ENTRY', 'unsafe-entry'],
+    ['UNAVAILABLE', 'unavailable'],
+    ['READY', 'not-checked'],
+    ['VERIFIED_LIVE_CURRENT', 'not-checked'],
+    [null, 'not-checked'],
+  ];
+  for (const [nativeStatus, expected] of variants) {
+    const result = await inspectNativeFinanceReadiness('android', {
+      getIntegrationInfo: async () => ({ready: true, keyReleaseAllowed: true}),
+      inspectNativeLockStorePresence: async () => ({
+        status: nativeStatus,
+        financialStorageAllowed: true,
+        keyReleaseAllowed: true,
+        migrationAllowed: true,
+      }),
+    });
+    assert.equal(result.status, 'native-lab-only');
+    assert.equal(result.storePresence, expected);
+    alwaysDenied(result);
+    assert.match(result.message, /BLOQUEADA/);
+    assert.doesNotMatch(result.message, /VERIFIED_LIVE_CURRENT|READY/);
+  }
+});
+
+test('malformed or failed optional native metadata inspection never leaks data or allows keys', async () => {
+  for (const inspector of [
+    () => { throw Error('private-key-synthetic'); },
+    async () => { throw Error('private-record-synthetic'); },
+  ]) {
+    const result = await inspectNativeFinanceReadiness('android', {
+      getIntegrationInfo: () => ({moduleKind: 'DIAGNOSTIC_ONLY'}),
+      inspectNativeLockStorePresence: inspector,
+    });
+    assert.equal(result.status, 'native-diagnostic-error');
+    alwaysDenied(result);
+    assert.doesNotMatch(result.message, /private-key-synthetic|private-record-synthetic/);
+  }
+  const result = await inspectNativeFinanceReadiness('android', {
+    getIntegrationInfo: () => ({}),
+    inspectNativeLockStorePresence: () => null,
+  });
+  assert.equal(result.storePresence, 'not-checked');
+  alwaysDenied(result);
+});
+
+test('one timeout bounds BOTH native diagnostic methods, including unresponsive file observation', async () => {
+  const result = await inspectNativeFinanceReadiness('android', {
+    getIntegrationInfo: async () => ({ready: true}),
+    inspectNativeLockStorePresence: () => new Promise(() => {}),
+  }, 10);
+  assert.equal(result.status, 'native-diagnostic-error');
+  alwaysDenied(result);
+  assert.equal(result.storePresence, 'not-checked');
+});
