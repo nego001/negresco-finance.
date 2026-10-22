@@ -26,6 +26,22 @@ O teste instrumentado `SyntheticBiometricManualQaOptInTest.kt` é desativado na 
 4. Realize **duas autenticações biométricas reais** na tela de QA. Verifique o resultado `PASS_NATIVE_CRYPTO_ONLY` e ausência de erros do provedor. Faça rodadas separadas cancelando no primeiro e segundo prompt, saindo do aplicativo, mudando de foco e revogando o cadastro biométrico no aparelho de teste. Após cada rodada, confira ausência de alias residual `negresco_manual_fixture_*`.
 5. Registre apenas resultado, versão Android, fingerprint/build do dispositivo de teste, cancelamento, foreground/background e logs **sem chaves, IV, dados pessoais ou biometria**. Não registre modelos biométricos, prints do leitor ou dados bancários.
 
+## Gate binário Release na CI
+
+O job `expo-native-diagnostic-compile` agora inclui
+`:negresco-finance-security:bundleReleaseAar` para compilar apenas a
+**biblioteca Android Release**, sem gerar ou publicar APK de aplicativo.
+Após a compilação, a CI inspeciona `classes.jar` e
+`AndroidManifest.xml` do AAR. Exige a presença da classe normal
+`NegrescoFinanceSecurityV1Module` e rejeita a presença de
+`SyntheticBiometricManualQaActivity` em qualquer um dos dois arquivos.
+
+Esse gate detecta vazamento acidental da tela de QA da variante Debug
+para a **biblioteca Release**. Ele não substitui a inspeção do APK final,
+não prova compatibilidade de assinatura/atualização e não torna a
+biometria positiva do produto aprovada. O teste manual permanece
+excluído das execuções automáticas, por exigir consentimento real.
+
 ## Critérios de bloqueio
 
 - **PASS_NATIVE_CRYPTO_ONLY** demonstra somente que duas operações AES-GCM com chave temporária exigiram consentimento real. **Não** demonstra SQLCipher financeiro, recovery, logout, alto nível de assurance, attestation, antirollback ou autorização de usuário para qualquer saldo/transferência.
