@@ -246,9 +246,9 @@ fun main(args: Array<String>) {
 internal class SyntheticDurableFloorClientFixtureLab(dir: Path) : AutoCloseable {
   private val b64 = Base64.getEncoder()
   private val dec = Base64.getDecoder()
-  private val java = Paths.get(System.getProperty("java.home"), "bin",
+  private val javaPath = Paths.get(System.getProperty("java.home"), "bin",
     if (System.getProperty("os.name").lowercase().contains("win")) "java.exe" else "java")
-  private val child = ProcessBuilder(java.toString(), "-cp",
+  private val child = ProcessBuilder(javaPath.toString(), "-cp",
     System.getProperty("java.class.path"),
     "com.negresco.finance.security.SyntheticDurableGenerationFloorFixtureLabKt",
     "--sec05k-durable-floor-fixture-only", dir.toAbsolutePath().toString())
