@@ -222,6 +222,18 @@ A verificação também inclui diferença entre chaves pinadas, mismatch de gera
 
 **Próximos gates:** arquitetura independente de contadores monotônicos autenticados, confiança inicial da chave, respostas assinadas vinculadas ao commit/UUID e período de validade comprovável, CAS durável sob falhas de energia e rollback de backup, reconstrução da autoridade, operação offline, e validação integrada Android/SQLCipher. A SEC-05K continua BLOQUEADA para produção.
 
+## SEC-05K: referência assinada em uma JVM separada (prova de isolamento, não de durabilidade)
+
+O ensaio `SyntheticIndependentGenerationFloorFixtureLab` executa um **processo JVM filho independente do cliente JDBC**, com uma chave Ed25519 gerada em sua própria memória e uma referência de geração mantida **somente no heap dessa JVM**. Uma interface textual restrita aceita `ENROLL`, `ADVANCE` condicional e `QUOTE` vinculada ao desafio aleatório do cliente. O processo não executa comandos SQL nem lê os recibos do PostgreSQL, e só recebe metadados opacos sintéticos. O comando de avanço recusa predecessor incorreto, regressão, saltos de geração, kit não renovado e novo enrollment enquanto há estado.
+
+O `SyntheticJdbcIsolatedFloorRollbackLabTest`, executado pelo `pgRekeyCasCheck`, mantém essa JVM ativa enquanto um CAS é persistido no PostgreSQL de CI. Em seguida, o teste restaura **somente uma conta fictícia e seu recibo** para a versão anterior, por meio de SQL privilegiado. A JVM isolada continua emitindo uma resposta assinada para a geração nova. O teste então comprova que a resposta e os hashes do banco divergem. Repetir a alteração antiga na referência externa é recusado. A política `SIGNED_CHALLENGE_FIXTURE_ONLY_NO_LIVE_AUTHORITY` continua sempre retornando `HOLD_EXTERNAL_AUTHORITY_REQUIRED`.
+
+O experimento também confirma que **uma assinatura antiga emitida antes do avanço pode permanecer criptograficamente válida após o avanço**; um nonce não resolve a corrida entre leitura e mudança do estado. Outra verificação comprova que chave pública errada não valida a assinatura da JVM independente.
+
+**Resultado negativo indispensável:** finalizar a JVM destrói seu estado e sua chave Ed25519. Um processo novo pode aceitar novamente uma geração antiga. Portanto, embora a JVM isolada detecte uma regressão do PostgreSQL **enquanto continua viva e não é comprometida**, esse ensaio **NÃO implementa** uma autoridade remotamente implantada, imutável, monotônica entre reinícios, nem protege contra comprometimento simultâneo de ambos os processos. A chave pública é obtida do próprio processo filho, por **confiança no momento da criação**, não por pinning autenticado de produção. Um atacante que substitua o processo também pode substituir sua chave e inventar um estado arbitrário.
+
+**Para sair do laboratório:** autoridade em ambiente e domínio de falha verdadeiramente independentes, persistência monotônica contra rollback de backup, identidade de servidor com trust anchor provisionada fora do canal, atestação de frescor e época, CAS e recibos transacionais, alta disponibilidade e reconciliação idempotente com o journal do dispositivo. A SEC-05K continua bloqueada para produção e não manipula fundos nem dados pessoais reais.
+
 ## Faltam antes de produção
 
 - **Backup externo real confirmado:** o parâmetro de envelope+segredo verifica criptografia, mas **não demonstra que o usuário salvou o segredo fora do dispositivo**. Queda após a decisão de commit pode tornar os dados inacessíveis se o único segredo ficou na memória do processo. Deve existir cerimônia de backup externo com prova segura, persistente e independente **antes** do commit, sem guardar o segredo em claro.
