@@ -274,5 +274,6 @@ fun main(args: Array<String>) {
     runSyntheticSignedRekeyAuthorityChallengeScenarios()
     runSyntheticDualDurableFloorAgreementScenarios()
     runSyntheticRekeyAuthorityCasTimeoutScenarios()
+    runSyntheticProtectedAnchorBoundaryScenarios()
   }
 }
