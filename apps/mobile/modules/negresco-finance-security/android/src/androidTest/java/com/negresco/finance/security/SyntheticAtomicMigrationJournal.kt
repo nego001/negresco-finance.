@@ -93,8 +93,9 @@ internal class SyntheticAtomicMigrationJournal(private val fixtureFile: File) {
       return "DENY_SYNTHETIC_JOURNAL_MALFORMED"
     }
     val parts = raw.split("|")
+    val sequence = parts.getOrNull(1)?.toLongOrNull()
     if (parts.size != 4 || parts[0] != "v1" ||
-      parts[1].toLongOrNull() !in 1L..1_000_000L ||
+      sequence == null || sequence !in 1L..1_000_000L ||
       parts[2] !in supportedSteps ||
       parts[3].length != 64 || !parts[3].matches(Regex("[a-f0-9]{64}")))
       return "DENY_SYNTHETIC_JOURNAL_MALFORMED"
