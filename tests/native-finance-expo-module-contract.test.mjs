@@ -32,7 +32,7 @@ test('Phase1 local Expo module is Android-only and registered with explicit modu
 test('Phase1 native surface is strictly diagnostic, no financial access operations', () => {
   const functions = [...module.matchAll(/\bAsyncFunction\("([^"]+)"\)/g)]
     .map(match => match[1]);
-  assert.deepEqual(functions, ['getIntegrationInfo', 'inspectNativeLockStorePresence']);
+  assert.deepEqual(functions, ['getIntegrationInfo', 'inspectNativeLockStorePresence', 'inspectExistingNativeLockRecord']);
   assert.match(module, /"moduleKind" to "DIAGNOSTIC_ONLY"/);
   for (const name of [
     'financialStorageAllowed', 'keyReleaseAllowed', 'migrationAllowed',
@@ -42,6 +42,7 @@ test('Phase1 native surface is strictly diagnostic, no financial access operatio
   }
   assert.doesNotMatch(module, /Function\("(?:open|unlock|disable|enable|migrate|write|save|load|readData|decrypt)/i);
   assert.doesNotMatch(module, /SecretKey|Cipher\.getInstance|net\.zetetic|openDatabase|DataStore|BiometricPrompt|CryptoObject|passphrase/i);
+  assert.match(module, /SuspendBody\s*\{/);
   assert.doesNotMatch(module, /getIntegrationInfo.*\bBoolean\b/);
   assert.doesNotMatch(module, /Log\.(?:i|e|d|w)\(/);
   assert.equal(packageJson.dependencies.expo, '~54.0.0');
