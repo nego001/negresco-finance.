@@ -105,10 +105,9 @@ jobs:
           profile: pixel_6
           emulator-boot-timeout: 600
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
-          script: |
-            cd apps/mobile/android
-            chmod +x gradlew
-            ./gradlew :negresco-finance-security:connectedDebugAndroidTest --no-daemon --stacktrace
+          # android-emulator-runner executes each multiline script line in a
+          # separate shell. Keep cd + chmod + Gradle in ONE shell command.
+          script: bash -c 'cd apps/mobile/android && chmod +x gradlew && ./gradlew :negresco-finance-security:connectedDebugAndroidTest --no-daemon --stacktrace'
       - name: Upload synthetic module instrumentation reports on failure
         if: failure()
         uses: actions/upload-artifact@v4
