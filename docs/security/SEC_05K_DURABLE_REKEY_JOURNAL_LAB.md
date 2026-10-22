@@ -274,3 +274,19 @@ Esse laboratório não cria backend implantado, HSM, KMS, storage WORM, contador
 **Gate seguinte:** autoridade verdadeiramente independente, identidade pinada fora do canal, contador monotônico resistente ao *restore do seu próprio estado*, registros auditáveis e recuperação após desastres. Exigir revisão de segurança, crash/power-loss e autorização do titular antes de integrar o app. **PR #14 continua draft. Sem merge, release, APK, dados reais ou modificações na PR #17 das IAs.**
 
 **Teste adicional de perda completa:** remover apenas authority.state mantendo provisioned.guard causa recusa de inicialização e não deve gerar novo estado. Remover **ambos** os arquivos permite um novo provisionamento com outra chave e reenrollment da geração OLD. Isso delimita por que marcadores locais não substituem raiz monotônica inviolável.
+
+
+## SEC-05K | Duas JVMs assinantes: divergência isolada e replay coordenado
+
+**Escopo exclusivo de fixture Kotlin/JVM.** O experimento SyntheticDualDurableFloorAgreementLabTest.kt inicia duas JVMs filhas e dois diretórios temporários separados no **mesmo runner de CI**. Cada JVM guarda sua própria chave Ed25519 e o próprio estado persistente. Isso **não** constitui duas regiões, dois operadores, servidores remotos confiáveis, HSM, quorum inviolável, nem serviço de autenticação.
+
+A política pura SyntheticDualFloorAgreementPolicyFixtureLab exige dois pins públicos distintos, dois desafios independentes de 32 bytes, a associação correta resposta/desafio e duas assinaturas Ed25519 válidas de **claims idênticos** (conta, kit, versão, geração e hash dos bytes cifrados). Sem testemunha, com chaves iguais, resposta trocada, assinatura adulterada ou claims divergentes, retorna HOLD, jamais prossegue. Mesmo se tudo coincidir, o único resultado permitido é AGREEMENT_FIXTURE_ONLY_NOT_LIVE_AUTHORITY; ele **não** vira VERIFIED_LIVE_CURRENT.
+
+Cenários no runner policyCheck:
+- A e B iniciam em OLD; avanço unilateral A=NEW, B=OLD implica HOLD_DIVERGENT_FLOORS. B só avança explicitamente a partir do seu predecessor OLD.
+- Depois de dois avanços, ambas são reiniciadas em processos novos; chaves e geração NEW persistem enquanto os dois arquivos continuam intactos.
+- Restore **somente** do arquivo A para OLD, com B mantida em NEW, causa divergência assinada e bloqueio.
+- **Teste negativo obrigatório:** restore de **ambos** os arquivos da autoridade, inclusive suas chaves de teste antigas, faz A e B concordarem na geração OLD, com assinaturas válidas sob os pins originais e nonces novos. Um acordo 2-de-2 em armazenamento comum pode portanto estar globalmente obsoleto.
+- Duas respostas assinadas antes de um avanço permanecem matematicamente válidas depois dele. Nenhuma verificação local de assinatura elimina TOCTOU, e o teste conserva HOLD_EXTERNAL_AUTHORITY_REQUIRED na política de reconciliação.
+
+**Risco residual:** não há garantia de estado monotônico contra comprometimento/restore conjunto das duas testemunhas. Diretrizes para etapa posterior incluem âncora externa com garantias documentadas de prevenção a rollback ou checkpoint imutável sob controle independente, política de bootstrap que recuse reset, provisionamento autenticado de chaves, frescor e commit linearizável, disponibilidade/reconciliação e auditoria por ameaça. HMAC/Ed25519 não substituem storage resistente a rollback. Não autorizar operações financeiras, não integrar com SQLCipher real ou Expo e não distribuir APK. **SEC-05K permanece bloqueada, PR #14 em draft e PR #17 intacta.**
