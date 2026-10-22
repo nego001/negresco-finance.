@@ -100,6 +100,37 @@ concluída até aprovação da nova execução. Persistência financeira real
 permanece bloqueada até chaves nativas vinculadas a autenticação, gestão de
 ciclo de vida, migração/backup e QA no Samsung.
 
+## Key-wrapping sintético no módulo Expo: AndroidKeyStore → SQLCipher
+
+Após validação da CI #39802901753 (**9/9**, incluindo 14 testes instrumentados), uma
+nova classe **exclusivamente** em `src/androidTest` exercita a união dos dois
+mecanismos: `SyntheticKeystoreWrappedSqlcipherLifecycleTest.kt`. Um alias
+AndroidKeyStore aleatório protege por AES-256-GCM uma senha SQLCipher inventada;
+o envelope cifrado é vinculado por AAD a uma identidade de conta fictícia e ao
+nome do banco. Um novo acesso ao provider recupera a senha para reabrir o banco
+descartável. Adulteração da tag, troca do vínculo de conta e perda do alias
+devem causar bloqueio, sem criar outro banco ou destruir o ciphertext existente.
+Arquivos e alias temporários são removidos em `finally`.
+
+O teste explicita que a chave **não exige biometria**
+(`setUserAuthenticationRequired(false)`). A API de SQLCipher usada nesta
+fixture converte a senha a `String` na JVM; portanto, apagar `ByteArray`
+não comprova eliminação de todas as cópias em memória. A proteção forte
+dos segredos, o ciclo de vida, a retenção dos dados reais e a autorização do
+titular dependem de outro contrato de implementação e homologação.
+
+Não foram acrescentadas funções de gravação, abertura de banco ou liberação
+de chave à interface Expo. O `NegrescoFinanceSecurityV1Module` continua
+devolvendo `financialStorageAllowed=false`, `keyReleaseAllowed=false` e
+`sqlcipherIntegrated=false`. Nenhum dado pessoal, financeiro ou aplicativo
+instalado é afetado.
+
+**Critério de aceite da nova etapa:** `expo-native-diagnostic-compile` deve
+compilar o `androidTest`, `expo-native-diagnostic-emulator` deve executá-lo,
+e o contrato `native-finance-keywrap-lifecycle.test.mjs` deve passar. Mesmo
+com CI verde, isso é demonstração de integração criptográfica com senha de
+teste, não um cofre financeiro pronto.
+
 ## Interface futura mínima (NÃO DISPONÍVEL)
 
 A implementação de diagnóstico usa um módulo local Expo Kotlin **identificado por versão**; qualquer API real de autenticação, persistência ou chaves depende integralmente dos gates abaixo. A superfície JS deve ser mínima:
