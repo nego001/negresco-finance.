@@ -45,7 +45,7 @@ internal object SyntheticDurableGenerationFloorFixtureLab {
   private fun checkPaths(dir: Path) {
     require(dir.isAbsolute && Files.isDirectory(dir, noFollow))
     require(!Files.isSymbolicLink(dir))
-    for (name in listOf("authority.state", "authority.lock")) {
+    for (name in listOf("authority.state", "authority.lock", "provisioned.guard")) {
       require(!Files.isSymbolicLink(dir.resolve(name))) { "DENY_SYMLINK" }
     }
   }
@@ -134,8 +134,25 @@ internal object SyntheticDurableGenerationFloorFixtureLab {
     decode(readBounded(dir.resolve("authority.state")))
 
   private fun initialize(dir: Path): State = locked(dir) {
-    if (!Files.exists(dir.resolve("authority.state"), noFollow)) {
+    val statePath = dir.resolve("authority.state")
+    val guardPath = dir.resolve("provisioned.guard")
+    val hasState = Files.exists(statePath, noFollow)
+    val hasGuard = Files.exists(guardPath, noFollow)
+    require(hasState == hasGuard) { "DENY_MISSING_DURABLE_STATE" }
+    if (!hasState) {
+      // Marker FIRST: a crash before state publish fails closed, never reseeds.
+      FileChannel.open(guardPath, StandardOpenOption.CREATE_NEW,
+        StandardOpenOption.WRITE, noFollow).use { channel ->
+        val buf = ByteBuffer.wrap("SEC05K_FLOOR_GUARD_V1\n".toByteArray(utf8))
+        while (buf.hasRemaining()) require(channel.write(buf) > 0)
+        channel.force(true)
+      }
+      FileChannel.open(dir, StandardOpenOption.READ).use { it.force(true) }
       persist(dir, State(KeyPairGenerator.getInstance("Ed25519").generateKeyPair(), null))
+    } else {
+      require(String(readBounded(guardPath), utf8) == "SEC05K_FLOOR_GUARD_V1\n") {
+        "DENY_CORRUPT_GUARD"
+      }
     }
     load(dir)
   }
