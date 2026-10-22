@@ -28,7 +28,8 @@ test('Legacy native lock migration is a pure hold/deny-only preflight, never a p
     'DENY_UNKNOWN_LEGACY_PREFERENCE',
   ]) assert.ok(gate.includes('"' + marker + '"'), marker);
   assert.doesNotMatch(gate, /return\s+"(?:ALLOW|SUCCESS|UNLOCKED|MIGRATED)/);
-  assert.doesNotMatch(gate, /updateData|\.edit\s*\{|PreferenceDataStoreFactory|File\(|FileOutputStream|delete\(|remove\(|setItem\(|SharedPreferences|Keystore|Cipher\.getInstance|CryptoObject|openDatabase|createDatabase/);
+  const executableGate = gate.split('\n').filter(line => !/^\s*(?:\/\/|\/\*|\*)/.test(line)).join('\n');
+  assert.doesNotMatch(executableGate, /updateData|\.edit\s*\{|PreferenceDataStoreFactory|File\(|FileOutputStream|delete\(|remove\(|setItem\(|SharedPreferences|Keystore|Cipher\.getInstance|CryptoObject|openDatabase|createDatabase/);
   assert.doesNotMatch(module, /NativeLockMigrationPreflight|migrateLegacy|requestMigration|enableMigration|requestUnlock/);
   assert.match(legacy, /LOCAL_LOCK_PREF_KEY='negresco\.local_lock\.v1'/);
   assert.match(legacy, /LOCAL_LOCK_OPTOUT_JOURNAL_KEY='negresco\.local_lock\.optout\.v1'/);
