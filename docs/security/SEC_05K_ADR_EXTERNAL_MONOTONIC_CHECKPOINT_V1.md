@@ -71,3 +71,12 @@ Este ensaio **não prova** que um checkpoint hospedado num provedor real sobrevi
 - [ ] Somente depois disso: avaliação de integração Android/SQLCipher real e gate de release.
 
 **PR #14 permanece draft, sem merge/release/APK. PR #17 das IAs não deve ser modificada.** Este ADR não autoriza alterar o estado financeiro ou recuperar dados de clientes.
+
+
+## SEC-05K | Verificação criptográfica de inclusão Merkle (somente laboratório)
+
+O arquivo SyntheticMerkleInclusionProofLabTest.kt implementa, **somente em JVM de teste**, a checagem computacional de uma prova de **inclusão de uma folha em uma raiz de árvore especificada**. Usa SHA-256 com os prefixos 0x00 para folhas e 0x01 para nós, divisão à esquerda segundo a árvore de RFC 9162 e comparação constante de digest. Inclui uma raiz de três folhas precalculada independentemente, percursos para árvores de 1 a 13 folhas e rejeição de índice inválido, caminho truncado/excedente, tamanhos incorretos, nó adulterado, folha diferente e raiz diferente. A implementação limita tamanhos e comprimento do caminho para evitar entrada excessiva.
+
+**Escopo negativo indispensável:** se a **própria raiz** vier do emissor não confiável, ele pode inventar a árvore e produzir uma prova de inclusão válida para um evento falso. O ensaio demonstra isso expressamente. Mesmo uma inclusão verdadeira **não garante que a raiz foi autenticada, que a árvore é extensão append-only da versão anterior, que o registro mais recente está nela, que dois leitores recebem a mesma visão, que houve retenção imutável real nem que o titular autorizou uma transação**. Provas de consistência de duas raízes, assinaturas de tree heads e raízes pinadas por monitor independente **não são implementadas** nesta rodada.
+
+O resultado criptográfico positivo continua limitado ao laboratório. A política de reconciliação mantém HOLD_EXTERNAL_AUTHORITY_REQUIRED; nenhuma afirmação é promovida a VERIFIED_LIVE_CURRENT, nenhum jornal ou banco financeiro do aplicativo é modificado. CI: policyCheck JVM e contrato Node dedicado. **PR #14 draft, SEC-05K BLOQUEADA PARA PRODUÇÃO.**
