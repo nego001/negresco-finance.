@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import java.io.File
@@ -129,4 +130,16 @@ class SyntheticTypedNativeLockSnapshotTest {
     assertEquals("INVALID_LOCKED",
       NativeLockTypedSnapshotClassifier.classify(store.data.first()))
   }
+  @Test fun wrongStoredTypeCannotCrashOrUnlock() = runBlocking {
+    store.updateData { prefs ->
+      prefs.toMutablePreferences().apply {
+        this[version] = 1
+        this[stringPreferencesKey("negresco.lock.enabled")] = "not-a-boolean"
+        this[revision] = 1L
+      }
+    }
+    assertEquals("INVALID_LOCKED",
+      NativeLockTypedSnapshotClassifier.classify(store.data.first()))
+  }
+
 }
