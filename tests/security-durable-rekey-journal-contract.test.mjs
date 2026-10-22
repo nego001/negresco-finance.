@@ -336,3 +336,23 @@ test('SEC-05K PostgreSQL CAS retains operation receipts after process restart an
   assert.match(workflow, /004_sec05k_cas_persistence_lab\.sql/);
   assert.match(workflow, /pgBoundProofCheck pgRekeyCasCheck --no-daemon/);
 });
+
+test('SEC-05K PostgreSQL and journal reconciliation observations never promote unauthenticated fixture to authority', () => {
+  const journal = read(kotlin + 'SyntheticDurableRekeyJournalLab.kt');
+  const cases = read(fixtures + 'SyntheticJdbcJournalAuthorityDivergenceLabTest.kt');
+  const jdbc = read(fixtures + 'SyntheticJdbcRekeyCasPersistenceLabTest.kt');
+  assert.match(journal, /fun observeAgainstCasFixtureOnly/);
+  assert.match(journal, /OBSERVED_FIXTURE_ONLY_NOT_AUTHORITY/);
+  assert.match(journal, /val marker = journalBytes\?\.let \{ decodeJournal\(it\) \}/);
+  assert.match(journal, /MessageDigest\.isEqual\(marker\.newHash, after\.ciphertextHash\)/);
+  assert.match(journal, /SIGNED_CHALLENGE_FIXTURE_ONLY_NO_LIVE_AUTHORITY/);
+  assert.match(journal, /SyntheticRekeyAuthorityGenerationLab\.UNKNOWN_OR_OTHER/);
+  assert.match(cases, /COMMITTED written durably, still old active/);
+  assert.match(cases, /remote CAS commits but reply is lost while local COMMITTED is still pending/);
+  assert.match(cases, /remote ahead of local PREPARED/);
+  assert.match(cases, /COMMITTED and new active published/);
+  assert.match(cases, /corrupt candidate fails closed even though PostgreSQL is NEW_CURRENT/);
+  assert.match(cases, /read-only observation does not publish, roll back, or delete any journal files/);
+  assert.match(cases, /fixture-only observation NEVER authorizes journal publication or cleanup/);
+  assert.match(jdbc, /runSyntheticJdbcJournalAuthorityDivergenceScenarios\(\)/);
+});
