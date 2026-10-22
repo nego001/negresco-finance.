@@ -396,3 +396,29 @@ test('SEC-05K independent child process floor exposes PostgreSQL rollback and vo
   assert.match(suite, /critical limit: a new child can enroll OLD absent persistent secure state/);
   assert.match(runner, /runSyntheticJdbcIsolatedFloorRollbackScenarios\(\)/);
 });
+
+
+test('SEC-05K independent durable floor persists across JVM restart but cannot certify tamper-proof authority', () => {
+  const oracle = read(fixtures + 'SyntheticDurableGenerationFloorFixtureLab.kt');
+  const scenarios = read(fixtures + 'SyntheticJdbcDurableFloorRollbackLabTest.kt');
+  const runner = read(fixtures + 'SyntheticJdbcRekeyCasPersistenceLabTest.kt');
+  const mobile = read('apps/mobile/package.json');
+  assert.match(oracle, /--sec05k-durable-floor-fixture-only/);
+  assert.match(oracle, /StandardCopyOption\.ATOMIC_MOVE/);
+  assert.match(oracle, /channel\.force\(true\)/);
+  assert.match(oracle, /provisioned\.guard/);
+  assert.match(oracle, /DENY_MISSING_DURABLE_STATE/);
+  assert.match(oracle, /channel\.lock\(\)/);
+  assert.match(oracle, /LinkOption\.NOFOLLOW_LINKS/);
+  assert.match(oracle, /Signature\.getInstance\("Ed25519"\)/);
+  assert.match(oracle, /DENY_PREDECESSOR/);
+  assert.match(oracle, /UNENROLLED/);
+  assert.match(oracle, /stored UNENCRYPTED|UNENCRYPTED in a synthetic file/);
+  assert.match(scenarios, /restart retains NEW generation/);
+  assert.match(scenarios, /persisted separate process detects PostgreSQL-only rollback/);
+  assert.match(scenarios, /critical limit: restoring authority file itself replays OLD generation/);
+  assert.match(scenarios, /critical limit: replayed floor produces VALID signature with original pin/);
+  assert.match(scenarios, /DENY_MALFORMED_OR_CORRUPT/);
+  assert.match(runner, /runSyntheticJdbcDurableFloorRollbackScenarios\(\)/);
+  assert.doesNotMatch(mobile, /SyntheticDurableGenerationFloorFixtureLab/);
+});
