@@ -244,3 +244,19 @@ O experimento também confirma que **uma assinatura antiga emitida antes do avan
 - Nenhuma versão atual garante apagar backups antigos copiados por um invasor. Uma DEK comprometida continua descriptografando ciphertext históricos preservados offline.
 
 **Resultado permitido:** demonstração limitada e verificável de recuperação de processo para a fixture. **Resultado proibido:** afirmar que a SEC-05K concluiu o sistema de recuperação real ou aprovou lançamento.
+
+
+## SEC-05K: referência persistida em JVM isolada (restauração só do PostgreSQL)
+
+**Estado: fixture descartável JVM/CI, NÃO PRONTA PARA PRODUÇÃO.** A etapa seguinte ao piso volátil introduz o arquivo SyntheticDurableGenerationFloorFixtureLab.kt: processo independente que recebe somente IDs sintéticos de conta/kit, números de versão/geração e SHA-256 de ciphertext fictício. Estado e chave Ed25519 ficam em authority.state num diretório temporário da CI **fora do PostgreSQL e de seus backups**. ENROLL/ADVANCE gravam arquivo temporário, forçam sync em disco, publicam por ATOMIC_MOVE e sincronizam diretório **antes** de responder sucesso. FileLock entre processos coordena apenas operações cooperativas; leituras usam descriptor com NOFOLLOW_LINKS. provisioned.guard evita reinicialização silenciosa quando apenas o arquivo de estado desaparece, sendo escrito antes do primeiro estado. O checksum SHA-256 detecta *corrupção acidental*: não equivale a MAC nem previne replay.
+
+O ensaio SyntheticJdbcDurableFloorRollbackLabTest.kt, conectado ao pgRekeyCasCheck, verifica com dados falsos que:
+
+1. A referência avança em uma JVM, a JVM termina, uma nova JVM abre **o mesmo diretório** e recupera a geração NEW e a mesma chave pública Ed25519.
+2. Restaurando **somente** a linha fictícia e o recibo CAS no PostgreSQL para OLD, a JVM reiniciada continua afirmando NEW em desafio fresco. ENROLL e ADVANCE com predecessor antigo são recusados. Isso comprova a fronteira de falha separada dos backups do PostgreSQL.
+3. Corrupção do arquivo da autoridade é recusada; pin público incorreto não valida assinatura.
+4. **Resultado negativo obrigatório:** restaurar o arquivo authority.state **da própria autoridade** para sua cópia antiga permite voltar a OLD e gerar uma **assinatura válida com a mesma chave pública anteriormente conhecida**. Assim, não existe monotonicidade contra invasor ou administrador que controle o armazenamento da autoridade. Mesmo assinatura válida com nonce novo não reconstrói história apagada.
+
+Esse laboratório não cria backend implantado, HSM, KMS, storage WORM, contador seguro, identidade de servidor autenticada nem atomicidade entre PostgreSQL, journal Android e SQLCipher. A chave privada do teste fica deliberadamente em texto codificado, **insegura para produção**. FileLock é advisory; ataques de troca maliciosa de arquivos e TOCTOU permanecem fora da garantia. Nunca promover assinatura do fixture para VERIFIED_LIVE_CURRENT: preservar SIGNED_CHALLENGE_FIXTURE_ONLY_NO_LIVE_AUTHORITY e HOLD_EXTERNAL_AUTHORITY_REQUIRED.
+
+**Gate seguinte:** autoridade verdadeiramente independente, identidade pinada fora do canal, contador monotônico resistente ao *restore do seu próprio estado*, registros auditáveis e recuperação após desastres. Exigir revisão de segurança, crash/power-loss e autorização do titular antes de integrar o app. **PR #14 continua draft. Sem merge, release, APK, dados reais ou modificações na PR #17 das IAs.**
