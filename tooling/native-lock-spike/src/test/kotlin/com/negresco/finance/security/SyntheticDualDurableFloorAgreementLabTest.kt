@@ -5,6 +5,7 @@ import java.security.MessageDigest
 import java.security.PublicKey
 import java.security.SecureRandom
 import java.util.UUID
+import com.negresco.finance.security.SyntheticDualFloorDecisionFixtureLab as H
 
 /**
  * SEC-05K: TWO separate disposable child JVMs with their own persisted keys
@@ -110,7 +111,6 @@ internal fun runSyntheticDualDurableFloorAgreementScenarios() {
   lateinit var oldBytesA: ByteArray
   lateinit var oldBytesB: ByteArray
   val policy = SyntheticDualFloorAgreementPolicyFixtureLab
-  val hold = SyntheticDualFloorDecisionFixtureLab
   // Names below are intentionally verbose: NO branch is a production grant.
   SyntheticDurableFloorClientFixtureLab(rootA).use { a ->
     SyntheticDurableFloorClientFixtureLab(rootB).use { b ->
@@ -118,21 +118,21 @@ internal fun runSyntheticDualDurableFloorAgreementScenarios() {
       pinnedB = b.childPublicKey
       verify(!MessageDigest.isEqual(pinnedA.encoded, pinnedB.encoded),
         "two child processes generated different signing keys")
-      verify(inspect(a, b) == hold.HOLD_MISSING_WITNESS_OR_PIN,
+      verify(inspect(a, b) == H.HOLD_MISSING_WITNESS_OR_PIN,
         "no signature is not implicit enrollment")
       verify(a.enroll(old) == "OK_ENROLLED" && b.enroll(old) == "OK_ENROLLED",
         "two separate disposable roots provision OLD")
       oldBytesA = Files.readAllBytes(rootA.resolve("authority.state"))
       oldBytesB = Files.readAllBytes(rootB.resolve("authority.state"))
-      verify(inspect(a, b) == hold.AGREEMENT_FIXTURE_ONLY_NOT_LIVE_AUTHORITY,
+      verify(inspect(a, b) == H.AGREEMENT_FIXTURE_ONLY_NOT_LIVE_AUTHORITY,
         "both OLD signatures agree, but do not prove current generation")
       verify(a.advance(old, latest) == "OK_ADVANCED",
         "A advances without B")
-      verify(inspect(a, b) == hold.HOLD_DIVERGENT_FLOORS,
+      verify(inspect(a, b) == H.HOLD_DIVERGENT_FLOORS,
         "partial advance A=NEW B=OLD holds instead of choosing either")
       verify(b.advance(old, latest) == "OK_ADVANCED",
         "B explicitly advances only from its own OLD")
-      verify(inspect(a, b) == hold.AGREEMENT_FIXTURE_ONLY_NOT_LIVE_AUTHORITY,
+      verify(inspect(a, b) == H.AGREEMENT_FIXTURE_ONLY_NOT_LIVE_AUTHORITY,
         "both NEW signatures agree, still NOT a trusted live authority")
       verify(a.advance(old, latest) == "DENY_PREDECESSOR" &&
         b.advance(old, latest) == "DENY_PREDECESSOR",
@@ -142,31 +142,31 @@ internal fun runSyntheticDualDurableFloorAgreementScenarios() {
       val y = nonce()
       val qa = observe(a, x)!!
       val qb = observe(b, y)!!
-      val accepted = hold.AGREEMENT_FIXTURE_ONLY_NOT_LIVE_AUTHORITY
+      val accepted = H.AGREEMENT_FIXTURE_ONLY_NOT_LIVE_AUTHORITY
       verify(policy.inspect(pinnedA, pinnedB, x, y, qa, qb) == accepted,
         "two independently challenged and signed fixture claims agree")
       verify(policy.inspect(null, pinnedB, x, y, qa, qb) ==
-        hold.HOLD_MISSING_WITNESS_OR_PIN, "missing key pin fails closed")
+        H.HOLD_MISSING_WITNESS_OR_PIN, "missing key pin fails closed")
       verify(policy.inspect(pinnedA, pinnedA, x, y, qa, qb) ==
-        hold.HOLD_SAME_SIGNER, "same Ed25519 signer cannot count as two")
+        H.HOLD_SAME_SIGNER, "same Ed25519 signer cannot count as two")
       verify(policy.inspect(pinnedB, pinnedA, x, y, qa, qb) ==
-        hold.HOLD_NONCE_OR_SIGNATURE, "swapped signer key pins fail")
+        H.HOLD_NONCE_OR_SIGNATURE, "swapped signer key pins fail")
       verify(policy.inspect(pinnedA, pinnedB, x, x, qa, qb) ==
-        hold.HOLD_NONCE_OR_SIGNATURE, "same challenge on both channels is rejected")
+        H.HOLD_NONCE_OR_SIGNATURE, "same challenge on both channels is rejected")
       verify(policy.inspect(pinnedA, pinnedB, ByteArray(2), y, qa, qb) ==
-        hold.HOLD_NONCE_OR_SIGNATURE, "malformed challenge length is rejected")
+        H.HOLD_NONCE_OR_SIGNATURE, "malformed challenge length is rejected")
       verify(policy.inspect(pinnedA, pinnedB, y, x, qa, qb) ==
-        hold.HOLD_NONCE_OR_SIGNATURE, "swapped expected nonces are rejected")
+        H.HOLD_NONCE_OR_SIGNATURE, "swapped expected nonces are rejected")
       verify(policy.inspect(pinnedA, pinnedB, x, y,
         qa.copy(signature = qa.signature.copyOf().also { it[0] = (it[0].toInt() xor 1).toByte() }),
-        qb) == hold.HOLD_NONCE_OR_SIGNATURE, "forged signature fails")
+        qb) == H.HOLD_NONCE_OR_SIGNATURE, "forged signature fails")
       verify(policy.inspect(pinnedA, pinnedB, x, y,
-        qa.copy(claim = old), qb) == hold.HOLD_NONCE_OR_SIGNATURE,
+        qa.copy(claim = old), qb) == H.HOLD_NONCE_OR_SIGNATURE,
         "replacing a signed claim without signing anew fails")
       verify(policy.inspect(pinnedA, pinnedB, x, y, qa, null) ==
-        hold.HOLD_MISSING_WITNESS_OR_PIN, "offline B holds all decisions")
+        H.HOLD_MISSING_WITNESS_OR_PIN, "offline B holds all decisions")
       verify(policy.inspect(pinnedA, pinnedB, x, y,
-        qa.copy(nonce = y), qb) == hold.HOLD_NONCE_OR_SIGNATURE,
+        qa.copy(nonce = y), qb) == H.HOLD_NONCE_OR_SIGNATURE,
         "unexpected returned nonce cannot validate")
 
       // A signed quote from BEFORE the next advance does not become invalid
@@ -182,7 +182,7 @@ internal fun runSyntheticDualDurableFloorAgreementScenarios() {
         MessageDigest.isEqual(pinnedB.encoded, b.childPublicKey.encoded),
         "restarting both JVMs retains their originally pinned fixture keys")
       verify(inspect(a, b, pinnedA, pinnedB) ==
-        hold.AGREEMENT_FIXTURE_ONLY_NOT_LIVE_AUTHORITY,
+        H.AGREEMENT_FIXTURE_ONLY_NOT_LIVE_AUTHORITY,
         "two durable files retain NEW across process restarts")
     }
   }
@@ -191,7 +191,7 @@ internal fun runSyntheticDualDurableFloorAgreementScenarios() {
   Files.write(rootA.resolve("authority.state"), oldBytesA)
   SyntheticDurableFloorClientFixtureLab(rootA).use { a ->
     SyntheticDurableFloorClientFixtureLab(rootB).use { b ->
-      verify(inspect(a, b, pinnedA, pinnedB) == hold.HOLD_DIVERGENT_FLOORS,
+      verify(inspect(a, b, pinnedA, pinnedB) == H.HOLD_DIVERGENT_FLOORS,
         "single-authority restore causes signed divergence")
       verify(a.enroll(old) == "DENY_ALREADY_ENROLLED",
         "rewound A does not pretend to be an unprovisioned authority")
@@ -204,7 +204,7 @@ internal fun runSyntheticDualDurableFloorAgreementScenarios() {
   SyntheticDurableFloorClientFixtureLab(rootA).use { a ->
     SyntheticDurableFloorClientFixtureLab(rootB).use { b ->
       verify(inspect(a, b, pinnedA, pinnedB) ==
-        hold.AGREEMENT_FIXTURE_ONLY_NOT_LIVE_AUTHORITY,
+        H.AGREEMENT_FIXTURE_ONLY_NOT_LIVE_AUTHORITY,
         "CRITICAL LIMIT: paired file restore produces valid OLD agreement")
       val aNonce = nonce()
       val bNonce = nonce()
@@ -214,7 +214,7 @@ internal fun runSyntheticDualDurableFloorAgreementScenarios() {
         crypto.equivalentFixtureOnly(rb.claim, old),
         "both original pinned keys can now sign OLD again")
       verify(policy.inspect(pinnedA, pinnedB, aNonce, bNonce, ra, rb) ==
-        hold.AGREEMENT_FIXTURE_ONLY_NOT_LIVE_AUTHORITY,
+        H.AGREEMENT_FIXTURE_ONLY_NOT_LIVE_AUTHORITY,
         "fresh nonces still cannot discover erased histories")
     }
   }
