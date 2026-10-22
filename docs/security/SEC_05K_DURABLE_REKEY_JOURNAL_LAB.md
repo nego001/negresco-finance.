@@ -192,6 +192,24 @@ A CI executa a migração **apenas no container PostgreSQL descartável** do tra
 
 **Limitações críticas:** persistência no PostgreSQL de CI não é autoridade externa independente de verdade; não existe implantação, autenticação do titular, chave de assinatura protegida, distribuição de confiança, TLS, transação entre PostgreSQL e SQLCipher local, retenção de histórico frente a restore de backup antigo do servidor, replicação, quorum, falha física, cadeia de auditoria imutável ou prova de resposta *fresh/live*. Uma transação aplicada remotamente mas não publicada localmente **ainda requer reconciliação com journal sob protocolo autenticado**; não liberar produção por passar este teste.
 
+## SEC-05K: inspeção cruzada, SEM efeitos colaterais, do PostgreSQL e do journal
+
+O laboratório adiciona `observeAgainstCasFixtureOnly` a `SyntheticDurableRekeyJournalLab` e executa `SyntheticJdbcJournalAuthorityDivergenceLabTest.kt` dentro de `pgRekeyCasCheck` no PostgreSQL descartável da CI. O observador obtém o lock consultivo do fixture para evitar conflito com gravadores **cooperativos**, abre arquivos criptografados sem seguir symlink, verifica os frames e campos da identidade, e compara o SHA-256 dos bytes reais com as afirmações *antes/depois* registradas no recibo PostgreSQL. Ele analisa o marcador `PREPARED/COMMITTED` e seus hashes sem invocar `recoverFixtureOnly`, sem publicar o candidato e sem eliminar journal, snapshot ou pendência. O arquivo de lock do fixture pode ser criado pelo mecanismo de leitura, mas os arquivos do journal/snapshots não são alterados.
+
+O observador retorna um `SyntheticRekeyReconciliationInputLab` apenas para **diagnóstico de laboratório**. Sua evidência é sempre `SIGNED_CHALLENGE_FIXTURE_ONLY_NO_LIVE_AUTHORITY`: mesmo quando a geração PostgreSQL coincide perfeitamente com o ciphertext local, a política responde `HOLD_EXTERNAL_AUTHORITY_REQUIRED`. Só testes **hipotéticos** que substituem essa classificação por `VERIFIED_LIVE_CURRENT` conferem o resultado da matriz pura; isso **não executa** migração, não verifica login/owner e não aprova autoridade remota.
+
+Os cenários implementados incluem:
+
+- `PREPARED + OLD` no PostgreSQL: a análise reconhece que a migração ainda não foi confirmada e não limpa a pendência.
+- `COMMITTED + OLD` remoto: journal durável pendente não deve avançar uma autoridade só por existir localmente.
+- `COMMITTED + NEW` remoto: após CAS SQL persistido e **resposta perdida**, o teste observa o candidato novo íntegro e prova o recibo de UUID gravado; o diagnóstico hipotético permite finalizar, mas o observador real mantém o bloqueio.
+- `CLEAN + NEW` remoto: somente após um **recovery chamado explicitamente pelo cenário descartável**, o estado local se apresenta consistente; um replay do ciphertext antigo com PostgreSQL avançado é classificado como rollback, não como geração corrente.
+- `PREPARED + NEW` remoto: avanço remoto prematuro em relação ao journal local gera divergência que não pode ser consertada por rollback automático.
+- `COMMITTED + NEW ativo + OLD` remoto: a substituição local ocorreu, mas a autoridade fictícia ainda não avançou; permanece bloqueada até reconciliação.
+- `COMMITTED` com candidato adulterado: `FAIL_CLOSED` com journal e recibo mantidos para avaliação.
+
+**Gates ainda bloqueados:** não existe serviço externo implantado, prova de frescor de servidor/contador monotônico autenticado, reconciliação transacional entre banco remoto e filesystem Android, credenciais reais, backup fora do dispositivo nem cobertura de falhas de energia física. O snapshot é sintético, e hashes do PostgreSQL não dão automaticamente confiança contra administrador hostil ou restore antigo do servidor. O experimento demonstra **classificação e observabilidade**, não um motor automático de recuperação.
+
 ## Faltam antes de produção
 
 - **Backup externo real confirmado:** o parâmetro de envelope+segredo verifica criptografia, mas **não demonstra que o usuário salvou o segredo fora do dispositivo**. Queda após a decisão de commit pode tornar os dados inacessíveis se o único segredo ficou na memória do processo. Deve existir cerimônia de backup externo com prova segura, persistente e independente **antes** do commit, sem guardar o segredo em claro.
