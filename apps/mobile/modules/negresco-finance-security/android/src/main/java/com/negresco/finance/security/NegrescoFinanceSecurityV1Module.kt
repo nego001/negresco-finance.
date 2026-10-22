@@ -28,7 +28,7 @@ class NegrescoFinanceSecurityV1Module : Module() {
       )
     }
 
-    // Metadata only: does not open, create, validate or recover DataStore.
+    // Metadata only: never opens, creates, validates or recovers lock records.
     // Deliberately does not expose enabled/revision/session or secret values.
     AsyncFunction("inspectNativeLockStorePresence") {
       mapOf(
