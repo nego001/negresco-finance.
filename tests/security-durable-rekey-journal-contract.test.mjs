@@ -422,3 +422,24 @@ test('SEC-05K independent durable floor persists across JVM restart but cannot c
   assert.match(runner, /runSyntheticJdbcDurableFloorRollbackScenarios\(\)/);
   assert.doesNotMatch(mobile, /SyntheticDurableGenerationFloorFixtureLab/);
 });
+
+
+test('SEC-05K dual independent signed floors detect a single rollback but paired rollback remains valid', () => {
+  const fixture = read(fixtures + 'SyntheticDualDurableFloorAgreementLabTest.kt');
+  const runner = read(fixtures + 'NativeLockCoordinatorTest.kt');
+  const mobile = read('apps/mobile/package.json');
+  assert.match(fixture, /HOLD_MISSING_WITNESS_OR_PIN/);
+  assert.match(fixture, /HOLD_SAME_SIGNER/);
+  assert.match(fixture, /HOLD_NONCE_OR_SIGNATURE/);
+  assert.match(fixture, /HOLD_DIVERGENT_FLOORS/);
+  assert.match(fixture, /AGREEMENT_FIXTURE_ONLY_NOT_LIVE_AUTHORITY/);
+  assert.match(fixture, /signatureValidFixtureOnly/);
+  assert.match(fixture, /MessageDigest\.isEqual/);
+  assert.match(fixture, /single-authority restore causes signed divergence/);
+  assert.match(fixture, /CRITICAL LIMIT: paired file restore produces valid OLD agreement/);
+  assert.match(fixture, /fresh nonces still cannot discover erased histories/);
+  assert.match(fixture, /HOLD_EXTERNAL_AUTHORITY_REQUIRED/);
+  assert.match(fixture, /coordinated replay of both witness state files/);
+  assert.match(runner, /runSyntheticDualDurableFloorAgreementScenarios\(\)/);
+  assert.doesNotMatch(mobile, /SyntheticDualDurableFloorAgreementLabTest|SyntheticDualFloorAgreementPolicyFixtureLab/);
+});
