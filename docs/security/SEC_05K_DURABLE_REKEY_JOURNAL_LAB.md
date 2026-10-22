@@ -246,6 +246,16 @@ O teste SyntheticJdbcPersistentFloorRollbackLabTest está ligado ao job pgRekeyC
 
 **Gates BLOQUEADOS:** contador antirrollback respaldado por domínio de falha e armazenamento não restaurável pelo mesmo adversário (ou serviço durável com garantia equivalente), raiz de confiança provisionada, autenticação do titular, operações CAS com recibos e reconciliação transacional entre autoridades, proteção de chave em hardware/KMS, recuperação de falha física, backups realmente externos e integração Android/SQLCipher. Nenhuma aprovação de produção, nenhum merge, APK, instalação ou alteração das IAs na PR #17.
 
+## SEC-05K: fronteira de contador externo protegido (somente modelo, NÃO é uma autoridade real)
+
+O teste JVM SyntheticProtectedAnchorBoundaryLabTest separa duas fontes que um atacante consegue restaurar (PostgreSQL e cópia do piso assinado) de uma **terceira fonte hipotética**, com contador monotônico e operações CAS idempotentes. A terceira fonte existe **apenas como mapa em memória no processo de testes**, mantido fora das duas cópias restauráveis do cenário. Não existe serviço remoto implantado, storage imutável, TEE, TPM, HSM ou credencial do titular nesta implementação.
+
+A matriz exercita: avançar uma geração e perder o ACK após gravar o recibo; retry idempotente com o mesmo UUID de operação; recusa de colisão do UUID com payload diferente; concorrência de seis chamadores onde apenas um CAS vence; remoção simultânea da geração nova do PostgreSQL e do arquivo assinado, detectada enquanto o terceiro piso simulado continua ativo; divergências entre as duas cópias; pin de identidade errado; substituição de autoridade com identidade diferente; separação por conta; recusa de rebootstrap e indisponibilidade temporária sem aceitar estado local antigo. Nenhuma mutação de dados reais é feita.
+
+**Limite irredutível: não é uma autoridade real.** O contador do teste é volátil, sem autenticação, rede, timestamp confiável ou garantia contra reinício/restore dele próprio. O teste não tenta demonstrar que um contador físico antirrollback foi implantado. A observação positiva usa o nome OBSERVED_MATCH_ONLY_NOT_AUTHORIZATION: uma leitura pode ficar desatualizada logo após sua emissão, de modo que nem coincidência de estados nem assinatura Ed25519 implicam autorização financeira. Nunca converter resultado do fixture em VERIFIED_LIVE_CURRENT.
+
+**Gate BLOQUEADO para produção:** escolher e auditar um domínio de falha independente do PostgreSQL e dos arquivos do aplicativo, com garantias verificáveis de não redução do piso; provisionar e pinar identidade de autoridade por canal confiável; autenticar o titular; estabelecer linearização/frescor e protocolo de commit com recibos e retry seguros; tratar reconstrução de autoridade e indisponibilidade; validar energia, hardware, backups externos e Android/SQLCipher. Sem merge, APK, release ou alterações na PR #17.
+
 ## Faltam antes de produção
 
 - **Backup externo real confirmado:** o parâmetro de envelope+segredo verifica criptografia, mas **não demonstra que o usuário salvou o segredo fora do dispositivo**. Queda após a decisão de commit pode tornar os dados inacessíveis se o único segredo ficou na memória do processo. Deve existir cerimônia de backup externo com prova segura, persistente e independente **antes** do commit, sem guardar o segredo em claro.
