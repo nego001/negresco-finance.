@@ -16,10 +16,14 @@ import kotlinx.coroutines.flow.first
  * disable transaction, user identity or anti-rollback proof was verified.
  */
 internal class NativeLockReadOnlySnapshotReader(
-  private val store: DataStore<Preferences>
+  private val store: DataStore<Preferences>,
+  private val lifecycle: NativeLockLifecycleFence
 ) {
   suspend fun inspectOnce(): String {
-    return try {
+    // Even a diagnostic read needs a native foreground epoch. This does
+    // NOT constitute a biometric, owner or crypto authorization.
+    val epoch = lifecycle.beginDiagnosticEpoch() ?: return "LIFECYCLE_REVOKED_LOCKED"
+    val result = try {
       NativeLockTypedSnapshotClassifier.classify(store.data.first())
     } catch (cancelled: CancellationException) {
       // Do not swallow lifecycle cancellation or pretend it is a valid read.
@@ -28,5 +32,9 @@ internal class NativeLockReadOnlySnapshotReader(
       // Corruption, I/O and unexpected read failures must never yield OFF.
       "STORAGE_ERROR_LOCKED"
     }
+    // A pause, user-leave or destruction during data.first() invalidates
+    // even a syntactically valid result. Nothing from here grants access.
+    return if (lifecycle.isStillDiagnosticEpoch(epoch)) result
+    else "LIFECYCLE_REVOKED_LOCKED"
   }
 }
