@@ -131,6 +131,30 @@ e o contrato `native-finance-keywrap-lifecycle.test.mjs` deve passar. Mesmo
 com CI verde, isso é demonstração de integração criptográfica com senha de
 teste, não um cofre financeiro pronto.
 
+## Etapa negativa: chave AndroidKeyStore exigindo BIOMETRIC_STRONG
+
+A fixture `SyntheticStrongBiometricKeyDenialTest.kt` está somente em
+`src/androidTest` do módulo Expo e exige uma chave AES-GCM AndroidKeyStore
+com `setUserAuthenticationRequired(true)`,
+`setUserAuthenticationParameters(0, AUTH_BIOMETRIC_STRONG)` e invalidação por
+alteração do cadastro biométrico. Ela **não apresenta prompt nem simula a
+aprovação de uma digital**. Sem uma operação autorizada via
+`BiometricPrompt(CryptoObject)`, uma tentativa de criptografia deve ser
+recusada; se o emulador sequer permitir criar a chave por ausência de
+biometria/cadastro seguro, isso também é registrado exclusivamente como
+capacidade indisponível e bloqueada. Todo alias efêmero é removido em
+`finally`.
+
+**Uma CI verde nessa fixture não significa autenticação biométrica funcional
+ou segurança financeira homologada.** É uma prova **negativa** (negação antes
+da autorização) e não um teste positivo de uso após aprovação do usuário.
+Ainda será necessário implementar na camada nativa um fluxo de consentimento
+vinculado ao próprio `CryptoObject`, proteger a senha SQLCipher com esse
+fluxo, bloquear operações por sessão/foreground, lidar com alteração de
+cadastro, key-loss, migração, backup e homologar no Samsung físico.
+Nenhuma interface JavaScript recebe chave, senha ou bit de autorização;
+`financialStorageAllowed=false` e `keyReleaseAllowed=false` continuam.
+
 ## Interface futura mínima (NÃO DISPONÍVEL)
 
 A implementação de diagnóstico usa um módulo local Expo Kotlin **identificado por versão**; qualquer API real de autenticação, persistência ou chaves depende integralmente dos gates abaixo. A superfície JS deve ser mínima:
