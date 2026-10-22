@@ -11,6 +11,12 @@
 - `tests/native-finance-readiness.test.mjs` cobre ausência, plataformas diferentes, host falso, exceções e isolamento da UI.
 - **Não há um módulo Android real implementando esse método nesta revisão.** A interface é um ponto de diagnóstico explícito para futura integração, e não um controle criptográfico, de acesso, de biometria ou cofre.
 
+## Tratamento de falhas na consulta diagnóstica
+
+A inspeção manual do módulo opcional agora possui **limite máximo de cinco segundos** e captura também falhas ao consultar a propriedade `getIntegrationInfo` em objetos hostis ou proxies JS. Exceção nativa, getter que lança erro, promessa que nunca resolve e resposta atrasada **não** concedem acesso: `financialStorageAllowed=false`, `keyReleaseAllowed=false` e `migrationAllowed=false` permanecem fixos. Erros internos não mostram mensagens potencialmente sensíveis na UI.
+
+A expiração encerra apenas a **espera da interface**; não cancela nem reverte uma operação Kotlin. Isso é aceitável aqui somente porque a futura interface `getIntegrationInfo` está contratualmente limitada a diagnóstico **sem mutação**. O módulo nativo real deverá ter cancelamento/ciclo de vida próprios e nunca reutilizar esse resultado como autorização de chave ou banco. Testes regressivos específicos estão em `tests/native-finance-readiness.test.mjs`. Nenhum binário nativo novo foi conectado nesta revisão.
+
 ## Interface futura mínima (NÃO DISPONÍVEL)
 
 A próxima implementação real deve usar um módulo local Expo Kotlin **identificado por versão** e registrado apenas depois de cumprir os gates abaixo. A superfície JS deve ser mínima:
