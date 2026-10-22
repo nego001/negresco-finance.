@@ -14,7 +14,7 @@ test('SEC-05K in-JVM monitor probe is diagnostic only and does not unlock extern
   assert.match(anchor, /fun inspectWithinJvmFenceFixtureOnly\(/);
   assert.match(anchor, /@Synchronized\s+fun inspectWithinJvmFenceFixtureOnly/);
   assert.match(anchor, /val observed = observeFixtureOnly\(/);
-  assert.match(anchor, /if \(observed == SyntheticAnchorBoundaryObservationLab\.OBSERVED_MATCH_ONLY_NOT_AUTHORIZATION\)/);
+  assert.match(anchor, /if \(observed != SyntheticAnchorBoundaryObservationLab\.OBSERVED_MATCH_ONLY_NOT_AUTHORIZATION\)/);
   assert.match(anchor, /onDiagnosticProbeFixtureOnly\(\)/);
   assert.match(anchor, /does NOT fence an external PostgreSQL transaction/);
   assert.match(suite, /HOLD_EXTERNAL_AUTHORITY_REQUIRED/);
