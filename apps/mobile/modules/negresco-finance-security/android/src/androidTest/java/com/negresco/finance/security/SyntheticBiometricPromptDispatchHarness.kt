@@ -58,6 +58,11 @@ internal class SyntheticBiometricPromptDispatchHarness(
       old = active
       active = null
       old?.consumed = true
+      // Revocation must clear the pending ciphertext/AAD immediately, not
+      // merely disable its future callback. The original caller owns its
+      // own buffers; these are the private copies owned by this harness.
+      old?.ciphertext?.fill(0)
+      old?.aad?.fill(0)
     }
     old?.onObservation?.invoke(Observation.DENY_REPLAY_OR_STALE)
   }
