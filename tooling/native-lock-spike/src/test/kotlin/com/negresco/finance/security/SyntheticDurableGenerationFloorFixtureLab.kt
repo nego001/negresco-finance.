@@ -22,6 +22,7 @@ import java.security.spec.PKCS8EncodedKeySpec
 import java.security.spec.X509EncodedKeySpec
 import java.util.Base64
 import java.util.UUID
+import java.util.concurrent.TimeUnit
 
 /**
  * SEC-05K disposable authority process, persistent OUTSIDE the PostgreSQL DB.
@@ -284,9 +285,9 @@ internal class SyntheticDurableFloorClientFixtureLab(dir: Path) : AutoCloseable 
   override fun close() {
     if (child.isAlive) {
       runCatching { call("EXIT") }
-      if (!child.waitFor(5L, java.util.concurrent.TimeUnit.SECONDS)) {
+      if (!child.waitFor(5L, TimeUnit.SECONDS)) {
         child.destroyForcibly()
-        child.waitFor(5L, java.util.concurrent.TimeUnit.SECONDS)
+        child.waitFor(5L, TimeUnit.SECONDS)
       }
     }
     runCatching { stdin.close() }
