@@ -1,10 +1,17 @@
-// Minimal local Expo module for the Android SECURITY DIAGNOSTIC ONLY.
-// No database, Keystore key access, biometrics, permissions or network.
+// Expo SDK 54 local diagnostic-only module.
+// SDK 54 still uses ExpoModulesCorePlugin.gradle, not the newer Gradle plugin ID.
+// No biometrics, Keystore, SQLCipher, permissions or production database.
 apply plugin: 'com.android.library'
-apply plugin: 'expo-module-gradle-plugin'
 
 group = 'com.negresco.finance'
 version = '0.1.0'
+
+def expoModulesCorePlugin = new File(project(":expo-modules-core").projectDir.absolutePath, "ExpoModulesCorePlugin.gradle")
+apply from: expoModulesCorePlugin
+applyKotlinExpoModulesCorePlugin()
+useCoreDependencies()
+useExpoPublishing()
+useDefaultAndroidSdkVersions()
 
 android {
   namespace 'com.negresco.finance.security'
