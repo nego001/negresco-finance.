@@ -27,5 +27,16 @@ class NegrescoFinanceSecurityV1Module : Module() {
         "hardwareKeyAuthorizationIntegrated" to false
       )
     }
+
+    // Metadata only: does not open, create, validate or recover DataStore.
+    // Deliberately does not expose enabled/revision/session or secret values.
+    AsyncFunction("inspectNativeLockStorePresence") {
+      mapOf(
+        "status" to NativeLockFilePresenceDiagnostic.inspect(appContext.reactContext),
+        "financialStorageAllowed" to false,
+        "keyReleaseAllowed" to false,
+        "migrationAllowed" to false
+      )
+    }
   }
 }
