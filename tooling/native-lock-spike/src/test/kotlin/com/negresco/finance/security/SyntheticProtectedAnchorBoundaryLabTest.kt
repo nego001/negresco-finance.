@@ -120,6 +120,25 @@ internal class SyntheticProtectedAnchorFixtureLab {
       else SyntheticAnchorCasResultLab.ADVANCED_FIXTURE_ONLY
   }
 
+  /**
+   * ATTACK INJECTION, NOT RECOVERY OR AN API:
+   * Simulates privileged rollback of the anchor's OWN state, including its
+   * operation receipts, while keeping the SAME pinned identity UUID.
+   * Ordinary callers MUST NEVER have such a method. Its only purpose is to
+   * demonstrate that pinning cannot rescue a fully rewindable authority.
+   * The fixture is volatile and has no non-rollbackable security boundary.
+   */
+  @Synchronized
+  fun simulatePrivilegedFullAuthorityRollbackFixtureOnly(
+    older: SyntheticRekeyGenerationClaimLab
+  ) {
+    require(crypto.validClaimFixtureOnly(older))
+    val current = floors[older.accountId] ?: error("no synthetic floor to rewind")
+    require(older.version < current.version && older.generation < current.generation)
+    floors[older.accountId] = retainedCopy(older)
+    receipts.keys.removeAll { it.first == older.accountId }
+  }
+
   @Synchronized
   fun observeFixtureOnly(
     rollbackableDatabase: SyntheticRekeyGenerationClaimLab,
@@ -323,6 +342,30 @@ internal fun runSyntheticProtectedAnchorBoundaryScenarios() {
   checkCase(anchor.advanceFixtureOnly(aliasOperation, savedOld, mutableNew, pin) ==
     SyntheticAnchorCasResultLab.DENY_COLLISION,
     "tampered caller payload cannot masquerade as the original operation")
+
+  // NEGATIVE: a storage-level attack that rewinds the ANCHOR ITSELF
+  // defeats a correct unchanged pin and erases the idempotency history.
+  // This test deliberately invokes the privileged attack seam above.
+  val fullAttackAccount = UUID.randomUUID().toString().replace("-", "")
+  val fullOld = claim(fullAttackAccount, 4, 7)
+  val fullNew = claim(fullAttackAccount, 5, 8)
+  val fullOp = UUID.randomUUID()
+  checkCase(anchor.enrollFixtureOnly(fullOld) ==
+    SyntheticAnchorCasResultLab.BOOTSTRAPPED_FIXTURE_ONLY,
+    "attack test enrolls an isolated disposable account")
+  checkCase(anchor.advanceFixtureOnly(fullOp, fullOld, fullNew, pin) ==
+    SyntheticAnchorCasResultLab.ADVANCED_FIXTURE_ONLY,
+    "attack test commits the newer generation first")
+  anchor.simulatePrivilegedFullAuthorityRollbackFixtureOnly(fullOld)
+  checkCase(anchor.observeFixtureOnly(fullOld, fullOld, pin) ==
+    SyntheticAnchorBoundaryObservationLab.OBSERVED_MATCH_ONLY_NOT_AUTHORIZATION,
+    "CRITICAL NEGATIVE: rewound authority accepts OLD with the UNCHANGED original pin")
+  checkCase(anchor.advanceFixtureOnly(fullOp, fullOld, fullNew, pin) ==
+    SyntheticAnchorCasResultLab.ADVANCED_FIXTURE_ONLY,
+    "CRITICAL NEGATIVE: erased receipt permits duplicate operation after authority rewind")
+  checkCase(anchor.observeFixtureOnly(fullNew, fullNew, pin) ==
+    SyntheticAnchorBoundaryObservationLab.OBSERVED_MATCH_ONLY_NOT_AUTHORIZATION,
+    "a fresh matching observation after re-advance still never authorizes a recovery")
 
   // This harness does NOT implement a tamper-proof register: rebooting the
   // ANCHOR JVM itself loses everything. No production monotonicity is proven.
