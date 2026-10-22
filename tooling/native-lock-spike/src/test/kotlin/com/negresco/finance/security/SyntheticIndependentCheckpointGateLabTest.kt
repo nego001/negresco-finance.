@@ -119,7 +119,6 @@ internal fun runSyntheticIndependentCheckpointGateScenarios() {
   val base = SyntheticCheckpointGateInputLab(
     account, epoch, a, b, 9L, 17L, "b".repeat(64),
     true, true, true, true)
-  val R = SyntheticCheckpointGateReasonLab
   var checks = 0
   fun verify(condition: Boolean, reason: String) {
     check(condition) { "SEC05K checkpoint gate fixture: $reason" }
@@ -130,71 +129,71 @@ internal fun runSyntheticIndependentCheckpointGateScenarios() {
     verify(gate.inspect(input).contains(reason), why)
 
   verify(gate.inspect(base) == setOf(
-    R.HOLD_EXTERNAL_ATTESTATION_AND_IMPLEMENTATION_REQUIRED),
+    SyntheticCheckpointGateReasonLab.HOLD_EXTERNAL_ATTESTATION_AND_IMPLEMENTATION_REQUIRED),
     "matching snapshots are not a trusted live authority")
-  must(base.copy(monitorOnline = false), R.HOLD_MONITOR_OFFLINE,
+  must(base.copy(monitorOnline = false), SyntheticCheckpointGateReasonLab.HOLD_MONITOR_OFFLINE,
     "offline monitor cannot be replaced by cached signature")
-  must(base.copy(register = null), R.HOLD_INCOMPLETE_TWO_DOMAIN_COMMIT,
+  must(base.copy(register = null), SyntheticCheckpointGateReasonLab.HOLD_INCOMPLETE_TWO_DOMAIN_COMMIT,
     "checkpoint without CAS is unresolved")
-  must(base.copy(checkpoint = null), R.HOLD_INCOMPLETE_TWO_DOMAIN_COMMIT,
+  must(base.copy(checkpoint = null), SyntheticCheckpointGateReasonLab.HOLD_INCOMPLETE_TWO_DOMAIN_COMMIT,
     "CAS without checkpoint is unresolved")
-  must(base.copy(expectedAccount = ""), R.DENY_ACCOUNT_OR_IDENTITY,
+  must(base.copy(expectedAccount = ""), SyntheticCheckpointGateReasonLab.DENY_ACCOUNT_OR_IDENTITY,
     "blank expected account denied")
   must(base.copy(checkpoint = b.copy(account = UUID.randomUUID().toString())),
-    R.DENY_ACCOUNT_OR_IDENTITY, "checkpoint cross-account mixing denied")
+    SyntheticCheckpointGateReasonLab.DENY_ACCOUNT_OR_IDENTITY, "checkpoint cross-account mixing denied")
   must(base.copy(checkpoint = b.copy(epoch = UUID.randomUUID())),
-    R.DENY_ACCOUNT_OR_IDENTITY, "checkpoint epoch substitution denied")
+    SyntheticCheckpointGateReasonLab.DENY_ACCOUNT_OR_IDENTITY, "checkpoint epoch substitution denied")
   must(base.copy(pinnedEpoch = UUID.randomUUID()),
-    R.DENY_ACCOUNT_OR_IDENTITY, "mismatched out-of-band epoch denied")
+    SyntheticCheckpointGateReasonLab.DENY_ACCOUNT_OR_IDENTITY, "mismatched out-of-band epoch denied")
   must(base.copy(checkpoint = b.copy(operation = UUID.randomUUID())),
-    R.DENY_OPERATION_COLLISION, "equal generations but different UUID denied")
+    SyntheticCheckpointGateReasonLab.DENY_OPERATION_COLLISION, "equal generations but different UUID denied")
   must(base.copy(checkpoint = b.copy(kit = UUID.randomUUID().toString())),
-    R.DENY_GENERATION_OR_PAYLOAD_DIVERGENCE,
+    SyntheticCheckpointGateReasonLab.DENY_GENERATION_OR_PAYLOAD_DIVERGENCE,
     "equal generation but different kit denied")
   must(base.copy(checkpoint = b.copy(cipherHashHex = "c".repeat(64))),
-    R.DENY_GENERATION_OR_PAYLOAD_DIVERGENCE,
+    SyntheticCheckpointGateReasonLab.DENY_GENERATION_OR_PAYLOAD_DIVERGENCE,
     "equal generation but different ciphertext hash denied")
   must(base.copy(checkpoint = b.copy(generation = 10L)),
-    R.DENY_GENERATION_OR_PAYLOAD_DIVERGENCE,
+    SyntheticCheckpointGateReasonLab.DENY_GENERATION_OR_PAYLOAD_DIVERGENCE,
     "different generation denied")
   must(base.copy(lastSeenGeneration = 10L),
-    R.DENY_ROLLBACK_FROM_HIGH_WATER,
+    SyntheticCheckpointGateReasonLab.DENY_ROLLBACK_FROM_HIGH_WATER,
     "checkpoint below retained high-water denied")
   must(base.copy(lastSeenTreeSize = 18L),
-    R.DENY_TREE_TRUNCATION,
+    SyntheticCheckpointGateReasonLab.DENY_TREE_TRUNCATION,
     "smaller Merkle tree is not accepted")
   must(base.copy(lastSeenRootHex = "c".repeat(64)),
-    R.DENY_EQUIVOCATION_SAME_TREE_SIZE,
+    SyntheticCheckpointGateReasonLab.DENY_EQUIVOCATION_SAME_TREE_SIZE,
     "same tree size with different root denied")
   must(base.copy(checkpoint = b.copy(treeSize = 18L),
     consistencyProofVerifiedFixtureOnly = false),
-    R.HOLD_NO_CONSISTENCY_PROOF,
+    SyntheticCheckpointGateReasonLab.HOLD_NO_CONSISTENCY_PROOF,
     "tree grew but no consistency proof asserted")
   verify(gate.inspect(base.copy(checkpoint = b.copy(treeSize = 18L),
     consistencyProofVerifiedFixtureOnly = true)) ==
-    setOf(R.HOLD_EXTERNAL_ATTESTATION_AND_IMPLEMENTATION_REQUIRED),
+    setOf(SyntheticCheckpointGateReasonLab.HOLD_EXTERNAL_ATTESTATION_AND_IMPLEMENTATION_REQUIRED),
     "alleged consistency proof still cannot produce permission")
   must(base.copy(checkpoint = b.copy(cipherHashHex = "Z".repeat(64))),
-    R.DENY_MALFORMED_CHECKPOINT, "nonhex ciphertext hash denied")
+    SyntheticCheckpointGateReasonLab.DENY_MALFORMED_CHECKPOINT, "nonhex ciphertext hash denied")
   must(base.copy(lastSeenTreeSize = 0L),
-    R.DENY_MALFORMED_CHECKPOINT, "missing trusted prior tree size denied")
+    SyntheticCheckpointGateReasonLab.DENY_MALFORMED_CHECKPOINT, "missing trusted prior tree size denied")
   must(base.copy(register = a.copy(generation = 0L)),
-    R.DENY_MALFORMED_CHECKPOINT, "zero generation denied")
+    SyntheticCheckpointGateReasonLab.DENY_MALFORMED_CHECKPOINT, "zero generation denied")
   must(base.copy(checkpoint = b.copy(treeRootHex = "0")),
-    R.DENY_MALFORMED_CHECKPOINT, "malformed Merkle root denied")
+    SyntheticCheckpointGateReasonLab.DENY_MALFORMED_CHECKPOINT, "malformed Merkle root denied")
   must(base.copy(externalAdminAndRetentionAsserted = false),
-    R.HOLD_NO_INDEPENDENT_ADMIN_OR_RETENTION,
+    SyntheticCheckpointGateReasonLab.HOLD_NO_INDEPENDENT_ADMIN_OR_RETENTION,
     "same administrator or no locked retention holds")
   must(base.copy(ownerVerifiedFixtureOnly = false),
-    R.HOLD_OWNER_NOT_VERIFIED,
+    SyntheticCheckpointGateReasonLab.HOLD_OWNER_NOT_VERIFIED,
     "missing owner authentication holds")
   verify(gate.inspect(base.copy(
     monitorOnline = false,
     checkpoint = b.copy(operation = UUID.randomUUID()),
     ownerVerifiedFixtureOnly = false)).containsAll(setOf(
-    R.HOLD_MONITOR_OFFLINE, R.DENY_OPERATION_COLLISION,
-    R.HOLD_OWNER_NOT_VERIFIED,
-    R.HOLD_EXTERNAL_ATTESTATION_AND_IMPLEMENTATION_REQUIRED)),
+    SyntheticCheckpointGateReasonLab.HOLD_MONITOR_OFFLINE, SyntheticCheckpointGateReasonLab.DENY_OPERATION_COLLISION,
+    SyntheticCheckpointGateReasonLab.HOLD_OWNER_NOT_VERIFIED,
+    SyntheticCheckpointGateReasonLab.HOLD_EXTERNAL_ATTESTATION_AND_IMPLEMENTATION_REQUIRED)),
     "multiple independent faults stay visible without bypass")
   println("PASS: SEC-05K $checks independent checkpoint two-domain NEGATIVE checks")
   println("LIMIT: proofs and storage are assertions; no immutable checkpoint service is deployed")
