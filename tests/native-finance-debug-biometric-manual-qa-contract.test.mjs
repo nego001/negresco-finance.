@@ -29,6 +29,13 @@ test('biometric interactive QA is a nonexported DEBUG-only Activity, never a rel
   assert.match(activity, /Cipher\.ENCRYPT_MODE/);
   assert.match(activity, /Cipher\.DECRYPT_MODE/);
   assert.match(activity, /cancelAuthentication\(\)/);
+  assert.match(activity, /promptConsumed = true/);
+  assert.match(activity, /attempt != epoch \|\| promptConsumed/);
+  assert.match(activity, /pendingNonce = nonce/);
+  assert.match(activity, /pendingCiphertext = encrypted/);
+  assert.match(activity, /pendingNonce\?\.fill\(0\)/);
+  assert.match(activity, /pendingCiphertext\?\.fill\(0\)/);
+  assert.match(activity, /DENY_BACKGROUND_OR_STOP/);
   assert.match(activity, /onStop\(\)/);
   assert.match(activity, /store\(\)\.deleteEntry/);
   assert.match(activity, /PASS_NATIVE_CRYPTO_ONLY/);
