@@ -183,6 +183,35 @@ físico antes de integrar o cofre. A autorização da operação deve ficar
 inteiramente no processo Kotlin e ser revalidada após perda de foco,
 cancelamento, rotação, timeout e troca de cadastro biométrico.
 
+## Preparação do fluxo positivo real com BiometricPrompt (somente androidTest)
+
+O harness `SyntheticBiometricPromptDispatchHarness.kt`, ainda **exclusivamente
+em `src/androidTest`**, possui a chamada real
+`BiometricPrompt.authenticate(PromptInfo, CryptoObject(cipher))` e um callback
+nativo que somente observa sucesso após o **AndroidKeyStore executar
+`Cipher.doFinal`** da cifra apresentada. O prompt usa
+`BIOMETRIC_STRONG` sem fallback para senha/PIN. O harness valida
+`KeyInfo` de chave `AndroidKeyStore` com autenticação por operação,
+identidade exata de `Cipher`, época foreground e consumo único da tentativa,
+revogando-a após interrupção/erro. O resultado criptográfico é mantido
+na instrumentação nativa, limpo imediatamente e **nunca** convertido em
+`financialStorageAllowed=true`, token de JS ou abertura de SQLCipher.
+
+A suíte automática `SyntheticBiometricPromptDispatchHarnessTest.kt`
+verifica somente a configuração do prompt, negação de chave em software
+e isolamento da instrumentação. **Ela NÃO abre o prompt em CI e NÃO
+simula digital aprovada.** O método
+`requestWithRealOperatingSystemPrompt` exige uma `FragmentActivity`
+ativa e só poderá ser exercitado de maneira positiva em QA
+interativo com consentimento biométrico real, em Android devidamente
+cadastrado, após integrar um invocador de teste apropriado.
+Não registrar o fluxo positivo como aprovado até obter essa evidência.
+
+Este código não participa do binário público do módulo Expo. Falta
+implementar o fluxo de produto com autenticação real vinculada à senha do
+banco e ao ciclo de vida das operações, decisões explícitas sobre troca de
+cadastro, recuperação e proteção contra rollback, além da homologação física.
+
 ## Interface futura mínima (NÃO DISPONÍVEL)
 
 A implementação de diagnóstico usa um módulo local Expo Kotlin **identificado por versão**; qualquer API real de autenticação, persistência ou chaves depende integralmente dos gates abaixo. A superfície JS deve ser mínima:
