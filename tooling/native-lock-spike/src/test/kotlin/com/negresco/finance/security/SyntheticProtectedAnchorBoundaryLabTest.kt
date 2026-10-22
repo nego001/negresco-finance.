@@ -160,6 +160,28 @@ internal class SyntheticProtectedAnchorFixtureLab {
       SyntheticAnchorBoundaryObservationLab.OBSERVED_MATCH_ONLY_NOT_AUTHORIZATION
     else SyntheticAnchorBoundaryObservationLab.DENY_RESTORED_OR_DIVERGENT_STORES
   }
+
+  /**
+   * In-process diagnostic-only critical section: observation and caller's
+   * synchronous PROBE are serialized against advanceFixtureOnly.
+   *
+   * This does NOT fence an external PostgreSQL transaction or a mobile
+   * filesystem operation, and cannot prove a distributed atomic commit.
+   * The callback MUST NOT authorize or mutate financial state. A positive
+   * result is still OBSERVED_MATCH_ONLY_NOT_AUTHORIZATION.
+   */
+  @Synchronized
+  fun inspectWithinJvmFenceFixtureOnly(
+    rollbackableDatabase: SyntheticRekeyGenerationClaimLab,
+    rollbackableSignedFile: SyntheticRekeyGenerationClaimLab,
+    pinned: UUID,
+    onDiagnosticProbeFixtureOnly: () -> Unit
+  ): SyntheticAnchorBoundaryObservationLab {
+    val observed = observeFixtureOnly(rollbackableDatabase, rollbackableSignedFile, pinned)
+    if (observed == SyntheticAnchorBoundaryObservationLab.OBSERVED_MATCH_ONLY_NOT_AUTHORIZATION)
+      onDiagnosticProbeFixtureOnly()
+    return observed
+  }
 }
 
 /** Deterministic negative matrix. ALL identifiers are randomly generated fixtures. */
