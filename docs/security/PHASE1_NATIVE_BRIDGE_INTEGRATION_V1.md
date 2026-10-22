@@ -306,3 +306,22 @@ O JavaScript recebe **somente rótulos de diagnóstico em lista fechada**, sem p
 **Riscos ainda pendentes:** o preflight e a abertura do DataStore não são uma operação atômica de sistema de arquivos; o arquivo pode desaparecer ou mudar entre os dois. DataStore pode realizar inicialização interna se ocorrer uma corrida. Portanto, esta rota **não deve ser anunciada como leitura forense garantidamente imutável** e **não é um sistema de migração ou um verificador de integridade/replay**. A migração/autorização transacional só poderá ser ativada quando houver política de segurança, dono de dados e recuperação definitivos e testes no aparelho real. Não usa/instala dados reais voluntariamente e não publica APK.
 
 `SyntheticExistingRecordDiagnosticGateTest.kt` tem três casos de negação com Context nulo, Activity em background e Activity destruída, sem tocar no arquivo de bloqueio existente. O contrato `tests/native-finance-existing-record-contract.test.mjs` valida o singleton por delegado, preflight, API suspend e invariantes de não autorização; `tests/native-finance-readiness.test.mjs` simula registros falsificados e erros/timeout. A compilação SDK 54 e a instrumentação de todos os testes novos **dependem da CI do commit exato**.
+
+
+## Fase 1 | Preflight determinístico de migração do bloqueio antigo (somente avaliação)
+
+Em 22/10/2026 foi criada a classe **interna, pura e não exportada** `NativeLockMigrationPreflight.kt`, que recebe **valores de cenário**, não lê o `AsyncStorage` do usuário e não grava no DataStore. Os nomes e estados legados são os definidos em `apps/mobile/security/localLockPolicy.ts`: preferência `negresco.local_lock.v1` com `enabled`, `disabled` e `disable-pending`; jornal `negresco.local_lock.optout.v1` com `pending`.
+
+O preflight rejeita ou segura, sem exceções de autorização:
+
+- `pending` no jornal ou `disable-pending` no registro exige **recuperação de opt-out**; não importa se a preferência primária diz `disabled`.
+- `disabled` **não é prova de opt-out autenticado** e não concede desbloqueio na versão nativa.
+- Ausência de preferência não inicia provisionamento ou migração automática.
+- Registro DataStore detectado como existente, mas ainda não autenticado, **nunca é sobrescrito** por uma alegação do `AsyncStorage`.
+- Presença de arquivo contraditória com o diagnóstico tipado, versão malformada, entrada de armazenamento suspeita ou valores desconhecidos provocam `DENY_` apropriado.
+- Um estado legado `enabled` só identifica a necessidade de autenticação forte futura; não autoriza a migração.
+- **Não existe saída `ALLOW`, `MIGRATED` ou `UNLOCKED`**, nem método Expo para solicitar migração. Não há leitura/escrita de arquivos reais, biometria, movimentação de preferências nem solicitação de chave.
+
+`SyntheticNativeLockMigrationPreflightTest.kt` define oito cenários instrumentados no emulador, com combinações adversariais de estados e nenhum arquivo/dispositivo pessoal. `tests/native-finance-migration-preflight-contract.test.mjs` verifica as restrições de API, isolamento e ausência de mutação.
+
+**Esta etapa não conclui a migração.** Antes de permitir qualquer alteração de dados será necessário desenvolver e homologar: prova de titular/biometria vinculada a uma operação nativa, acordo de versão e semântica entre AsyncStorage e DataStore, journal durável e operação atômica, backup e recuperação testados, política de perda de chave e revogação de sessões, análise de restauração/rollback e atualização do APK com certificado compatível. As leituras existentes continuam apenas diagnósticas e o SQLCipher permanece indisponível para dados reais. Testes desta subetapa contam como aprovados somente após CI do commit exato.
