@@ -1,0 +1,15 @@
+// Minimal local Expo module for the Android SECURITY DIAGNOSTIC ONLY.
+// No database, Keystore key access, biometrics, permissions or network.
+apply plugin: 'com.android.library'
+apply plugin: 'expo-module-gradle-plugin'
+
+group = 'com.negresco.finance'
+version = '0.1.0'
+
+android {
+  namespace 'com.negresco.finance.security'
+  defaultConfig {
+    versionCode 1
+    versionName '0.1.0'
+  }
+}
