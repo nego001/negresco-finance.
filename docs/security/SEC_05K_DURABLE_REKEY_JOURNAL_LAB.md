@@ -294,7 +294,7 @@ A política pura SyntheticDualFloorAgreementPolicyFixtureLab exige dois pins pú
 
 Cenários no runner policyCheck:
 - A e B iniciam em OLD; avanço unilateral A=NEW, B=OLD implica HOLD_DIVERGENT_FLOORS. B só avança explicitamente a partir do seu predecessor OLD.
-- Depois de dois avanços, ambas são reiniciadas em processos novos; chaves e geração NEW persistem enquanto os dois arquivos continuam intactos.
+- Depois de avançar ambas até NEW e depois NEWER, as duas são reiniciadas em processos novos; chaves e geração NEWER persistem enquanto os arquivos continuam intactos.
 - Restore **somente** do arquivo A para OLD, com B mantida em NEW, causa divergência assinada e bloqueio.
 - **Teste negativo obrigatório:** restore de **ambos** os arquivos da autoridade, inclusive suas chaves de teste antigas, faz A e B concordarem na geração OLD, com assinaturas válidas sob os pins originais e nonces novos. Um acordo 2-de-2 em armazenamento comum pode portanto estar globalmente obsoleto.
 - Duas respostas assinadas antes de um avanço permanecem matematicamente válidas depois dele. Nenhuma verificação local de assinatura elimina TOCTOU, e o teste conserva HOLD_EXTERNAL_AUTHORITY_REQUIRED na política de reconciliação.
