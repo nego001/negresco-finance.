@@ -67,6 +67,8 @@ internal object SyntheticIndependentCheckpointGateLab {
 
       if (a.operation != b.operation)
         reasons.add(SyntheticCheckpointGateReasonLab.DENY_OPERATION_COLLISION)
+      if (a.treeSize != b.treeSize || a.treeRootHex != b.treeRootHex)
+        reasons.add(SyntheticCheckpointGateReasonLab.DENY_GENERATION_OR_PAYLOAD_DIVERGENCE)
       if (a.kit != b.kit || a.generation != b.generation ||
         a.cipherHashHex != b.cipherHashHex)
         reasons.add(SyntheticCheckpointGateReasonLab.DENY_GENERATION_OR_PAYLOAD_DIVERGENCE)
@@ -156,6 +158,12 @@ internal fun runSyntheticIndependentCheckpointGateScenarios() {
   must(base.copy(checkpoint = b.copy(generation = 10L)),
     SyntheticCheckpointGateReasonLab.DENY_GENERATION_OR_PAYLOAD_DIVERGENCE,
     "different generation denied")
+  must(base.copy(checkpoint = b.copy(treeSize = 18L)),
+    SyntheticCheckpointGateReasonLab.DENY_GENERATION_OR_PAYLOAD_DIVERGENCE,
+    "different checkpoint tree size denied")
+  must(base.copy(checkpoint = b.copy(treeRootHex = "c".repeat(64))),
+    SyntheticCheckpointGateReasonLab.DENY_GENERATION_OR_PAYLOAD_DIVERGENCE,
+    "same operation with different checkpoint root denied")
   must(base.copy(lastSeenGeneration = 10L),
     SyntheticCheckpointGateReasonLab.DENY_ROLLBACK_FROM_HIGH_WATER,
     "checkpoint below retained high-water denied")
