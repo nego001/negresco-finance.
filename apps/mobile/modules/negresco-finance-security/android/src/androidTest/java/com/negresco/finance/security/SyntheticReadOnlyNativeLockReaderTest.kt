@@ -39,6 +39,7 @@ class SyntheticReadOnlyNativeLockReaderTest {
   private lateinit var scope: CoroutineScope
   private lateinit var datastore: DataStore<Preferences>
   private lateinit var reader: NativeLockReadOnlySnapshotReader
+  private lateinit var lifecycle: NativeLockLifecycleFence
   private val version = intPreferencesKey("negresco.lock.protocol_version")
   private val enabled = booleanPreferencesKey("negresco.lock.enabled")
   private val revision = longPreferencesKey("negresco.lock.revision")
@@ -53,7 +54,9 @@ class SyntheticReadOnlyNativeLockReaderTest {
     datastore = PreferenceDataStoreFactory.create(scope = scope) {
       File(sandbox, "fixture.preferences_pb")
     }
-    reader = NativeLockReadOnlySnapshotReader(datastore)
+    lifecycle = NativeLockLifecycleFence()
+    lifecycle.onForeground() // Synthetic visible Activity only, not a login.
+    reader = NativeLockReadOnlySnapshotReader(datastore, lifecycle)
   }
 
   @After fun cleanup() = runBlocking {
