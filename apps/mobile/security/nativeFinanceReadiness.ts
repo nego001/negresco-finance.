@@ -11,21 +11,26 @@ export type NativeFinanceReadinessStatus =
   | 'native-diagnostic-error'
   | 'native-lab-only';
 
+export type NativeStorePresence = 'not-checked' | 'absent' | 'present-unverified' | 'unsafe-entry' | 'unavailable';
+
 export type NativeFinanceReadiness = Readonly<{
   status: NativeFinanceReadinessStatus;
   message: string;
   financialStorageAllowed: false;
   keyReleaseAllowed: false;
   migrationAllowed: false;
+  storePresence: NativeStorePresence;
 }>;
 
 type NativeDiagnosticHost = Readonly<{
   getIntegrationInfo?: () => unknown | Promise<unknown>;
+  inspectNativeLockStorePresence?: () => unknown | Promise<unknown>;
 }>;
 
 function outcome(
   status: NativeFinanceReadinessStatus,
   message: string,
+  storePresence: NativeStorePresence = 'not-checked',
 ): NativeFinanceReadiness {
   return Object.freeze({
     status,
@@ -33,6 +38,7 @@ function outcome(
     financialStorageAllowed: false,
     keyReleaseAllowed: false,
     migrationAllowed: false,
+    storePresence,
   });
 }
 
@@ -78,17 +84,38 @@ export async function inspectNativeFinanceReadiness(
     // This is a manual, read-only probe. A lost reply must not keep Settings
     // busy indefinitely. The native request may still finish later, but its
     // result is ignored and NEVER becomes an authorization for JS/SQLCipher.
-    await Promise.race([
-      Promise.resolve().then(() => probe.call(rawHost)),
+    const storeObservation = await Promise.race([
+      Promise.resolve().then(async () => {
+        await probe.call(rawHost);
+        // Only reads optional metadata. The returned JS object is untrusted.
+        const inspector = (rawHost as NativeDiagnosticHost).inspectNativeLockStorePresence;
+        return typeof inspector === 'function' ? inspector.call(rawHost) : null;
+      }),
       new Promise<never>((_, reject) => {
         timeout = setTimeout(() => reject(new Error('diagnostic timeout')), duration);
       }),
     ]);
-    // Host não confiável: não interpretar qualquer alegação de "ready",
-    // versão, assinatura, sucesso, biometria ou acesso à chave como prova.
+    // The only data projected to UI is a bounded set of UNVERIFIED labels.
+    // A hostile JS/native host may forge all of these values.
+    let presence: NativeStorePresence = 'not-checked';
+    if (storeObservation && typeof storeObservation === 'object') {
+      const status = (storeObservation as {status?: unknown}).status;
+      if (status === 'ABSENT') presence = 'absent';
+      else if (status === 'PRESENT_UNVERIFIED') presence = 'present-unverified';
+      else if (status === 'UNSAFE_ENTRY') presence = 'unsafe-entry';
+      else if (status === 'UNAVAILABLE') presence = 'unavailable';
+    }
+    const labels: Record<NativeStorePresence, string> = {
+      'not-checked': 'Arquivo DataStore não inspecionado.',
+      absent: 'Nenhum arquivo nativo de bloqueio detectado nesta inspeção.',
+      'present-unverified': 'Arquivo de bloqueio detectado, mas NÃO validado nem autenticado.',
+      'unsafe-entry': 'Entrada de armazenamento potencialmente insegura. Não usar.',
+      unavailable: 'Não foi possível verificar a presença do arquivo nativo.',
+    };
     return outcome(
       'native-lab-only',
-      'Interface diagnóstica nativa encontrada. Integração financeira continua BLOQUEADA até testes de chaves, banco, recuperação e homologação física.',
+      'Interface diagnóstica nativa encontrada. Integração financeira continua BLOQUEADA até testes de chaves, banco, recuperação e homologação física. ' + labels[presence],
+      presence,
     );
   } catch {
     return outcome(
