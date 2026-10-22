@@ -32,7 +32,7 @@ test('Phase1 local Expo module is Android-only and registered with explicit modu
 test('Phase1 native surface is strictly diagnostic, no financial access operations', () => {
   const functions = [...module.matchAll(/\bAsyncFunction\("([^"]+)"\)/g)]
     .map(match => match[1]);
-  assert.deepEqual(functions, ['getIntegrationInfo']);
+  assert.deepEqual(functions, ['getIntegrationInfo', 'inspectNativeLockStorePresence']);
   assert.match(module, /"moduleKind" to "DIAGNOSTIC_ONLY"/);
   for (const name of [
     'financialStorageAllowed', 'keyReleaseAllowed', 'migrationAllowed',
@@ -55,4 +55,20 @@ test('Phase1 diagnostic never grants read, key, or migration rights based on mod
   assert.match(inspect, /native-lab-only/);
   assert.match(inspect, /Promise\.race/);
   assert.match(inspect, /Math\.min\(diagnosticTimeoutMs, 5000\)/);
+});
+
+test('Phase1 lock-file metadata inspector cannot read contents or mutate native lock state', () => {
+  const probe = read(base + 'android/src/main/java/com/negresco/finance/security/NativeLockFilePresenceDiagnostic.kt');
+  assert.match(probe, /negresco_native_lock\.preferences_pb/);
+  assert.match(probe, /Files\.isSymbolicLink/);
+  assert.match(probe, /"PRESENT_UNVERIFIED"/);
+  assert.match(probe, /"ABSENT"/);
+  assert.match(probe, /"UNSAFE_ENTRY"/);
+  assert.match(probe, /"UNAVAILABLE"/);
+  assert.match(module, /NativeLockFilePresenceDiagnostic\.inspect\(appContext\.reactContext\)/);
+  assert.match(module, /"financialStorageAllowed" to false/);
+  assert.match(module, /"keyReleaseAllowed" to false/);
+  assert.match(module, /"migrationAllowed" to false/);
+  assert.doesNotMatch(probe, /\.readBytes\(|\.writeBytes\(|FileInputStream|FileOutputStream|DataStoreFactory|PreferenceDataStoreFactory|updateData|createNewFile|delete\(|renameTo\(|\.mkdir\(|\.mkdirs\(|SqlCipher|SecretKey|BiometricPrompt/);
+  assert.doesNotMatch(module, /updateData|writeBytes|unlock|enableIfCurrent|disable\(|SecretKey|Cipher\.getInstance|net\.zetetic/);
 });
