@@ -71,7 +71,8 @@ test('read-only settings probe is manual, never wired into bank unlock or app st
   const module = read('apps/mobile/security/nativeFinanceReadiness.ts');
   const expo = read('apps/mobile/app.json');
   assert.match(app, /onPress=\{checkNativeFinanceDiagnostic\}/);
-  assert.match(app, /NativeModules\.NegrescoFinanceSecurityV1/);
+  assert.match(app, /getOptionalNativeFinanceDiagnosticHost\(\)/);
+  assert.doesNotMatch(app, /NativeModules\.NegrescoFinanceSecurityV1/);
   assert.match(app, /nativeFinanceDiagnosticEpoch\.current\+\+/);
   assert.match(app, /AppState\.currentState==='active'/);
   assert.match(app, /Segurança financeira nativa · integração pendente/);
