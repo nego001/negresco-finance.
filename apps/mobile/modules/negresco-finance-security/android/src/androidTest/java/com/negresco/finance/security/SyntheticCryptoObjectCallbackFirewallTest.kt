@@ -157,8 +157,8 @@ class SyntheticCryptoObjectCallbackFirewallTest {
         null
       }
       if (key == null) {
-        assertEquals(Verdict.HOLD_KEYSTORE_UNAVAILABLE,
-          Verdict.HOLD_KEYSTORE_UNAVAILABLE)
+        assertNull("emulator cannot provision a strong biometric key", key)
+        // This is an explicit UNSUPPORTED prerequisite, not successful auth.
       } else {
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         var usable = true
@@ -179,6 +179,19 @@ class SyntheticCryptoObjectCallbackFirewallTest {
             Verdict.HOLD_OS_AUTH_REQUIRED, verdict)
           assertEquals("one-time native attempts reject replay",
             Verdict.DENY_BAD_OR_REPLAYED_CALLBACK, fence.finish(attempt, fakeCallback))
+          // A brand-new attempt is invalid after native background; returning
+          // foreground never resurrects the old token.
+          val stale = fence.begin(key, cipher)
+          assertNotNull(stale)
+          fence.leaveForeground()
+          assertEquals(Verdict.DENY_STALE_FOREGROUND, fence.finish(stale, fakeCallback))
+          fence.enterForeground()
+          assertEquals(Verdict.DENY_BAD_OR_REPLAYED_CALLBACK, fence.finish(stale, fakeCallback))
+          // A valid key does not make a foreign CryptoObject acceptable.
+          val wrong = fence.begin(key, cipher)
+          assertNotNull(wrong)
+          val different = BiometricPrompt.CryptoObject(Cipher.getInstance("AES/GCM/NoPadding"))
+          assertEquals(Verdict.DENY_BAD_OR_REPLAYED_CALLBACK, fence.finish(wrong, different))
         }
       }
     } finally {
