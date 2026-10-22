@@ -66,6 +66,8 @@ class SyntheticCryptoObjectCallbackFirewallTest {
           .getKeySpec(key, KeyInfo::class.java) as KeyInfo
       } catch (_: GeneralSecurityException) {
         return null
+      } catch (_: ProviderException) {
+        return null
       } catch (_: IllegalArgumentException) {
         return null
       }
@@ -93,6 +95,8 @@ class SyntheticCryptoObjectCallbackFirewallTest {
           "fixture-not-financial-data".toByteArray(Charsets.UTF_8))
         Verdict.OBSERVED_CRYPTO_ONLY_NOT_AUTHORIZATION
       } catch (_: GeneralSecurityException) {
+        Verdict.HOLD_OS_AUTH_REQUIRED
+      } catch (_: ProviderException) {
         Verdict.HOLD_OS_AUTH_REQUIRED
       } catch (_: IllegalStateException) {
         Verdict.HOLD_OS_AUTH_REQUIRED
