@@ -278,6 +278,7 @@ fun main(args: Array<String>) {
     runSyntheticAnchorLinearizationBoundaryScenarios()
     runSyntheticExternalAnchorAssuranceGateScenarios()
     runSyntheticIndependentCheckpointGateScenarios()
+    runSyntheticMerkleProofVerifierScenarios()
     runSyntheticMerkleInclusionProofScenarios()
   }
 }
