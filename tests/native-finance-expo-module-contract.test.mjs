@@ -10,6 +10,10 @@ const gradle = read(base + 'android/build.gradle');
 const host = read(base + 'src/NegrescoFinanceSecurityV1.ts');
 const app = read('apps/mobile/App.tsx');
 const packageJson = JSON.parse(read('apps/mobile/package.json'));
+const executableModule = module
+  .replace(/\/\*[\s\S]*?\*\//g, '')
+  .replace(/^\s*\/\/.*$/gm, '');
+
 
 test('Phase1 local Expo module is Android-only and registered with explicit module name', () => {
   assert.deepEqual(definition.platforms, ['android']);
@@ -43,7 +47,7 @@ test('Phase1 native surface is strictly diagnostic, no financial access operatio
   assert.doesNotMatch(module, /Function\("(?:open|unlock|disable|enable|migrate|write|save|load|readData|decrypt)/i);
   // The bridge may name the read-only singleton, but must not create
   // a store, update preferences, expose credentials or open a database.
-  assert.doesNotMatch(module, /SecretKey|Cipher\.getInstance|net\.zetetic|openDatabase|DataStoreFactory|PreferenceDataStoreFactory|updateData|BiometricPrompt|CryptoObject|passphrase/i);
+  assert.doesNotMatch(executableModule, /SecretKey|Cipher\.getInstance|net\.zetetic|openDatabase|DataStoreFactory|PreferenceDataStoreFactory|updateData|BiometricPrompt|CryptoObject|passphrase/i);
   assert.match(module, /SuspendBody\s*\{/);
   assert.doesNotMatch(module, /getIntegrationInfo.*\bBoolean\b/);
   assert.doesNotMatch(module, /Log\.(?:i|e|d|w)\(/);
