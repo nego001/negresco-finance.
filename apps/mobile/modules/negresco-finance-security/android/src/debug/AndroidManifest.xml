@@ -1,0 +1,11 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <application>
+    <!-- DEBUG ONLY and not exported: cannot be launched by third-party apps.
+         Opt-in instrumented QA launches this Activity on a physical device. -->
+    <activity
+      android:name="com.negresco.finance.security.SyntheticBiometricManualQaActivity"
+      android:exported="false"
+      android:label="Negresco biometric QA (DEBUG)"
+      android:theme="@android:style/Theme.Material.Light.NoActionBar" />
+  </application>
+</manifest>
