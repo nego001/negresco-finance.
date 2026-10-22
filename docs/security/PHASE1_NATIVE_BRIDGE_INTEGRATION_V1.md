@@ -1,15 +1,15 @@
 # Negresco Finance | Fase 1: fronteira da integração nativa com Expo
 
-**Status em 22/10/2026:** diagnóstico integrado na tela Ajustes do código-fonte Android/Expo; **NÃO** existem chaves financeiras, banco SQLCipher operacional, módulo Kotlin autolinkado ou release seguro. Sem autorização para dados reais, merge ou atualização de APK. PR #14 continua em draft.
+**Status em 22/10/2026:** diagnóstico integrado na tela Ajustes e módulo local Expo/Kotlin de diagnóstico criado no código-fonte; **NÃO** existem chaves financeiras, banco SQLCipher operacional, opt-out nativo completo, QA físico ou release seguro. O autolinking/compilação do módulo precisa ser confirmado no workflow Android para o commit exato. Sem autorização para dados reais, merge ou atualização de APK. PR #14 continua em draft.
 
 ## Mudança efetivamente realizada nesta revisão
 
-- `apps/mobile/security/nativeFinanceReadiness.ts` introduz inspeção manual e somente leitura de uma eventual interface diagnóstica `NativeModules.NegrescoFinanceSecurityV1.getIntegrationInfo()`.
+- `apps/mobile/security/nativeFinanceReadiness.ts` mantém inspeção manual, somente leitura e sempre bloqueada; `apps/mobile/modules/negresco-finance-security/src/NegrescoFinanceSecurityV1.ts` resolve o módulo via `requireOptionalNativeModule('NegrescoFinanceSecurityV1')`, da Expo Modules API.
 - `apps/mobile/App.tsx` inclui botão em **Ajustes → Segurança financeira nativa**. A inspeção ocorre apenas depois do toque do usuário, sem argumentos financeiros. Ausência do módulo é exibida claramente, não interpretada como proteção.
 - O resultado do host é **descartado**: mesmo que ele alegue `ready`, `VERIFIED_LIVE_CURRENT`, KeyStore ou SQLCipher, todas as saídas retornam `financialStorageAllowed=false`, `keyReleaseAllowed=false`, `migrationAllowed=false`. Erro ou host ausente também fecham.
 - Respostas assíncronas após saída de Ajustes ou background são ignoradas por uma época local. Nenhuma operação de segurança toma decisão com base nesse valor JS.
 - `tests/native-finance-readiness.test.mjs` cobre ausência, plataformas diferentes, host falso, exceções e isolamento da UI.
-- **Não há um módulo Android real implementando esse método nesta revisão.** A interface é um ponto de diagnóstico explícito para futura integração, e não um controle criptográfico, de acesso, de biometria ou cofre.
+- **Existe agora um módulo Kotlin local implementando apenas `getIntegrationInfo()`**, com flags falsas e sem operações financeiras. É uma implementação de diagnóstico, ainda sem comprovação de execução em hardware ou integração das políticas Kotlin/SQLCipher de laboratório. Isso NÃO constitui um controle criptográfico, de acesso, de biometria ou cofre.
 
 ## Tratamento de falhas na consulta diagnóstica
 
@@ -46,7 +46,7 @@ no aparelho existente.
 
 ## Interface futura mínima (NÃO DISPONÍVEL)
 
-A próxima implementação real deve usar um módulo local Expo Kotlin **identificado por versão** e registrado apenas depois de cumprir os gates abaixo. A superfície JS deve ser mínima:
+A implementação de diagnóstico usa um módulo local Expo Kotlin **identificado por versão**; qualquer API real de autenticação, persistência ou chaves depende integralmente dos gates abaixo. A superfície JS deve ser mínima:
 
 | Operação | Resultado para JS | Autoridade |
 | --- | --- | --- |
@@ -60,7 +60,7 @@ A próxima implementação real deve usar um módulo local Expo Kotlin **identif
 
 ## Dependências concretas antes de conectar Kotlin ao produto
 
-1. **Compilar módulo local Expo para Android**, em projeto específico do app e com versionamento/compatibilidade ABI; manter `tooling/native-lock-android-lab` e `tooling/sqlcipher-android-lab` como fixtures separadas.
+1. **Comprovar compilação do módulo local Expo para Android**, em projeto específico do app e com versionamento/compatibilidade ABI; manter `tooling/native-lock-android-lab` e `tooling/sqlcipher-android-lab` como fixtures separadas.
 2. **Autenticação e opt-out**: integrar DataStore e BiometricPrompt à Activity, controlar background/restart, autenticação por operação e revogação; concluir fluxo de desativação sem lacuna de commit. NUNCA usar retorno de login visual como chave de dados.
 3. **Proteção criptográfica**: gerar e envelopar chave SQLCipher separada com Android Keystore; testar CryptoObject, mudança de biometria, perda de chave, fallback e política de backup.
 4. **Banco financeiro**: SQLCipher real dentro do app, chave errada/ausente não cria banco novo, integridade WAL, esquema/migrações e operação offline com dados sintéticos.
@@ -72,3 +72,12 @@ A próxima implementação real deve usar um módulo local Expo Kotlin **identif
 ## Próxima entrega de código recomendada
 
 Extrair interfaces nativas testáveis de `tooling/native-lock-android-lab` para um módulo local Expo **desabilitado por padrão**, começar pelo caminho de leitura do DataStore e diagnósticos, e implementar o ciclo de vida/opt-out com testes instrumentados antes de criar métodos para manipular bancos. Não publicar APK, não mesclar PR #14 nem tocar na PR #17 até confirmação do usuário e revisão específica.
+
+
+## Atualização: esqueleto nativo Android local criado (ainda diagnóstico)
+
+O módulo `apps/mobile/modules/negresco-finance-security` registra a classe Kotlin `com.negresco.finance.security.NegrescoFinanceSecurityV1Module` pelo `expo-module.config.json` Android-only. A classe oferece exatamente `getIntegrationInfo()` e responde `financialStorageAllowed=false`, `keyReleaseAllowed=false`, `migrationAllowed=false`, `sqlcipherIntegrated=false`, `hardwareKeyAuthorizationIntegrated=false`. Ela não lê arquivos, não solicita permissões, não cria banco, não utiliza Keystore e não contém biometria. A fachada TypeScript usa `requireOptionalNativeModule`, permitindo rodar em binários antigos sem o módulo. A inspeção de dados retornados continua sendo **não autoritativa** em `nativeFinanceReadiness.ts`.
+
+**Compatibilidade:** o aplicativo usa Expo SDK 54. O Gradle do módulo foi alinhado ao `ExpoModulesCorePlugin.gradle` do template dessa versão, com `applyKotlinExpoModulesCorePlugin()`, `useCoreDependencies()` e `useDefaultAndroidSdkVersions()`. Essa configuração **precisa ser compilada e conferida pelo workflow Android/APK em GitHub Actions**; contratos JS ou compilações dos projetos `tooling/` não comprovam esse resultado.
+
+O workflow Android APK existente é disparado por mudanças em `apps/mobile/**` e pode gerar um **artefato Debug de teste**. Isso não publica automaticamente uma versão estável, não instala no Samsung e não autoriza migração, mesmo que um futuro build seja aprovado. Antes de considerar a próxima fase concluída, conferir log de `expo prebuild`, compilação Gradle, pacote/assinatura, e executar QA físico consentido com dados fictícios. A proteção financeira continua BLOQUEADA.
