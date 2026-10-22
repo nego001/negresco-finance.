@@ -328,3 +328,20 @@ O ensaio também provisiona uma instância substituta recém-criada em OLD. Um c
 **Critério de aceitação do desenho futuro:** uma autoridade independente precisa demonstrar recusa de redução do contador **mesmo após reinícios, backups, restaurações privilegiadas e desastres**, com identidade ancorada externamente e recibos vinculados ao compromisso linearizado. Sem essas propriedades demonstradas, toda concordância observada continua diagnóstica, `HOLD_EXTERNAL_AUTHORITY_REQUIRED` permanece obrigatório e nenhuma recuperação/atualização financeira poderá ser automaticamente autorizada. O experimento atual não adiciona serviço remoto, hardware, autenticação de titulares ou integração de produção.
 
 **Próximo gate:** definir contratos e provas de ambiente para âncora resistente a reversão por administrador/backup, incluindo retenção de histórico ou contador monotônico sob outro domínio de falha, provisionamento de identidade, recuperação e negação por falta de quorum. Sem auditoria e demonstração externa desses pressupostos, **SEC-05K permanece BLOQUEADA para produção**. Nenhum merge, APK, release ou mudança da PR #17.
+
+
+## SEC-05K | Limite fundamental: rollback de TODOS os estados assinados, inclusive da própria âncora
+
+O novo teste de integração SyntheticJdbcAllDomainsRollbackIndistinguishabilityLabTest.kt roda na suíte PostgreSQL descartável, sem integração com APK nem dados reais. Ele combina um PostgreSQL real de CI e **três processos JVM filhos** com chaves Ed25519 distintas e estados em três diretórios de fixture. O terceiro processo representa propositalmente uma suposta âncora externa que, no entanto, também salva sua chave privada e geração em arquivo comum: **ela NÃO é protegida contra rollback**.
+
+Sequência observada:
+
+1. A geração OLD é inscrita no banco e nos três processos. Guardam-se as cópias exatas dos três arquivos de estado; o PostgreSQL inicialmente não tem recibo de CAS.
+2. O banco confirma CAS OLD → NEW e grava recibo. As três JVMs avançam e, após reinícios próprios, ainda assinariam NEW.
+3. O PostgreSQL e os arquivos das testemunhas A/B voltam para OLD. A terceira JVM, cujo arquivo não foi restaurado, continua autenticando NEW com o pin Ed25519 anterior: ocorre divergência detectável.
+4. **Contraprova decisiva:** o próprio arquivo da terceira JVM é também restaurado ao snapshot pré-commit. O PostgreSQL reaparece em OLD com recibo ausente e **cada um dos três arquivos é idêntico byte a byte ao estado original**. Processos JVM reiniciados emitem respostas a desafios *novos*, assinadas validamente com os **mesmos três pins originais**, mas todas para OLD. A história em que nenhum CAS aconteceu e a história em que o CAS aconteceu e depois todos os estados foram restaurados tornaram-se **indistinguíveis** para quem observa somente esses armazenamentos.
+5. A política local conserva SIGNED_CHALLENGE_FIXTURE_ONLY_NO_LIVE_AUTHORITY e HOLD_EXTERNAL_AUTHORITY_REQUIRED; nenhum resultado criptográfico libera journal, login, recuperação ou transação.
+
+**Conclusão de engenharia (não é entrega):** assinaturas, nonce, checksums, dois ou três processos e CAS PostgreSQL **não bastam** se todos os domínios podem ser restaurados de maneira coordenada. Para detectar este caso, é obrigatório conservar pelo menos uma evidência confiável de avanço **fora do conjunto de estados reversíveis**, com identidade autenticada, persistência sob reinício real e proteção demonstrável contra o adversário que controla os backups. Se não houver tal raiz externa disponível, o comportamento correto é indisponibilidade/bloqueio e recuperação supervisionada, nunca reenrollment silencioso de OLD.
+
+Nenhum HSM, WORM, contador antirrollback em hardware, checkpoint confiável externo ou backend foi implantado. Este cenário é uma prova negativa sintética, não uma solução antirrollback real. **SEC-05K permanece BLOQUEADA para produção; PR #14 draft; sem merge, APK, release ou alterações da PR #17.**
