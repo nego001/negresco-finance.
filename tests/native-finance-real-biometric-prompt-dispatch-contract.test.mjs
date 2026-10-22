@@ -26,6 +26,8 @@ test('Biometric positive dispatcher uses real OS prompt and CryptoObject in test
   assert.match(harness, /OBSERVED_NATIVE_CRYPTO_ONLY_NOT_FINANCIAL_PERMISSION/);
   assert.match(harness, /ciphertext\.fill\(0\)/);
   assert.match(harness, /aad\.fill\(0\)/);
+  assert.match(harness, /old\?\.ciphertext\?\.fill\(0\)/);
+  assert.match(harness, /old\?\.aad\?\.fill\(0\)/);
   assert.match(harness, /foreground.*lifecycle|lifecycle\.isStillDiagnosticEpoch/);
   assert.match(harness, /No return of plaintext\/key\/cipher to the Expo bridge/);
   assert.match(tests, /realPromptConfigurationExplicitlyPermitsStrongBiometricsOnly/);
