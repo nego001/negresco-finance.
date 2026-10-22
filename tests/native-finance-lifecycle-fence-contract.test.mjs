@@ -17,6 +17,10 @@ test('Expo SDK54 lifecycle events revoke native diagnostic epochs, never confer 
   assert.match(module, /OnActivityDestroys\s*\{\s*diagnosticLifecycle\.onDestroyed\(\)/);
   assert.match(module, /OnDestroy\s*\{\s*diagnosticLifecycle\.onDestroyed\(\)/);
   assert.match(module, /private val diagnosticLifecycle = NativeLockLifecycleFence\(\)/);
+  assert.match(module, /val epoch = diagnosticLifecycle\.beginDiagnosticEpoch\(\)/);
+  assert.match(module, /val status = if \(epoch != null && diagnosticLifecycle\.isStillDiagnosticEpoch\(epoch\)\)/);
+  assert.match(module, /untrustedStatus else "UNAVAILABLE"/);
+
   assert.match(gate, /@Synchronized fun beginDiagnosticEpoch\(\): Long\?/);
   assert.match(gate, /@Synchronized fun isStillDiagnosticEpoch\(epoch: Long\): Boolean/);
   assert.match(gate, /generation == epoch/);
