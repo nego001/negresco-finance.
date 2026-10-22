@@ -23,15 +23,25 @@ import java.util.concurrent.atomic.AtomicReference
 class SyntheticBiometricManualQaOptInTest {
   @Test fun realStrongBiometricRequiresExplicitPhysicalDeviceConsent() {
     val arguments = InstrumentationRegistry.getArguments()
+    val gate = SyntheticPhysicalBiometricQaGate.classify(
+      arguments.getString("negresco.manual.biometric"),
+      SyntheticPhysicalBiometricQaGate.currentDevice()
+    )
     assumeTrue(
-      "SKIP: real biometric QA is intentionally disabled for CI/emulators",
-      arguments.getString("negresco.manual.biometric") == "YES_PHYSICAL_CONSENT"
+      "SKIP: requires explicit opt-in and a non-emulator device; physical identity still requires human review: $gate",
+      gate == SyntheticPhysicalBiometricQaGate.Verdict.HUMAN_REVIEW_REQUIRED_NOT_ATTESTED
     )
     val context = InstrumentationRegistry.getInstrumentation().targetContext
     val manager = context.getSystemService(android.content.Context.KEYGUARD_SERVICE)
       as android.app.KeyguardManager
     assumeTrue("SKIP: real QA requires a secure physical Android device",
       manager.isDeviceSecure)
+    // The strong-enrollment check is independent of the lock-screen check:
+    // secure PIN/credential alone must not be counted as biometric consent.
+    assumeTrue("SKIP: device needs a real enrolled BIOMETRIC_STRONG authenticator",
+      androidx.biometric.BiometricManager.from(context).canAuthenticate(
+        androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
+      ) == androidx.biometric.BiometricManager.BIOMETRIC_SUCCESS)
     val result = AtomicReference("NO_CALLBACK")
     val completed = CountDownLatch(1)
     val scenario = ActivityScenario.launch(SyntheticBiometricManualQaActivity::class.java)
