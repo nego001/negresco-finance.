@@ -48,6 +48,17 @@ Referências oficiais a revalidar no teste do fornecedor:
 | Retenção vencida, auditor ausente ou IAM de um só administrador para todos os armazenamentos | HOLD |
 | CAS e checkpoint coincidentes apenas em fixtures | HOLD_EXTERNAL_AUTHORITY_REQUIRED, nunca VERIFIED_LIVE_CURRENT |
 
+## Ensaio integrado JDBC / checkpoint sintético: janelas de confirmação
+
+A matriz `SyntheticJdbcCheckpointCommitGapLabTest.kt` agora conecta **PostgreSQL real e descartável da CI** ao verificador puro `SyntheticIndependentCheckpointGateLab`. O checkpoint, a raiz Merkle, o monitor e o `high-water` continuam **apenas valores declarados pelo teste**, sem armazenamento imutável nem prova criptográfica verificável. Cada conta SQL é aleatória, não financeira.
+
+- **Banco primeiro:** um CAS OLD→NEW é confirmado em transação SQL com recibo persistido e resposta perdida, enquanto o checkpoint declarado ainda está em OLD. O gate identifica divergência de geração/kit/hash e UUID, ou HOLD quando a testemunha não está presente. Repetir exatamente o CAS SQL não substitui a confirmação externa.
+- **Checkpoint primeiro:** uma testemunha declarada NEW não força o PostgreSQL OLD a avançar automaticamente. A divergência e a ausência de prova de consistência exigem bloqueio; somente outra operação SQL explícita altera o banco de teste.
+- **Concordância aparente:** depois de atualizados em sequência, registro e checkpoint podem concordar em NEW, mas continuam retornando exclusivamente `HOLD_EXTERNAL_ATTESTATION_AND_IMPLEMENTATION_REQUIRED`. O mesmo ocorre quando há suposta prova e números de recibos compatíveis.
+- **Replay e visões divergentes:** retorno a OLD abaixo do maior checkpoint testemunhado, truncamento da árvore, raiz diferente no mesmo tamanho, nova época sem autorização, mesmo UUID com hash divergente, monitor offline e prova de consistência ausente são exercitados sem conceder permissão.
+
+Este ensaio **não prova** que um checkpoint hospedado num provedor real sobreviveria à restauração total da autoridade ou que a escrita simultânea seria atômica. A política financeira mantém `HOLD_EXTERNAL_AUTHORITY_REQUIRED` mesmo quando todos os dados de teste coincidem; nenhum journal é publicado, e nenhuma operação de produção é alterada.
+
 ## Gates de saída (todos pendentes)
 
 - [ ] Modelo de ameaça com operadores/credenciais, partições e limites de controle.
