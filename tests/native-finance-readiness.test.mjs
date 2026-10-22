@@ -132,3 +132,34 @@ test('delayed success after timeout cannot enable financial storage', async () =
   assert.equal(result.keyReleaseAllowed, false);
   assert.equal(result.migrationAllowed, false);
 });
+
+test('host getters that throw and diagnostic calls that hang cannot escape fail-closed', async () => {
+  const getterBomb = Object.defineProperty({}, 'getIntegrationInfo', {
+    get() { throw Error('secret diagnostics should never appear in UI'); },
+  });
+  const getterResult = await inspectNativeFinanceReadiness('android', getterBomb);
+  assert.equal(getterResult.status, 'native-diagnostic-error');
+  alwaysDenied(getterResult);
+  assert.doesNotMatch(getterResult.message, /secret diagnostics/);
+
+  let resolveLate;
+  const neverCompletes = new Promise(resolve => {resolveLate = resolve;});
+  const timed = await inspectNativeFinanceReadiness('android', {
+    getIntegrationInfo: () => neverCompletes,
+  }, 5);
+  assert.equal(timed.status, 'native-diagnostic-error');
+  alwaysDenied(timed);
+  resolveLate({ready: true, keyReleaseAllowed: true});
+  await Promise.resolve();
+  assert.equal(timed.keyReleaseAllowed, false, 'late native result never upgrades denied response');
+});
+
+test('native diagnostic timeout input cannot disable its bounded fail-closed timeout', async () => {
+  for (const duration of [0, -1, NaN, Infinity]) {
+    const result = await inspectNativeFinanceReadiness('android', {
+      getIntegrationInfo: () => ({ready: true}),
+    }, duration);
+    assert.equal(result.status, 'native-lab-only');
+    alwaysDenied(result);
+  }
+});
