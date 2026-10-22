@@ -41,7 +41,9 @@ test('Phase1 native surface is strictly diagnostic, no financial access operatio
     assert.match(module, new RegExp('"' + name + '"\\s+to\\s+false'));
   }
   assert.doesNotMatch(module, /Function\("(?:open|unlock|disable|enable|migrate|write|save|load|readData|decrypt)/i);
-  assert.doesNotMatch(module, /SecretKey|Cipher\.getInstance|net\.zetetic|openDatabase|DataStore|BiometricPrompt|CryptoObject|passphrase/i);
+  // The bridge may name the read-only singleton, but must not create
+  // a store, update preferences, expose credentials or open a database.
+  assert.doesNotMatch(module, /SecretKey|Cipher\.getInstance|net\.zetetic|openDatabase|DataStoreFactory|PreferenceDataStoreFactory|updateData|BiometricPrompt|CryptoObject|passphrase/i);
   assert.match(module, /SuspendBody\s*\{/);
   assert.doesNotMatch(module, /getIntegrationInfo.*\bBoolean\b/);
   assert.doesNotMatch(module, /Log\.(?:i|e|d|w)\(/);
