@@ -71,6 +71,35 @@ e, separadamente, autorização vinculada a BiometricPrompt/Keystore, sessão
 e lifecycle. Mesmo uma CI totalmente verde não comprova proteção em um
 Samsung real nem segurança contra rollback de um serviço externo.
 
+## SQLCipher dentro do `androidTest` Expo (somente dados descartáveis)
+
+O fixture `SyntheticExpoSqlcipherPersistenceTest.kt` exercita a biblioteca
+pinned `net.zetetic:sqlcipher-android:4.19.1` e
+`androidx.sqlite:sqlite:2.7.0` **apenas via `androidTestImplementation`** do
+módulo local Expo. Os testes criam bancos em diretórios aleatórios do cache
+do **emulador descartável**, carregam a biblioteca JNI, escrevem uma linha
+inventada, fecham/reabrem com a senha sintética correta, tentam leitura com
+chave errada sob `OPEN_READONLY` e confirmam que uma transação sem commit
+não sobrevive à reabertura. Arquivos de teste, WAL, SHM e journal são apagados
+em `finally` pela rotina de limpeza; nada é gravado no banco do app real.
+
+**Limites:** a senha do fixture é gerada em RAM e **não** é envolvida por
+Android Keystore/BiometricPrompt; o banco não contém finanças reais nem
+autorização de sessão. O teste não faz backup, migração, restauração,
+sincronização ou release; o módulo Kotlin exportado continua exclusivamente
+de diagnóstico e reporta `sqlcipherIntegrated=false`,
+`financialStorageAllowed=false`. Provar criptografia de um banco sintético
+no emulador é um passo de engenharia, **não** permissão para gravar saldos.
+
+**Critério de aceite desta etapa:** job `expo-native-diagnostic-emulator`
+precisa executar e aprovar testes `androidTest` reais, junto com a matriz
+Node `native-finance-sqlcipher-instrumentation.test.mjs`. A CI anterior
+#39796759531 tinha falhas no contrato de número de funções diagnósticas e
+no shell do emulador. Foram corrigidas em commits subsequentes; não marcar
+concluída até aprovação da nova execução. Persistência financeira real
+permanece bloqueada até chaves nativas vinculadas a autenticação, gestão de
+ciclo de vida, migração/backup e QA no Samsung.
+
 ## Interface futura mínima (NÃO DISPONÍVEL)
 
 A implementação de diagnóstico usa um módulo local Expo Kotlin **identificado por versão**; qualquer API real de autenticação, persistência ou chaves depende integralmente dos gates abaixo. A superfície JS deve ser mínima:
