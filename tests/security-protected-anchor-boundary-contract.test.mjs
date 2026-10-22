@@ -22,6 +22,13 @@ test('SEC-05K explicit fail-closed matrix covers rollback, lost ACK, concurrent 
   assert.match(cases, /LOST_REPLY_AFTER_ADVANCE/);
   assert.match(cases, /ALREADY_APPLIED_FIXTURE_ONLY/);
   assert.match(cases, /DENY_COLLISION/);
+  assert.match(cases, /DENY_STALE_RECEIPT_NOT_CURRENT/);
+  assert.match(cases, /historical receipt cannot masquerade as latest/);
+  assert.match(cases, /retainedCopy\(next\)/);
+  assert.match(cases, /retainedCopy\(expected\)/);
+  assert.match(cases, /caller cannot silently edit the enrolled floor/);
+  assert.match(cases, /caller mutation after CAS cannot rewrite/);
+  assert.match(cases, /idempotent receipt remains intact after caller-owned array mutation/);
   assert.match(cases, /DENY_RESEED/);
   assert.match(cases, /DENY_WRONG_ANCHOR_PIN/);
   assert.match(cases, /HOLD_ANCHOR_UNAVAILABLE/);
