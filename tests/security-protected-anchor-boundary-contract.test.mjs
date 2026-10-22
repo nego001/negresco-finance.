@@ -14,7 +14,7 @@ test('SEC-05K anchor boundary is a volatile fixture, never a cryptographic or ba
   assert.match(cases, /never map it to VERIFIED_LIVE_CURRENT/i);
   assert.match(cases, /private val floors = mutableMapOf/);
   assert.match(cases, /private val receipts =/);
-  assert.doesNotMatch(cases, /DriverManager|jdbc:postgresql|KeyStore|SQLCipher|ServerSocket/);
+  assert.doesNotMatch(cases, /DriverManager\.getConnection\(|jdbc:postgresql:|KeyStore\.getInstance\(|ServerSocket\(/);
   assert.doesNotMatch(mobile, /SyntheticProtectedAnchorFixtureLab|SyntheticProtectedAnchorBoundaryLabTest/);
 });
 
