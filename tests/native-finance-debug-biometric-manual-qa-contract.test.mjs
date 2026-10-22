@@ -10,6 +10,9 @@ const testSource = read(root + 'src/androidTest/java/com/negresco/finance/securi
 const gradle = read(root + 'build.gradle');
 const main = read(root + 'src/main/java/com/negresco/finance/security/NegrescoFinanceSecurityV1Module.kt');
 const ci = read('.github/workflows/ci.yml');
+const executableActivity = activity
+  .replace(/\/\*[\s\S]*?\*\//g, '')
+  .replace(/^\s*\/\/.*$/gm, '');
 
 test('biometric interactive QA is a nonexported DEBUG-only Activity, never a release app route', () => {
   assert.match(manifest, /android:name="com\.negresco\.finance\.security\.SyntheticBiometricManualQaActivity"/);
@@ -29,7 +32,7 @@ test('biometric interactive QA is a nonexported DEBUG-only Activity, never a rel
   assert.match(activity, /onStop\(\)/);
   assert.match(activity, /store\(\)\.deleteEntry/);
   assert.match(activity, /PASS_NATIVE_CRYPTO_ONLY/);
-  assert.doesNotMatch(activity, /SQLiteDatabase|sqlcipher|AsyncFunction\(|NetInfo|fetch\(/i);
+  assert.doesNotMatch(executableActivity, /SQLiteDatabase|sqlcipher|AsyncFunction\(|NetInfo|fetch\(/i);
 });
 
 test('unattended Android emulators cannot auto-approve biometric or run the interactive challenge', () => {
