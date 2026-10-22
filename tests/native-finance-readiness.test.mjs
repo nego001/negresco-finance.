@@ -83,3 +83,52 @@ test('read-only settings probe is manual, never wired into bank unlock or app st
   assert.doesNotMatch(module, /openDatabase|createDatabase|grantAccess|CryptoObject|disableLock/);
   assert.doesNotMatch(expo, /native-lock-android-lab|sqlcipher-android-lab/);
 });
+
+
+test('host property access exceptions cannot escape diagnostic or expose secrets', async () => {
+  const secret = 'synthetic-private-token-must-not-leak';
+  const hostileHosts = [
+    Object.defineProperty({}, 'getIntegrationInfo', {
+      get() { throw Error(secret); }
+    }),
+    new Proxy({}, {
+      get(_target, key) {
+        if (key === 'getIntegrationInfo') throw Error(secret);
+        return undefined;
+      },
+    }),
+  ];
+  for (const host of hostileHosts) {
+    const result = await inspectNativeFinanceReadiness('android', host);
+    assert.equal(result.status, 'native-diagnostic-error');
+    assert.doesNotMatch(result.message, /synthetic-private-token/);
+    alwaysDenied(result);
+  }
+});
+
+test('native diagnostic that never responds times out and stays blocked', async () => {
+  const never = new Promise(() => {});
+  const started = Date.now();
+  const result = await inspectNativeFinanceReadiness(
+    'android', {getIntegrationInfo: () => never}, 10
+  );
+  assert.equal(result.status, 'native-diagnostic-error');
+  assert.match(result.message, /tempo esgotado/i);
+  assert.ok(Date.now() - started < 2000, 'manual diagnostic must not hang indefinitely');
+  alwaysDenied(result);
+});
+
+test('delayed success after timeout cannot enable financial storage', async () => {
+  let resolveRequest;
+  const response = new Promise(resolve => { resolveRequest = resolve; });
+  const result = await inspectNativeFinanceReadiness(
+    'android', {getIntegrationInfo: () => response}, 10
+  );
+  assert.equal(result.status, 'native-diagnostic-error');
+  alwaysDenied(result);
+  resolveRequest({ready:true, financialStorageAllowed:true, keyReleaseAllowed:true});
+  await Promise.resolve();
+  assert.equal(result.financialStorageAllowed, false);
+  assert.equal(result.keyReleaseAllowed, false);
+  assert.equal(result.migrationAllowed, false);
+});
