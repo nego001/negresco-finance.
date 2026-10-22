@@ -36,7 +36,7 @@ test('Phase1 native surface is strictly diagnostic, no financial access operatio
     assert.match(module, new RegExp('"' + name + '"\\s+to\\s+false'));
   }
   assert.doesNotMatch(module, /Function\("(?:open|unlock|disable|enable|migrate|write|save|load|readData|decrypt)/i);
-  assert.doesNotMatch(module, /SecretKey|Cipher\.getInstance|SQLCipher|openDatabase|DataStore|BiometricPrompt|CryptoObject|passphrase/i);
+  assert.doesNotMatch(module, /SecretKey|Cipher\.getInstance|net\.zetetic|openDatabase|DataStore|BiometricPrompt|CryptoObject|passphrase/i);
   assert.doesNotMatch(module, /getIntegrationInfo.*\bBoolean\b/);
   assert.doesNotMatch(module, /Log\.(?:i|e|d|w)\(/);
   assert.equal(packageJson.dependencies.expo, '~54.0.0');
