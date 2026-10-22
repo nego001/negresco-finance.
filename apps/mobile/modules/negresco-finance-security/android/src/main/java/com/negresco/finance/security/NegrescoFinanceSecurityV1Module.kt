@@ -54,5 +54,22 @@ class NegrescoFinanceSecurityV1Module : Module() {
         "migrationAllowed" to false
       )
     }
+
+    // Explicit, manual, read-only inspection of an EXISTING native lock
+    // DataStore record. SDK 54 supports suspend function definitions.
+    // Categorization is non-authoritative even if the record looks valid.
+    AsyncFunction("inspectExistingNativeLockRecord") {
+      SuspendBody {
+        val status = NativeLockExistingRecordDiagnostic.classifyExisting(
+          appContext.reactContext, diagnosticLifecycle
+        )
+        mapOf(
+          "status" to status,
+          "financialStorageAllowed" to false,
+          "keyReleaseAllowed" to false,
+          "migrationAllowed" to false
+        )
+      }
+    }
   }
 }
