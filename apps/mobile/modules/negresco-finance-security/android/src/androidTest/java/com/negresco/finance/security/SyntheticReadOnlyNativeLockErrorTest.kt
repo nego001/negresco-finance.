@@ -28,14 +28,16 @@ class SyntheticReadOnlyNativeLockErrorTest {
     }
 
   @Test fun readExceptionFailsClosedWithoutAnyUnlock() = runBlocking {
+    val lifecycle = NativeLockLifecycleFence().apply { onForeground() }
     val reader = NativeLockReadOnlySnapshotReader(
-      failingStore(IllegalStateException("synthetic-corruption")))
+      failingStore(IllegalStateException("synthetic-corruption")), lifecycle)
     assertEquals("STORAGE_ERROR_LOCKED", reader.inspectOnce())
   }
 
   @Test fun coroutineCancellationIsNeverSwallowedAsReadableSnapshot() = runBlocking {
+    val lifecycle = NativeLockLifecycleFence().apply { onForeground() }
     val reader = NativeLockReadOnlySnapshotReader(
-      failingStore(CancellationException("synthetic-background-transition")))
+      failingStore(CancellationException("synthetic-background-transition")), lifecycle)
     try {
       reader.inspectOnce()
       fail("cancellation must propagate to the native lifecycle")
