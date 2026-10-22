@@ -1,6 +1,7 @@
 // Expo SDK 54 local diagnostic-only module.
 // SDK 54 still uses ExpoModulesCorePlugin.gradle, not the newer Gradle plugin ID.
-// No biometrics, Keystore, SQLCipher, permissions or production database.
+// No biometrics, SQLCipher, permissions or production database in main code.
+// Test-only Android Keystore scenarios live exclusively under src/androidTest.
 apply plugin: 'com.android.library'
 
 group = 'com.negresco.finance'
@@ -18,5 +19,15 @@ android {
   defaultConfig {
     versionCode 1
     versionName '0.1.0'
+    // A synthetic emulator-only test runner, never part of the release app.
+    testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
   }
+}
+
+dependencies {
+  // Tests run only in isolated CI emulators; the app has NO Keystore API.
+  androidTestImplementation 'junit:junit:4.13.2'
+  androidTestImplementation 'androidx.test:runner:1.6.2'
+  androidTestImplementation 'androidx.test:core:1.6.1'
+  androidTestImplementation 'androidx.test.ext:junit:1.2.1'
 }
