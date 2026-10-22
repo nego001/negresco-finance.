@@ -5,6 +5,11 @@ import java.nio.file.Path
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.UUID
+import com.negresco.finance.security.SyntheticRekeyReconciliationDecisionLab as D
+import com.negresco.finance.security.SyntheticRekeyAuthorityGenerationLab as G
+import com.negresco.finance.security.SyntheticRekeyJournalObservationLab as J
+import com.negresco.finance.security.SyntheticRekeyCiphertextObservationLab as A
+import com.negresco.finance.security.SyntheticRekeyCandidateObservationLab as P
 
 /**
  * SEC-05K ONLY. Correlates DB claims with real disposable ciphertext/journal
@@ -14,11 +19,6 @@ internal fun runSyntheticJdbcJournalAuthorityDivergenceScenarios() {
   val random = SecureRandom()
   val db = SyntheticJdbcRekeyCasPersistenceLab()
   val policy = SyntheticJournalAuthorityReconciliationPolicyLab
-  val D = SyntheticRekeyReconciliationDecisionLab
-  val G = SyntheticRekeyAuthorityGenerationLab
-  val J = SyntheticRekeyJournalObservationLab
-  val A = SyntheticRekeyCiphertextObservationLab
-  val P = SyntheticRekeyCandidateObservationLab
   var checks = 0
   fun verify(ok: Boolean, reason: String) {
     check(ok) { "SEC-05K PG/journal divergence: $reason" }
