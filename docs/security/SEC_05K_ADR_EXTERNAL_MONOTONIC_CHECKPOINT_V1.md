@@ -59,6 +59,12 @@ A matriz `SyntheticJdbcCheckpointCommitGapLabTest.kt` agora conecta **PostgreSQL
 
 Este ensaio **não prova** que um checkpoint hospedado num provedor real sobreviveria à restauração total da autoridade ou que a escrita simultânea seria atômica. A política financeira mantém `HOLD_EXTERNAL_AUTHORITY_REQUIRED` mesmo quando todos os dados de teste coincidem; nenhum journal é publicado, e nenhuma operação de produção é alterada.
 
+## Verificador criptográfico Merkle RFC 9162 (somente testes)
+
+A suíte `SyntheticMerkleProofVerifierLabTest.kt` executa validação criptográfica **real do caminho de hashes SHA-256** para inclusão e consistência append-only conforme as seções 2.1.3 e 2.1.4 da [RFC 9162](https://www.rfc-editor.org/rfc/rfc9162.html). Diferentemente do booleano `consistencyProofVerifiedFixtureOnly`, o verificador consome índices, tamanhos de árvore, raízes e caminhos de nós e recalcula as duas raízes criptograficamente. Inclui casos com tamanhos irregulares, nós alterados, caminhos incompletos, árvores truncadas, roots trocadas e alteração de conta, operação ou ciphertext na folha. O construtor de provas pertence **exclusivamente à fixture**, separado da rotina verificadora.
+
+**Limite de confiança preservado:** as raízes antiga e nova ainda são valores do próprio teste; não existem STH assinadas por uma autoridade provisionada externamente, monitor com high-water durável ou retenção WORM auditada. Um adversário capaz de fornecer **ambas as raízes antigas** pode apresentar uma prova SHA-256 perfeitamente válida de uma árvore já restaurada. Logo, verificar inclusão/consistência não autoriza journal, rekey, recuperação ou geração `VERIFIED_LIVE_CURRENT`. A política continua `HOLD_EXTERNAL_AUTHORITY_REQUIRED` até origem independente da raiz, consistência entre observadores, storage resistente a rollback e autorização do titular comprovados.
+
 ## Gates de saída (todos pendentes)
 
 - [ ] Modelo de ameaça com operadores/credenciais, partições e limites de controle.
