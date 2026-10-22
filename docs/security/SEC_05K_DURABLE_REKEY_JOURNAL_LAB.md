@@ -302,3 +302,21 @@ Cenários no runner policyCheck:
 - Duas respostas assinadas antes de um avanço permanecem matematicamente válidas depois dele. Nenhuma verificação local de assinatura elimina TOCTOU, e o teste conserva HOLD_EXTERNAL_AUTHORITY_REQUIRED na política de reconciliação.
 
 **Risco residual:** não há garantia de estado monotônico contra comprometimento/restore conjunto das duas testemunhas. Diretrizes para etapa posterior incluem âncora externa com garantias documentadas de prevenção a rollback ou checkpoint imutável sob controle independente, política de bootstrap que recuse reset, provisionamento autenticado de chaves, frescor e commit linearizável, disponibilidade/reconciliação e auditoria por ameaça. HMAC/Ed25519 não substituem storage resistente a rollback. Não autorizar operações financeiras, não integrar com SQLCipher real ou Expo e não distribuir APK. **SEC-05K permanece bloqueada, PR #14 em draft e PR #17 intacta.**
+
+
+## SEC-05K | Reconciliação PostgreSQL + duas JVMs reiniciadas contra âncora externa simulada
+
+O teste SyntheticJdbcThreeDomainRollbackBoundaryLabTest.kt, incluído no pgRekeyCasCheck da CI, executa um **experimento integrado totalmente descartável** com quatro atores lógicos: (1) uma conta aleatória no PostgreSQL de CI, (2) uma JVM filha com arquivo authority.state em diretório temporário A, (3) outra JVM filha com chave e diretório B diferentes e (4) SyntheticProtectedAnchorFixtureLab, um mapa sincronizado mantido **somente no heap da JVM pai**. Este último ator representa o comportamento que uma futura autoridade externa verdadeiramente não-reversível **deveria** ter, mas não entrega essa garantia em produção nem sobrevive ao reinício da JVM pai. As duas JVMs filhas e o PostgreSQL ainda compartilham o host de CI.
+
+Matriz de observação, sem operações bancárias:
+
+- Primeiro a âncora simulada avança OLD → NEW e perde a resposta; a repetição exata do UUID da operação reconhece a decisão anterior. O PostgreSQL confirma o CAS com resposta perdida e também aceita somente a repetição idêntica.
+- Enquanto a âncora, PostgreSQL e duas testemunhas divergem, o teste exige DENY_RESTORED_OR_DIVERGENT_STORES. Mesmo quando o banco e apenas a testemunha A correspondem à âncora, isso **não certifica B** nem autoriza publicar uma migração.
+- As JVMs filhas são encerradas e iniciadas novamente, mantendo suas próprias identidades Ed25519 e geração NEW nos arquivos de laboratório.
+- Em seguida, o ensaio restaura deliberadamente o PostgreSQL **apenas na conta fictícia e recibo aleatório**, e restaura os dois arquivos das testemunhas para OLD. Todos os três armazenamentos reversíveis passam a concordar em OLD e as testemunhas emitem assinaturas válidas com os mesmos pins.
+- A âncora hipotética **não reiniciada** permanece em NEW e detecta a regressão simultânea dos três. Tentativa nova com predecessor antigo é recusada; o recibo antigo na âncora simula histórico, nunca aprovação do estado local.
+- Âncora indisponível implica HOLD, sem fallback; substituí-la por outra instância invalida o pin antigo. A política do journal mantém HOLD_EXTERNAL_AUTHORITY_REQUIRED, mesmo diante de um relato assinado de fixture.
+
+**Limite crucial:** o cenário **não mostra** uma autoridade real protegida contra rollback da **própria âncora**: o mapa perde estado e recibos se a JVM pai terminar. A identidade pinada do test-double não é provisionamento autenticado. Esta matriz não garante atomicidade distribuída, frescor linearizável, confiança em storage remoto, resistência a backup/restauração de serviço, recuperação automática, assinatura de produção, autorização do titular ou operação off-line segura.
+
+**Próximo gate:** definir contratos e provas de ambiente para âncora resistente a reversão por administrador/backup, incluindo retenção de histórico ou contador monotônico sob outro domínio de falha, provisionamento de identidade, recuperação e negação por falta de quorum. Sem auditoria e demonstração externa desses pressupostos, **SEC-05K permanece BLOQUEADA para produção**. Nenhum merge, APK, release ou mudança da PR #17.
