@@ -17,6 +17,48 @@ jobs:
         with:
           node-version: '22'
       - run: npm test
+  expo-native-diagnostic-compile:
+    # Compile the actual Expo-local Kotlin module without assembling/publishing
+    # an APK or injecting any bank data, credentials or Keystore operations.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Check ephemeral Android SDK
+        run: |
+          test -d "${ANDROID_HOME:?Android SDK unavailable}"
+          if [ ! -d "$ANDROID_HOME/platforms/android-36" ]; then
+            yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" || test -d "$ANDROID_HOME/platforms/android-36"
+          fi
+      - name: Install Expo SDK 54 dependencies without executing Android app
+        run: npm install --no-audit --no-fund
+      - name: Generate disposable Expo Android Gradle project
+        run: npx expo prebuild --platform android --non-interactive --no-install
+      - name: Compile local diagnostic Kotlin module (NO APK)
+        run: |
+          set -euo pipefail
+          test -f modules/negresco-finance-security/expo-module.config.json
+          chmod +x android/gradlew
+          cat >> android/gradle.properties <<'EOF'
+          org.gradle.jvmargs=-Xmx3g -XX:MaxMetaspaceSize=1536m -Dfile.encoding=UTF-8
+          org.gradle.parallel=false
+          org.gradle.workers.max=2
+          kotlin.compiler.execution.strategy=in-process
+          EOF
+          cd android
+          ./gradlew :negresco-finance-security:compileDebugKotlin --no-daemon --stacktrace
+
   native-lock-spike:
     runs-on: ubuntu-latest
     timeout-minutes: 20
