@@ -48,3 +48,28 @@ test('SEC-05K real external authority remains a blocked production gate', () => 
   assert.match(doc, /não é uma autoridade real/i);
   assert.match(doc, /BLOQUEADO/);
 });
+
+
+test('SEC-05K production authority evidence gate never promotes fixture assertions to live authority', () => {
+  const code = read('tooling/native-lock-spike/src/test/kotlin/com/negresco/finance/security/SyntheticExternalAnchorAssuranceGateLabTest.kt');
+  const runner = read('tooling/native-lock-spike/src/test/kotlin/com/negresco/finance/security/NativeLockCoordinatorTest.kt');
+  const mobile = read('apps/mobile/package.json');
+  assert.match(code, /HOLD_INDEPENDENT_PRODUCTION_ATTESTATION_REQUIRED/);
+  assert.match(code, /DENY_MISSING_OUT_OF_BAND_PIN/);
+  assert.match(code, /DENY_IDENTITY_EPOCH_MISMATCH/);
+  assert.match(code, /DENY_GENERATION_REGRESSION/);
+  assert.match(code, /HOLD_NO_REPLAY_RESISTANT_STORAGE_EVIDENCE/);
+  assert.match(code, /HOLD_NO_INDEPENDENT_FAILURE_DOMAIN/);
+  assert.match(code, /HOLD_NO_ATOMIC_CAS_AND_RECEIPT_EVIDENCE/);
+  assert.match(code, /HOLD_NO_RESTART_AND_FULL_RESTORE_TEST/);
+  assert.match(code, /HOLD_NO_EXTERNAL_AUDIT_OR_RECOVERY_REVIEW/);
+  assert.match(code, /HOLD_OWNER_AUTHORIZATION_UNVERIFIED/);
+  assert.match(code, /HSM_SIGNING_KEY_ONLY/);
+  assert.match(code, /MessageDigest\.isEqual\(nonce, echoed\)/);
+  assert.match(code, /even perfect SELF-ASSERTED evidence is review-only/);
+  assert.match(code, /SIGNED KEY alone|SIGNING KEY alone/);
+  assert.match(code, /signed NEW does not prove that a stale response stayed latest/);
+  assert.doesNotMatch(code, /return .*VERIFIED_LIVE_CURRENT/);
+  assert.match(runner, /runSyntheticExternalAnchorAssuranceGateScenarios\(\)/);
+  assert.doesNotMatch(mobile, /SyntheticExternalAnchorAssuranceGateLab|SyntheticExternalAnchorAssuranceInputLab/);
+});
