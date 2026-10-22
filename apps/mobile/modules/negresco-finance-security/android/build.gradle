@@ -27,6 +27,9 @@ android {
 dependencies {
   // Pure typed snapshot classifier only: no DataStore factory, I/O or JS grant.
   implementation 'androidx.datastore:datastore-preferences-core:1.2.1'
+  // Process-wide Context preferencesDataStore delegate for *existing-record*
+  // diagnostics only. Never initializes a financial database or grants keys.
+  implementation 'androidx.datastore:datastore-preferences:1.2.1'
   // Actual DataStore fixture is created only under src/androidTest, never by
   // the production-facing Expo diagnostic module.
   androidTestImplementation 'androidx.datastore:datastore-preferences:1.2.1'
