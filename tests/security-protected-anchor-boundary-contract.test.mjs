@@ -73,3 +73,21 @@ test('SEC-05K production authority evidence gate never promotes fixture assertio
   assert.match(runner, /runSyntheticExternalAnchorAssuranceGateScenarios\(\)/);
   assert.doesNotMatch(mobile, /SyntheticExternalAnchorAssuranceGateLab|SyntheticExternalAnchorAssuranceInputLab/);
 });
+
+
+test('SEC-05K external authority readiness document explicitly blocks deployment without independent proof', () => {
+  const gate = read('docs/security/SEC_05K_EXTERNAL_ANCHOR_PRODUCTION_GATE_V1.md');
+  const journal = read('docs/security/SEC_05K_DURABLE_REKEY_JOURNAL_LAB.md');
+  const code = read('tooling/native-lock-spike/src/test/kotlin/com/negresco/finance/security/SyntheticExternalAnchorAssuranceGateLabTest.kt');
+  assert.match(gate, /BLOQUEADO PARA PRODUÇÃO/);
+  assert.match(gate, /incluindo backups da própria autoridade/);
+  assert.match(gate, /HSM não preserva o contador|HSM não preserva o contador|HSM não preserva/i);
+  assert.match(gate, /CAS linearizável/);
+  assert.match(gate, /outro domínio de falha|Domínio de falha/i);
+  assert.match(gate, /perda de resposta|resposta perdida/);
+  assert.match(gate, /auditoria independente/);
+  assert.match(gate, /Nunca.*merge|Nunca.*fazer merge/i);
+  assert.match(journal, /SEC_05K_EXTERNAL_ANCHOR_PRODUCTION_GATE_V1\.md/);
+  assert.match(code, /return result/);
+  assert.doesNotMatch(code, /SyntheticRekeyAuthorityEvidenceLab\.VERIFIED_LIVE_CURRENT\s*\)/);
+});
