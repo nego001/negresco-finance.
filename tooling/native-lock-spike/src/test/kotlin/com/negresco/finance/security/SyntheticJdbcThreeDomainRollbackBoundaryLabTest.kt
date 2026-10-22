@@ -188,6 +188,23 @@ internal fun runSyntheticJdbcThreeDomainRollbackBoundaryScenarios() {
         SyntheticAnchorCasResultLab.DENY_WRONG_PIN,
         "new anchor identity cannot accept old trusted pin")
 
+      // NEGATIVE: if a client accepts a replacement's self-advertised pin,
+      // it can re-enroll a restored OLD claim without knowing NEW ever existed.
+      checkCase(replacement.enrollFixtureOnly(old) ==
+        SyntheticAnchorCasResultLab.BOOTSTRAPPED_FIXTURE_ONLY,
+        "critical negative: replacement with erased history can re-enroll OLD")
+      checkCase(replacement.observeFixtureOnly(old, aOld,
+        replacement.pinnedIdentityFixtureOnly) ==
+        SyntheticAnchorBoundaryObservationLab.OBSERVED_MATCH_ONLY_NOT_AUTHORIZATION,
+        "critical negative: self-pinning a replacement makes OLD appear consistent")
+      checkCase(replacement.observeFixtureOnly(old, aOld, pin) ==
+        SyntheticAnchorBoundaryObservationLab.DENY_WRONG_ANCHOR_PIN,
+        "a pin retained outside restored stores rejects replacement despite OLD agreement")
+      checkCase(replacement.advanceFixtureOnly(op, old, new,
+        replacement.pinnedIdentityFixtureOnly) ==
+        SyntheticAnchorCasResultLab.ADVANCED_FIXTURE_ONLY,
+        "critical negative: replacement authority lost original operation receipt")
+
       val proposed = SyntheticRekeyReconciliationInputLab(
         SyntheticRekeyAuthorityEvidenceLab.SIGNED_CHALLENGE_FIXTURE_ONLY_NO_LIVE_AUTHORITY,
         SyntheticRekeyJournalObservationLab.COMMITTED,
@@ -199,6 +216,21 @@ internal fun runSyntheticJdbcThreeDomainRollbackBoundaryScenarios() {
       checkCase(SyntheticJournalAuthorityReconciliationPolicyLab.decide(proposed) ==
         SyntheticRekeyReconciliationDecisionLab.HOLD_EXTERNAL_AUTHORITY_REQUIRED,
         "fixture signature cannot authorize journal finalization")
+      // CRITICAL NEGATIVE: now rewind the FOURTH domain too, with the SAME
+      // pinned identity. The previous anchor check ceases to detect anything.
+      // This is an explicit privileged TEST injection, not a recovery method.
+      anchor.simulatePrivilegedFullAuthorityRollbackFixtureOnly(old)
+      checkCase(observed(aOld) ==
+        SyntheticAnchorBoundaryObservationLab.OBSERVED_MATCH_ONLY_NOT_AUTHORIZATION &&
+        observed(bOld) ==
+        SyntheticAnchorBoundaryObservationLab.OBSERVED_MATCH_ONLY_NOT_AUTHORIZATION,
+        "CRITICAL NEGATIVE: all four domains at OLD appear consistent with SAME anchor pin")
+      checkCase(anchor.advanceFixtureOnly(op, old, new, pin) ==
+        SyntheticAnchorCasResultLab.ADVANCED_FIXTURE_ONLY,
+        "CRITICAL NEGATIVE: full anchor rewind erased original idempotency receipt")
+      checkCase(SyntheticJournalAuthorityReconciliationPolicyLab.decide(proposed) ==
+        SyntheticRekeyReconciliationDecisionLab.HOLD_EXTERNAL_AUTHORITY_REQUIRED,
+        "even four mutually consistent rolled-back fixtures cannot authorize recovery")
     }
   }
 
