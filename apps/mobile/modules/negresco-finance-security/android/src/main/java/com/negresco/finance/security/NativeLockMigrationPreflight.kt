@@ -38,6 +38,11 @@ internal object NativeLockMigrationPreflight {
       }
     }
 
+    // A claim of having read a record while the native file is absent is
+    // contradictory; fail closed rather than promoting a legacy value.
+    if (nativeRecord != null)
+      return "DENY_NATIVE_CONTRADICTORY"
+
     // No native file: do not synthesize DataStore simply because it is absent.
     // Any legacy pending opt-out must be recovered before considering migration.
     if (legacyOptOutJournal == JOURNAL_PENDING)
