@@ -103,6 +103,32 @@ internal fun runSyntheticAnchorLinearizationBoundaryScenarios() {
     pool.shutdownNow()
   }
 
+  // Java synchronized is REENTRANT. An untrusted callback can call the
+  // anchor itself while its monitor is held. A second read would miss
+  // rollback+reapply that returns to the IDENTICAL claim (ABA).
+  verify(anchor.inspectWithinJvmFenceFixtureOnly(next, next, pin) {
+    anchor.simulatePrivilegedFullAuthorityRollbackFixtureOnly(current)
+    check(anchor.advanceFixtureOnly(UUID.randomUUID(), current, next, pin) ==
+      SyntheticAnchorCasResultLab.ADVANCED_FIXTURE_ONLY)
+  } == SyntheticAnchorBoundaryObservationLab.DENY_DIAGNOSTIC_WINDOW_MUTATED,
+    "reentrant rollback and re-advance to identical bytes is rejected as ABA")
+  verify(anchor.observeFixtureOnly(next, next, pin) ==
+    SyntheticAnchorBoundaryObservationLab.OBSERVED_MATCH_ONLY_NOT_AUTHORIZATION,
+    "ABA negative proof: normal read cannot detect erased mutation history")
+  val later = claim(12, 14)
+  verify(anchor.inspectWithinJvmFenceFixtureOnly(next, next, pin) {
+    check(anchor.advanceFixtureOnly(UUID.randomUUID(), next, later, pin) ==
+      SyntheticAnchorCasResultLab.ADVANCED_FIXTURE_ONLY)
+  } == SyntheticAnchorBoundaryObservationLab.DENY_DIAGNOSTIC_WINDOW_MUTATED,
+    "reentrant CAS during matching callback cannot return successful observation")
+  verify(anchor.inspectWithinJvmFenceFixtureOnly(next, next, pin) { probes++ } ==
+    SyntheticAnchorBoundaryObservationLab.DENY_RESTORED_OR_DIVERGENT_STORES,
+    "stale preflight remains denied after reentrant advancement")
+  verify(anchor.inspectWithinJvmFenceFixtureOnly(later, later, pin) { probes++ } ==
+    SyntheticAnchorBoundaryObservationLab.OBSERVED_MATCH_ONLY_NOT_AUTHORIZATION,
+    "fresh diagnostic observation is not an executable permission")
+  verify(probes == 2, "callback only fires for a matching snapshot in same-process probe")
+
   // A successful local probe is NOT a transaction fence across a remote
   // database, Android filesystem, or another JVM. A different service could
   // publish after the callback exits, so policy still requires external trust.
