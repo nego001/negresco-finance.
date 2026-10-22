@@ -32,7 +32,7 @@ test('Android typed read uses disposable no-backup fixture and never migrates pe
   assert.match(fixture, /store\.data\.first\(\)/);
   assert.match(fixture, /cancelAndJoin/);
   assert.match(fixture, /fixtureDir\.deleteRecursively\(\)/);
-  assert.equal((fixture.match(/@Test fun /g) || []).length, 8);
+  assert.equal((fixture.match(/@Test fun /g) || []).length, 9);
   for (const scenario of [
     'missingSnapshotRequiresVerifiedMigration',
     'enabledSnapshotStillCannotBeTrustedToUnlock',
@@ -41,7 +41,8 @@ test('Android typed read uses disposable no-backup fixture and never migrates pe
     'contradictoryPendingDisableIsInvalid',
     'negativeRevisionIsInvalid',
     'unknownSchemaCannotBecomeUnlocked',
-    'missingMandatoryFieldNeverCreatesDisabledPermission'
+    'missingMandatoryFieldNeverCreatesDisabledPermission',
+    'wrongStoredTypeCannotCrashOrUnlock'
   ]) assert.ok(fixture.includes(scenario), scenario);
   assert.doesNotMatch(fixture, /migrateLegacyLocked|requestUnlock|NativeLockAndroidStore|getIntegrationInfo|openDatabase|SqlCipher|BIOMETRIC_STRONG/);
   assert.match(gradle, /androidTestImplementation 'androidx\.datastore:datastore-preferences:1\.2\.1'/);
