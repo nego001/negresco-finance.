@@ -48,7 +48,8 @@ test('Phase1 native surface is strictly diagnostic, no financial access operatio
   // The bridge may name the read-only singleton, but must not create
   // a store, update preferences, expose credentials or open a database.
   assert.doesNotMatch(executableModule, /SecretKey|Cipher\.getInstance|net\.zetetic|openDatabase|DataStoreFactory|PreferenceDataStoreFactory|updateData|BiometricPrompt|CryptoObject|passphrase/i);
-  assert.match(module, /SuspendBody\s*\{/);
+  assert.match(module, /AsyncFunction\("inspectExistingNativeLockRecord"\) Coroutine \{ ->/);
+  assert.doesNotMatch(executableModule, /SuspendBody/);
   assert.doesNotMatch(module, /getIntegrationInfo.*\bBoolean\b/);
   assert.doesNotMatch(module, /Log\.(?:i|e|d|w)\(/);
   assert.equal(packageJson.dependencies.expo, '~54.0.0');
