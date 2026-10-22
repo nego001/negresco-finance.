@@ -78,6 +78,10 @@ internal class SyntheticBiometricPromptDispatchHarness(
     false
   }
 
+  // An instrumentation assertion; NEVER a bridge authorization signal.
+  internal fun acceptsNativeStrongPerUseKeyForTestOnly(key: SecretKey): Boolean =
+    validStrongPerUseKey(key)
+
   internal fun buildPrompt(): BiometricPrompt.PromptInfo =
     BiometricPrompt.PromptInfo.Builder()
       .setTitle("Negresco Finance: teste de autenticação nativa")
@@ -135,11 +139,16 @@ internal class SyntheticBiometricPromptDispatchHarness(
     synchronized(this) {
       val epoch = lifecycle.beginDiagnosticEpoch()
       if (epoch == null || active != null) {
-        onObservation(Observation.DENY_NOT_FOREGROUND)
-        return
+        // No user callback from under this object's monitor; deny outside.
+        attempt = Attempt(cipher, -1L, byteArrayOf(), byteArrayOf(), onObservation)
+      } else {
+        attempt = Attempt(cipher, epoch, ciphertext.copyOf(), aad.copyOf(), onObservation)
+        active = attempt
       }
-      attempt = Attempt(cipher, epoch, ciphertext.copyOf(), aad.copyOf(), onObservation)
-      active = attempt
+    }
+    if (attempt.epoch == -1L) {
+      onObservation(Observation.DENY_NOT_FOREGROUND)
+      return
     }
 
     val callback = object : BiometricPrompt.AuthenticationCallback() {
@@ -163,20 +172,27 @@ internal class SyntheticBiometricPromptDispatchHarness(
     }
   }
 
-  @Synchronized private fun finishAsDenial(attempt: Attempt, reason: Observation) {
-    if (active !== attempt || attempt.consumed) return
-    attempt.consumed = true
-    active = null
-    attempt.ciphertext.fill(0)
-    attempt.aad.fill(0)
-    attempt.onObservation(reason)
+  private fun finishAsDenial(attempt: Attempt, reason: Observation) {
+    val notify: Boolean
+    synchronized(this) {
+      notify = active === attempt && !attempt.consumed
+      if (notify) {
+        attempt.consumed = true
+        active = null
+        attempt.ciphertext.fill(0)
+        attempt.aad.fill(0)
+      }
+    }
+    if (notify) attempt.onObservation(reason)
   }
 
   private fun completeAfterRealOsCallback(attempt: Attempt, returned: Cipher?) {
     val verdict: Observation
     synchronized(this) {
+      // Drop a duplicate callback entirely; the attempt has already been
+      // consumed and its arrays scrubbed. Never invoke a second observer.
+      if (active !== attempt || attempt.consumed) return
       verdict = when {
-        active !== attempt || attempt.consumed -> Observation.DENY_REPLAY_OR_STALE
         !lifecycle.isStillDiagnosticEpoch(attempt.epoch) ->
           Observation.DENY_REPLAY_OR_STALE
         returned !== attempt.expectedCipher -> Observation.DENY_CALLBACK_MISMATCH
