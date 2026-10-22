@@ -20,7 +20,9 @@ test('AndroidKeyStore test has emulator-only source and no JS-visible key or dat
   assert.ok(testKt.includes('AEADBadTagException'));
   assert.ok(testKt.includes('NOT app feature, NOT a persistent vault'));
   assert.ok(mainKt.includes('AsyncFunction("getIntegrationInfo")'));
-  assert.equal([...mainKt.matchAll(/AsyncFunction\("([^"]+)"\)/g)].length, 1);
+  const exports = [...mainKt.matchAll(/AsyncFunction\("([^"]+)"\)/g)].map(x => x[1]);
+  assert.deepEqual(exports, ['getIntegrationInfo', 'inspectNativeLockStorePresence']);
+  assert.ok(!exports.some(name => /open|unlock|write|save|decrypt|migrate|releaseKey/i.test(name)));
   assert.ok(!mainKt.includes('AndroidKeyStore'));
   assert.ok(!mainKt.includes('doFinal('));
   assert.ok(!app.includes('SyntheticNativeKeystoreRoundTripTest'));
