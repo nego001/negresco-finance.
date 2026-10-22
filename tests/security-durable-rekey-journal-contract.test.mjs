@@ -443,3 +443,28 @@ test('SEC-05K dual independent signed floors detect a single rollback but paired
   assert.match(runner, /runSyntheticDualDurableFloorAgreementScenarios\(\)/);
   assert.doesNotMatch(mobile, /SyntheticDualDurableFloorAgreementLabTest|SyntheticDualFloorAgreementPolicyFixtureLab/);
 });
+
+
+test('SEC-05K PostgreSQL plus two durable JVMs remain blocked when the non-rewindable anchor is only simulated', () => {
+  const scenario = read(fixtures + 'SyntheticJdbcThreeDomainRollbackBoundaryLabTest.kt');
+  const runner = read(fixtures + 'SyntheticJdbcRekeyCasPersistenceLabTest.kt');
+  const anchor = read(fixtures + 'SyntheticProtectedAnchorBoundaryLabTest.kt');
+  const mobile = read('apps/mobile/package.json');
+  assert.match(scenario, /DriverManager\.getConnection\(/);
+  assert.match(scenario, /SyntheticProtectedAnchorFixtureLab/);
+  assert.match(scenario, /SyntheticDurableFloorClientFixtureLab/);
+  assert.match(scenario, /dropReplyAfterCommit = true/);
+  assert.match(scenario, /loseResponseAfterCommit = true/);
+  assert.match(scenario, /oldA = Files\.readAllBytes/);
+  assert.match(scenario, /oldB = Files\.readAllBytes/);
+  assert.match(scenario, /Files\.write\(dirA\.resolve\("authority\.state"\), oldA\)/);
+  assert.match(scenario, /Files\.write\(dirB\.resolve\("authority\.state"\), oldB\)/);
+  assert.match(scenario, /CRITICAL: PostgreSQL and BOTH signing witnesses were replayed to OLD/);
+  assert.match(scenario, /offline anchor refuses any fallback/);
+  assert.match(scenario, /DENY_WRONG_ANCHOR_PIN/);
+  assert.match(scenario, /HOLD_EXTERNAL_AUTHORITY_REQUIRED/);
+  assert.match(scenario, /in-memory anchor cannot survive own rollback or restart/);
+  assert.match(runner, /runSyntheticJdbcThreeDomainRollbackBoundaryScenarios\(\)/);
+  assert.match(anchor, /NEVER A REAL ANTI-ROLLBACK AUTHORITY/);
+  assert.doesNotMatch(mobile, /SyntheticJdbcThreeDomainRollbackBoundaryLabTest/);
+});
