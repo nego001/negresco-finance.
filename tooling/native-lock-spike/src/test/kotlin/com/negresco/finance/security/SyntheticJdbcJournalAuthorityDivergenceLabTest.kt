@@ -84,11 +84,11 @@ internal fun runSyntheticJdbcJournalAuthorityDivergenceScenarios() {
       updated.recoverySecretCopyForFixtureOnly(),oldBytes,previous)
   }
   fun inspect(f: Fixture, after: SyntheticRekeyGenerationClaimLab,
-    phase: SyntheticRekeyJournalObservationLab,
-    active: SyntheticRekeyCiphertextObservationLab,
-    pending: SyntheticRekeyCandidateObservationLab,
-    remote: SyntheticRekeyAuthorityGenerationLab,
-    hypotheticalDecision: SyntheticRekeyReconciliationDecisionLab
+    phase: J,
+    active: A,
+    pending: P,
+    remote: G,
+    hypotheticalDecision: D
   ) {
     val markerBefore = if (Files.exists(f.marker())) Files.readAllBytes(f.marker()) else null
     val activeBefore = Files.readAllBytes(f.active())
