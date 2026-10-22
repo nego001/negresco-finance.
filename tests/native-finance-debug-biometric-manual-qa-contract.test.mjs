@@ -51,6 +51,10 @@ test('unattended Android emulators cannot auto-approve biometric or run the inte
   assert.match(testSource, /completed\.await\(120, TimeUnit\.SECONDS\)/);
   assert.match(testSource, /assertEquals\("PASS_NATIVE_CRYPTO_ONLY", result\.get\(\)\)/);
   assert.doesNotMatch(ci, /YES_PHYSICAL_CONSENT/);
+  assert.match(ci, /:negresco-finance-security:bundleReleaseAar/);
+  assert.match(ci, /NegrescoFinanceSecurityV1Module\.class/);
+  assert.match(ci, /SyntheticBiometricManualQaActivity/);
+  assert.match(ci, /AndroidManifest\.xml/);
   assert.match(ci, /:negresco-finance-security:compileDebugAndroidTestKotlin/);
   assert.match(ci, /:negresco-finance-security:connectedDebugAndroidTest/);
 });
