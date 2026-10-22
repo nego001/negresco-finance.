@@ -36,6 +36,9 @@ test('SEC-05K explicit fail-closed matrix covers rollback, lost ACK, concurrent 
   assert.match(cases, /offline anchor never falls back to signed local state/);
   assert.match(cases, /replacement anchor cannot silently resume previous write epoch/);
   assert.match(cases, /six competing clients produce exactly one winning CAS/);
+  assert.match(cases, /simulatePrivilegedFullAuthorityRollbackFixtureOnly/);
+  assert.match(cases, /rewound authority accepts OLD with the UNCHANGED original pin/);
+  assert.match(cases, /erased receipt permits duplicate operation after authority rewind/);
   assert.match(cases, /observations \(volatile test-double only\)/);
   assert.match(runner, /runSyntheticProtectedAnchorBoundaryScenarios\(\)/);
 });
