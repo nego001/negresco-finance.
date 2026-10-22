@@ -277,5 +277,6 @@ fun main(args: Array<String>) {
     runSyntheticProtectedAnchorBoundaryScenarios()
     runSyntheticAnchorLinearizationBoundaryScenarios()
     runSyntheticExternalAnchorAssuranceGateScenarios()
+    runSyntheticIndependentCheckpointGateScenarios()
   }
 }
