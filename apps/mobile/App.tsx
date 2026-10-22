@@ -15,10 +15,11 @@ import { shouldClearSensitiveOnNavigation, shouldClearSensitiveOnAppState } from
 import {useLocalAppLock} from './security/useLocalAppLock';
 import {runKeystoreProbe, type KeystoreProbeResult} from './security/keystoreProbe';
 import {inspectNativeFinanceReadiness, type NativeFinanceReadiness} from './security/nativeFinanceReadiness';
+import {getOptionalNativeFinanceDiagnosticHost} from './modules/negresco-finance-security/src/NegrescoFinanceSecurityV1';
 import * as LocalAuthentication from 'expo-local-authentication';
 import {LocalLockScreen} from './components/LocalLockScreen';
 import {ProtectedScreenCapture,shouldProtectScreenCapture} from './components/ProtectedScreenCapture';
-import { Animated, AppState, Easing, SafeAreaView, ScrollView, StatusBar, Platform, NativeModules, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Animated, AppState, Easing, SafeAreaView, ScrollView, StatusBar, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 type Page = 'Início' | 'Pix' | 'Contas' | 'Cartões' | 'Investimentos' | 'Metas' | 'Negresco' | 'Guardião' | 'Ajustes';
 const C = { bg:'#000000',panel:'#0D111A',raised:'#121A29',line:'#26354B',blue:'#78B5FF',muted:'#99A8BC',white:'#F7FAFF' };
@@ -75,7 +76,7 @@ export default function App() {
     setNativeFinanceDiagnostic(null);
     try{
       const result=await inspectNativeFinanceReadiness(
-        Platform.OS,NativeModules.NegrescoFinanceSecurityV1);
+        Platform.OS,getOptionalNativeFinanceDiagnosticHost());
       if(ticket===nativeFinanceDiagnosticEpoch.current&&AppState.currentState==='active')
         setNativeFinanceDiagnostic(result);
     }finally{
