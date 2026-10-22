@@ -475,3 +475,26 @@ test('SEC-05K PostgreSQL plus two durable JVMs remain blocked when the non-rewin
   assert.match(anchor, /NEVER A REAL ANTI-ROLLBACK AUTHORITY/);
   assert.doesNotMatch(mobile, /SyntheticJdbcThreeDomainRollbackBoundaryLabTest/);
 });
+
+
+test('SEC-05K full four-domain replay cannot turn three genuine Ed25519 signatures into live authority', () => {
+  const suite = read(fixtures + 'SyntheticJdbcAllDomainsRollbackIndistinguishabilityLabTest.kt');
+  const runner = read(fixtures + 'SyntheticJdbcRekeyCasPersistenceLabTest.kt');
+  const policy = read(kotlin + 'SyntheticJournalAuthorityReconciliationPolicyLab.kt');
+  const app = read('apps/mobile/package.json');
+  assert.match(suite, /DriverManager\.getConnection\(/);
+  assert.match(suite, /three different Ed25519 public keys/);
+  assert.match(suite, /db\.compareAndSwapFixtureOnly\(operation, old, next\)/);
+  assert.match(suite, /DELETE FROM negresco_sec05k_cas_lab\.operation_receipts/);
+  assert.match(suite, /UPDATE negresco_sec05k_cas_lab\.generations/);
+  assert.match(suite, /for \(i in 0\.\.1\)/);
+  assert.match(suite, /not-rewound third signer still reports NEW/);
+  assert.match(suite, /Files\.write\(roots\[2\]\.resolve\("authority\.state"\), snapshots\[2\]\)/);
+  assert.match(suite, /CRITICAL LIMIT: each signer state file equals its PRE-COMMIT bytes/);
+  assert.match(suite, /restored signer freshly signs OLD under ORIGINAL pinned key/);
+  assert.match(suite, /three valid signatures and restored SQL still NEVER authorize journal writes/);
+  assert.match(suite, /HOLD_EXTERNAL_AUTHORITY_REQUIRED/);
+  assert.match(policy, /SIGNED_CHALLENGE_FIXTURE_ONLY_NO_LIVE_AUTHORITY/);
+  assert.match(runner, /runSyntheticJdbcAllDomainsRollbackIndistinguishabilityScenarios\(\)/);
+  assert.doesNotMatch(app, /SyntheticJdbcAllDomainsRollbackIndistinguishability/);
+});
