@@ -223,3 +223,62 @@ test('one timeout bounds BOTH native diagnostic methods, including unresponsive 
   alwaysDenied(result);
   assert.equal(result.storePresence, 'not-checked');
 });
+
+test('existing-record inspection runs only for present native file and never authorizes data', async () => {
+  let count = 0;
+  const absent = await inspectNativeFinanceReadiness('android', {
+    getIntegrationInfo: () => ({}),
+    inspectNativeLockStorePresence: () => ({status: 'ABSENT'}),
+    inspectExistingNativeLockRecord: () => { count++; throw Error('must not read absent record'); },
+  });
+  assert.equal(count, 0);
+  assert.equal(absent.recordDiagnostic, 'not-checked');
+  alwaysDenied(absent);
+
+  const statuses = [
+    ['VALID_UNTRUSTED', 'valid-untrusted'],
+    ['MISSING_REQUIRES_VERIFIED_MIGRATION', 'migration-required'],
+    ['INVALID_LOCKED', 'invalid-locked'],
+    ['UNSUPPORTED_VERSION_LOCKED', 'version-locked'],
+    ['PENDING_DISABLE_LOCKED', 'pending-disable-locked'],
+    ['LIFECYCLE_REVOKED_LOCKED', 'lifecycle-revoked'],
+    ['STORAGE_ERROR_LOCKED', 'storage-error-locked'],
+    ['VERIFIED_LIVE_CURRENT', 'not-checked'],
+    ['UNLOCKED', 'not-checked'],
+  ];
+  for (const [nativeStatus, expected] of statuses) {
+    const result = await inspectNativeFinanceReadiness('android', {
+      getIntegrationInfo: () => ({ready: true}),
+      inspectNativeLockStorePresence: () => ({status: 'PRESENT_UNVERIFIED'}),
+      inspectExistingNativeLockRecord: () => ({
+        status: nativeStatus, keyReleaseAllowed: true, migrationAllowed: true,
+        financialStorageAllowed: true, secret: 'fixture-do-not-echo',
+      }),
+    });
+    assert.equal(result.status, 'native-lab-only');
+    assert.equal(result.storePresence, 'present-unverified');
+    assert.equal(result.recordDiagnostic, expected);
+    assert.doesNotMatch(result.message, /fixture-do-not-echo|VERIFIED_LIVE_CURRENT|UNLOCKED/);
+    alwaysDenied(result);
+  }
+});
+
+test('existing-record read rejection and timeout remain fail-closed', async () => {
+  const failed = await inspectNativeFinanceReadiness('android', {
+    getIntegrationInfo: () => ({}),
+    inspectNativeLockStorePresence: () => ({status: 'PRESENT_UNVERIFIED'}),
+    inspectExistingNativeLockRecord: () => { throw Error('fixture secret key'); },
+  });
+  assert.equal(failed.status, 'native-diagnostic-error');
+  assert.doesNotMatch(failed.message, /fixture secret key/);
+  alwaysDenied(failed);
+
+  const timed = await inspectNativeFinanceReadiness('android', {
+    getIntegrationInfo: () => ({}),
+    inspectNativeLockStorePresence: () => ({status: 'PRESENT_UNVERIFIED'}),
+    inspectExistingNativeLockRecord: () => new Promise(() => {}),
+  }, 10);
+  assert.equal(timed.status, 'native-diagnostic-error');
+  assert.equal(timed.recordDiagnostic, 'not-checked');
+  alwaysDenied(timed);
+});
