@@ -29,6 +29,11 @@ class SyntheticBiometricManualQaActivity : FragmentActivity() {
   private var prompt: BiometricPrompt? = null
   private var epoch = 0
   private var active = false
+  // Exact prompt callbacks are one-shot; a repeated OS callback must not
+  // reuse an already finalized AES-GCM Cipher or launch an extra prompt.
+  private var promptConsumed = false
+  private var pendingNonce: ByteArray? = null
+  private var pendingCiphertext: ByteArray? = null
   private lateinit var label: TextView
   private lateinit var button: Button
   private var observer: ((String) -> Unit)? = null
@@ -109,6 +114,11 @@ class SyntheticBiometricManualQaActivity : FragmentActivity() {
   }
 
   private fun startDecryption(nonce: ByteArray, encrypted: ByteArray) {
+    // Own these arrays until success OR cancellation/background/error.
+    // Callback closures can outlive the second prompt, so the lifecycle
+    // cleanup must erase their contents even when no success arrives.
+    pendingNonce = nonce
+    pendingCiphertext = encrypted
     try {
       val cipher = Cipher.getInstance("AES/GCM/NoPadding")
       cipher.init(Cipher.DECRYPT_MODE, requireNotNull(key), GCMParameterSpec(128, nonce))
@@ -137,6 +147,7 @@ class SyntheticBiometricManualQaActivity : FragmentActivity() {
 
   private fun authenticate(cipher: Cipher, title: String, approved: (Cipher) -> Unit) {
     val attempt = ++epoch
+    promptConsumed = false
     val info = BiometricPrompt.PromptInfo.Builder()
       .setTitle("Negresco QA: $title")
       .setSubtitle("Somente teste. Nenhuma transação financeira.")
@@ -145,10 +156,16 @@ class SyntheticBiometricManualQaActivity : FragmentActivity() {
       .build()
     val callback = object : BiometricPrompt.AuthenticationCallback() {
       override fun onAuthenticationError(code: Int, errString: CharSequence) {
-        if (active && attempt == epoch) finishQa("HOLD_CANCELLED_OR_ERROR")
+        if (active && attempt == epoch && !promptConsumed) {
+          promptConsumed = true
+          finishQa("HOLD_CANCELLED_OR_ERROR")
+        }
       }
       override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-        if (!active || attempt != epoch) return
+        if (!active || attempt != epoch || promptConsumed) return
+        // Consume before any crypto work. Neither duplicate callback nor a
+        // delayed failure notification may replay the same Cipher operation.
+        promptConsumed = true
         if (result.cryptoObject?.cipher !== cipher) {
           finishQa("DENY_DIFFERENT_CRYPTOOBJECT")
           return
@@ -168,6 +185,13 @@ class SyntheticBiometricManualQaActivity : FragmentActivity() {
   private fun clear() {
     ++epoch
     active = false
+    promptConsumed = true
+    // Particularly important after cancellation at prompt 2: no doFinal()
+    // callback runs in that case to wipe the ciphertext/nonce arrays.
+    pendingNonce?.fill(0)
+    pendingCiphertext?.fill(0)
+    pendingNonce = null
+    pendingCiphertext = null
     prompt?.cancelAuthentication()
     prompt = null
     key = null
