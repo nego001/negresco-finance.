@@ -24,8 +24,8 @@ test('Phase1 reuses one Android Context DataStore delegate and never seeds missi
 });
 
 test('SDK54 public typed snapshot inspection remains suspend-only and never grants key/database rights', () => {
-  assert.match(bridge, /AsyncFunction\("inspectExistingNativeLockRecord"\) \{/);
-  assert.match(bridge, /SuspendBody \{/);
+  assert.match(bridge, /AsyncFunction\("inspectExistingNativeLockRecord"\) Coroutine \{ ->/);
+  assert.match(bridge, /import expo\.modules\.kotlin\.functions\.Coroutine/);
   assert.match(bridge, /NativeLockExistingRecordDiagnostic\.classifyExisting\(/);
   const methods = [...bridge.matchAll(/AsyncFunction\("([^"]+)"\)/g)].map(m => m[1]);
   assert.deepEqual(methods, [
