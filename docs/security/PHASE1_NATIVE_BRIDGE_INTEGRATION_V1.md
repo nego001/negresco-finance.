@@ -17,6 +17,33 @@ A inspeção manual do módulo opcional agora possui **limite máximo de cinco s
 
 A expiração encerra apenas a **espera da interface**; não cancela nem reverte uma operação Kotlin. Isso é aceitável aqui somente porque a futura interface `getIntegrationInfo` está contratualmente limitada a diagnóstico **sem mutação**. O módulo nativo real deverá ter cancelamento/ciclo de vida próprios e nunca reutilizar esse resultado como autorização de chave ou banco. Testes regressivos específicos estão em `tests/native-finance-readiness.test.mjs`. Nenhum binário nativo novo foi conectado nesta revisão.
 
+## Primeiro módulo local Expo Android, somente diagnóstico
+
+**Implementação de código (sem homologação de aparelho):** criado
+`apps/mobile/modules/negresco-finance-security/` com configuração de
+autolinking Expo, Gradle Android library e a classe Kotlin
+`NegrescoFinanceSecurityV1Module`. A classe exporta **somente**
+`getIntegrationInfo()`, sem parâmetros ou operações financeiras, e devolve
+`DIAGNOSTIC_ONLY` com os cinco campos de segurança fixos como `false`.
+A UI do app consulta o módulo via `requireOptionalNativeModule`, mecanismo
+do Expo Modules API, não através de `React Native NativeModules`.
+
+Nenhum componente de DataStore/SQLCipher/Keystore foi importado para esse
+módulo, nenhuma permissão extra foi solicitada e nenhuma chave é gerada,
+aberta ou exportada. O diagnóstico continua manual e todos os caminhos
+`financialStorageAllowed`, `keyReleaseAllowed` e `migrationAllowed`
+permanecem desativados no TypeScript, independentemente de uma resposta
+potencialmente forjada. O teste `tests/native-finance-expo-module-contract.test.mjs`
+impede exportações acidentais de funções financeiras pelo módulo.
+
+A presença do módulo num APK **não significa** que segurança nativa ou banco
+criptografado estejam prontos. CI Kotlin/Android, build de APK de testes e
+homologação física devem validar a compilação antes de considerar essa
+primeira integração tecnológica concluída; ela ainda **não** satisfaz os
+gates de proteção financeira, opt-out atômico ou recuperação. A build
+automática de artefatos de CI nunca autoriza publicação estável ou instalação
+no aparelho existente.
+
 ## Interface futura mínima (NÃO DISPONÍVEL)
 
 A próxima implementação real deve usar um módulo local Expo Kotlin **identificado por versão** e registrado apenas depois de cumprir os gates abaixo. A superfície JS deve ser mínima:
