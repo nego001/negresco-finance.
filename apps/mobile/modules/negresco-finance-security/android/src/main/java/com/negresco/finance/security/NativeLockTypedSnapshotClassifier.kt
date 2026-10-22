@@ -22,7 +22,8 @@ internal object NativeLockTypedSnapshotClassifier {
   private val disablePending = booleanPreferencesKey("negresco.lock.disable_pending")
   private const val EXPECTED_VERSION = 1
 
-  fun classify(snapshot: Preferences): String = try {
+  fun classify(snapshot: Preferences): String {
+    return try {
     val v = snapshot[version]
     val e = snapshot[enabled]
     val r = snapshot[revision]
@@ -44,5 +45,6 @@ internal object NativeLockTypedSnapshotClassifier {
     // A preference stored under the right name with the wrong type is
     // malformed, not a reason to crash or disable protection.
     "INVALID_LOCKED"
+    }
   }
 }
