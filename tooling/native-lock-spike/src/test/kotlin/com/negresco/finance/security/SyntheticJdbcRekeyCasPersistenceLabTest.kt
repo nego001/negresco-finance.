@@ -272,6 +272,7 @@ fun main(args:Array<String>) {
   runSyntheticJdbcDurableFloorRollbackScenarios()
   runSyntheticJdbcThreeDomainRollbackBoundaryScenarios()
   runSyntheticJdbcLocalFenceDoesNotFencePgScenarios()
+  runSyntheticJdbcCrossDomainCommitOrderScenarios()
   runSyntheticJdbcAllDomainsRollbackIndistinguishabilityScenarios()
   println("PASS: SEC-05K $checks PostgreSQL durable CAS and restart checks (fixture only)")
   println("LIMIT: disposable DB, no real authority authentication, no SQLCipher integration")
