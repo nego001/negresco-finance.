@@ -179,7 +179,7 @@ internal fun runSyntheticMerkleProofVerifierScenarios() {
         leafHash, index.toLong(), n.toLong(), currentRoot, path),
         "RFC9162 inclusion verifies at non-power-of-two size")
       requireCase(!verify.verifyInclusionFixtureOnly(
-        verify.leafHashFixtureOnly(current[(index + 1) % leaves.size]),
+        verify.leafHashFixtureOnly(leaves[(index + 1) % leaves.size]),
         index.toLong(), n.toLong(), currentRoot, path),
         "a different account/operation/ciphertext entry cannot use the proof")
       requireCase(!verify.verifyInclusionFixtureOnly(
