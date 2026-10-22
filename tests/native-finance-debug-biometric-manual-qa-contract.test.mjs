@@ -10,6 +10,8 @@ const testSource = read(root + 'src/androidTest/java/com/negresco/finance/securi
 const gradle = read(root + 'build.gradle');
 const main = read(root + 'src/main/java/com/negresco/finance/security/NegrescoFinanceSecurityV1Module.kt');
 const ci = read('.github/workflows/ci.yml');
+const physicalGate = read(root + 'src/androidTest/java/com/negresco/finance/security/SyntheticPhysicalBiometricQaGate.kt');
+const physicalGateTests = read(root + 'src/androidTest/java/com/negresco/finance/security/SyntheticPhysicalBiometricQaGateTest.kt');
 const executableActivity = activity
   .replace(/\/\*[\s\S]*?\*\//g, '')
   .replace(/^\s*\/\/.*$/gm, '');
@@ -47,6 +49,18 @@ test('unattended Android emulators cannot auto-approve biometric or run the inte
   assert.match(testSource, /negresco\.manual\.biometric/);
   assert.match(testSource, /YES_PHYSICAL_CONSENT/);
   assert.match(testSource, /manager\.isDeviceSecure/);
+  assert.match(testSource, /SyntheticPhysicalBiometricQaGate\.classify/);
+  assert.match(testSource, /HUMAN_REVIEW_REQUIRED_NOT_ATTESTED/);
+  assert.match(testSource, /BIOMETRIC_STRONG/);
+  assert.match(physicalGate, /DENY_NO_EXPLICIT_OPT_IN/);
+  assert.match(physicalGate, /DENY_KNOWN_EMULATOR/);
+  assert.match(physicalGate, /HUMAN_REVIEW_REQUIRED_NOT_ATTESTED/);
+  assert.match(physicalGate, /hardware\.contains\("ranchu"\)/);
+  assert.match(physicalGate, /hardware\.contains\("goldfish"\)/);
+  assert.match(physicalGateTests, /knownEmulatorsRemainDeniedEvenWithForgedExplicitOptIn/);
+  assert.match(physicalGateTests, /defaultUnattendedExecutionAlwaysDeniesEvenPlausibleHardware/);
+  assert.match(physicalGateTests, /debugQaScreenIsNotExportedToOtherAppsEvenInTestBuild/);
+  assert.match(physicalGateTests, /assertFalse\("QA screen must not be exportable", activity\.exported\)/);
   assert.match(testSource, /ActivityScenario\.launch\(SyntheticBiometricManualQaActivity::class\.java\)/);
   assert.match(testSource, /completed\.await\(120, TimeUnit\.SECONDS\)/);
   assert.match(testSource, /assertEquals\("PASS_NATIVE_CRYPTO_ONLY", result\.get\(\)\)/);
