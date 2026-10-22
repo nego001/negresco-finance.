@@ -464,6 +464,13 @@ test('SEC-05K PostgreSQL plus two durable JVMs remain blocked when the non-rewin
   assert.match(scenario, /DENY_WRONG_ANCHOR_PIN/);
   assert.match(scenario, /HOLD_EXTERNAL_AUTHORITY_REQUIRED/);
   assert.match(scenario, /in-memory anchor cannot survive own rollback or restart/);
+  assert.match(scenario, /replacement with erased history can re-enroll OLD/);
+  assert.match(scenario, /self-pinning a replacement makes OLD appear consistent/);
+  assert.match(scenario, /a pin retained outside restored stores rejects replacement/);
+  assert.match(scenario, /simulatePrivilegedFullAuthorityRollbackFixtureOnly/);
+  assert.match(scenario, /all four domains at OLD appear consistent with SAME anchor pin/);
+  assert.match(scenario, /full anchor rewind erased original idempotency receipt/);
+  assert.match(scenario, /even four mutually consistent rolled-back fixtures cannot authorize recovery/);
   assert.match(runner, /runSyntheticJdbcThreeDomainRollbackBoundaryScenarios\(\)/);
   assert.match(anchor, /NEVER A REAL ANTI-ROLLBACK AUTHORITY/);
   assert.doesNotMatch(mobile, /SyntheticJdbcThreeDomainRollbackBoundaryLabTest/);
