@@ -44,3 +44,15 @@ test('Read-only fixture tests a single disposable DataStore instance and fail-cl
   assert.doesNotMatch(fixture, /negresco_native_lock\.preferences_pb|NativeLockAndroidStore|migrateLegacyLocked|requestUnlock|openDatabase|readFinancialData/);
   assert.match(gradle, /datastore-preferences-core:1\.2\.1/);
 });
+
+test('read failure and lifecycle cancellation are exercised with a no-filesystem fake DataStore', () => {
+  const errors = read(base + 'androidTest/java/com/negresco/finance/security/SyntheticReadOnlyNativeLockErrorTest.kt');
+  assert.match(errors, /object : DataStore<Preferences>/);
+  assert.match(errors, /flow \{ throw error \}/);
+  assert.match(errors, /"STORAGE_ERROR_LOCKED"/);
+  assert.match(errors, /readExceptionFailsClosedWithoutAnyUnlock/);
+  assert.match(errors, /coroutineCancellationIsNeverSwallowedAsReadableSnapshot/);
+  assert.match(errors, /catch \(_: CancellationException\)/);
+  assert.equal((errors.match(/@Test fun /g) || []).length, 2);
+  assert.doesNotMatch(errors, /File\(|PreferenceDataStoreFactory|noBackupFilesDir|requestUnlock|openDatabase|SecretKey/);
+});
