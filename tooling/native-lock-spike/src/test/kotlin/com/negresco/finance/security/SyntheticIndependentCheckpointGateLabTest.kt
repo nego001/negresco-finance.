@@ -177,7 +177,9 @@ internal fun runSyntheticIndependentCheckpointGateScenarios() {
     consistencyProofVerifiedFixtureOnly = false),
     SyntheticCheckpointGateReasonLab.HOLD_NO_CONSISTENCY_PROOF,
     "tree grew but no consistency proof asserted")
-  verify(gate.inspect(base.copy(checkpoint = b.copy(treeSize = 18L),
+  verify(gate.inspect(base.copy(
+    register = a.copy(treeSize = 18L),
+    checkpoint = b.copy(treeSize = 18L),
     consistencyProofVerifiedFixtureOnly = true)) ==
     setOf(SyntheticCheckpointGateReasonLab.HOLD_EXTERNAL_ATTESTATION_AND_IMPLEMENTATION_REQUIRED),
     "alleged consistency proof still cannot produce permission")
