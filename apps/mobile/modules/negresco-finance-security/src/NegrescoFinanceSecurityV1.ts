@@ -8,5 +8,10 @@ import { requireOptionalNativeModule } from 'expo-modules-core';
  * to inspectNativeFinanceReadiness(). No method authorizes storage or keys.
  */
 export function getOptionalNativeFinanceDiagnosticHost(): unknown {
-  return requireOptionalNativeModule('NegrescoFinanceSecurityV1');
+  try {
+    return requireOptionalNativeModule('NegrescoFinanceSecurityV1');
+  } catch {
+    // Diagnostic host discovery must never crash Settings or authorize a key.
+    return null;
+  }
 }
