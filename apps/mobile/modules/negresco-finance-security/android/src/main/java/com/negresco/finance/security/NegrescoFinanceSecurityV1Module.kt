@@ -40,8 +40,15 @@ class NegrescoFinanceSecurityV1Module : Module() {
     // Metadata only: never opens, creates, validates or recovers lock records.
     // Deliberately does not expose enabled/revision/session or secret values.
     AsyncFunction("inspectNativeLockStorePresence") {
+      // Background/leave/destroy can occur even while the file metadata is
+      // inspected. A stale result is never returned as a current observation.
+      val epoch = diagnosticLifecycle.beginDiagnosticEpoch()
+      val untrustedStatus = if (epoch == null) "UNAVAILABLE"
+        else NativeLockFilePresenceDiagnostic.inspect(appContext.reactContext)
+      val status = if (epoch != null && diagnosticLifecycle.isStillDiagnosticEpoch(epoch))
+        untrustedStatus else "UNAVAILABLE"
       mapOf(
-        "status" to NativeLockFilePresenceDiagnostic.inspect(appContext.reactContext),
+        "status" to status,
         "financialStorageAllowed" to false,
         "keyReleaseAllowed" to false,
         "migrationAllowed" to false
