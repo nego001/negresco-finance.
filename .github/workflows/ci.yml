@@ -58,6 +58,28 @@ jobs:
           EOF
           cd android
           ./gradlew :negresco-finance-security:compileDebugKotlin :negresco-finance-security:compileDebugAndroidTestKotlin --no-daemon --stacktrace
+      - name: Confirm debug-only biometric Activity is absent in Release AAR (NO APK)
+        run: |
+          set -euo pipefail
+          cd android
+          ./gradlew :negresco-finance-security:bundleReleaseAar --no-daemon --stacktrace
+          aar="$(find ../modules/negresco-finance-security/android/build/outputs/aar -maxdepth 1 -type f -name '*release*.aar' -print -quit)"
+          test -n "$aar"
+          test -s "$aar"
+          tmpdir="$(mktemp -d)"
+          trap 'rm -rf "$tmpdir"' EXIT
+          unzip -p "$aar" classes.jar > "$tmpdir/classes.jar"
+          jar tf "$tmpdir/classes.jar" > "$tmpdir/classes.txt"
+          grep -q 'com/negresco/finance/security/NegrescoFinanceSecurityV1Module.class' "$tmpdir/classes.txt"
+          if grep -q 'SyntheticBiometricManualQaActivity' "$tmpdir/classes.txt"; then
+            echo 'SEC05 BLOCK: QA Activity incorrectly packaged into Release classes'
+            exit 1
+          fi
+          if unzip -p "$aar" AndroidManifest.xml | strings | grep -q 'SyntheticBiometricManualQaActivity'; then
+            echo 'SEC05 BLOCK: QA Activity incorrectly packaged into Release manifest'
+            exit 1
+          fi
+          echo 'PASS: native security Release AAR contains no interactive Debug biometric QA Activity'
 
   expo-native-diagnostic-emulator:
     # Test-only AndroidKeyStore scenario in an isolated CI emulator.
