@@ -19,9 +19,9 @@ test('Phase1 local Expo module is Android-only and registered with explicit modu
   assert.match(module, /Name\("NegrescoFinanceSecurityV1"\)/);
   // Expo SDK 54 uses ExpoModulesCorePlugin.gradle; the newer Gradle plugin
   // ID belongs to a different SDK and must not be silently mixed in.
-  assert.match(gradle, /ExpoModulesCorePlugin\\.gradle/);
-  assert.match(gradle, /applyKotlinExpoModulesCorePlugin\\(\\)/);
-  assert.match(gradle, /useCoreDependencies\\(\\)/);
+  assert.match(gradle, /ExpoModulesCorePlugin\.gradle/);
+  assert.match(gradle, /applyKotlinExpoModulesCorePlugin\(\)/);
+  assert.match(gradle, /useCoreDependencies\(\)/);
   assert.doesNotMatch(gradle, /apply plugin: 'expo-module-gradle-plugin'/);
   assert.match(gradle, /apply plugin: 'com.android.library'/);
   assert.match(host, /requireOptionalNativeModule\('NegrescoFinanceSecurityV1'\)/);
