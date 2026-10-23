@@ -28,7 +28,8 @@ test('real SIGKILL is confined to private non-exported debug worker process and 
   assert.match(service, /noBackupFilesDir/);
   assert.match(service, /negresco_synthetic_atomic_\$token/);
   assert.match(service, /\.synthetic-test-owner/);
-  assert.match(service, /owner\.readText\(\) != token/);
+  assert.match(service, /owner\.readText\(\) == token/);
+  assert.match(service, /owner\.length\(\) == token\.length\.toLong\(\)/);
   assert.match(service, /UUID\.fromString\(token\)/);
   assert.match(service, /DENY_MODE/);
   assert.match(service, /DENY_PATH_ALIAS/);
