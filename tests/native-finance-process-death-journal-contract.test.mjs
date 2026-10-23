@@ -167,6 +167,9 @@ test('instrumentation observes remote process death and reopen without ever auth
   assert.match(junitAudit, /Unexpected SKIPPED/i);
   assert.match(junitAudit, /JUnit XML contains duplicate/);
   assert.match(junitAudit, /GITHUB_STEP_SUMMARY/);
+  assert.match(junitAudit, /SEC05_SOURCE/);
+  assert.match(junitAudit, /SEC-05 method inventory mismatch/);
+  assert.match(junitAudit, /missing_methods = sorted\(expected_methods - actual_methods\)/);
   assert.match(junitAudit, /if \(c\.get\('classname'\), c\.get\('name'\)\) not in ALLOWED_SKIPS/);
   // A green emulator must preserve evidence of any Android-side SKIPPED tests.
   const evidenceStep = ci.match(/- name: Upload synthetic module instrumentation reports\n([\s\S]*?)(?=\n\s{2}[A-Za-z0-9_-]+:|$)/)?.[1] ?? '';

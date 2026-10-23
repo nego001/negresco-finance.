@@ -123,6 +123,12 @@ O relatório `TEST-*.xml` da instrumentação passa por um auditor Python indepe
 
 O auditor gera uma tabela-resumo textual em `GITHUB_STEP_SUMMARY`; se a auditoria falhar, `if: always()` ainda envia o XML bruto para diagnóstico. A primeira implementação foi conferida localmente com o ZIP real da [CI #39966291916](https://github.com/nego001/negresco-finance./actions/runs/39966291916): **106 casos, 101 executados com sucesso, 5 SKIPPED e 26/26 cenários SEC-05 presentes**. Um diretório sem XML gerou corretamente falha, mas a nova etapa ainda necessita execução na CI de PR antes de ser considerada aprovada.
 
+## Inventário nominal dos testes instrumentados (verificação adicional de laboratório)
+
+Além de exigir 26 testes na classe SEC-05, o auditor compara os **nomes exatos** dos métodos `@Test fun` presentes no arquivo Kotlin da mesma revisão com os nomes dos `testcase` registrados no JUnit. Uma substituição que mantenha o total de 26 mas omita um método esperado é recusada, com indicação de nomes ausentes e inesperados. Também são recusadas duplicatas e uma contagem incorreta no próprio arquivo Kotlin.
+
+O teste Node `replacing a different SEC-05 method with a fabricated name but keeping count fails closed` simula essa troca em XML descartável, sem dispositivo, APK ou dado financeiro. Esta atualização é apenas um reforço da **evidência de instrumentação**, não de criptografia nem da resistência a TOCTOU. A aprovação em CI de PR é obrigatória antes de considerar esse novo gate comprovado.
+
 ## Limites explícitos
 
 - Um `SIGKILL` após um ponto de escrita conhecido **não** simula queda elétrica ou inconsistência de storage físico, nem determina exatamente a durabilidade de `fsync` em todos os hardwares.

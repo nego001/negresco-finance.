@@ -64,6 +64,7 @@ test('26 SEC-05 cases with four expected hardlink skips pass and report missing 
   const r = run(baseline());
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.summary, /SEC-05 process-death cases present: \*\*26\/26\*\*/);
+  assert.match(r.summary, /SEC-05 source method inventory matches JUnit: \*\*True\*\*/);
   assert.match(r.summary, /skipped: \*\*5\*\*/);
   assert.match(r.summary, /Required same-UUID inode replacement case: \*\*executed\*\*/);
 });
@@ -87,6 +88,17 @@ test('missing mandatory SEC-05 case fails closed', () => {
   const r = run(baseline().filter(c => c.name !== required));
   assert.notEqual(r.status, 0);
   assert.match(r.stderr, /expected 26 SEC-05 tests, found 25/);
+});
+test('replacing a different SEC-05 method with a fabricated name but keeping count fails closed', () => {
+  const cs = baseline();
+  const original = cs.find(c => c.name === 'ownerRemovedAfterWitnessCannotCommitJournal');
+  assert.ok(original);
+  original.name = 'ownerRemovedAfterWitnessFAKE';
+  const r = run(cs);
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /SEC-05 method inventory mismatch/);
+  assert.match(r.stderr, /ownerRemovedAfterWitnessCannotCommitJournal/);
+  assert.match(r.stderr, /ownerRemovedAfterWitnessFAKE/);
 });
 test('skipping required same-UUID test fails closed', () => {
   const cs = baseline(); cs.find(c => c.name === required).skipped = true;
