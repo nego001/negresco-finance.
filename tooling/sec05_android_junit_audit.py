@@ -18,6 +18,8 @@ REQUIRED_CASE = 'ownerReplacedWithSameUuidAfterWitnessCannotCommitJournal'
 SLICE_CLASS = 'com.negresco.finance.security.SyntheticKeystoreSqlcipherLifecycleBoundaryTest'
 SLICE_REQUIRED_CASES = frozenset({
     'foregroundRevocationDeniesProtectedFixtureReadBeforeKeyRelease',
+    'revocationBetweenPreflightAndKeystoreLookupMustHold',
+    'revocationAfterSqlcipherReadCannotReportSuccess',
     'missingKeystoreAliasDoesNotRecreateOrEraseNativeCiphertext',
 })
 # Whitelist the exact class and method. A similarly named testcase from
@@ -97,7 +99,7 @@ def audit(report_dir: Path):
         f'- Test cases: **{len(cases)}**; passed: **{len(cases)-len(errors)-len(skipped)}**; failed/errors: **{len(errors)}**; skipped: **{len(skipped)}**',
         f'- SEC-05 process-death cases present: **{len(sec05)}/{EXPECTED_SEC05_CASES}**',
         f'- SEC-05 source method inventory matches JUnit: **{not missing_methods and not unknown_methods}**',
-        f'- Synthetic native cipher lifecycle methods: **{len(slice_cases)}/2** (zero skips required)',
+        f'- Synthetic native cipher lifecycle methods: **{len(slice_cases)}/4** (zero skips required)',
         f'- Required same-UUID inode replacement case: **{("executed" if len(required) == 1 and required[0].find("skipped") is None else "missing/skipped")}**',
     ]
     for case in skipped:

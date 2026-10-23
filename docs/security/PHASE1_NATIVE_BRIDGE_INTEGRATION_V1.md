@@ -360,3 +360,12 @@ A fixture `SyntheticKeystoreSqlcipherLifecycleBoundaryTest.kt` reúne, numa úni
 - O teste usa `setUserAuthenticationRequired(false)`: **não prova autenticação biométrica, sessão de titular ou proteção de segredos real**. A API de teste SQLCipher materializa senha em `String` JVM, que não pode ser zerada de maneira garantida.
 
 **Limite obrigatório:** o arquivo existe só sob `src/androidTest`. O módulo do aplicativo continua diagnóstico, com `financialStorageAllowed=false`, `keyReleaseAllowed=false` e `migrationAllowed=false`. Precisamos de validação Kotlin + instrumentação Android com os dois novos casos efetivamente executados, seguida de um projeto separado de autenticação forte real, seguro contra eventos concorrentes, antes de prometer integração financeira.
+
+## SEC-05 | Corridas de revogação durante observação do banco fictício (laboratório)
+
+A revisão do ensaio `SyntheticKeystoreSqlcipherLifecycleBoundaryTest` adiciona checkpoints de negação em dois momentos que a instrumentação anterior ainda não exercitava:
+
+1. `revocationBetweenPreflightAndKeystoreLookupMustHold`: o callback de teste força `onBackground()` **após o preflight e antes de consultar a chave**. O método deve devolver `HOLD_REVOKED_BEFORE_KEY_LOOKUP`, sem abrir o banco nem alterar o ciphertext.
+2. `revocationAfterSqlcipherReadCannotReportSuccess`: outro callback de teste força `onBackground()` **depois da leitura SQLCipher e antes do resultado**, exigindo `HOLD_REVOKED_AFTER_READ`, jamais sucesso por resultado atrasado.
+
+As verificações são determinísticas, usam apenas duas callbacks de teste e não demonstram exclusão contra todos os interleavings adversariais. O `fixturePermit` continua sendo um parâmetro arbitrário do teste, **não** autenticação biométrica real. O auditor JUnit exige que os **quatro** testes dessa classe estejam presentes e que nenhum deles seja `SKIPPED`. A integração nativa de produto permanece BLOQUEADA.

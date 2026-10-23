@@ -67,3 +67,16 @@ test('synthetic native lifecycle slice must be present and executed in Android J
   assert.match(auditor, /foregroundRevocationDeniesProtectedFixtureReadBeforeKeyRelease/);
   assert.match(auditor, /native synthetic cipher slice has SKIPPED tests/);
 });
+
+
+test('native synthetic lifecycle fixtures inject revocation both before Keystore and after SQLCipher read', () => {
+  const source = read(base + 'src/androidTest/java/com/negresco/finance/security/SyntheticKeystoreSqlcipherLifecycleBoundaryTest.kt');
+  const auditor = read('tooling/sec05_android_junit_audit.py');
+  assert.match(source, /onCryptoReached\(\)\s*\/\/[\s\S]*?isStillDiagnosticEpoch\(epoch\)\) return "HOLD_REVOKED_BEFORE_KEY_LOOKUP"\s*val key/);
+  assert.match(source, /onRowObserved\(\)[^\n]*\n\s*if \(!lifecycle\.isStillDiagnosticEpoch\(epoch\)\) return "HOLD_REVOKED_AFTER_READ"/);
+  assert.match(source, /revocationBetweenPreflightAndKeystoreLookupMustHold/);
+  assert.match(source, /revocationAfterSqlcipherReadCannotReportSuccess/);
+  assert.match(auditor, /revocationBetweenPreflightAndKeystoreLookupMustHold/);
+  assert.match(auditor, /revocationAfterSqlcipherReadCannotReportSuccess/);
+  assert.doesNotMatch(module, /revocationBetweenPreflightAndKeystoreLookupMustHold|revocationAfterSqlcipherReadCannotReportSuccess/);
+});

@@ -102,11 +102,15 @@ class SyntheticKeystoreSqlcipherLifecycleBoundaryTest {
     lifecycle: NativeLockLifecycleFence,
     epoch: Long?,
     fixturePermit: Boolean,
-    onCryptoReached: () -> Unit
+    onCryptoReached: () -> Unit,
+    onRowObserved: () -> Unit = {}
   ): String {
     if (!fixturePermit || epoch == null || !lifecycle.isStillDiagnosticEpoch(epoch))
       return "HOLD_TEST_PERMIT_OR_LIFECYCLE"
     onCryptoReached()
+    // A genuine lifecycle event may race the preflight before key lookup.
+    // Instrumentation hook deliberately injects that event here.
+    if (!lifecycle.isStillDiagnosticEpoch(epoch)) return "HOLD_REVOKED_BEFORE_KEY_LOOKUP"
     val key = store().getKey(f.alias, null) as? SecretKey ?: return "HOLD_MISSING_TEST_KEY"
     val bytes = f.envelope.readBytes()
     if (bytes.size < 1 + 12 + 16) return "HOLD_INVALID_TEST_ENVELOPE"
@@ -130,6 +134,7 @@ class SyntheticKeystoreSqlcipherLifecycleBoundaryTest {
       try {
         val matches = db.rawQuery("SELECT value FROM synthetic_record WHERE id = 1", null)
           .use { cursor -> cursor.moveToFirst() && cursor.getString(0) == f.marker }
+        onRowObserved() // Inject deterministic revocation before reporting success.
         if (!lifecycle.isStillDiagnosticEpoch(epoch)) return "HOLD_REVOKED_AFTER_READ"
         return if (matches) "OBSERVED_FIXTURE_ONLY_NOT_AUTHORIZATION"
           else "HOLD_TEST_ROW_MISMATCH"
@@ -171,6 +176,43 @@ class SyntheticKeystoreSqlcipherLifecycleBoundaryTest {
     } finally {
       lifecycle.onDestroyed()
       cleanup(fixture)
+    }
+  }
+
+  @Test fun revocationBetweenPreflightAndKeystoreLookupMustHold() {
+    val f = prepare()
+    val lifecycle = NativeLockLifecycleFence().apply { onForeground() }
+    try {
+      val epoch = lifecycle.beginDiagnosticEpoch()!!
+      val before = MessageDigest.getInstance("SHA-256").digest(f.database.readBytes())
+      assertEquals("HOLD_REVOKED_BEFORE_KEY_LOOKUP",
+        observeFixtureOnly(f, lifecycle, epoch, true,
+          { lifecycle.onBackground() }))
+      assertFalse(lifecycle.isStillDiagnosticEpoch(epoch))
+      assertTrue("revocation must preserve ciphertext", before.contentEquals(
+        MessageDigest.getInstance("SHA-256").digest(f.database.readBytes())))
+      assertTrue("test key must remain for supervised retry", store().containsAlias(f.alias))
+    } finally {
+      lifecycle.onDestroyed()
+      cleanup(f)
+    }
+  }
+
+  @Test fun revocationAfterSqlcipherReadCannotReportSuccess() {
+    val f = prepare()
+    val lifecycle = NativeLockLifecycleFence().apply { onForeground() }
+    try {
+      val epoch = lifecycle.beginDiagnosticEpoch()!!
+      val before = MessageDigest.getInstance("SHA-256").digest(f.database.readBytes())
+      assertEquals("HOLD_REVOKED_AFTER_READ",
+        observeFixtureOnly(f, lifecycle, epoch, true, {},
+          { lifecycle.onBackground() }))
+      assertFalse(lifecycle.isStillDiagnosticEpoch(epoch))
+      assertTrue("read-path revocation must preserve ciphertext", before.contentEquals(
+        MessageDigest.getInstance("SHA-256").digest(f.database.readBytes())))
+    } finally {
+      lifecycle.onDestroyed()
+      cleanup(f)
     }
   }
 

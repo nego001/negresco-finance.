@@ -17,6 +17,8 @@ const required = 'ownerReplacedWithSameUuidAfterWitnessCannotCommitJournal';
 const sliceClass = 'com.negresco.finance.security.SyntheticKeystoreSqlcipherLifecycleBoundaryTest';
 const sliceMethods = [
   'foregroundRevocationDeniesProtectedFixtureReadBeforeKeyRelease',
+  'revocationBetweenPreflightAndKeystoreLookupMustHold',
+  'revocationAfterSqlcipherReadCannotReportSuccess',
   'missingKeystoreAliasDoesNotRecreateOrEraseNativeCiphertext',
 ];
 const permittedHardlinks = new Set([
@@ -71,7 +73,7 @@ test('26 SEC-05 cases with four expected hardlink skips pass and report missing 
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.summary, /SEC-05 process-death cases present: \*\*26\/26\*\*/);
   assert.match(r.summary, /SEC-05 source method inventory matches JUnit: \*\*True\*\*/);
-  assert.match(r.summary, /Synthetic native cipher lifecycle methods: \*\*2\/2\*\*/);
+  assert.match(r.summary, /Synthetic native cipher lifecycle methods: \*\*4\/4\*\*/);
   assert.match(r.summary, /skipped: \*\*5\*\*/);
   assert.match(r.summary, /Required same-UUID inode replacement case: \*\*executed\*\*/);
 });
@@ -147,4 +149,15 @@ test('skipped synthetic Keystore SQLCipher lifecycle method fails the JUnit gate
   const r = run(cs);
   assert.notEqual(r.status, 0);
   assert.match(r.stderr, /native synthetic cipher slice has SKIPPED tests/);
+});
+
+
+test('replacing lifecycle slice method with a fake at same count fails', () => {
+  const cases = baseline();
+  cases.find(c => c.classname === sliceClass &&
+    c.name === sliceMethods[1]).name = 'fakeLifecycleCheckpoint';
+  const result = run(cases);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /native synthetic cipher slice inventory mismatch/);
+  assert.match(result.stderr, /revocationBetweenPreflightAndKeystoreLookupMustHold/);
 });
