@@ -14,6 +14,11 @@ const caseNames = [...kotlin.matchAll(/@Test fun ([A-Za-z0-9_]+)\s*\(/g)].map(m 
 const secClass = 'com.negresco.finance.security.SyntheticJournalActualProcessDeathTest';
 const bioClass = 'com.negresco.finance.security.SyntheticBiometricManualQaOptInTest';
 const required = 'ownerReplacedWithSameUuidAfterWitnessCannotCommitJournal';
+const sliceClass = 'com.negresco.finance.security.SyntheticKeystoreSqlcipherLifecycleBoundaryTest';
+const sliceMethods = [
+  'foregroundRevocationDeniesProtectedFixtureReadBeforeKeyRelease',
+  'missingKeystoreAliasDoesNotRecreateOrEraseNativeCiphertext',
+];
 const permittedHardlinks = new Set([
   'hardlinkedJournalNewCannotRedirectWrite',
   'hardlinkedOwnerMarkerCannotAuthorizeWorkerWrite',
@@ -27,6 +32,7 @@ function baseline() {
   return [
     ...caseNames.map(name => ({classname: secClass, name, skipped: permittedHardlinks.has(name)})),
     {classname: bioClass, name: 'realStrongBiometricRequiresExplicitPhysicalDeviceConsent', skipped: true},
+    ...sliceMethods.map(name => ({classname: sliceClass, name, skipped: false})),
   ];
 }
 
@@ -65,6 +71,7 @@ test('26 SEC-05 cases with four expected hardlink skips pass and report missing 
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.summary, /SEC-05 process-death cases present: \*\*26\/26\*\*/);
   assert.match(r.summary, /SEC-05 source method inventory matches JUnit: \*\*True\*\*/);
+  assert.match(r.summary, /Synthetic native cipher lifecycle methods: \*\*2\/2\*\*/);
   assert.match(r.summary, /skipped: \*\*5\*\*/);
   assert.match(r.summary, /Required same-UUID inode replacement case: \*\*executed\*\*/);
 });
@@ -125,4 +132,19 @@ test('JUnit failure entry fails closed', () => {
   const r = run(cs);
   assert.notEqual(r.status, 0);
   assert.match(r.stderr, /failing\/error test cases/);
+});
+
+
+test('missing synthetic Keystore SQLCipher lifecycle method fails the JUnit gate', () => {
+  const r = run(baseline().filter(c =>
+    !(c.classname === sliceClass && c.name === sliceMethods[0])));
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /native synthetic cipher slice inventory mismatch/);
+});
+test('skipped synthetic Keystore SQLCipher lifecycle method fails the JUnit gate', () => {
+  const cs = baseline();
+  cs.find(c => c.classname === sliceClass && c.name === sliceMethods[1]).skipped = true;
+  const r = run(cs);
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /native synthetic cipher slice has SKIPPED tests/);
 });

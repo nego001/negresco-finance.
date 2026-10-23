@@ -15,6 +15,11 @@ SEC05_SOURCE = (Path(__file__).resolve().parent.parent /
     'apps/mobile/modules/negresco-finance-security/android/src/androidTest/java/'
     'com/negresco/finance/security/SyntheticJournalActualProcessDeathTest.kt')
 REQUIRED_CASE = 'ownerReplacedWithSameUuidAfterWitnessCannotCommitJournal'
+SLICE_CLASS = 'com.negresco.finance.security.SyntheticKeystoreSqlcipherLifecycleBoundaryTest'
+SLICE_REQUIRED_CASES = frozenset({
+    'foregroundRevocationDeniesProtectedFixtureReadBeforeKeyRelease',
+    'missingKeystoreAliasDoesNotRecreateOrEraseNativeCiphertext',
+})
 # Whitelist the exact class and method. A similarly named testcase from
 # an unrelated class must not inherit SEC-05 permission to be SKIPPED.
 ALLOWED_SKIPS = {
@@ -58,6 +63,10 @@ def audit(report_dir: Path):
                   if (c.get('classname'), c.get('name')) not in ALLOWED_SKIPS]
     sec05 = [c for c in cases if c.get('classname') == SEC05_CLASS]
     required = [c for c in sec05 if c.get('name') == REQUIRED_CASE]
+    slice_cases = [c for c in cases if c.get('classname') == SLICE_CLASS]
+    slice_methods = {c.get('name') for c in slice_cases}
+    missing_slice = sorted(SLICE_REQUIRED_CASES - slice_methods)
+    extra_slice = sorted(slice_methods - SLICE_REQUIRED_CASES)
     reasons = []
     if errors:
         reasons.append(f'{len(errors)} failing/error test cases')
@@ -74,6 +83,12 @@ def audit(report_dir: Path):
             f'unexpected={unknown_methods}')
     if len(required) != 1 or required[0].find('skipped') is not None:
         reasons.append(f'required SEC-05 test missing or skipped: {REQUIRED_CASE}')
+    if len(slice_cases) != len(SLICE_REQUIRED_CASES) or missing_slice or extra_slice:
+        reasons.append(
+            f'native synthetic cipher slice inventory mismatch: '
+            f'missing={missing_slice}, unexpected={extra_slice}, count={len(slice_cases)}')
+    if any(c.find('skipped') is not None for c in slice_cases):
+        reasons.append('native synthetic cipher slice has SKIPPED tests')
     status = 'PASS' if not reasons else 'FAIL'
     summary = [
         '### SEC-05 Android JUnit evidence',
@@ -82,6 +97,7 @@ def audit(report_dir: Path):
         f'- Test cases: **{len(cases)}**; passed: **{len(cases)-len(errors)-len(skipped)}**; failed/errors: **{len(errors)}**; skipped: **{len(skipped)}**',
         f'- SEC-05 process-death cases present: **{len(sec05)}/{EXPECTED_SEC05_CASES}**',
         f'- SEC-05 source method inventory matches JUnit: **{not missing_methods and not unknown_methods}**',
+        f'- Synthetic native cipher lifecycle methods: **{len(slice_cases)}/2** (zero skips required)',
         f'- Required same-UUID inode replacement case: **{("executed" if len(required) == 1 and required[0].find("skipped") is None else "missing/skipped")}**',
     ]
     for case in skipped:

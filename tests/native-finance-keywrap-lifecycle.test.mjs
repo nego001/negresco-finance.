@@ -57,3 +57,13 @@ test('Phase1 Keystore SQLCipher lifecycle slice remains synthetic AndroidTest, n
   assert.doesNotMatch(source, /BiometricPrompt\.authenticate|financialStorageAllowed\s+to\s+true/);
   assert.doesNotMatch(module, /SyntheticKeystoreSqlcipherLifecycleBoundaryTest|openDatabase|KeyGenerator/);
 });
+
+
+test('synthetic native lifecycle slice must be present and executed in Android JUnit CI', () => {
+  const auditor = read('tooling/sec05_android_junit_audit.py');
+  assert.match(auditor, /SLICE_CLASS = 'com\.negresco\.finance\.security\.SyntheticKeystoreSqlcipherLifecycleBoundaryTest'/);
+  assert.match(auditor, /SLICE_REQUIRED_CASES = frozenset/);
+  assert.match(auditor, /missingKeystoreAliasDoesNotRecreateOrEraseNativeCiphertext/);
+  assert.match(auditor, /foregroundRevocationDeniesProtectedFixtureReadBeforeKeyRelease/);
+  assert.match(auditor, /native synthetic cipher slice has SKIPPED tests/);
+});
