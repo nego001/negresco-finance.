@@ -349,3 +349,14 @@ A escrita usa `AtomicFile.startWrite/finishWrite` e `failWrite` para aborto cont
 O contrato `tests/native-finance-atomic-migration-journal-contract.test.mjs` impede que a classe de escrita seja movida para o módulo de produção, exige `AtomicFile` e a matriz de testes. A CI precisa executar a instrumentação no emulador do commit exato. Este avanço **não implementa o journal de migração de produção**, não toca nas preferências reais, não configura DataStore de escrita nem liga SQLCipher a dados financeiros.
 
 **Próximo gate real:** autoridade de migração autenticada dentro de operação nativa, anti-rollback independente, recuperação após processo morto e troca de certificado/upgrade, homologação física de chave perdida ou biometria alterada e só então comandos financeiros persistentes.
+
+## Primeira integração vertical sintética (SEC-05 / AndroidTest somente)
+
+A fixture `SyntheticKeystoreSqlcipherLifecycleBoundaryTest.kt` reúne, numa única execução Android de teste, uma chave efêmera `AndroidKeyStore`, envelope AES-GCM com AAD, senha de um banco SQLCipher descartável, linha inteiramente fictícia e a cerca `NativeLockLifecycleFence` já presente no módulo nativo.
+
+- Sem primeiro plano, sem permissão **inventada no teste**, ou com época revogada após sair/retornar ao aplicativo, a fixture recusa o acesso **antes de consultar o Keystore**.
+- Com época e permissão exclusivas do teste, verifica a linha fictícia e devolve somente `OBSERVED_FIXTURE_ONLY_NOT_AUTHORIZATION`, nunca o valor decifrado ou um sinal de desbloqueio financeiro.
+- Excluir a chave do Keystore exige `HOLD_MISSING_TEST_KEY`: o banco cifrado e o envelope não podem ser apagados nem substituídos por nova identidade.
+- O teste usa `setUserAuthenticationRequired(false)`: **não prova autenticação biométrica, sessão de titular ou proteção de segredos real**. A API de teste SQLCipher materializa senha em `String` JVM, que não pode ser zerada de maneira garantida.
+
+**Limite obrigatório:** o arquivo existe só sob `src/androidTest`. O módulo do aplicativo continua diagnóstico, com `financialStorageAllowed=false`, `keyReleaseAllowed=false` e `migrationAllowed=false`. Precisamos de validação Kotlin + instrumentação Android com os dois novos casos efetivamente executados, seguida de um projeto separado de autenticação forte real, seguro contra eventos concorrentes, antes de prometer integração financeira.

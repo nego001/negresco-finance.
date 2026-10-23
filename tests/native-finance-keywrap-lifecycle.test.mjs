@@ -41,3 +41,19 @@ test('Synthetic key lifecycle refuses tamper, wrong-account AAD and absent alias
   assert.match(ci, /:negresco-finance-security:compileDebugAndroidTestKotlin/);
   assert.match(ci, /:negresco-finance-security:connectedDebugAndroidTest/);
 });
+
+
+test('Phase1 Keystore SQLCipher lifecycle slice remains synthetic AndroidTest, not Expo API', () => {
+  const source = read(base + 'src/androidTest/java/com/negresco/finance/security/SyntheticKeystoreSqlcipherLifecycleBoundaryTest.kt');
+  assert.match(source, /class SyntheticKeystoreSqlcipherLifecycleBoundaryTest/);
+  assert.match(source, /setUserAuthenticationRequired\(false\)/);
+  assert.match(source, /NativeLockLifecycleFence/);
+  assert.match(source, /SQLiteDatabase\.OPEN_READONLY/);
+  assert.match(source, /OBSERVED_FIXTURE_ONLY_NOT_AUTHORIZATION/);
+  assert.match(source, /HOLD_TEST_PERMIT_OR_LIFECYCLE/);
+  assert.match(source, /foregroundRevocationDeniesProtectedFixtureReadBeforeKeyRelease/);
+  assert.match(source, /missingKeystoreAliasDoesNotRecreateOrEraseNativeCiphertext/);
+  assert.match(source, /store\(\)\.deleteEntry\(f\.alias\)/);
+  assert.doesNotMatch(source, /BiometricPrompt\.authenticate|financialStorageAllowed\s+to\s+true/);
+  assert.doesNotMatch(module, /SyntheticKeystoreSqlcipherLifecycleBoundaryTest|openDatabase|KeyGenerator/);
+});
