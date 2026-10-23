@@ -366,12 +366,26 @@ class SyntheticJournalActualProcessDeathTest {
       "INJECT_LATE_HARDLINK_FIXTURE_ONLY", "DENY_HARDLINK")
   }
 
+  /**
+   * Don't invoke AtomicFile.openRead while .bak is an injected symlink:
+   * recovery can move that backup pathname over the base. Check the
+   * rejection and raw bytes first, unlink the alias, then inspectPair.
+   */
+  private fun assertRejectedBackupAliasWithoutRecovery() {
+    val witnessFile = File(root, "synthetic-migration.witness")
+    val oldJournal = journalFile.readBytes()
+    val oldWitness = witnessFile.readBytes()
+    assertEquals("DENY_PATH_ALIAS", killRemoteWorker("AFTER_BOTH"))
+    assertArrayEquals("journal may not be rewritten", oldJournal, journalFile.readBytes())
+    assertArrayEquals("witness may not be rewritten", oldWitness, witnessFile.readBytes())
+  }
+
   @Test fun symbolicWitnessBackupCannotRedirectWrite() {
     val alias = File(root, "synthetic-migration.witness.bak")
     withDisposableLinkTarget("EXTERNAL_WITNESS_BACKUP_UNTOUCHED") { external ->
       Files.createSymbolicLink(alias.toPath(), external.toPath())
       try {
-        assertRejectedRequestPreservesFixture("DENY_PATH_ALIAS", "AFTER_BOTH")
+        assertRejectedBackupAliasWithoutRecovery()
         assertEquals("EXTERNAL_WITNESS_BACKUP_UNTOUCHED", external.readText())
       } finally {
         Files.deleteIfExists(alias.toPath())
@@ -380,6 +394,8 @@ class SyntheticJournalActualProcessDeathTest {
         assertEquals("EXTERNAL_WITNESS_BACKUP_UNTOUCHED", external.readText())
       }
     }
+    assertEquals("HOLD_SYNTHETIC_PAIR_MATCH_NOT_AUTHORITY",
+      SyntheticJournalIndependentWitness(root).inspectPair())
   }
 
   @Test fun symbolicJournalBackupCannotRedirectWrite() {
@@ -387,7 +403,7 @@ class SyntheticJournalActualProcessDeathTest {
     withDisposableLinkTarget("EXTERNAL_JOURNAL_BACKUP_UNTOUCHED") { external ->
       Files.createSymbolicLink(alias.toPath(), external.toPath())
       try {
-        assertRejectedRequestPreservesFixture("DENY_PATH_ALIAS", "AFTER_BOTH")
+        assertRejectedBackupAliasWithoutRecovery()
         assertEquals("EXTERNAL_JOURNAL_BACKUP_UNTOUCHED", external.readText())
       } finally {
         Files.deleteIfExists(alias.toPath())
@@ -396,5 +412,7 @@ class SyntheticJournalActualProcessDeathTest {
         assertEquals("EXTERNAL_JOURNAL_BACKUP_UNTOUCHED", external.readText())
       }
     }
+    assertEquals("HOLD_SYNTHETIC_PAIR_MATCH_NOT_AUTHORITY",
+      SyntheticJournalIndependentWitness(root).inspectPair())
   }
 }
