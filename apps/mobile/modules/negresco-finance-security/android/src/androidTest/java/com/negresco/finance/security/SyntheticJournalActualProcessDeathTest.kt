@@ -322,4 +322,47 @@ class SyntheticJournalActualProcessDeathTest {
       }
     }
   }
+  /**
+   * Deliberately insert an alias AFTER the initial preflight and witness
+   * commit. The mismatch is a DENY, not an automatic recovery or rollback.
+   * No external pathname, account or real financial data enters the worker.
+   */
+  private fun assertLateAliasPreventsJournalCommit(
+    mode: String, rejection: String
+  ) {
+    val owner = File(root, ".synthetic-test-owner")
+    val originalOwner = owner.readBytes()
+    val originalJournal = journalFile.readBytes()
+    val actual = killRemoteWorker(mode)
+    val kernelDenied = actual == "DENY_PLATFORM_HARDLINK"
+    if (!kernelDenied) assertEquals(rejection, actual)
+    assertArrayEquals("late alias may not modify the owner marker",
+      originalOwner, owner.readBytes())
+    assertArrayEquals("late alias must leave old journal untouched",
+      originalJournal, journalFile.readBytes())
+    assertEquals("a committed witness alone never authorizes migration",
+      "DENY_SYNTHETIC_PAIR_MISMATCH",
+      SyntheticJournalIndependentWitness(root).inspectPair())
+    // openRead() may remove the temporary alias while reopening. A remaining
+    // alias must be unlinked without dereferencing the owner.
+    val alias = File(root, "synthetic-migration.journal.new")
+    Files.deleteIfExists(alias.toPath())
+    assertTrue("no temporary alias may remain",
+      !Files.exists(alias.toPath(), LinkOption.NOFOLLOW_LINKS))
+    assertArrayEquals("owner remains intact after reader recovery",
+      originalOwner, owner.readBytes())
+    if (kernelDenied) {
+      assumeTrue("Android denied late hardlink creation: lstat branch not exercised", false)
+    }
+  }
+
+  @Test fun lateSymbolicAliasAfterWitnessCannotCommitJournal() {
+    assertLateAliasPreventsJournalCommit(
+      "INJECT_LATE_SYMLINK_FIXTURE_ONLY", "DENY_PATH_ALIAS")
+  }
+
+  @Test fun lateHardlinkAliasAfterWitnessCannotCommitJournal() {
+    assertLateAliasPreventsJournalCommit(
+      "INJECT_LATE_HARDLINK_FIXTURE_ONLY", "DENY_HARDLINK")
+  }
 }

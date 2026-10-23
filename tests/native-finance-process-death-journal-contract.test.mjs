@@ -34,6 +34,11 @@ test('real SIGKILL is confined to private non-exported debug worker process and 
   assert.match(service, /DENY_MODE/);
   assert.match(service, /DENY_PATH_ALIAS/);
   assert.match(service, /DENY_HARDLINK/);
+  assert.match(service, /DENY_PLATFORM_HARDLINK/);
+  assert.match(service, /INJECT_LATE_SYMLINK_FIXTURE_ONLY/);
+  assert.match(service, /INJECT_LATE_HARDLINK_FIXTURE_ONLY/);
+  assert.match(service, /Files\.createSymbolicLink\(lateAlias, owner\.toPath\(\)\)/);
+  assert.match(service, /Files\.createLink\(lateAlias, owner\.toPath\(\)\)/);
   assert.match(service, /hasReservedHardlink/);
   assert.match(service, /Os\.lstat/);
   assert.match(service, /OsConstants\.S_ISREG/);
@@ -53,7 +58,7 @@ test('real SIGKILL is confined to private non-exported debug worker process and 
 });
 
 test('instrumentation observes remote process death and reopen without ever authorizing migration', () => {
-  assert.equal((tests.match(/@Test fun /g) || []).length, 15);
+  assert.equal((tests.match(/@Test fun /g) || []).length, 17);
   assert.match(tests, /app\.bindService\(intent, connection, Context\.BIND_AUTO_CREATE\)/);
   assert.match(tests, /onServiceDisconnected/);
   assert.match(tests, /processDied\.await\(20, TimeUnit\.SECONDS\)/);
@@ -76,6 +81,10 @@ test('instrumentation observes remote process death and reopen without ever auth
   assert.match(tests, /hardlinkedOwnerMarkerCannotAuthorizeWorkerWrite/);
   assert.match(tests, /hardlinkedWitnessNewCannotRedirectWrite/);
   assert.match(tests, /hardlinkedJournalNewCannotRedirectWrite/);
+  assert.match(tests, /lateSymbolicAliasAfterWitnessCannotCommitJournal/);
+  assert.match(tests, /lateHardlinkAliasAfterWitnessCannotCommitJournal/);
+  assert.match(tests, /assertLateAliasPreventsJournalCommit/);
+  assert.match(tests, /DENY_PLATFORM_HARDLINK/);
   assert.match(tests, /Files\.createLink/);
   assert.match(tests, /AccessDeniedException/);
   assert.match(tests, /assumeTrue/);
