@@ -12,7 +12,7 @@
     <service
       android:name="com.negresco.finance.security.SyntheticJournalCrashWorkerService"
       android:exported="false"
-      android:process=":negresco-synthetic-journal"
+      android:process=":negresco_synthetic_journal"
       android:stopWithTask="true" />
   </application>
 </manifest>
