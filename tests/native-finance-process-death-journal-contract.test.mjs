@@ -13,7 +13,7 @@ const ci = read('.github/workflows/ci.yml');
 
 test('real SIGKILL is confined to private non-exported debug worker process and disposable journal fixtures', () => {
   assert.match(manifest, /android:name="com\.negresco\.finance\.security\.SyntheticJournalCrashWorkerService"/);
-  assert.match(manifest, /android:process=":negresco-synthetic-journal"/);
+  assert.match(manifest, /android:process=":negresco_synthetic_journal"/);
   assert.match(manifest, /android:exported="false"/);
   assert.doesNotMatch(mainManifest, /SyntheticJournalCrashWorkerService/);
   assert.doesNotMatch(module, /SyntheticJournalCrashWorkerService|SIGKILL|killProcess|writeCheckpoint/);
