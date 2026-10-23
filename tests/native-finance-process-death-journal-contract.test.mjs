@@ -28,8 +28,14 @@ test('real SIGKILL is confined to private non-exported debug worker process and 
   assert.match(service, /noBackupFilesDir/);
   assert.match(service, /negresco_synthetic_atomic_\$token/);
   assert.match(service, /\.synthetic-test-owner/);
-  assert.match(service, /owner\.readText\(\) == token/);
-  assert.match(service, /owner\.length\(\) == token\.length\.toLong\(\)/);
+  assert.match(service, /validOwnerFromDescriptor/);
+  assert.match(service, /Os\.open/);
+  assert.match(service, /Os\.fstat/);
+  assert.match(service, /Os\.read/);
+  assert.match(service, /Os\.close/);
+  assert.match(service, /OsConstants\.O_NOFOLLOW/);
+  assert.match(service, /st_nlink != 1L/);
+  assert.match(service, /actual\.contentEquals\(expected\)/);
   assert.match(service, /UUID\.fromString\(token\)/);
   assert.match(service, /DENY_MODE/);
   assert.match(service, /DENY_PATH_ALIAS/);
@@ -58,7 +64,7 @@ test('real SIGKILL is confined to private non-exported debug worker process and 
 });
 
 test('instrumentation observes remote process death and reopen without ever authorizing migration', () => {
-  assert.equal((tests.match(/@Test fun /g) || []).length, 17);
+  assert.equal((tests.match(/@Test fun /g) || []).length, 19);
   assert.match(tests, /app\.bindService\(intent, connection, Context\.BIND_AUTO_CREATE\)/);
   assert.match(tests, /onServiceDisconnected/);
   assert.match(tests, /processDied\.await\(20, TimeUnit\.SECONDS\)/);
@@ -77,6 +83,10 @@ test('instrumentation observes remote process death and reopen without ever auth
   assert.match(tests, /symbolicOwnerMarkerCannotAuthorizeWorkerWrite/);
   assert.match(tests, /symbolicWitnessNewFileCannotRedirectWrite/);
   assert.match(tests, /symbolicJournalNewFileCannotRedirectWrite/);
+  assert.match(tests, /symbolicWitnessBackupCannotRedirectWrite/);
+  assert.match(tests, /symbolicJournalBackupCannotRedirectWrite/);
+  assert.match(tests, /EXTERNAL_WITNESS_BACKUP_UNTOUCHED/);
+  assert.match(tests, /EXTERNAL_JOURNAL_BACKUP_UNTOUCHED/);
   assert.match(tests, /oversizedOwnerMarkerCannotAuthorizeWorkerWrite/);
   assert.match(tests, /hardlinkedOwnerMarkerCannotAuthorizeWorkerWrite/);
   assert.match(tests, /hardlinkedWitnessNewCannotRedirectWrite/);

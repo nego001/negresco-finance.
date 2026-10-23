@@ -365,4 +365,36 @@ class SyntheticJournalActualProcessDeathTest {
     assertLateAliasPreventsJournalCommit(
       "INJECT_LATE_HARDLINK_FIXTURE_ONLY", "DENY_HARDLINK")
   }
+
+  @Test fun symbolicWitnessBackupCannotRedirectWrite() {
+    val alias = File(root, "synthetic-migration.witness.bak")
+    withDisposableLinkTarget("EXTERNAL_WITNESS_BACKUP_UNTOUCHED") { external ->
+      Files.createSymbolicLink(alias.toPath(), external.toPath())
+      try {
+        assertRejectedRequestPreservesFixture("DENY_PATH_ALIAS", "AFTER_BOTH")
+        assertEquals("EXTERNAL_WITNESS_BACKUP_UNTOUCHED", external.readText())
+      } finally {
+        Files.deleteIfExists(alias.toPath())
+        assertTrue("witness backup alias absent",
+          !Files.exists(alias.toPath(), LinkOption.NOFOLLOW_LINKS))
+        assertEquals("EXTERNAL_WITNESS_BACKUP_UNTOUCHED", external.readText())
+      }
+    }
+  }
+
+  @Test fun symbolicJournalBackupCannotRedirectWrite() {
+    val alias = File(root, "synthetic-migration.journal.bak")
+    withDisposableLinkTarget("EXTERNAL_JOURNAL_BACKUP_UNTOUCHED") { external ->
+      Files.createSymbolicLink(alias.toPath(), external.toPath())
+      try {
+        assertRejectedRequestPreservesFixture("DENY_PATH_ALIAS", "AFTER_BOTH")
+        assertEquals("EXTERNAL_JOURNAL_BACKUP_UNTOUCHED", external.readText())
+      } finally {
+        Files.deleteIfExists(alias.toPath())
+        assertTrue("journal backup alias absent",
+          !Files.exists(alias.toPath(), LinkOption.NOFOLLOW_LINKS))
+        assertEquals("EXTERNAL_JOURNAL_BACKUP_UNTOUCHED", external.readText())
+      }
+    }
+  }
 }

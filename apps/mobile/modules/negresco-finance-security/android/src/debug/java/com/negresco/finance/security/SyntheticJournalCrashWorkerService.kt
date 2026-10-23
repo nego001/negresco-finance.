@@ -120,6 +120,37 @@ class SyntheticJournalCrashWorkerService : Service() {
     }
   }
 
+  /**
+   * Pin the owner marker inode before reading the UUID. O_NOFOLLOW prevents
+   * following a last-component symlink even if it changes after preflight;
+   * fstat validates the opened descriptor, not a second pathname lookup.
+   * The containing directory and AtomicFile names are still path-based.
+   */
+  private fun validOwnerFromDescriptor(owner: File, token: String): Boolean {
+    val expected = token.toByteArray(Charsets.UTF_8)
+    val fd = try {
+      Os.open(owner.absolutePath,
+        OsConstants.O_RDONLY or OsConstants.O_CLOEXEC or OsConstants.O_NOFOLLOW, 0)
+    } catch (_: Exception) { return false }
+    try {
+      val stat = Os.fstat(fd)
+      if (!OsConstants.S_ISREG(stat.st_mode) ||
+          stat.st_nlink != 1L || stat.st_size != expected.size.toLong()) return false
+      val actual = ByteArray(expected.size)
+      var offset = 0
+      while (offset < actual.size) {
+        val count = Os.read(fd, actual, offset, actual.size - offset)
+        if (count <= 0) return false
+        offset += count
+      }
+      return actual.contentEquals(expected)
+    } catch (_: Exception) {
+      return false
+    } finally {
+      try { Os.close(fd) } catch (_: Exception) { }
+    }
+  }
+
   private fun performFixture(token: String, mode: String): String {
     // No caller-supplied paths. A UUID plus disposable owner sentinel bind
     // the worker to one single-purpose synthetic directory.
@@ -140,9 +171,7 @@ class SyntheticJournalCrashWorkerService : Service() {
     if (hasReservedHardlink(sandbox)) return "DENY_HARDLINK"
     val validOwner = try {
       Files.isDirectory(sandbox.toPath(), LinkOption.NOFOLLOW_LINKS) &&
-        Files.isRegularFile(owner.toPath(), LinkOption.NOFOLLOW_LINKS) &&
-        owner.length() == token.length.toLong() &&
-        owner.readText() == token
+        validOwnerFromDescriptor(owner, token)
     } catch (_: Exception) { false }
     if (!validOwner) return "DENY_SANDBOX"
     val journalBytes = fixtureRecord(2L, "SOURCE_BACKED_UP")

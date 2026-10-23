@@ -60,6 +60,14 @@ Dois novos testes instrumentados elevam a classe a **17 cenários**. Se o kernel
 
 **Essa é uma demonstração reprodutível de um intervalo específico**, e não uma solução TOCTOU geral. Um invasor com permissão de escrita pode substituir os caminhos imediatamente após a segunda verificação. Confinamento real exige um desenho com descritores, acesso privado a diretórios e revisão específica Android. Nada concede autorização financeira.
 
+## Marcador de posse por descritor e aliases de backup (revisão de laboratório pendente)
+
+A leitura do UUID do marcador `.synthetic-test-owner` agora utiliza `Os.open` com `O_NOFOLLOW` e `O_CLOEXEC` em vez de `File.readText()`. O serviço faz `fstat` no descritor aberto para verificar arquivo regular, exatamente uma referência física (`st_nlink=1`) e comprimento esperado, depois lê bytes do mesmo descritor e compara o UUID. Falhas de abertura, metadata ou leitura recusam a sandbox. Isso impede que a troca da última componente por symlink entre pré-checagem e abertura faça o serviço seguir um caminho externo; não impede substituição de diretórios ancestrais ou TOCTOU nos nomes de `AtomicFile`.
+
+Dois testes instrumentados adicionais, elevando a classe a **19 cenários**, verificam links simbólicos `synthetic-migration.witness.bak` e `synthetic-migration.journal.bak`. Cada um exige `DENY_PATH_ALIAS`, journal/witness intactos e destino externo descartável inalterado. Arquivos auxiliares eventualmente removidos pelo reader são limpos de modo idempotente, sem seguir o destino.
+
+**Status: não validado em emulador.** Esta revisão só deve ser integrada depois da aprovação da compilação Android e, posteriormente, dos testes instrumentados. A segurança de produção, a eliminação geral de TOCTOU, defesa contra rollback externo e proteção de dados financeiros reais permanecem fora do escopo.
+
 ## Limites explícitos
 
 - Um `SIGKILL` após um ponto de escrita conhecido **não** simula queda elétrica ou inconsistência de storage físico, nem determina exatamente a durabilidade de `fsync` em todos os hardwares.
