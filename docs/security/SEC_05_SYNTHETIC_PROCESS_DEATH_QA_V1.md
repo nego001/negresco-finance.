@@ -18,6 +18,20 @@ O teste `SyntheticJournalActualProcessDeathTest.kt` cobre:
 
 A suíte confirma que o **PID do trabalhador é diferente** do processo de instrumentação e observa a morte do processo antes de inspecionar o par. Todos os arquivos pertencem a sandbox descartável e são apagados ao fim de cada teste.
 
+## Cinco cenários negativos adicionais (somente instrumentação)
+
+Após a correção do nome do processo Android, a [CI #39883347793](https://github.com/nego001/negresco-finance./actions/runs/39883347793) concluiu **9/9 jobs SUCCESS** no commit `20f2e076`; o emulador Expo registrou **83 testes iniciados** e `BUILD SUCCESSFUL`. Isso valida os três cenários de interrupção da versão anterior, não estes cinco testes novos.
+
+A nova revisão acrescenta cinco testes no mesmo `SyntheticJournalActualProcessDeathTest`, cada um com journal e witness válidos preparados em diretório isolado antes da tentativa. O processo remoto responde `DENY_*` e é encerrado; o runner confere PID distinto, morte do processo e reabertura. Também compara **byte por byte** os dois arquivos anteriores e verifica que o par segue coerente, sempre em `HOLD_*`, nunca em autorização de migração:
+
+1. UUID malformado ou tentativa de atravessar caminho: `DENY_TOKEN`.
+2. UUID bem formado sem diretório de teste correspondente: `DENY_SANDBOX`.
+3. Modo desconhecido: `DENY_MODE`.
+4. Marcador `.synthetic-test-owner` ausente: `DENY_SANDBOX`.
+5. Marcador de posse adulterado: `DENY_SANDBOX`.
+
+São verificações de recusa e **não demonstram** segurança diante de um processo hostil com permissão de escrita no mesmo diretório, symlink/TOCTOU, atacante com controle da sandbox, parada elétrica ou proteção monotônica externa. Os resultados dos cinco novos testes dependem de uma nova execução concluída da CI.
+
 ## Limites explícitos
 
 - Um `SIGKILL` após um ponto de escrita conhecido **não** simula queda elétrica ou inconsistência de storage físico, nem determina exatamente a durabilidade de `fsync` em todos os hardwares.
