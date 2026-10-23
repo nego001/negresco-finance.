@@ -10,6 +10,8 @@ import android.os.Messenger
 import android.os.Process
 import android.util.AtomicFile
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.LinkOption
 import java.security.MessageDigest
 import java.util.UUID
 
@@ -66,6 +68,25 @@ class SyntheticJournalCrashWorkerService : Service() {
       .toByteArray(Charsets.UTF_8)
   }
 
+  /**
+   * Check the directory and every name touched by AtomicFile, including its
+   * .new/.bak siblings. This is a defensive Debug fixture check, not an
+   * atomic directory capability or protection against hostile TOCTOU writers.
+   */
+  private fun hasReservedSymlink(sandbox: File): Boolean {
+    if (Files.isSymbolicLink(sandbox.toPath())) return true
+    val reserved = listOf(
+      ".synthetic-test-owner",
+      "synthetic-migration.witness",
+      "synthetic-migration.witness.new",
+      "synthetic-migration.witness.bak",
+      "synthetic-migration.journal",
+      "synthetic-migration.journal.new",
+      "synthetic-migration.journal.bak"
+    )
+    return reserved.any { Files.isSymbolicLink(File(sandbox, it).toPath()) }
+  }
+
   private fun performFixture(token: String, mode: String): String {
     // No caller-supplied paths. A UUID plus disposable owner sentinel bind
     // the worker to one single-purpose synthetic directory.
@@ -75,8 +96,15 @@ class SyntheticJournalCrashWorkerService : Service() {
       return "DENY_MODE"
     val sandbox = File(noBackupFilesDir, "negresco_synthetic_atomic_$token")
     val owner = File(sandbox, ".synthetic-test-owner")
-    if (!sandbox.isDirectory || !owner.isFile ||
-        owner.readText() != token) return "DENY_SANDBOX"
+    // Resolve no user-provided arbitrary paths; reject even dangling links.
+    if (hasReservedSymlink(sandbox)) return "DENY_PATH_ALIAS"
+    val validOwner = try {
+      Files.isDirectory(sandbox.toPath(), LinkOption.NOFOLLOW_LINKS) &&
+        Files.isRegularFile(owner.toPath(), LinkOption.NOFOLLOW_LINKS) &&
+        owner.length() == token.length.toLong() &&
+        owner.readText() == token
+    } catch (_: Exception) { false }
+    if (!validOwner) return "DENY_SANDBOX"
     val journalBytes = fixtureRecord(2L, "SOURCE_BACKED_UP")
     val witnessPayload = "w1|2|SOURCE_BACKED_UP|${sha(journalBytes)}"
     val witnessBytes = "$witnessPayload|${sha(witnessPayload.toByteArray(Charsets.UTF_8))}"
