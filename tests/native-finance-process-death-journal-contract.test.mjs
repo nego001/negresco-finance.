@@ -38,6 +38,9 @@ test('real SIGKILL is confined to private non-exported debug worker process and 
   assert.match(service, /Os\.read/);
   assert.match(service, /Os\.close/);
   assert.match(service, /OsConstants\.O_NOFOLLOW/);
+  assert.match(service, /OsConstants\.O_NONBLOCK/);
+  assert.match(service, /INJECT_OWNER_FIFO_BEFORE_OPEN_FIXTURE_ONLY/);
+  assert.match(service, /Os\.mkfifo\(owner\.absolutePath, 384\)/);
   assert.match(service, /st_nlink != 1L/);
   assert.match(service, /actual\.contentEquals\(expected\)/);
   assert.match(service, /UUID\.fromString\(token\)/);
@@ -68,7 +71,7 @@ test('real SIGKILL is confined to private non-exported debug worker process and 
 });
 
 test('instrumentation observes remote process death and reopen without ever authorizing migration', () => {
-  assert.equal((tests.match(/@Test fun /g) || []).length, 20);
+  assert.equal((tests.match(/@Test fun /g) || []).length, 21);
   assert.match(tests, /app\.bindService\(intent, connection, Context\.BIND_AUTO_CREATE\)/);
   assert.match(tests, /onServiceDisconnected/);
   assert.match(tests, /processDied\.await\(20, TimeUnit\.SECONDS\)/);
@@ -90,6 +93,9 @@ test('instrumentation observes remote process death and reopen without ever auth
   assert.match(tests, /symbolicWitnessBackupCannotRedirectWrite/);
   assert.match(tests, /symbolicJournalBackupCannotRedirectWrite/);
   assert.match(tests, /swappedOwnerSymlinkAfterPreflightCannotAuthorizeWrite/);
+  assert.match(tests, /swappedOwnerFifoAfterPreflightCannotHangOrAuthorize/);
+  assert.match(tests, /OsConstants\.S_ISFIFO/);
+  assert.match(tests, /Os\.lstat\(owner\.absolutePath\)/);
   assert.match(tests, /Files\.isSymbolicLink\(owner\.toPath\(\)\)/);
   assert.match(tests, /moved\.readText\(\)/);
   assert.match(tests, /EXTERNAL_WITNESS_BACKUP_UNTOUCHED/);

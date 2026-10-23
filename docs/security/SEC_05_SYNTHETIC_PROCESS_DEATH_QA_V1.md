@@ -74,6 +74,12 @@ A classe recebe o vigésimo cenário: o serviço Debug move seu próprio marcado
 
 Esse é um ensaio determinístico da proteção do último componente do caminho, e não demonstra proteção contra trocas dos diretórios ancestrais. **Pendente de compilação e testes Android reais.**
 
+## Arquivo especial no marcador de posse (21º caso, laboratório)
+
+A abertura do marcador agora usa `O_NONBLOCK` além de `O_NOFOLLOW`, `O_RDONLY` e `O_CLOEXEC`. O `fstat` do descritor já rejeitava entradas que não são arquivos regulares; porém `open` em uma FIFO sem escritor **poderia bloquear antes de alcançar o `fstat`**. `O_NONBLOCK` reduz especificamente esse risco.
+
+O worker Debug adiciona o modo `INJECT_OWNER_FIFO_BEFORE_OPEN_FIXTURE_ONLY`: depois dos primeiros checks, move o marcador real para um nome de teste e cria uma FIFO `0600` no nome do marcador. O 21º teste exige retorno `DENY_SANDBOX` com resposta e SIGKILL do processo separado, confirma que a entrada é FIFO e que os bytes de journal, witness e marcador original permanecem intactos. Desfaz a injeção antes da reabertura diagnóstica. **Não é prova de proteção contra todo tipo de arquivo especial ou TOCTOU; pendente de instrumentação Android.**
+
 ## Limites explícitos
 
 - Um `SIGKILL` após um ponto de escrita conhecido **não** simula queda elétrica ou inconsistência de storage físico, nem determina exatamente a durabilidade de `fsync` em todos os hardwares.

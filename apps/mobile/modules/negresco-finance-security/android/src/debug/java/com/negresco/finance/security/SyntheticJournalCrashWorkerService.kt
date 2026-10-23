@@ -130,7 +130,8 @@ class SyntheticJournalCrashWorkerService : Service() {
     val expected = token.toByteArray(Charsets.UTF_8)
     val fd = try {
       Os.open(owner.absolutePath,
-        OsConstants.O_RDONLY or OsConstants.O_CLOEXEC or OsConstants.O_NOFOLLOW, 0)
+        OsConstants.O_RDONLY or OsConstants.O_CLOEXEC or
+          OsConstants.O_NOFOLLOW or OsConstants.O_NONBLOCK, 0)
     } catch (_: Exception) { return false }
     try {
       val stat = Os.fstat(fd)
@@ -159,12 +160,14 @@ class SyntheticJournalCrashWorkerService : Service() {
     // Fault-injection modes create only disposable links within this sandbox,
     // after the first checkpoint is committed. Never accept arbitrary paths.
     val injectOwnerSymlink = mode == "INJECT_OWNER_SYMLINK_BEFORE_OPEN_FIXTURE_ONLY"
+    val injectOwnerFifo = mode == "INJECT_OWNER_FIFO_BEFORE_OPEN_FIXTURE_ONLY"
     val injectLateSymlink = mode == "INJECT_LATE_SYMLINK_FIXTURE_ONLY"
     val injectLateHardlink = mode == "INJECT_LATE_HARDLINK_FIXTURE_ONLY"
     if (mode !in setOf(
         "AFTER_WITNESS", "DURING_JOURNAL", "AFTER_BOTH",
         "INJECT_LATE_SYMLINK_FIXTURE_ONLY", "INJECT_LATE_HARDLINK_FIXTURE_ONLY",
-        "INJECT_OWNER_SYMLINK_BEFORE_OPEN_FIXTURE_ONLY"))
+        "INJECT_OWNER_SYMLINK_BEFORE_OPEN_FIXTURE_ONLY",
+        "INJECT_OWNER_FIFO_BEFORE_OPEN_FIXTURE_ONLY"))
       return "DENY_MODE"
     val sandbox = File(noBackupFilesDir, "negresco_synthetic_atomic_$token")
     val owner = File(sandbox, ".synthetic-test-owner")
@@ -174,11 +177,17 @@ class SyntheticJournalCrashWorkerService : Service() {
     // Test-only interleaving: move the real owner marker and swap its old
     // name for a symlink pointing at the identical UUID bytes. A pathname
     // read would accept this; O_NOFOLLOW on the open must reject it.
-    if (injectOwnerSymlink) {
+    if (injectOwnerSymlink || injectOwnerFifo) {
       try {
         val stashed = File(sandbox, ".synthetic-owner-moved-for-test")
         Files.move(owner.toPath(), stashed.toPath())
-        Files.createSymbolicLink(owner.toPath(), stashed.toPath())
+        if (injectOwnerSymlink) {
+          Files.createSymbolicLink(owner.toPath(), stashed.toPath())
+        } else {
+          // FIFO with no writer would block O_RDONLY without O_NONBLOCK.
+          // This fault is confined to the disposable Debug test directory.
+          Os.mkfifo(owner.absolutePath, 384) // 0600 permissions
+        }
       } catch (_: Exception) {
         return "DENY_WORKER_IO"
       }

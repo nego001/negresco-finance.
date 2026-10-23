@@ -11,6 +11,8 @@ import android.os.Looper
 import android.os.Message
 import android.os.Messenger
 import android.os.Process
+import android.system.Os
+import android.system.OsConstants
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import java.io.File
@@ -445,6 +447,37 @@ class SyntheticJournalActualProcessDeathTest {
       }
     }
     assertEquals("restored fixture remains a diagnostic hold",
+      "HOLD_SYNTHETIC_PAIR_MATCH_NOT_AUTHORITY",
+      SyntheticJournalIndependentWitness(root).inspectPair())
+  }
+
+  /**
+   * Replace the owner marker with a FIFO only AFTER preflight. Opening a
+   * FIFO O_RDONLY without O_NONBLOCK can wait forever for a writer.
+   * The worker must answer DENY instead of hanging, and never touch either
+   * checkpoint. No external data or untrusted IPC paths enter this test.
+   */
+  @Test fun swappedOwnerFifoAfterPreflightCannotHangOrAuthorize() {
+    val owner = File(root, ".synthetic-test-owner")
+    val moved = File(root, ".synthetic-owner-moved-for-test")
+    val witness = File(root, "synthetic-migration.witness")
+    val oldJournal = journalFile.readBytes()
+    val oldWitness = witness.readBytes()
+    try {
+      assertEquals("DENY_SANDBOX",
+        killRemoteWorker("INJECT_OWNER_FIFO_BEFORE_OPEN_FIXTURE_ONLY"))
+      assertTrue("injected owner must be a FIFO, not regular file",
+        OsConstants.S_ISFIFO(Os.lstat(owner.absolutePath).st_mode))
+      assertEquals("moved real owner must be intact", token, moved.readText())
+      assertArrayEquals("FIFO must not change journal", oldJournal, journalFile.readBytes())
+      assertArrayEquals("FIFO must not change witness", oldWitness, witness.readBytes())
+    } finally {
+      Files.deleteIfExists(owner.toPath())
+      if (Files.exists(moved.toPath(), LinkOption.NOFOLLOW_LINKS)) {
+        Files.move(moved.toPath(), owner.toPath())
+      }
+    }
+    assertEquals("restored fixture remains diagnostic hold",
       "HOLD_SYNTHETIC_PAIR_MATCH_NOT_AUTHORITY",
       SyntheticJournalIndependentWitness(root).inspectPair())
   }
