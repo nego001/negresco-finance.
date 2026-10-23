@@ -145,7 +145,7 @@ class SyntheticKeystoreSqlcipherLifecycleBoundaryTest {
     val fixture = prepare()
     val lifecycle = NativeLockLifecycleFence()
     var cryptoTouches = 0
-    val touch = { cryptoTouches++ }
+    val touch: () -> Unit = { cryptoTouches += 1 }
     try {
       assertEquals("HOLD_TEST_PERMIT_OR_LIFECYCLE",
         observeFixtureOnly(fixture, lifecycle, null, true, touch))
