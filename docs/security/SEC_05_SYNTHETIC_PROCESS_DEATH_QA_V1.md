@@ -32,6 +32,16 @@ A nova revisão acrescenta cinco testes no mesmo `SyntheticJournalActualProcessD
 
 São verificações de recusa e **não demonstram** segurança diante de um processo hostil com permissão de escrita no mesmo diretório, symlink/TOCTOU, atacante com controle da sandbox, parada elétrica ou proteção monotônica externa. Os resultados dos cinco novos testes dependem de uma nova execução concluída da CI.
 
+## Contenção de links simbólicos nos arquivos descartáveis (nova revisão)
+
+A inspeção original usava `File.isDirectory` e `File.isFile`, que **seguem links simbólicos**. Um link no marcador de posse, ou nos nomes usados por `AtomicFile`, poderia redirecionar uma leitura/gravação dentro da sandbox sintética. A revisão adiciona `hasReservedSymlink` ao serviço Debug: antes de tocar os checkpoints, rejeita links no diretório, marcador de posse, arquivos `journal`/`witness` e respectivos irmãos `.new` e `.bak`. Até links quebrados são recusados, retornando `DENY_PATH_ALIAS`.
+
+O diretório e o marcador passam a ser verificados com `LinkOption.NOFOLLOW_LINKS`. O marcador também precisa ter comprimento igual ao token UUID esperado, antes da leitura. Falhas nessas condições respondem `DENY_SANDBOX`; os checkpoints não são reescritos.
+
+**Quatro testes instrumentados adicionais, perfazendo doze nesta classe:** symlink do marcador de posse para fixture externa; symlink em `synthetic-migration.witness.new`; symlink em `synthetic-migration.journal.new`; marcador de posse maior que o esperado. Cada teste exige recusa, bytes de journal/witness preservados e estado `HOLD_SYNTHETIC_PAIR_MATCH_NOT_AUTHORITY`. Os três testes com links também conferem que o arquivo externo descartável mantém seu conteúdo original. O contrato Node passa a exigir essas proteções e a contagem de doze testes.
+
+**Resultado dos quatro testes novos: pendente de CI.** O bloqueio é uma inspeção antes de escrever, não um handle seguro transacional. Um atacante com permissão de substituir caminhos após essa conferência ainda pode explorar uma corrida TOCTOU; hardlinks, mount points e antepassados hostis continuam fora de escopo. O objetivo continua estritamente de QA sintético, nunca prova de isolamento para dados financeiros.
+
 ## Limites explícitos
 
 - Um `SIGKILL` após um ponto de escrita conhecido **não** simula queda elétrica ou inconsistência de storage físico, nem determina exatamente a durabilidade de `fsync` em todos os hardwares.
