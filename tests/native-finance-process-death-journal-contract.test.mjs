@@ -28,6 +28,9 @@ test('real SIGKILL is confined to private non-exported debug worker process and 
   assert.match(service, /noBackupFilesDir/);
   assert.match(service, /negresco_synthetic_atomic_\$token/);
   assert.match(service, /\.synthetic-test-owner/);
+  assert.match(service, /owner\.readText\(\) != token/);
+  assert.match(service, /UUID\.fromString\(token\)/);
+  assert.match(service, /DENY_MODE/);
   assert.match(service, /AtomicFile\(/);
   assert.match(service, /AFTER_WITNESS/);
   assert.match(service, /DURING_JOURNAL/);
@@ -37,7 +40,7 @@ test('real SIGKILL is confined to private non-exported debug worker process and 
 });
 
 test('instrumentation observes remote process death and reopen without ever authorizing migration', () => {
-  assert.equal((tests.match(/@Test fun /g) || []).length, 3);
+  assert.equal((tests.match(/@Test fun /g) || []).length, 8);
   assert.match(tests, /app\.bindService\(intent, connection, Context\.BIND_AUTO_CREATE\)/);
   assert.match(tests, /onServiceDisconnected/);
   assert.match(tests, /processDied\.await\(20, TimeUnit\.SECONDS\)/);
@@ -48,6 +51,16 @@ test('instrumentation observes remote process death and reopen without ever auth
   assert.match(tests, /deathAfterWitnessCommitRetainsDenyOnNewReader/);
   assert.match(tests, /deathWithPartiallyWrittenJournalDoesNotCommitNewCheckpoint/);
   assert.match(tests, /deathAfterBothCommittedAllowsOnlyDiagnosticHoldOnReopen/);
+  assert.match(tests, /malformedUuidCannotModifyExistingFixture/);
+  assert.match(tests, /unknownValidUuidCannotModifyExistingFixture/);
+  assert.match(tests, /unsupportedModeCannotModifyExistingFixture/);
+  assert.match(tests, /missingOwnerMarkerCannotModifyExistingFixture/);
+  assert.match(tests, /forgedOwnerMarkerCannotModifyExistingFixture/);
+  assert.match(tests, /assertRejectedRequestPreservesFixture/);
+  assert.match(tests, /assertArrayEquals/);
+  assert.match(tests, /DENY_TOKEN/);
+  assert.match(tests, /DENY_SANDBOX/);
+  assert.match(tests, /DENY_MODE/);
   assert.match(tests, /root\.deleteRecursively\(\)/);
   assert.doesNotMatch(tests, /YES_PHYSICAL_CONSENT|financialStorageAllowed.*true|ALLOW_MIGRATION/);
   assert.match(ci, /:negresco-finance-security:compileDebugAndroidTestKotlin/);
