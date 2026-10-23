@@ -19,6 +19,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 import org.junit.After
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
@@ -60,7 +61,7 @@ class SyntheticJournalActualProcessDeathTest {
       root.deleteRecursively())
   }
 
-  private fun killRemoteWorker(mode: String): String {
+  private fun killRemoteWorker(mode: String, suppliedToken: String = token): String {
     val connected = CountDownLatch(1)
     val delivered = CountDownLatch(1)
     val processDied = CountDownLatch(1)
@@ -94,7 +95,7 @@ class SyntheticJournalActualProcessDeathTest {
       val command = Message.obtain().apply {
         replyTo = callback
         data = Bundle().apply {
-          putString("token", token)
+          putString("token", suppliedToken)
           putString("mode", mode)
         }
       }
@@ -138,5 +139,50 @@ class SyntheticJournalActualProcessDeathTest {
       SyntheticJournalIndependentWitness(root).inspectPair())
     assertEquals("HOLD_SYNTHETIC_JOURNAL_READ_NOT_AUTHORITY",
       SyntheticAtomicMigrationJournal(journalFile).inspectExisting())
+  }
+
+  /**
+   * Invalid requests must not rewrite either member of the synthetic pair.
+   * Every command runs in the dedicated Debug-only worker and the same
+   * process-death assertion still applies when the worker returns DENY.
+   */
+  private fun assertRejectedRequestPreservesFixture(
+    denial: String,
+    mode: String,
+    suppliedToken: String = token
+  ) {
+    val witnessFile = File(root, "synthetic-migration.witness")
+    val beforeJournal = journalFile.readBytes()
+    val beforeWitness = witnessFile.readBytes()
+    assertEquals(denial, killRemoteWorker(mode, suppliedToken))
+    assertArrayEquals("denial must not modify existing journal",
+      beforeJournal, journalFile.readBytes())
+    assertArrayEquals("denial must not modify existing witness",
+      beforeWitness, witnessFile.readBytes())
+    assertEquals("HOLD_SYNTHETIC_PAIR_MATCH_NOT_AUTHORITY",
+      SyntheticJournalIndependentWitness(root).inspectPair())
+  }
+
+  @Test fun malformedUuidCannotModifyExistingFixture() {
+    assertRejectedRequestPreservesFixture("DENY_TOKEN", "AFTER_BOTH", "../invalid")
+  }
+
+  @Test fun unknownValidUuidCannotModifyExistingFixture() {
+    assertRejectedRequestPreservesFixture(
+      "DENY_SANDBOX", "AFTER_BOTH", UUID.randomUUID().toString())
+  }
+
+  @Test fun unsupportedModeCannotModifyExistingFixture() {
+    assertRejectedRequestPreservesFixture("DENY_MODE", "ERASE_REAL_DATA")
+  }
+
+  @Test fun missingOwnerMarkerCannotModifyExistingFixture() {
+    assertTrue(File(root, ".synthetic-test-owner").delete())
+    assertRejectedRequestPreservesFixture("DENY_SANDBOX", "AFTER_BOTH")
+  }
+
+  @Test fun forgedOwnerMarkerCannotModifyExistingFixture() {
+    File(root, ".synthetic-test-owner").writeText(UUID.randomUUID().toString())
+    assertRejectedRequestPreservesFixture("DENY_SANDBOX", "AFTER_BOTH")
   }
 }
