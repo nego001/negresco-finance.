@@ -117,6 +117,12 @@ Mesmo com duas verificações do mesmo UUID, um arquivo regular novo pode ter by
 
 **A comparação não elimina TOCTOU geral.** Continua possível trocar o caminho depois da segunda verificação e o descritor do diretório não está ancorado. Não há antirrollback externo, autenticação ou proteção de dados financeiros; execução Android instrumentada do 26º caso aprovada na CI #39963256706, conforme a matriz de evidências acima.
 
+## Gate de evidências JUnit (preparado em laboratório após 26 cenários aprovados)
+
+O relatório `TEST-*.xml` da instrumentação passa por um auditor Python independente, após `connectedDebugAndroidTest` e antes do upload. O gate exige pelo menos um XML válido e não vazio, sem pares duplicados `(classname, testname)`, sem erros/falhas, os **26 casos** de `SyntheticJournalActualProcessDeathTest` presentes e o teste de continuidade de inode efetivamente executado (não SKIPPED). Qualquer `SKIPPED` fora da lista conhecida de hardlinks não suportados e biometria física opt-in reprova o job. Quaisquer skips permitidos continuam evidenciados como cobertura ausente, nunca como proteção validada.
+
+O auditor gera uma tabela-resumo textual em `GITHUB_STEP_SUMMARY`; se a auditoria falhar, `if: always()` ainda envia o XML bruto para diagnóstico. A primeira implementação foi conferida localmente com o ZIP real da [CI #39966291916](https://github.com/nego001/negresco-finance./actions/runs/39966291916): **106 casos, 101 executados com sucesso, 5 SKIPPED e 26/26 cenários SEC-05 presentes**. Um diretório sem XML gerou corretamente falha, mas a nova etapa ainda necessita execução na CI de PR antes de ser considerada aprovada.
+
 ## Limites explícitos
 
 - Um `SIGKILL` após um ponto de escrita conhecido **não** simula queda elétrica ou inconsistência de storage físico, nem determina exatamente a durabilidade de `fsync` em todos os hardwares.

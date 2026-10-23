@@ -130,6 +130,10 @@ jobs:
           # android-emulator-runner executes each multiline script line in a
           # separate shell. Keep cd + chmod + Gradle in ONE shell command.
           script: bash -c 'cd apps/mobile/android && chmod +x gradlew && ./gradlew :negresco-finance-security:connectedDebugAndroidTest --no-daemon --stacktrace'
+      # Reject green emulator runs with missing or incomplete JUnit evidence.
+      # Always upload the raw report even if this audit fails.
+      - name: Audit SEC-05 Android JUnit evidence
+        run: python3 tooling/sec05_android_junit_audit.py apps/mobile/modules/negresco-finance-security/android/build/outputs/androidTest-results/connected/
       # Preserve raw instrumentation evidence on both success and failure.
       # SKIPPED hardlink tests are not a positive verification of st_nlink.
       - name: Upload synthetic module instrumentation reports

@@ -10,6 +10,7 @@ const tests = read(dir + 'src/androidTest/java/com/negresco/finance/security/Syn
 const mainManifest = read(dir + 'src/main/AndroidManifest.xml');
 const module = read(dir + 'src/main/java/com/negresco/finance/security/NegrescoFinanceSecurityV1Module.kt');
 const ci = read('.github/workflows/ci.yml');
+const junitAudit = read('tooling/sec05_android_junit_audit.py');
 
 test('real SIGKILL is confined to private non-exported debug worker process and disposable journal fixtures', () => {
   assert.match(manifest, /android:name="com\.negresco\.finance\.security\.SyntheticJournalCrashWorkerService"/);
@@ -158,6 +159,14 @@ test('instrumentation observes remote process death and reopen without ever auth
   assert.match(ci, /:negresco-finance-security:connectedDebugAndroidTest/);
   assert.match(ci, /:negresco-finance-security:bundleReleaseAar/);
   assert.match(ci, /SyntheticBiometricManualQaActivity\|SyntheticJournalCrashWorkerService/);
+  // A green emulator must contain a real, complete JUnit XML report.
+  assert.match(ci, /Audit SEC-05 Android JUnit evidence/);
+  assert.match(ci, /python3 tooling\/sec05_android_junit_audit\.py/);
+  assert.match(junitAudit, /EXPECTED_SEC05_CASES = 26/);
+  assert.match(junitAudit, /ownerReplacedWithSameUuidAfterWitnessCannotCommitJournal/);
+  assert.match(junitAudit, /Unexpected SKIPPED/i);
+  assert.match(junitAudit, /JUnit XML contains duplicate/);
+  assert.match(junitAudit, /GITHUB_STEP_SUMMARY/);
   // A green emulator must preserve evidence of any Android-side SKIPPED tests.
   const evidenceStep = ci.match(/- name: Upload synthetic module instrumentation reports\n([\s\S]*?)(?=\n\s{2}[A-Za-z0-9_-]+:|$)/)?.[1] ?? '';
   assert.match(evidenceStep, /if: always\(\)/);
