@@ -158,4 +158,12 @@ test('instrumentation observes remote process death and reopen without ever auth
   assert.match(ci, /:negresco-finance-security:connectedDebugAndroidTest/);
   assert.match(ci, /:negresco-finance-security:bundleReleaseAar/);
   assert.match(ci, /SyntheticBiometricManualQaActivity\|SyntheticJournalCrashWorkerService/);
+  // A green emulator must preserve evidence of any Android-side SKIPPED tests.
+  const evidenceStep = ci.match(/- name: Upload synthetic module instrumentation reports\n([\s\S]*?)(?=\n\s{2}[A-Za-z0-9_-]+:|$)/)?.[1] ?? '';
+  assert.match(evidenceStep, /if: always\(\)/);
+  assert.match(evidenceStep, /actions\/upload-artifact@v4/);
+  assert.match(evidenceStep, /expo-native-synthetic-test-reports/);
+  assert.match(evidenceStep, /androidTest-results\/connected\//);
+  assert.match(evidenceStep, /if-no-files-found: warn/);
+  assert.doesNotMatch(evidenceStep, /if: failure\(\)/);
 });
