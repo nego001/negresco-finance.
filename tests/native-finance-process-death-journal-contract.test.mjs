@@ -33,10 +33,10 @@ test('real SIGKILL is confined to private non-exported debug worker process and 
   assert.match(service, /DENY_MODE/);
   assert.match(service, /DENY_PATH_ALIAS/);
   assert.match(service, /hasReservedSymlink/);
-  assert.match(service, /Files\\.isSymbolicLink/);
-  assert.match(service, /LinkOption\\.NOFOLLOW_LINKS/);
-  assert.match(service, /synthetic-migration\\.journal\\.new/);
-  assert.match(service, /synthetic-migration\\.witness\\.new/);
+  assert.match(service, /Files\.isSymbolicLink/);
+  assert.match(service, /LinkOption\.NOFOLLOW_LINKS/);
+  assert.match(service, /synthetic-migration\.journal\.new/);
+  assert.match(service, /synthetic-migration\.witness\.new/);
   assert.match(service, /AtomicFile\(/);
   assert.match(service, /AFTER_WITNESS/);
   assert.match(service, /DURING_JOURNAL/);
@@ -66,7 +66,7 @@ test('instrumentation observes remote process death and reopen without ever auth
   assert.match(tests, /symbolicWitnessNewFileCannotRedirectWrite/);
   assert.match(tests, /symbolicJournalNewFileCannotRedirectWrite/);
   assert.match(tests, /oversizedOwnerMarkerCannotAuthorizeWorkerWrite/);
-  assert.match(tests, /Files\\.createSymbolicLink/);
+  assert.match(tests, /Files\.createSymbolicLink/);
   assert.match(tests, /DENY_PATH_ALIAS/);
   assert.match(tests, /EXTERNAL_WITNESS_UNTOUCHED/);
   assert.match(tests, /EXTERNAL_JOURNAL_UNTOUCHED/);
