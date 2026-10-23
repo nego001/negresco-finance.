@@ -163,11 +163,15 @@ class SyntheticJournalCrashWorkerService : Service() {
     val injectOwnerFifo = mode == "INJECT_OWNER_FIFO_BEFORE_OPEN_FIXTURE_ONLY"
     val injectLateSymlink = mode == "INJECT_LATE_SYMLINK_FIXTURE_ONLY"
     val injectLateHardlink = mode == "INJECT_LATE_HARDLINK_FIXTURE_ONLY"
+    val injectLateOwnerTamper = mode == "INJECT_OWNER_TAMPER_AFTER_WITNESS_FIXTURE_ONLY"
+    val injectLateOwnerRemoval = mode == "INJECT_OWNER_REMOVAL_AFTER_WITNESS_FIXTURE_ONLY"
     if (mode !in setOf(
         "AFTER_WITNESS", "DURING_JOURNAL", "AFTER_BOTH",
         "INJECT_LATE_SYMLINK_FIXTURE_ONLY", "INJECT_LATE_HARDLINK_FIXTURE_ONLY",
         "INJECT_OWNER_SYMLINK_BEFORE_OPEN_FIXTURE_ONLY",
-        "INJECT_OWNER_FIFO_BEFORE_OPEN_FIXTURE_ONLY"))
+        "INJECT_OWNER_FIFO_BEFORE_OPEN_FIXTURE_ONLY",
+        "INJECT_OWNER_TAMPER_AFTER_WITNESS_FIXTURE_ONLY",
+        "INJECT_OWNER_REMOVAL_AFTER_WITNESS_FIXTURE_ONLY"))
       return "DENY_MODE"
     val sandbox = File(noBackupFilesDir, "negresco_synthetic_atomic_$token")
     val owner = File(sandbox, ".synthetic-test-owner")
@@ -216,8 +220,22 @@ class SyntheticJournalCrashWorkerService : Service() {
           return "DENY_PLATFORM_HARDLINK"
         }
       }
+      // Faults inserted after the witness was committed, not before. Both
+      // keep the owner name a non-symlink and avoid hardlink counts > 1,
+      // so simple alias preflights alone cannot reject the tampered owner.
+      if (injectLateOwnerTamper) {
+        val otherUuid = if (token == "00000000-0000-0000-0000-000000000000")
+          "11111111-1111-1111-1111-111111111111"
+        else "00000000-0000-0000-0000-000000000000"
+        owner.writeText(otherUuid)
+      } else if (injectLateOwnerRemoval) {
+        Files.delete(owner.toPath())
+      }
       if (hasReservedSymlink(sandbox)) return "DENY_PATH_ALIAS"
       if (hasReservedHardlink(sandbox)) return "DENY_HARDLINK"
+      // Check test ownership again after the witness transition. This
+      // catches a marker changed or removed between the two checkpoints.
+      if (!validOwnerFromDescriptor(owner, token)) return "DENY_SANDBOX"
       when (mode) {
         "AFTER_WITNESS" -> "WITNESS_COMMITTED_THEN_PROCESS_KILLED"
         "DURING_JOURNAL" -> {

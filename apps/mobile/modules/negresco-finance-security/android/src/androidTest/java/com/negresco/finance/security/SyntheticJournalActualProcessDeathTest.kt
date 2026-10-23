@@ -481,4 +481,52 @@ class SyntheticJournalActualProcessDeathTest {
       "HOLD_SYNTHETIC_PAIR_MATCH_NOT_AUTHORITY",
       SyntheticJournalIndependentWitness(root).inspectPair())
   }
+
+  /**
+   * The witness is already on generation 2 when ownership changes.
+   * Alias-only rechecks are insufficient: a new regular marker of the same
+   * length or a missing marker must stop the journal generation advance.
+   */
+  private fun assertOwnerChangedAfterWitnessStopsJournal(mode: String, removed: Boolean) {
+    val owner = File(root, ".synthetic-test-owner")
+    val witness = File(root, "synthetic-migration.witness")
+    val beforeJournal = journalFile.readBytes()
+    val beforeWitness = witness.readBytes()
+    try {
+      assertEquals("DENY_SANDBOX", killRemoteWorker(mode))
+      if (removed) {
+        assertTrue("worker must remove owner only inside synthetic sandbox",
+          !Files.exists(owner.toPath(), LinkOption.NOFOLLOW_LINKS))
+      } else {
+        assertTrue("forged owner remains a regular file",
+          Files.isRegularFile(owner.toPath(), LinkOption.NOFOLLOW_LINKS))
+        assertEquals("forged UUID must have the original length",
+          token.length, owner.readText().length)
+        assertNotEquals("same-length forged UUID must be different",
+          token, owner.readText())
+      }
+      assertArrayEquals("journal must retain generation 1",
+        beforeJournal, journalFile.readBytes())
+      assertTrue("the witness must be committed before owner injection",
+        !beforeWitness.contentEquals(witness.readBytes()))
+    } finally {
+      // Only restore the disposable marker. Never authorize a migration.
+      owner.writeText(token)
+    }
+    assertEquals("an orphaned witness must remain a diagnostic deny",
+      "DENY_SYNTHETIC_PAIR_MISMATCH",
+      SyntheticJournalIndependentWitness(root).inspectPair())
+    assertArrayEquals("reopening must not advance journal",
+      beforeJournal, journalFile.readBytes())
+  }
+
+  @Test fun ownerTamperedAfterWitnessCannotCommitJournal() {
+    assertOwnerChangedAfterWitnessStopsJournal(
+      "INJECT_OWNER_TAMPER_AFTER_WITNESS_FIXTURE_ONLY", false)
+  }
+
+  @Test fun ownerRemovedAfterWitnessCannotCommitJournal() {
+    assertOwnerChangedAfterWitnessStopsJournal(
+      "INJECT_OWNER_REMOVAL_AFTER_WITNESS_FIXTURE_ONLY", true)
+  }
 }

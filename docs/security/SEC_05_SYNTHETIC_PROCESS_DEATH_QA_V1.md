@@ -80,6 +80,14 @@ A abertura do marcador agora usa `O_NONBLOCK` além de `O_NOFOLLOW`, `O_RDONLY` 
 
 O worker Debug adiciona o modo `INJECT_OWNER_FIFO_BEFORE_OPEN_FIXTURE_ONLY`: depois dos primeiros checks, move o marcador real para um nome de teste e cria uma FIFO `0600` no nome do marcador. O 21º teste exige retorno `DENY_SANDBOX` com resposta e SIGKILL do processo separado, confirma que a entrada é FIFO e que os bytes de journal, witness e marcador original permanecem intactos. Desfaz a injeção antes da reabertura diagnóstica. **Não é prova de proteção contra todo tipo de arquivo especial ou TOCTOU; pendente de instrumentação Android.**
 
+## Mudança ou remoção da posse entre witness e journal (22º e 23º casos, laboratório)
+
+O worker Debug agora relê o marcador de posse **após confirmar a gravação do witness e antes de abrir o journal**, usando o mesmo descritor `Os.open(...O_NOFOLLOW|O_NONBLOCK)` e validação `fstat`/bytes. Isso cobre uma janela específica em que o arquivo ainda é regular (sem symlink nem hardlink), mas seu UUID foi adulterado ou seu nome foi removido depois da primeira verificação.
+
+Dois modos internos de fault injection, `INJECT_OWNER_TAMPER_AFTER_WITNESS_FIXTURE_ONLY` e `INJECT_OWNER_REMOVAL_AFTER_WITNESS_FIXTURE_ONLY`, criam essas condições **somente nos arquivos descartáveis da sandbox Debug**. Os cenários 22 e 23 exigem `DENY_SANDBOX`, preservação byte a byte do journal antigo, testemunha realmente avançada, restauração do marcador e recusa `DENY_SYNTHETIC_PAIR_MISMATCH` ao reabrir o par. A classe passa a **23 testes instrumentados**, pendentes de compilação e emulador.
+
+A verificação tardia não prova proteção contra substituição do mesmo conteúdo/arquivo, TOCTOU após a segunda checagem, acesso por descritor de diretório confiável ou autoridade antirollback externa.
+
 ## Limites explícitos
 
 - Um `SIGKILL` após um ponto de escrita conhecido **não** simula queda elétrica ou inconsistência de storage físico, nem determina exatamente a durabilidade de `fsync` em todos os hardwares.

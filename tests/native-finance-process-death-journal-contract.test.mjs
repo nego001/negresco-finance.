@@ -40,6 +40,11 @@ test('real SIGKILL is confined to private non-exported debug worker process and 
   assert.match(service, /OsConstants\.O_NOFOLLOW/);
   assert.match(service, /OsConstants\.O_NONBLOCK/);
   assert.match(service, /INJECT_OWNER_FIFO_BEFORE_OPEN_FIXTURE_ONLY/);
+  assert.match(service, /INJECT_OWNER_TAMPER_AFTER_WITNESS_FIXTURE_ONLY/);
+  assert.match(service, /INJECT_OWNER_REMOVAL_AFTER_WITNESS_FIXTURE_ONLY/);
+  assert.match(service, /owner\.writeText\(otherUuid\)/);
+  assert.match(service, /Files\.delete\(owner\.toPath\(\)\)/);
+  assert.match(service, /if \(!validOwnerFromDescriptor\(owner, token\)\) return "DENY_SANDBOX"/);
   assert.match(service, /Os\.mkfifo\(owner\.absolutePath, 384\)/);
   assert.match(service, /st_nlink != 1L/);
   assert.match(service, /actual\.contentEquals\(expected\)/);
@@ -71,7 +76,7 @@ test('real SIGKILL is confined to private non-exported debug worker process and 
 });
 
 test('instrumentation observes remote process death and reopen without ever authorizing migration', () => {
-  assert.equal((tests.match(/@Test fun /g) || []).length, 21);
+  assert.equal((tests.match(/@Test fun /g) || []).length, 23);
   assert.match(tests, /app\.bindService\(intent, connection, Context\.BIND_AUTO_CREATE\)/);
   assert.match(tests, /onServiceDisconnected/);
   assert.match(tests, /processDied\.await\(20, TimeUnit\.SECONDS\)/);
@@ -94,6 +99,10 @@ test('instrumentation observes remote process death and reopen without ever auth
   assert.match(tests, /symbolicJournalBackupCannotRedirectWrite/);
   assert.match(tests, /swappedOwnerSymlinkAfterPreflightCannotAuthorizeWrite/);
   assert.match(tests, /swappedOwnerFifoAfterPreflightCannotHangOrAuthorize/);
+  assert.match(tests, /ownerTamperedAfterWitnessCannotCommitJournal/);
+  assert.match(tests, /ownerRemovedAfterWitnessCannotCommitJournal/);
+  assert.match(tests, /assertOwnerChangedAfterWitnessStopsJournal/);
+  assert.match(tests, /DENY_SYNTHETIC_PAIR_MISMATCH/);
   assert.match(tests, /OsConstants\.S_ISFIFO/);
   assert.match(tests, /Os\.lstat\(owner\.absolutePath\)/);
   assert.match(tests, /Files\.isSymbolicLink\(owner\.toPath\(\)\)/);
