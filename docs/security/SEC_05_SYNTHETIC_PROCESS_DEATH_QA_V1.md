@@ -50,6 +50,14 @@ Três testes instrumentados novos, elevando a classe a **15 testes**, criam hard
 
 **Não considerar esses três testes aprovados sem uma nova CI completa.** `lstat` antes da escrita continua sujeito a corrida TOCTOU com um processo capaz de alterar a pasta. Não é defesa completa contra escritores hostis, mounts maliciosos ou hardlinks criados após a inspeção; não é integração financeira ou antirrollback de produção.
 
+## Interrupção controlada entre duas verificações (nova revisão de laboratório)
+
+O worker Debug agora verifica os nomes reservados **novamente após gravar o witness e antes de abrir o journal**. Dois modos estritamente sintéticos injetam, dentro da própria sandbox, um symlink ou um hardlink `journal.new` apontando para o marcador de posse **após** a primeira verificação. A segunda recusa retorna `DENY_PATH_ALIAS` ou `DENY_HARDLINK`, sem gravar o journal. A testemunha já avançou e o journal antigo permaneceu intacto, portanto `inspectPair()` deve retornar `DENY_SYNTHETIC_PAIR_MISMATCH`, nunca aprovação ou recuperação silenciosa.
+
+Dois novos testes instrumentados elevam a classe a **17 cenários**. Também verificam que o arquivo de posse e os bytes anteriores do journal são preservados e que o alias temporário é eliminado sem seguir seu alvo. O contrato JS impede a perda desses modos e dos checks redundantes.
+
+**Essa é uma demonstração reprodutível de um intervalo específico**, e não uma solução TOCTOU geral. Um invasor com permissão de escrita pode substituir os caminhos imediatamente após a segunda verificação. Confinamento real exige um desenho com descritores, acesso privado a diretórios e revisão específica Android. Nada concede autorização financeira.
+
 ## Limites explícitos
 
 - Um `SIGKILL` após um ponto de escrita conhecido **não** simula queda elétrica ou inconsistência de storage físico, nem determina exatamente a durabilidade de `fsync` em todos os hardwares.

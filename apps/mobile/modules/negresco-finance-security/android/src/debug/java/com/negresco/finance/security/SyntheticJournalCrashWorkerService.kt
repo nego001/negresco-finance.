@@ -124,7 +124,13 @@ class SyntheticJournalCrashWorkerService : Service() {
     // the worker to one single-purpose synthetic directory.
     val parsed = try { UUID.fromString(token) } catch (_: Exception) { return "DENY_TOKEN" }
     if (parsed.toString() != token) return "DENY_TOKEN"
-    if (mode !in setOf("AFTER_WITNESS", "DURING_JOURNAL", "AFTER_BOTH"))
+    // Fault-injection modes create only disposable links within this sandbox,
+    // after the first checkpoint is committed. Never accept arbitrary paths.
+    val injectLateSymlink = mode == "INJECT_LATE_SYMLINK_FIXTURE_ONLY"
+    val injectLateHardlink = mode == "INJECT_LATE_HARDLINK_FIXTURE_ONLY"
+    if (mode !in setOf(
+        "AFTER_WITNESS", "DURING_JOURNAL", "AFTER_BOTH",
+        "INJECT_LATE_SYMLINK_FIXTURE_ONLY", "INJECT_LATE_HARDLINK_FIXTURE_ONLY"))
       return "DENY_MODE"
     val sandbox = File(noBackupFilesDir, "negresco_synthetic_atomic_$token")
     val owner = File(sandbox, ".synthetic-test-owner")
@@ -144,6 +150,17 @@ class SyntheticJournalCrashWorkerService : Service() {
       .toByteArray(Charsets.UTF_8)
     return try {
       writeAtomic(File(sandbox, "synthetic-migration.witness"), witnessBytes)
+      // Deterministic hostile-file rehearsal only. The first alias check
+      // happened BEFORE the witness commit. Inject a new alias afterward and
+      // require the second check to stop us before touching the journal.
+      val lateAlias = File(sandbox, "synthetic-migration.journal.new").toPath()
+      if (injectLateSymlink) {
+        Files.createSymbolicLink(lateAlias, owner.toPath())
+      } else if (injectLateHardlink) {
+        Files.createLink(lateAlias, owner.toPath())
+      }
+      if (hasReservedSymlink(sandbox)) return "DENY_PATH_ALIAS"
+      if (hasReservedHardlink(sandbox)) return "DENY_HARDLINK"
       when (mode) {
         "AFTER_WITNESS" -> "WITNESS_COMMITTED_THEN_PROCESS_KILLED"
         "DURING_JOURNAL" -> {
