@@ -8,6 +8,9 @@ import android.os.Looper
 import android.os.Message
 import android.os.Messenger
 import android.os.Process
+import android.system.ErrnoException
+import android.system.Os
+import android.system.OsConstants
 import android.util.AtomicFile
 import java.io.File
 import java.nio.file.Files
@@ -87,6 +90,35 @@ class SyntheticJournalCrashWorkerService : Service() {
     return reserved.any { Files.isSymbolicLink(File(sandbox, it).toPath()) }
   }
 
+  /**
+   * Refuse existing hard-linked checkpoint/owner files, including AtomicFile
+   * sidecars. lstat reads link counts without following symlinks. Only ENOENT
+   * is permitted for an absent sidecar; other stat errors fail closed.
+   *
+   * This preflight does NOT close a TOCTOU window against a hostile writer.
+   */
+  private fun hasReservedHardlink(sandbox: File): Boolean {
+    val reserved = listOf(
+      ".synthetic-test-owner",
+      "synthetic-migration.witness",
+      "synthetic-migration.witness.new",
+      "synthetic-migration.witness.bak",
+      "synthetic-migration.journal",
+      "synthetic-migration.journal.new",
+      "synthetic-migration.journal.bak"
+    )
+    return reserved.any { name ->
+      try {
+        val stat = Os.lstat(File(sandbox, name).absolutePath)
+        !OsConstants.S_ISREG(stat.st_mode) || stat.st_nlink > 1L
+      } catch (error: ErrnoException) {
+        error.errno != OsConstants.ENOENT
+      } catch (_: Exception) {
+        true
+      }
+    }
+  }
+
   private fun performFixture(token: String, mode: String): String {
     // No caller-supplied paths. A UUID plus disposable owner sentinel bind
     // the worker to one single-purpose synthetic directory.
@@ -98,6 +130,7 @@ class SyntheticJournalCrashWorkerService : Service() {
     val owner = File(sandbox, ".synthetic-test-owner")
     // Resolve no user-provided arbitrary paths; reject even dangling links.
     if (hasReservedSymlink(sandbox)) return "DENY_PATH_ALIAS"
+    if (hasReservedHardlink(sandbox)) return "DENY_HARDLINK"
     val validOwner = try {
       Files.isDirectory(sandbox.toPath(), LinkOption.NOFOLLOW_LINKS) &&
         Files.isRegularFile(owner.toPath(), LinkOption.NOFOLLOW_LINKS) &&

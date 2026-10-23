@@ -253,4 +253,47 @@ class SyntheticJournalActualProcessDeathTest {
     File(root, ".synthetic-test-owner").writeText("X".repeat(4096))
     assertRejectedRequestPreservesFixture("DENY_SANDBOX", "AFTER_BOTH")
   }
+
+  @Test fun hardlinkedOwnerMarkerCannotAuthorizeWorkerWrite() {
+    val owner = File(root, ".synthetic-test-owner")
+    assertTrue(owner.delete())
+    withDisposableLinkTarget(token) { external ->
+      Files.createLink(owner.toPath(), external.toPath())
+      try {
+        assertRejectedRequestPreservesFixture("DENY_HARDLINK", "AFTER_BOTH")
+        assertEquals("external owner fixture remains unchanged", token, external.readText())
+      } finally {
+        Files.deleteIfExists(owner.toPath())
+        assertTrue(!Files.exists(owner.toPath(), LinkOption.NOFOLLOW_LINKS))
+      }
+    }
+  }
+
+  @Test fun hardlinkedWitnessNewCannotRedirectWrite() {
+    val alias = File(root, "synthetic-migration.witness.new")
+    withDisposableLinkTarget("HARDLINK_WITNESS_UNTOUCHED") { external ->
+      Files.createLink(alias.toPath(), external.toPath())
+      try {
+        assertRejectedRequestPreservesFixture("DENY_HARDLINK", "AFTER_BOTH")
+        assertEquals("HARDLINK_WITNESS_UNTOUCHED", external.readText())
+      } finally {
+        Files.deleteIfExists(alias.toPath())
+        assertTrue(!Files.exists(alias.toPath(), LinkOption.NOFOLLOW_LINKS))
+      }
+    }
+  }
+
+  @Test fun hardlinkedJournalNewCannotRedirectWrite() {
+    val alias = File(root, "synthetic-migration.journal.new")
+    withDisposableLinkTarget("HARDLINK_JOURNAL_UNTOUCHED") { external ->
+      Files.createLink(alias.toPath(), external.toPath())
+      try {
+        assertRejectedRequestPreservesFixture("DENY_HARDLINK", "AFTER_BOTH")
+        assertEquals("HARDLINK_JOURNAL_UNTOUCHED", external.readText())
+      } finally {
+        Files.deleteIfExists(alias.toPath())
+        assertTrue(!Files.exists(alias.toPath(), LinkOption.NOFOLLOW_LINKS))
+      }
+    }
+  }
 }

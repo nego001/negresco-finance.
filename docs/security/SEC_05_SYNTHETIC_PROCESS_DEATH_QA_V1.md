@@ -42,6 +42,14 @@ O diretório e o marcador passam a ser verificados com `LinkOption.NOFOLLOW_LINK
 
 **Resultado dos quatro testes novos: pendente de CI.** O bloqueio é uma inspeção antes de escrever, não um handle seguro transacional. Um atacante com permissão de substituir caminhos após essa conferência ainda pode explorar uma corrida TOCTOU; hardlinks, mount points e antepassados hostis continuam fora de escopo. O objetivo continua estritamente de QA sintético, nunca prova de isolamento para dados financeiros.
 
+## Hard links nos checkpoints (revisão de laboratório a validar)
+
+A verificação anterior de links simbólicos não impede que dois nomes de arquivo referenciem o mesmo inode físico por meio de **hard links**. O serviço Debug agora inspeciona com `android.system.Os.lstat` os sete nomes reservados (owner, journal, witness e os auxiliares `.new`/`.bak`). Qualquer arquivo existente que não seja regular, ou cujo `st_nlink` exceda 1, é recusado com `DENY_HARDLINK`. Somente `ENOENT` é aceito para arquivos auxiliares ausentes; erros inesperados de stat são recusados.
+
+Três testes instrumentados novos, elevando a classe a **15 testes**, criam hard links reais no mesmo `noBackupFilesDir`: marcador de posse, `witness.new` e `journal.new`. Cada um exige resposta de recusa, conteúdo externo intacto e journal/witness válidos preservados byte a byte. O cleanup usa `Files.deleteIfExists` para manter a limpeza idempotente.
+
+**Não considerar esses três testes aprovados sem uma nova CI completa.** `lstat` antes da escrita continua sujeito a corrida TOCTOU com um processo capaz de alterar a pasta. Não é defesa completa contra escritores hostis, mounts maliciosos ou hardlinks criados após a inspeção; não é integração financeira ou antirrollback de produção.
+
 ## Limites explícitos
 
 - Um `SIGKILL` após um ponto de escrita conhecido **não** simula queda elétrica ou inconsistência de storage físico, nem determina exatamente a durabilidade de `fsync` em todos os hardwares.
