@@ -68,6 +68,12 @@ Dois testes instrumentados adicionais, elevando a classe a **19 cenários**, ver
 
 **Status: não validado em emulador.** Esta revisão só deve ser integrada depois da aprovação da compilação Android e, posteriormente, dos testes instrumentados. A segurança de produção, a eliminação geral de TOCTOU, defesa contra rollback externo e proteção de dados financeiros reais permanecem fora do escopo.
 
+## Troca do marcador após a inspeção (novo teste de laboratório)
+
+A classe recebe o vigésimo cenário: o serviço Debug move seu próprio marcador de posse para `.synthetic-owner-moved-for-test` e cria, **após a inspeção inicial**, um link simbólico no nome antigo apontando para os **mesmos bytes do UUID**. Uma leitura pelo caminho seguiria esse link e aceitaria o conteúdo; a leitura atual por `Os.open(...O_NOFOLLOW)` deve responder `DENY_SANDBOX`. A instrumentação verifica a morte do processo dedicado, bytes de journal e witness intactos, marcador real intacto, e restaura o marcador após remover o alias.
+
+Esse é um ensaio determinístico da proteção do último componente do caminho, e não demonstra proteção contra trocas dos diretórios ancestrais. **Pendente de compilação e testes Android reais.**
+
 ## Limites explícitos
 
 - Um `SIGKILL` após um ponto de escrita conhecido **não** simula queda elétrica ou inconsistência de storage físico, nem determina exatamente a durabilidade de `fsync` em todos os hardwares.

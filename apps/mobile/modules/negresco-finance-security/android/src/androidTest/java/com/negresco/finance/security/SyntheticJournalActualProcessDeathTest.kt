@@ -415,4 +415,37 @@ class SyntheticJournalActualProcessDeathTest {
     assertEquals("HOLD_SYNTHETIC_PAIR_MATCH_NOT_AUTHORITY",
       SyntheticJournalIndependentWitness(root).inspectPair())
   }
+
+  /**
+   * Swap a valid owner pathname AFTER the worker's first alias preflight.
+   * The replacement points to identical UUID data, so merely checking the
+   * file contents would not detect this path substitution.
+   */
+  @Test fun swappedOwnerSymlinkAfterPreflightCannotAuthorizeWrite() {
+    val owner = File(root, ".synthetic-test-owner")
+    val moved = File(root, ".synthetic-owner-moved-for-test")
+    val witness = File(root, "synthetic-migration.witness")
+    val oldJournal = journalFile.readBytes()
+    val oldWitness = witness.readBytes()
+    try {
+      assertEquals("DENY_SANDBOX",
+        killRemoteWorker("INJECT_OWNER_SYMLINK_BEFORE_OPEN_FIXTURE_ONLY"))
+      assertTrue("owner name must be a symlink after injected swap",
+        Files.isSymbolicLink(owner.toPath()))
+      assertEquals("moved real marker keeps exactly the test UUID", token,
+        moved.readText())
+      assertArrayEquals("owner alias denial cannot write journal",
+        oldJournal, journalFile.readBytes())
+      assertArrayEquals("owner alias denial cannot write witness",
+        oldWitness, witness.readBytes())
+    } finally {
+      Files.deleteIfExists(owner.toPath())
+      if (Files.exists(moved.toPath(), LinkOption.NOFOLLOW_LINKS)) {
+        Files.move(moved.toPath(), owner.toPath())
+      }
+    }
+    assertEquals("restored fixture remains a diagnostic hold",
+      "HOLD_SYNTHETIC_PAIR_MATCH_NOT_AUTHORITY",
+      SyntheticJournalIndependentWitness(root).inspectPair())
+  }
 }

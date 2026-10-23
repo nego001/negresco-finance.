@@ -29,6 +29,10 @@ test('real SIGKILL is confined to private non-exported debug worker process and 
   assert.match(service, /negresco_synthetic_atomic_\$token/);
   assert.match(service, /\.synthetic-test-owner/);
   assert.match(service, /validOwnerFromDescriptor/);
+  assert.match(service, /INJECT_OWNER_SYMLINK_BEFORE_OPEN_FIXTURE_ONLY/);
+  assert.match(service, /\.synthetic-owner-moved-for-test/);
+  assert.match(service, /Files\.move\(owner\.toPath\(\), stashed\.toPath\(\)\)/);
+  assert.match(service, /Files\.createSymbolicLink\(owner\.toPath\(\), stashed\.toPath\(\)\)/);
   assert.match(service, /Os\.open/);
   assert.match(service, /Os\.fstat/);
   assert.match(service, /Os\.read/);
@@ -64,7 +68,7 @@ test('real SIGKILL is confined to private non-exported debug worker process and 
 });
 
 test('instrumentation observes remote process death and reopen without ever authorizing migration', () => {
-  assert.equal((tests.match(/@Test fun /g) || []).length, 19);
+  assert.equal((tests.match(/@Test fun /g) || []).length, 20);
   assert.match(tests, /app\.bindService\(intent, connection, Context\.BIND_AUTO_CREATE\)/);
   assert.match(tests, /onServiceDisconnected/);
   assert.match(tests, /processDied\.await\(20, TimeUnit\.SECONDS\)/);
@@ -85,6 +89,9 @@ test('instrumentation observes remote process death and reopen without ever auth
   assert.match(tests, /symbolicJournalNewFileCannotRedirectWrite/);
   assert.match(tests, /symbolicWitnessBackupCannotRedirectWrite/);
   assert.match(tests, /symbolicJournalBackupCannotRedirectWrite/);
+  assert.match(tests, /swappedOwnerSymlinkAfterPreflightCannotAuthorizeWrite/);
+  assert.match(tests, /Files\.isSymbolicLink\(owner\.toPath\(\)\)/);
+  assert.match(tests, /moved\.readText\(\)/);
   assert.match(tests, /EXTERNAL_WITNESS_BACKUP_UNTOUCHED/);
   assert.match(tests, /EXTERNAL_JOURNAL_BACKUP_UNTOUCHED/);
   assert.match(tests, /oversizedOwnerMarkerCannotAuthorizeWorkerWrite/);

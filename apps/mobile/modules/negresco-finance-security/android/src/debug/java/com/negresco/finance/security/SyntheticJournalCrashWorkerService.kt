@@ -158,17 +158,31 @@ class SyntheticJournalCrashWorkerService : Service() {
     if (parsed.toString() != token) return "DENY_TOKEN"
     // Fault-injection modes create only disposable links within this sandbox,
     // after the first checkpoint is committed. Never accept arbitrary paths.
+    val injectOwnerSymlink = mode == "INJECT_OWNER_SYMLINK_BEFORE_OPEN_FIXTURE_ONLY"
     val injectLateSymlink = mode == "INJECT_LATE_SYMLINK_FIXTURE_ONLY"
     val injectLateHardlink = mode == "INJECT_LATE_HARDLINK_FIXTURE_ONLY"
     if (mode !in setOf(
         "AFTER_WITNESS", "DURING_JOURNAL", "AFTER_BOTH",
-        "INJECT_LATE_SYMLINK_FIXTURE_ONLY", "INJECT_LATE_HARDLINK_FIXTURE_ONLY"))
+        "INJECT_LATE_SYMLINK_FIXTURE_ONLY", "INJECT_LATE_HARDLINK_FIXTURE_ONLY",
+        "INJECT_OWNER_SYMLINK_BEFORE_OPEN_FIXTURE_ONLY"))
       return "DENY_MODE"
     val sandbox = File(noBackupFilesDir, "negresco_synthetic_atomic_$token")
     val owner = File(sandbox, ".synthetic-test-owner")
     // Resolve no user-provided arbitrary paths; reject even dangling links.
     if (hasReservedSymlink(sandbox)) return "DENY_PATH_ALIAS"
     if (hasReservedHardlink(sandbox)) return "DENY_HARDLINK"
+    // Test-only interleaving: move the real owner marker and swap its old
+    // name for a symlink pointing at the identical UUID bytes. A pathname
+    // read would accept this; O_NOFOLLOW on the open must reject it.
+    if (injectOwnerSymlink) {
+      try {
+        val stashed = File(sandbox, ".synthetic-owner-moved-for-test")
+        Files.move(owner.toPath(), stashed.toPath())
+        Files.createSymbolicLink(owner.toPath(), stashed.toPath())
+      } catch (_: Exception) {
+        return "DENY_WORKER_IO"
+      }
+    }
     val validOwner = try {
       Files.isDirectory(sandbox.toPath(), LinkOption.NOFOLLOW_LINKS) &&
         validOwnerFromDescriptor(owner, token)
