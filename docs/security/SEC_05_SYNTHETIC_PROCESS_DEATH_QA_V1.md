@@ -88,6 +88,14 @@ Dois modos internos de fault injection, `INJECT_OWNER_TAMPER_AFTER_WITNESS_FIXTU
 
 A verificação tardia não prova proteção contra substituição do mesmo conteúdo/arquivo, TOCTOU após a segunda checagem, acesso por descritor de diretório confiável ou autoridade antirollback externa.
 
+## Continuidade de identidade física do owner (24º cenário de laboratório)
+
+Duas verificações do UUID podem aceitar arquivos **diferentes** com conteúdo idêntico. A revisão experimental mantém, além do conteúdo e atributos, a identidade `(st_dev, st_ino)` medida por `Os.fstat` no **mesmo descritor** usado para ler os bytes. A identidade inicial e a identidade observada após gravar o witness precisam ser iguais; qualquer divergência retorna `DENY_SANDBOX` antes de gravar o journal.
+
+O modo Debug `INJECT_OWNER_REPLACEMENT_AFTER_WITNESS_FIXTURE_ONLY` move o marcador real para um nome descartável e cria um **novo arquivo regular com o mesmo UUID**, entre as duas verificações. O 24º teste exige diferença de inode, preservação byte a byte do journal antigo, witness avançado, restauração do arquivo original e `DENY_SYNTHETIC_PAIR_MISMATCH` na reabertura. Essa comparação também detecta trocas que seriam invisíveis a checagens de conteúdo, formato e `st_nlink` isoladamente.
+
+**Não é autenticação, antirrollback ou defesa completa TOCTOU.** Um agente com controle da sandbox pode efetuar nova troca após a segunda verificação, pode explorar diretórios ancestrais e pode tentar outras condições de corrida. Não há garantia de que identidade de inode seja persistente entre reinstalações ou restaurações. Cenário pendente de CI Kotlin e instrumentação real no emulador.
+
 ## Limites explícitos
 
 - Um `SIGKILL` após um ponto de escrita conhecido **não** simula queda elétrica ou inconsistência de storage físico, nem determina exatamente a durabilidade de `fsync` em todos os hardwares.

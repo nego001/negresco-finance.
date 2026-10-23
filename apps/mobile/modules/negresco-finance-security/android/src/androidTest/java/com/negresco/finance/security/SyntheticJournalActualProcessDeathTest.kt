@@ -529,4 +529,45 @@ class SyntheticJournalActualProcessDeathTest {
     assertOwnerChangedAfterWitnessStopsJournal(
       "INJECT_OWNER_REMOVAL_AFTER_WITNESS_FIXTURE_ONLY", true)
   }
+
+  /**
+   * An attacker with write access swaps the owner for a NEW regular file
+   * containing the EXACT SAME UUID. Bytes and st_nlink remain plausible,
+   * but device/inode identity must differ after witness commit.
+   */
+  @Test fun ownerReplacedWithSameUuidAfterWitnessCannotCommitJournal() {
+    val owner = File(root, ".synthetic-test-owner")
+    val saved = File(root, ".synthetic-owner-moved-for-test")
+    val witness = File(root, "synthetic-migration.witness")
+    val oldJournal = journalFile.readBytes()
+    val oldWitness = witness.readBytes()
+    val initialStat = Os.lstat(owner.absolutePath)
+    try {
+      assertEquals("DENY_SANDBOX",
+        killRemoteWorker("INJECT_OWNER_REPLACEMENT_AFTER_WITNESS_FIXTURE_ONLY"))
+      assertEquals("replacement has same valid UUID", token, owner.readText())
+      assertEquals("original owner remains unchanged", token, saved.readText())
+      val replacementStat = Os.lstat(owner.absolutePath)
+      val originalStat = Os.lstat(saved.absolutePath)
+      assertEquals("original file identity must survive the move",
+        initialStat.st_ino, originalStat.st_ino)
+      assertTrue("replacement must use a different inode",
+        replacementStat.st_ino != originalStat.st_ino ||
+          replacementStat.st_dev != originalStat.st_dev)
+      assertArrayEquals("journal must stay on original generation",
+        oldJournal, journalFile.readBytes())
+      assertTrue("witness must advance before the injected swap",
+        !oldWitness.contentEquals(witness.readBytes()))
+    } finally {
+      Files.deleteIfExists(owner.toPath())
+      if (Files.exists(saved.toPath(), LinkOption.NOFOLLOW_LINKS)) {
+        Files.move(saved.toPath(), owner.toPath())
+      }
+    }
+    assertEquals("changed identity cannot approve pair recovery",
+      "DENY_SYNTHETIC_PAIR_MISMATCH",
+      SyntheticJournalIndependentWitness(root).inspectPair())
+    assertArrayEquals("reopening must leave old journal untouched",
+      oldJournal, journalFile.readBytes())
+  }
 }
