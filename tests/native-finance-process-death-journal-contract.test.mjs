@@ -77,6 +77,9 @@ test('instrumentation observes remote process death and reopen without ever auth
   assert.match(tests, /hardlinkedWitnessNewCannotRedirectWrite/);
   assert.match(tests, /hardlinkedJournalNewCannotRedirectWrite/);
   assert.match(tests, /Files\.createLink/);
+  assert.match(tests, /AccessDeniedException/);
+  assert.match(tests, /assumeTrue/);
+  assert.match(tests, /lstat gate not exercised/);
   assert.match(tests, /HARDLINK_WITNESS_UNTOUCHED/);
   assert.match(tests, /HARDLINK_JOURNAL_UNTOUCHED/);
   assert.match(tests, /Files\.createSymbolicLink/);
