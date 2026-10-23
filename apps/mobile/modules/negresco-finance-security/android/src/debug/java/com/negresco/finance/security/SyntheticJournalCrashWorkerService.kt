@@ -163,11 +163,15 @@ class SyntheticJournalCrashWorkerService : Service() {
     val injectOwnerFifo = mode == "INJECT_OWNER_FIFO_BEFORE_OPEN_FIXTURE_ONLY"
     val injectLateSymlink = mode == "INJECT_LATE_SYMLINK_FIXTURE_ONLY"
     val injectLateHardlink = mode == "INJECT_LATE_HARDLINK_FIXTURE_ONLY"
+    val injectLateWitnessBackup = mode == "INJECT_LATE_WITNESS_BACKUP_SYMLINK_FIXTURE_ONLY"
+    val injectLateJournalBackup = mode == "INJECT_LATE_JOURNAL_BACKUP_SYMLINK_FIXTURE_ONLY"
     val injectLateOwnerTamper = mode == "INJECT_OWNER_TAMPER_AFTER_WITNESS_FIXTURE_ONLY"
     val injectLateOwnerRemoval = mode == "INJECT_OWNER_REMOVAL_AFTER_WITNESS_FIXTURE_ONLY"
     if (mode !in setOf(
         "AFTER_WITNESS", "DURING_JOURNAL", "AFTER_BOTH",
         "INJECT_LATE_SYMLINK_FIXTURE_ONLY", "INJECT_LATE_HARDLINK_FIXTURE_ONLY",
+        "INJECT_LATE_WITNESS_BACKUP_SYMLINK_FIXTURE_ONLY",
+        "INJECT_LATE_JOURNAL_BACKUP_SYMLINK_FIXTURE_ONLY",
         "INJECT_OWNER_SYMLINK_BEFORE_OPEN_FIXTURE_ONLY",
         "INJECT_OWNER_FIFO_BEFORE_OPEN_FIXTURE_ONLY",
         "INJECT_OWNER_TAMPER_AFTER_WITNESS_FIXTURE_ONLY",
@@ -219,6 +223,14 @@ class SyntheticJournalCrashWorkerService : Service() {
         } catch (_: AccessDeniedException) {
           return "DENY_PLATFORM_HARDLINK"
         }
+      }
+      // The .bak sidecars can be introduced AFTER witness finishWrite().
+      // The second alias preflight must reject either before opening journal.
+      if (injectLateWitnessBackup || injectLateJournalBackup) {
+        val backupName = if (injectLateWitnessBackup)
+          "synthetic-migration.witness.bak"
+        else "synthetic-migration.journal.bak"
+        Files.createSymbolicLink(File(sandbox, backupName).toPath(), owner.toPath())
       }
       // Faults inserted after the witness was committed, not before. Both
       // keep the owner name a non-symlink and avoid hardlink counts > 1,

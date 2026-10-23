@@ -529,4 +529,57 @@ class SyntheticJournalActualProcessDeathTest {
     assertOwnerChangedAfterWitnessStopsJournal(
       "INJECT_OWNER_REMOVAL_AFTER_WITNESS_FIXTURE_ONLY", true)
   }
+
+  /**
+   * The .bak name appears only after the witness has been committed. It
+   * targets a disposable owner marker, never a real account or external path.
+   * Avoid AtomicFile recovery while the backup alias still exists.
+   */
+  private fun assertLateBackupAliasAfterWitnessDeniesJournal(
+    mode: String, backupName: String
+  ) {
+    val owner = File(root, ".synthetic-test-owner")
+    val journalBefore = journalFile.readBytes()
+    val ownerBefore = owner.readBytes()
+    val witness = File(root, "synthetic-migration.witness")
+    val witnessBefore = witness.readBytes()
+    val alias = File(root, backupName)
+    assertTrue("no injected backup alias before worker",
+      !Files.exists(alias.toPath(), LinkOption.NOFOLLOW_LINKS))
+    try {
+      assertEquals("DENY_PATH_ALIAS", killRemoteWorker(mode))
+      assertTrue("injected backup must be symlink", Files.isSymbolicLink(alias.toPath()))
+      assertEquals("backup links only to the test marker",
+        owner.toPath(), Files.readSymbolicLink(alias.toPath()))
+      assertArrayEquals("journal stays on old generation",
+        journalBefore, journalFile.readBytes())
+      assertArrayEquals("marker unaffected by symlink",
+        ownerBefore, owner.readBytes())
+      assertTrue("witness must advance before the alias appears",
+        !witnessBefore.contentEquals(witness.readBytes()))
+    } finally {
+      // AtomicFile.openRead() on a .bak alias can replace the base name.
+      // Unlink the alias before allowing any diagnostic recovery read.
+      Files.deleteIfExists(alias.toPath())
+      assertTrue("backup alias removed without following its target",
+        !Files.exists(alias.toPath(), LinkOption.NOFOLLOW_LINKS))
+    }
+    assertEquals("witness/journal mismatch remains a deny",
+      "DENY_SYNTHETIC_PAIR_MISMATCH",
+      SyntheticJournalIndependentWitness(root).inspectPair())
+    assertArrayEquals("reopening never advances the journal",
+      journalBefore, journalFile.readBytes())
+  }
+
+  @Test fun lateWitnessBackupSymlinkAfterWitnessCannotAdvanceJournal() {
+    assertLateBackupAliasAfterWitnessDeniesJournal(
+      "INJECT_LATE_WITNESS_BACKUP_SYMLINK_FIXTURE_ONLY",
+      "synthetic-migration.witness.bak")
+  }
+
+  @Test fun lateJournalBackupSymlinkAfterWitnessCannotAdvanceJournal() {
+    assertLateBackupAliasAfterWitnessDeniesJournal(
+      "INJECT_LATE_JOURNAL_BACKUP_SYMLINK_FIXTURE_ONLY",
+      "synthetic-migration.journal.bak")
+  }
 }

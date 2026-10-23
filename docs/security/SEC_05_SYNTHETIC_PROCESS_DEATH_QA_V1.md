@@ -88,6 +88,12 @@ Dois modos internos de fault injection, `INJECT_OWNER_TAMPER_AFTER_WITNESS_FIXTU
 
 A verificação tardia não prova proteção contra substituição do mesmo conteúdo/arquivo, TOCTOU após a segunda checagem, acesso por descritor de diretório confiável ou autoridade antirollback externa.
 
+## Sidecars de backup inseridos após o witness (24º e 25º cenários, laboratório)
+
+Dois modos de injeção exclusivos do worker Android Debug criam um symlink em `synthetic-migration.witness.bak` ou `synthetic-migration.journal.bak` **depois** de `AtomicFile.finishWrite` gravar o witness e antes da segunda inspeção de nomes reservados. Ambos apontam apenas para o marcador de posse descartável do próprio teste. A segunda inspeção deve recusar `DENY_PATH_ALIAS` antes de abrir ou avançar o journal.
+
+Os novos testes verificam: morte real do processo isolado, symlink apontando ao marcador descartável, bytes anteriores do journal e owner intactos, witness efetivamente avançado, remoção do alias sem segui-lo e `DENY_SYNTHETIC_PAIR_MISMATCH` ao reabrir os checkpoints. Nenhum dado financeiro, chave real ou caminho externo participa. São **25 cenários na classe**, mas esta revisão ainda depende de compilação e execução no emulador; não é solução geral para TOCTOU.
+
 ## Limites explícitos
 
 - Um `SIGKILL` após um ponto de escrita conhecido **não** simula queda elétrica ou inconsistência de storage físico, nem determina exatamente a durabilidade de `fsync` em todos os hardwares.
