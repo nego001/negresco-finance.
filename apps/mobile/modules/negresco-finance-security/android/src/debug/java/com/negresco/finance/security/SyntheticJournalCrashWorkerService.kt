@@ -16,7 +16,7 @@ import java.util.UUID
 /**
  * DEBUG-ONLY isolated-process crash fixture; absent in Release.
  *
- * Kills ONLY its own dedicated :negresco-synthetic-journal process, never
+ * Kills ONLY its own dedicated :negresco_synthetic_journal process, never
  * the main app. No actual finances, lock preferences or production migration.
  * Every path is derived from a validated test UUID in noBackupFilesDir.
  */
