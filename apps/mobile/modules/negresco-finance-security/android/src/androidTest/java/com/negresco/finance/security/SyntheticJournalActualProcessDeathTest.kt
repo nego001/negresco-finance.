@@ -15,6 +15,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import java.io.File
 import java.nio.file.Files
+import java.nio.file.LinkOption
 import java.util.UUID
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -220,7 +221,12 @@ class SyntheticJournalActualProcessDeathTest {
         assertRejectedRequestPreservesFixture("DENY_PATH_ALIAS", "AFTER_BOTH")
         assertEquals("EXTERNAL_WITNESS_UNTOUCHED", external.readText())
       } finally {
-        assertTrue("witness symlink removed", link.delete())
+        // AtomicFile.openRead may already discard an orphan .new entry.
+        // Remove only the link itself; never dereference the target.
+        Files.deleteIfExists(link.toPath())
+        assertTrue("witness alias path must be absent",
+          !Files.exists(link.toPath(), LinkOption.NOFOLLOW_LINKS))
+        assertEquals("EXTERNAL_WITNESS_UNTOUCHED", external.readText())
       }
     }
   }
@@ -233,7 +239,12 @@ class SyntheticJournalActualProcessDeathTest {
         assertRejectedRequestPreservesFixture("DENY_PATH_ALIAS", "AFTER_BOTH")
         assertEquals("EXTERNAL_JOURNAL_UNTOUCHED", external.readText())
       } finally {
-        assertTrue("journal symlink removed", link.delete())
+        // Both an already removed alias and a still-present alias are valid
+        // cleanup states after AtomicFile recovery.
+        Files.deleteIfExists(link.toPath())
+        assertTrue("journal alias path must be absent",
+          !Files.exists(link.toPath(), LinkOption.NOFOLLOW_LINKS))
+        assertEquals("EXTERNAL_JOURNAL_UNTOUCHED", external.readText())
       }
     }
   }
