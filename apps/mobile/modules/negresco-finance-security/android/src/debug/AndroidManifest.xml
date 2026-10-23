@@ -7,5 +7,12 @@
       android:exported="false"
       android:label="Negresco biometric QA (DEBUG)"
       android:theme="@android:style/Theme.Material.Light.NoActionBar" />
+    <!-- DEBUG ONLY; runs real SIGKILL in a dedicated remote process.
+         Not exported, and absolutely absent from Release. -->
+    <service
+      android:name="com.negresco.finance.security.SyntheticJournalCrashWorkerService"
+      android:exported="false"
+      android:process=":negresco-synthetic-journal"
+      android:stopWithTask="true" />
   </application>
 </manifest>
