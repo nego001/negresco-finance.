@@ -11,7 +11,7 @@ Esta seção prevalece sobre a linguagem de **pendente / revisão de laboratóri
 | 23 cenários (`d6691a1d`) | [PR CI #39906268592](https://github.com/nego001/negresco-finance./actions/runs/39906268592), 9/9 jobs; 103 testes iniciados no emulador, 0 falhas, 5 SKIPPED | Testes novos de owner adulterado/removido executados |
 | 25 cenários (`0c95a276`) | [PR CI #39908264516](https://github.com/nego001/negresco-finance./actions/runs/39908264516), 9/9 jobs; 105 testes iniciados, 0 falhas, 5 SKIPPED | Testes de `.bak` injetados após witness executados |
 | 26 cenários (`1082bd18`) | [Lab CI #39908482707](https://github.com/nego001/negresco-finance./actions/runs/39908482707): compilação Kotlin, AAR Release, 339/339 contratos e laboratórios verdes; emuladores SKIPPED por push | Comparação de inode do owner compilada, **não** exercitada no emulador nessa CI |
-| 26 cenários (`1082bd18`) | [PR CI #39963256706](https://github.com/nego001/negresco-finance./actions/runs/39963256706) iniciada e **ainda pendente de resultado final** quando esta matriz foi escrita | Requer resultado real do emulador antes de homologar o 26º caso |
+| 26 cenários (`1082bd18`) | [PR CI #39963256706](https://github.com/nego001/negresco-finance./actions/runs/39963256706): **9/9 SUCCESS**; 106 testes iniciados no emulador, 0 falhas, 5 SKIPPED | Teste de troca por outro inode com UUID idêntico foi executado sem falhas; quatro hardlinks continuam não exercitados |
 
 Em ambas as execuções instrumentadas já encerradas, cinco casos foram ignorados: biometria física opt-in (um teste) e hardlinks recusados pelo Android (quatro testes). **Nenhum desses quatro SKIPPED comprova que o bloqueio `st_nlink` funcionou**. É necessário um ambiente controlado em que seja possível criar hardlinks na sandbox descartável e exercitar a recusa do serviço. Os números de testes iniciados incluem todas as classes de instrumentação, não apenas a classe `SyntheticJournalActualProcessDeathTest`.
 
@@ -115,12 +115,12 @@ Mesmo com duas verificações do mesmo UUID, um arquivo regular novo pode ter by
 
 `INJECT_OWNER_REPLACEMENT_AFTER_WITNESS_FIXTURE_ONLY` move o marcador original para um nome descartável e cria um novo arquivo **com os mesmos bytes UUID**. O 26º caso exige inode diferente, journal antigo preservado, witness avançado, restauração do marcador e `DENY_SYNTHETIC_PAIR_MISMATCH` na reabertura. Os 25 cenários preexistentes, inclusive ambos os aliases de backup tardios, permanecem no mesmo pacote.
 
-**A comparação não elimina TOCTOU geral.** Continua possível trocar o caminho depois da segunda verificação e o descritor do diretório não está ancorado. Não há antirrollback externo, autenticação ou proteção de dados financeiros; execução Android instrumentada do 26º caso ainda pendente na data da matriz de evidências acima.
+**A comparação não elimina TOCTOU geral.** Continua possível trocar o caminho depois da segunda verificação e o descritor do diretório não está ancorado. Não há antirrollback externo, autenticação ou proteção de dados financeiros; execução Android instrumentada do 26º caso aprovada na CI #39963256706, conforme a matriz de evidências acima.
 
 ## Limites explícitos
 
 - Um `SIGKILL` após um ponto de escrita conhecido **não** simula queda elétrica ou inconsistência de storage físico, nem determina exatamente a durabilidade de `fsync` em todos os hardwares.
 - A segunda cópia ainda está no mesmo domínio local; restaurar ambas as gerações antigas juntas continua indetectável. É necessária autoridade de geração externa e autenticada para recuperação de produção.
-- O 26º caso de substituição de inode requer confirmação da CI instrumentada #39963256706. Os quatro testes de hardlink ignorados pelo kernel permanecem sem prova positiva do gate `st_nlink`.
+- O 26º caso de substituição de inode foi exercitado sem falha na CI instrumentada #39963256706. Os quatro testes de hardlink ignorados pelo kernel permanecem sem prova positiva do gate `st_nlink`.
 - O job de compilação inclui verificação do AAR Release: tanto a Activity biométrica Debug quanto o trabalhador de crash precisam estar ausentes de `classes.jar` e do manifesto da biblioteca Release. Esse gate **não** substitui inspeção do APK de produto final.
 - `financialStorageAllowed=false`, `keyReleaseAllowed=false` e `migrationAllowed=false` continuam invariantes no módulo Expo. PR #14 em draft, sem merge ou publicação; PR #17 não é alterada.
