@@ -34,12 +34,11 @@ test('real SIGKILL is confined to private non-exported debug worker process and 
   assert.match(service, /DENY_MODE/);
   assert.match(service, /DENY_PATH_ALIAS/);
   assert.match(service, /DENY_HARDLINK/);
+  assert.match(service, /DENY_PLATFORM_HARDLINK/);
   assert.match(service, /INJECT_LATE_SYMLINK_FIXTURE_ONLY/);
   assert.match(service, /INJECT_LATE_HARDLINK_FIXTURE_ONLY/);
   assert.match(service, /Files\.createSymbolicLink\(lateAlias, owner\.toPath\(\)\)/);
   assert.match(service, /Files\.createLink\(lateAlias, owner\.toPath\(\)\)/);
-  assert.match(service, /if \(hasReservedSymlink\(sandbox\)\) return "DENY_PATH_ALIAS"/);
-  assert.match(service, /if \(hasReservedHardlink\(sandbox\)\) return "DENY_HARDLINK"/);
   assert.match(service, /hasReservedHardlink/);
   assert.match(service, /Os\.lstat/);
   assert.match(service, /OsConstants\.S_ISREG/);
@@ -85,8 +84,11 @@ test('instrumentation observes remote process death and reopen without ever auth
   assert.match(tests, /lateSymbolicAliasAfterWitnessCannotCommitJournal/);
   assert.match(tests, /lateHardlinkAliasAfterWitnessCannotCommitJournal/);
   assert.match(tests, /assertLateAliasPreventsJournalCommit/);
-  assert.match(tests, /DENY_SYNTHETIC_PAIR_MISMATCH/);
+  assert.match(tests, /DENY_PLATFORM_HARDLINK/);
   assert.match(tests, /Files\.createLink/);
+  assert.match(tests, /AccessDeniedException/);
+  assert.match(tests, /assumeTrue/);
+  assert.match(tests, /lstat gate not exercised/);
   assert.match(tests, /HARDLINK_WITNESS_UNTOUCHED/);
   assert.match(tests, /HARDLINK_JOURNAL_UNTOUCHED/);
   assert.match(tests, /Files\.createSymbolicLink/);

@@ -13,6 +13,7 @@ import android.system.Os
 import android.system.OsConstants
 import android.util.AtomicFile
 import java.io.File
+import java.nio.file.AccessDeniedException
 import java.nio.file.Files
 import java.nio.file.LinkOption
 import java.security.MessageDigest
@@ -157,7 +158,11 @@ class SyntheticJournalCrashWorkerService : Service() {
       if (injectLateSymlink) {
         Files.createSymbolicLink(lateAlias, owner.toPath())
       } else if (injectLateHardlink) {
-        Files.createLink(lateAlias, owner.toPath())
+        try {
+          Files.createLink(lateAlias, owner.toPath())
+        } catch (_: AccessDeniedException) {
+          return "DENY_PLATFORM_HARDLINK"
+        }
       }
       if (hasReservedSymlink(sandbox)) return "DENY_PATH_ALIAS"
       if (hasReservedHardlink(sandbox)) return "DENY_HARDLINK"

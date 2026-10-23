@@ -48,13 +48,15 @@ A verificação anterior de links simbólicos não impede que dois nomes de arqu
 
 Três testes instrumentados novos, elevando a classe a **15 testes**, criam hard links reais no mesmo `noBackupFilesDir`: marcador de posse, `witness.new` e `journal.new`. Cada um exige resposta de recusa, conteúdo externo intacto e journal/witness válidos preservados byte a byte. O cleanup usa `Files.deleteIfExists` para manter a limpeza idempotente.
 
-**Não considerar esses três testes aprovados sem uma nova CI completa.** `lstat` antes da escrita continua sujeito a corrida TOCTOU com um processo capaz de alterar a pasta. Não é defesa completa contra escritores hostis, mounts maliciosos ou hardlinks criados após a inspeção; não é integração financeira ou antirrollback de produção.
+**Resultado observado na CI #39890890098:** o Android recusou `Files.createLink` com `AccessDeniedException` nos três testes de hard links, antes da chamada ao worker. O serviço não foi exercitado nesses casos. Em um dispositivo sem permissão para criar o link, a instrumentação deve verificar que o bloqueio preserva os bytes anteriores e marcar o caso como **SKIPPED por limitação do kernel/filesystem**, jamais como validação positiva do gate `st_nlink`. Para atestar esse gate, será preciso um ambiente controlado capaz de criar hard links em diretório descartável.
+
+**Não considerar esses três testes aprovados sem uma nova CI completa e execução em ambiente que permita o link.** `lstat` antes da escrita continua sujeito a corrida TOCTOU com um processo capaz de alterar a pasta. Não é defesa completa contra escritores hostis, mounts maliciosos ou hardlinks criados após a inspeção; não é integração financeira ou antirrollback de produção.
 
 ## Interrupção controlada entre duas verificações (nova revisão de laboratório)
 
 O worker Debug agora verifica os nomes reservados **novamente após gravar o witness e antes de abrir o journal**. Dois modos estritamente sintéticos injetam, dentro da própria sandbox, um symlink ou um hardlink `journal.new` apontando para o marcador de posse **após** a primeira verificação. A segunda recusa retorna `DENY_PATH_ALIAS` ou `DENY_HARDLINK`, sem gravar o journal. A testemunha já avançou e o journal antigo permaneceu intacto, portanto `inspectPair()` deve retornar `DENY_SYNTHETIC_PAIR_MISMATCH`, nunca aprovação ou recuperação silenciosa.
 
-Dois novos testes instrumentados elevam a classe a **17 cenários**. Também verificam que o arquivo de posse e os bytes anteriores do journal são preservados e que o alias temporário é eliminado sem seguir seu alvo. O contrato JS impede a perda desses modos e dos checks redundantes.
+Dois novos testes instrumentados elevam a classe a **17 cenários**. Se o kernel recusar a criação do hardlink com `AccessDeniedException`, a operação retorna `DENY_PLATFORM_HARDLINK` e o teste registra um **skip explícito após verificar a preservação dos dados**, sem afirmar que o bloqueio `st_nlink` foi exercitado. Também verificam que o arquivo de posse e os bytes anteriores do journal são preservados e que o alias temporário é eliminado sem seguir seu alvo. O contrato JS impede a perda desses modos e dos checks redundantes.
 
 **Essa é uma demonstração reprodutível de um intervalo específico**, e não uma solução TOCTOU geral. Um invasor com permissão de escrita pode substituir os caminhos imediatamente após a segunda verificação. Confinamento real exige um desenho com descritores, acesso privado a diretórios e revisão específica Android. Nada concede autorização financeira.
 

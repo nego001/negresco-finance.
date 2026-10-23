@@ -14,6 +14,7 @@ import android.os.Process
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import java.io.File
+import java.nio.file.AccessDeniedException
 import java.nio.file.Files
 import java.nio.file.LinkOption
 import java.util.UUID
@@ -21,6 +22,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 import org.junit.After
+import org.junit.Assume.assumeTrue
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
@@ -254,11 +256,35 @@ class SyntheticJournalActualProcessDeathTest {
     assertRejectedRequestPreservesFixture("DENY_SANDBOX", "AFTER_BOTH")
   }
 
+  /**
+   * Hardlink creation may be forbidden by the Android filesystem/kernel.
+   * Such a refusal is not evidence the worker's lstat gate ran.
+   */
+  private fun createHardlinkOrSkip(alias: File, external: File) {
+    val originalTarget = external.readBytes()
+    val originalJournal = journalFile.readBytes()
+    val witnessFile = File(root, "synthetic-migration.witness")
+    val originalWitness = witnessFile.readBytes()
+    try {
+      Files.createLink(alias.toPath(), external.toPath())
+    } catch (denied: AccessDeniedException) {
+      assertTrue("denied hardlink must not exist",
+        !Files.exists(alias.toPath(), LinkOption.NOFOLLOW_LINKS))
+      assertArrayEquals("denied hardlink must not change target",
+        originalTarget, external.readBytes())
+      assertArrayEquals("denied hardlink must not change journal",
+        originalJournal, journalFile.readBytes())
+      assertArrayEquals("denied hardlink must not change witness",
+        originalWitness, witnessFile.readBytes())
+      assumeTrue("Android denied synthetic hardlink creation; lstat gate not exercised", false)
+    }
+  }
+
   @Test fun hardlinkedOwnerMarkerCannotAuthorizeWorkerWrite() {
     val owner = File(root, ".synthetic-test-owner")
     assertTrue(owner.delete())
     withDisposableLinkTarget(token) { external ->
-      Files.createLink(owner.toPath(), external.toPath())
+      createHardlinkOrSkip(owner, external)
       try {
         assertRejectedRequestPreservesFixture("DENY_HARDLINK", "AFTER_BOTH")
         assertEquals("external owner fixture remains unchanged", token, external.readText())
@@ -272,7 +298,7 @@ class SyntheticJournalActualProcessDeathTest {
   @Test fun hardlinkedWitnessNewCannotRedirectWrite() {
     val alias = File(root, "synthetic-migration.witness.new")
     withDisposableLinkTarget("HARDLINK_WITNESS_UNTOUCHED") { external ->
-      Files.createLink(alias.toPath(), external.toPath())
+      createHardlinkOrSkip(alias, external)
       try {
         assertRejectedRequestPreservesFixture("DENY_HARDLINK", "AFTER_BOTH")
         assertEquals("HARDLINK_WITNESS_UNTOUCHED", external.readText())
@@ -286,7 +312,7 @@ class SyntheticJournalActualProcessDeathTest {
   @Test fun hardlinkedJournalNewCannotRedirectWrite() {
     val alias = File(root, "synthetic-migration.journal.new")
     withDisposableLinkTarget("HARDLINK_JOURNAL_UNTOUCHED") { external ->
-      Files.createLink(alias.toPath(), external.toPath())
+      createHardlinkOrSkip(alias, external)
       try {
         assertRejectedRequestPreservesFixture("DENY_HARDLINK", "AFTER_BOTH")
         assertEquals("HARDLINK_JOURNAL_UNTOUCHED", external.readText())
@@ -296,7 +322,6 @@ class SyntheticJournalActualProcessDeathTest {
       }
     }
   }
-
   /**
    * Deliberately insert an alias AFTER the initial preflight and witness
    * commit. The mismatch is a DENY, not an automatic recovery or rollback.
@@ -308,7 +333,9 @@ class SyntheticJournalActualProcessDeathTest {
     val owner = File(root, ".synthetic-test-owner")
     val originalOwner = owner.readBytes()
     val originalJournal = journalFile.readBytes()
-    assertEquals(rejection, killRemoteWorker(mode))
+    val actual = killRemoteWorker(mode)
+    val kernelDenied = actual == "DENY_PLATFORM_HARDLINK"
+    if (!kernelDenied) assertEquals(rejection, actual)
     assertArrayEquals("late alias may not modify the owner marker",
       originalOwner, owner.readBytes())
     assertArrayEquals("late alias must leave old journal untouched",
@@ -324,6 +351,9 @@ class SyntheticJournalActualProcessDeathTest {
       !Files.exists(alias.toPath(), LinkOption.NOFOLLOW_LINKS))
     assertArrayEquals("owner remains intact after reader recovery",
       originalOwner, owner.readBytes())
+    if (kernelDenied) {
+      assumeTrue("Android denied late hardlink creation: lstat branch not exercised", false)
+    }
   }
 
   @Test fun lateSymbolicAliasAfterWitnessCannotCommitJournal() {
