@@ -68,6 +68,10 @@ test('instrumentation observes remote process death and reopen without ever auth
   assert.match(tests, /symbolicJournalNewFileCannotRedirectWrite/);
   assert.match(tests, /oversizedOwnerMarkerCannotAuthorizeWorkerWrite/);
   assert.match(tests, /Files\.createSymbolicLink/);
+  // Android AtomicFile.openRead may remove orphan .new files before teardown.
+  assert.match(tests, /Files\\.deleteIfExists\\(link\\.toPath\\(\\)\\)/);
+  assert.match(tests, /LinkOption\\.NOFOLLOW_LINKS/);
+  assert.match(tests, /external\\.readText\\(\\)/);
   assert.match(tests, /DENY_PATH_ALIAS/);
   assert.match(tests, /EXTERNAL_WITNESS_UNTOUCHED/);
   assert.match(tests, /EXTERNAL_JOURNAL_UNTOUCHED/);
