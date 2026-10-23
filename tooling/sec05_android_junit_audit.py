@@ -11,12 +11,15 @@ from pathlib import Path
 SEC05_CLASS = 'com.negresco.finance.security.SyntheticJournalActualProcessDeathTest'
 EXPECTED_SEC05_CASES = 26
 REQUIRED_CASE = 'ownerReplacedWithSameUuidAfterWitnessCannotCommitJournal'
+# Whitelist the exact class and method. A similarly named testcase from
+# an unrelated class must not inherit SEC-05 permission to be SKIPPED.
 ALLOWED_SKIPS = {
-    'realStrongBiometricRequiresExplicitPhysicalDeviceConsent',
-    'hardlinkedJournalNewCannotRedirectWrite',
-    'hardlinkedOwnerMarkerCannotAuthorizeWorkerWrite',
-    'hardlinkedWitnessNewCannotRedirectWrite',
-    'lateHardlinkAliasAfterWitnessCannotCommitJournal',
+    ('com.negresco.finance.security.SyntheticBiometricManualQaOptInTest',
+     'realStrongBiometricRequiresExplicitPhysicalDeviceConsent'),
+    (SEC05_CLASS, 'hardlinkedJournalNewCannotRedirectWrite'),
+    (SEC05_CLASS, 'hardlinkedOwnerMarkerCannotAuthorizeWorkerWrite'),
+    (SEC05_CLASS, 'hardlinkedWitnessNewCannotRedirectWrite'),
+    (SEC05_CLASS, 'lateHardlinkAliasAfterWitnessCannotCommitJournal'),
 }
 
 
@@ -34,7 +37,8 @@ def audit(report_dir: Path):
         raise ValueError('JUnit XML contains duplicate (classname, testcase) entries')
     errors = [c for c in cases if c.find('failure') is not None or c.find('error') is not None]
     skipped = [c for c in cases if c.find('skipped') is not None]
-    unexpected = [c.get('name') for c in skipped if c.get('name') not in ALLOWED_SKIPS]
+    unexpected = [(c.get('classname'), c.get('name')) for c in skipped
+                  if (c.get('classname'), c.get('name')) not in ALLOWED_SKIPS]
     sec05 = [c for c in cases if c.get('classname') == SEC05_CLASS]
     required = [c for c in sec05 if c.get('name') == REQUIRED_CASE]
     reasons = []
