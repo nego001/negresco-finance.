@@ -14,6 +14,7 @@ import android.os.Process
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import java.io.File
+import java.nio.file.Files
 import java.util.UUID
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -183,6 +184,62 @@ class SyntheticJournalActualProcessDeathTest {
 
   @Test fun forgedOwnerMarkerCannotModifyExistingFixture() {
     File(root, ".synthetic-test-owner").writeText(UUID.randomUUID().toString())
+    assertRejectedRequestPreservesFixture("DENY_SANDBOX", "AFTER_BOTH")
+  }
+
+  private fun withDisposableLinkTarget(content: String, block: (File) -> Unit) {
+    val target = File(app.noBackupFilesDir, "negresco_synthetic_link_target_$token")
+    assertTrue("unique disposable external fixture target", target.createNewFile())
+    target.writeText(content)
+    try {
+      block(target)
+    } finally {
+      assertTrue("external synthetic fixture must be removed", target.delete())
+    }
+  }
+
+  @Test fun symbolicOwnerMarkerCannotAuthorizeWorkerWrite() {
+    val owner = File(root, ".synthetic-test-owner")
+    assertTrue(owner.delete())
+    withDisposableLinkTarget(token) { external ->
+      Files.createSymbolicLink(owner.toPath(), external.toPath())
+      try {
+        assertRejectedRequestPreservesFixture("DENY_PATH_ALIAS", "AFTER_BOTH")
+        assertEquals("external synthetic marker must not change", token, external.readText())
+      } finally {
+        assertTrue("symlink removed without following it", owner.delete())
+      }
+    }
+  }
+
+  @Test fun symbolicWitnessNewFileCannotRedirectWrite() {
+    val link = File(root, "synthetic-migration.witness.new")
+    withDisposableLinkTarget("EXTERNAL_WITNESS_UNTOUCHED") { external ->
+      Files.createSymbolicLink(link.toPath(), external.toPath())
+      try {
+        assertRejectedRequestPreservesFixture("DENY_PATH_ALIAS", "AFTER_BOTH")
+        assertEquals("EXTERNAL_WITNESS_UNTOUCHED", external.readText())
+      } finally {
+        assertTrue("witness symlink removed", link.delete())
+      }
+    }
+  }
+
+  @Test fun symbolicJournalNewFileCannotRedirectWrite() {
+    val link = File(root, "synthetic-migration.journal.new")
+    withDisposableLinkTarget("EXTERNAL_JOURNAL_UNTOUCHED") { external ->
+      Files.createSymbolicLink(link.toPath(), external.toPath())
+      try {
+        assertRejectedRequestPreservesFixture("DENY_PATH_ALIAS", "AFTER_BOTH")
+        assertEquals("EXTERNAL_JOURNAL_UNTOUCHED", external.readText())
+      } finally {
+        assertTrue("journal symlink removed", link.delete())
+      }
+    }
+  }
+
+  @Test fun oversizedOwnerMarkerCannotAuthorizeWorkerWrite() {
+    File(root, ".synthetic-test-owner").writeText("X".repeat(4096))
     assertRejectedRequestPreservesFixture("DENY_SANDBOX", "AFTER_BOTH")
   }
 }
