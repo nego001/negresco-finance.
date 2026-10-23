@@ -130,14 +130,16 @@ jobs:
           # android-emulator-runner executes each multiline script line in a
           # separate shell. Keep cd + chmod + Gradle in ONE shell command.
           script: bash -c 'cd apps/mobile/android && chmod +x gradlew && ./gradlew :negresco-finance-security:connectedDebugAndroidTest --no-daemon --stacktrace'
-      - name: Upload synthetic module instrumentation reports on failure
-        if: failure()
+      # Preserve raw instrumentation evidence on both success and failure.
+      # SKIPPED hardlink tests are not a positive verification of st_nlink.
+      - name: Upload synthetic module instrumentation reports
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: expo-native-synthetic-test-reports
           path: apps/mobile/modules/negresco-finance-security/android/build/outputs/androidTest-results/connected/
-          if-no-files-found: ignore
-          retention-days: 3
+          if-no-files-found: warn
+          retention-days: 7
 
   native-lock-spike:
     runs-on: ubuntu-latest
