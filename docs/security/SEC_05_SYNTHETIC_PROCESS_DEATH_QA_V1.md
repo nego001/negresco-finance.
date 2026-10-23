@@ -94,6 +94,14 @@ Dois modos de injeção exclusivos do worker Android Debug criam um symlink em `
 
 Os novos testes verificam: morte real do processo isolado, symlink apontando ao marcador descartável, bytes anteriores do journal e owner intactos, witness efetivamente avançado, remoção do alias sem segui-lo e `DENY_SYNTHETIC_PAIR_MISMATCH` ao reabrir os checkpoints. Nenhum dado financeiro, chave real ou caminho externo participa. São **25 cenários na classe**, mas esta revisão ainda depende de compilação e execução no emulador; não é solução geral para TOCTOU.
 
+## Substituição por outro inode com UUID igual (26º cenário de laboratório)
+
+Mesmo com duas verificações do mesmo UUID, um arquivo regular novo pode ter bytes, comprimento e contagem de hardlinks idênticos. Esta revisão de laboratório vincula a identidade `(st_dev, st_ino)` lida via `Os.fstat` no descritor usado para validar os bytes. A identidade antes e após o witness deve corresponder, ou o worker retorna `DENY_SANDBOX` antes de gravar journal.
+
+`INJECT_OWNER_REPLACEMENT_AFTER_WITNESS_FIXTURE_ONLY` move o marcador original para um nome descartável e cria um novo arquivo **com os mesmos bytes UUID**. O 26º caso exige inode diferente, journal antigo preservado, witness avançado, restauração do marcador e `DENY_SYNTHETIC_PAIR_MISMATCH` na reabertura. Os 25 cenários preexistentes, inclusive ambos os aliases de backup tardios, permanecem no mesmo pacote.
+
+**A comparação não elimina TOCTOU geral.** Continua possível trocar o caminho depois da segunda verificação e o descritor do diretório não está ancorado. Não há antirrollback externo, autenticação ou proteção de dados financeiros; execução Android instrumentada ainda pendente.
+
 ## Limites explícitos
 
 - Um `SIGKILL` após um ponto de escrita conhecido **não** simula queda elétrica ou inconsistência de storage físico, nem determina exatamente a durabilidade de `fsync` em todos os hardwares.

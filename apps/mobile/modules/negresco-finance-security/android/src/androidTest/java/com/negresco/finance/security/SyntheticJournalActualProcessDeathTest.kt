@@ -582,4 +582,45 @@ class SyntheticJournalActualProcessDeathTest {
       "INJECT_LATE_JOURNAL_BACKUP_SYMLINK_FIXTURE_ONLY",
       "synthetic-migration.journal.bak")
   }
+
+  /**
+   * A new regular inode with identical UUID bytes must not pass the second
+   * ownership check after witness commit. This is Debug-only and scoped to
+   * an automatically deleted synthetic fixture.
+   */
+  @Test fun ownerReplacedWithSameUuidAfterWitnessCannotCommitJournal() {
+    val owner = File(root, ".synthetic-test-owner")
+    val saved = File(root, ".synthetic-owner-moved-for-test")
+    val witness = File(root, "synthetic-migration.witness")
+    val oldJournal = journalFile.readBytes()
+    val oldWitness = witness.readBytes()
+    val initialStat = Os.lstat(owner.absolutePath)
+    try {
+      assertEquals("DENY_SANDBOX",
+        killRemoteWorker("INJECT_OWNER_REPLACEMENT_AFTER_WITNESS_FIXTURE_ONLY"))
+      assertEquals("replacement owner has same valid UUID", token, owner.readText())
+      assertEquals("original owner still has valid UUID", token, saved.readText())
+      val replacementStat = Os.lstat(owner.absolutePath)
+      val originalStat = Os.lstat(saved.absolutePath)
+      assertEquals("moving original owner must preserve its inode",
+        initialStat.st_ino, originalStat.st_ino)
+      assertTrue("the replacement owner must have another file identity",
+        replacementStat.st_ino != originalStat.st_ino ||
+          replacementStat.st_dev != originalStat.st_dev)
+      assertArrayEquals("journal stays on generation one",
+        oldJournal, journalFile.readBytes())
+      assertTrue("witness advances before marker replacement",
+        !oldWitness.contentEquals(witness.readBytes()))
+    } finally {
+      Files.deleteIfExists(owner.toPath())
+      if (Files.exists(saved.toPath(), LinkOption.NOFOLLOW_LINKS)) {
+        Files.move(saved.toPath(), owner.toPath())
+      }
+    }
+    assertEquals("restoring owner does not recover mismatched pair",
+      "DENY_SYNTHETIC_PAIR_MISMATCH",
+      SyntheticJournalIndependentWitness(root).inspectPair())
+    assertArrayEquals("journal remains untouched by reader",
+      oldJournal, journalFile.readBytes())
+  }
 }

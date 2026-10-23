@@ -126,27 +126,34 @@ class SyntheticJournalCrashWorkerService : Service() {
    * fstat validates the opened descriptor, not a second pathname lookup.
    * The containing directory and AtomicFile names are still path-based.
    */
-  private fun validOwnerFromDescriptor(owner: File, token: String): Boolean {
+  /**
+   * Device/inode continuity is specific to this Debug operation. It is not
+   * filesystem authentication or a lock on ancestor directories.
+   */
+  private data class OwnerIdentity(val device: Long, val inode: Long)
+
+  private fun verifiedOwnerIdentityFromDescriptor(owner: File, token: String): OwnerIdentity? {
     val expected = token.toByteArray(Charsets.UTF_8)
     val fd = try {
       Os.open(owner.absolutePath,
         OsConstants.O_RDONLY or OsConstants.O_CLOEXEC or
           OsConstants.O_NOFOLLOW or OsConstants.O_NONBLOCK, 0)
-    } catch (_: Exception) { return false }
+    } catch (_: Exception) { return null }
     try {
       val stat = Os.fstat(fd)
       if (!OsConstants.S_ISREG(stat.st_mode) ||
-          stat.st_nlink != 1L || stat.st_size != expected.size.toLong()) return false
+          stat.st_nlink != 1L || stat.st_size != expected.size.toLong()) return null
       val actual = ByteArray(expected.size)
       var offset = 0
       while (offset < actual.size) {
         val count = Os.read(fd, actual, offset, actual.size - offset)
-        if (count <= 0) return false
+        if (count <= 0) return null
         offset += count
       }
-      return actual.contentEquals(expected)
+      return if (actual.contentEquals(expected))
+        OwnerIdentity(stat.st_dev, stat.st_ino) else null
     } catch (_: Exception) {
-      return false
+      return null
     } finally {
       try { Os.close(fd) } catch (_: Exception) { }
     }
@@ -167,6 +174,7 @@ class SyntheticJournalCrashWorkerService : Service() {
     val injectLateJournalBackup = mode == "INJECT_LATE_JOURNAL_BACKUP_SYMLINK_FIXTURE_ONLY"
     val injectLateOwnerTamper = mode == "INJECT_OWNER_TAMPER_AFTER_WITNESS_FIXTURE_ONLY"
     val injectLateOwnerRemoval = mode == "INJECT_OWNER_REMOVAL_AFTER_WITNESS_FIXTURE_ONLY"
+    val injectLateOwnerReplacement = mode == "INJECT_OWNER_REPLACEMENT_AFTER_WITNESS_FIXTURE_ONLY"
     if (mode !in setOf(
         "AFTER_WITNESS", "DURING_JOURNAL", "AFTER_BOTH",
         "INJECT_LATE_SYMLINK_FIXTURE_ONLY", "INJECT_LATE_HARDLINK_FIXTURE_ONLY",
@@ -175,7 +183,8 @@ class SyntheticJournalCrashWorkerService : Service() {
         "INJECT_OWNER_SYMLINK_BEFORE_OPEN_FIXTURE_ONLY",
         "INJECT_OWNER_FIFO_BEFORE_OPEN_FIXTURE_ONLY",
         "INJECT_OWNER_TAMPER_AFTER_WITNESS_FIXTURE_ONLY",
-        "INJECT_OWNER_REMOVAL_AFTER_WITNESS_FIXTURE_ONLY"))
+        "INJECT_OWNER_REMOVAL_AFTER_WITNESS_FIXTURE_ONLY",
+        "INJECT_OWNER_REPLACEMENT_AFTER_WITNESS_FIXTURE_ONLY"))
       return "DENY_MODE"
     val sandbox = File(noBackupFilesDir, "negresco_synthetic_atomic_$token")
     val owner = File(sandbox, ".synthetic-test-owner")
@@ -200,11 +209,12 @@ class SyntheticJournalCrashWorkerService : Service() {
         return "DENY_WORKER_IO"
       }
     }
-    val validOwner = try {
-      Files.isDirectory(sandbox.toPath(), LinkOption.NOFOLLOW_LINKS) &&
-        validOwnerFromDescriptor(owner, token)
+    val directoryExists = try {
+      Files.isDirectory(sandbox.toPath(), LinkOption.NOFOLLOW_LINKS)
     } catch (_: Exception) { false }
-    if (!validOwner) return "DENY_SANDBOX"
+    if (!directoryExists) return "DENY_SANDBOX"
+    val initialOwnerIdentity =
+      verifiedOwnerIdentityFromDescriptor(owner, token) ?: return "DENY_SANDBOX"
     val journalBytes = fixtureRecord(2L, "SOURCE_BACKED_UP")
     val witnessPayload = "w1|2|SOURCE_BACKED_UP|${sha(journalBytes)}"
     val witnessBytes = "$witnessPayload|${sha(witnessPayload.toByteArray(Charsets.UTF_8))}"
@@ -242,12 +252,19 @@ class SyntheticJournalCrashWorkerService : Service() {
         owner.writeText(otherUuid)
       } else if (injectLateOwnerRemoval) {
         Files.delete(owner.toPath())
+      } else if (injectLateOwnerReplacement) {
+        // Replace a valid marker with a different inode of identical UUID.
+        val saved = File(sandbox, ".synthetic-owner-moved-for-test")
+        Files.move(owner.toPath(), saved.toPath())
+        owner.writeText(token)
       }
       if (hasReservedSymlink(sandbox)) return "DENY_PATH_ALIAS"
       if (hasReservedHardlink(sandbox)) return "DENY_HARDLINK"
-      // Check test ownership again after the witness transition. This
-      // catches a marker changed or removed between the two checkpoints.
-      if (!validOwnerFromDescriptor(owner, token)) return "DENY_SANDBOX"
+      // Compare the identity of the exact inode opened for UUID reading,
+      // including when both inode contents happen to be identical.
+      val finalOwnerIdentity =
+        verifiedOwnerIdentityFromDescriptor(owner, token) ?: return "DENY_SANDBOX"
+      if (finalOwnerIdentity != initialOwnerIdentity) return "DENY_SANDBOX"
       when (mode) {
         "AFTER_WITNESS" -> "WITNESS_COMMITTED_THEN_PROCESS_KILLED"
         "DURING_JOURNAL" -> {

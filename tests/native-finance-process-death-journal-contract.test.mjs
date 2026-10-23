@@ -28,7 +28,10 @@ test('real SIGKILL is confined to private non-exported debug worker process and 
   assert.match(service, /noBackupFilesDir/);
   assert.match(service, /negresco_synthetic_atomic_\$token/);
   assert.match(service, /\.synthetic-test-owner/);
-  assert.match(service, /validOwnerFromDescriptor/);
+  assert.match(service, /verifiedOwnerIdentityFromDescriptor/);
+  assert.match(service, /private data class OwnerIdentity/);
+  assert.match(service, /stat\.st_dev, stat\.st_ino/);
+  assert.match(service, /finalOwnerIdentity != initialOwnerIdentity/);
   assert.match(service, /INJECT_OWNER_SYMLINK_BEFORE_OPEN_FIXTURE_ONLY/);
   assert.match(service, /\.synthetic-owner-moved-for-test/);
   assert.match(service, /Files\.move\(owner\.toPath\(\), stashed\.toPath\(\)\)/);
@@ -44,7 +47,10 @@ test('real SIGKILL is confined to private non-exported debug worker process and 
   assert.match(service, /INJECT_OWNER_REMOVAL_AFTER_WITNESS_FIXTURE_ONLY/);
   assert.match(service, /owner\.writeText\(otherUuid\)/);
   assert.match(service, /Files\.delete\(owner\.toPath\(\)\)/);
-  assert.match(service, /if \(!validOwnerFromDescriptor\(owner, token\)\) return "DENY_SANDBOX"/);
+  assert.match(service, /verifiedOwnerIdentityFromDescriptor\(owner, token\) \?: return "DENY_SANDBOX"/);
+  assert.match(service, /INJECT_OWNER_REPLACEMENT_AFTER_WITNESS_FIXTURE_ONLY/);
+  assert.match(service, /Files\.move\(owner\.toPath\(\), saved\.toPath\(\)\)/);
+  assert.match(service, /owner\.writeText\(token\)/);
   assert.match(service, /Os\.mkfifo\(owner\.absolutePath, 384\)/);
   assert.match(service, /st_nlink != 1L/);
   assert.match(service, /actual\.contentEquals\(expected\)/);
@@ -79,7 +85,7 @@ test('real SIGKILL is confined to private non-exported debug worker process and 
 });
 
 test('instrumentation observes remote process death and reopen without ever authorizing migration', () => {
-  assert.equal((tests.match(/@Test fun /g) || []).length, 25);
+  assert.equal((tests.match(/@Test fun /g) || []).length, 26);
   assert.match(tests, /app\.bindService\(intent, connection, Context\.BIND_AUTO_CREATE\)/);
   assert.match(tests, /onServiceDisconnected/);
   assert.match(tests, /processDied\.await\(20, TimeUnit\.SECONDS\)/);
@@ -104,6 +110,9 @@ test('instrumentation observes remote process death and reopen without ever auth
   assert.match(tests, /swappedOwnerFifoAfterPreflightCannotHangOrAuthorize/);
   assert.match(tests, /ownerTamperedAfterWitnessCannotCommitJournal/);
   assert.match(tests, /ownerRemovedAfterWitnessCannotCommitJournal/);
+  assert.match(tests, /ownerReplacedWithSameUuidAfterWitnessCannotCommitJournal/);
+  assert.match(tests, /replacementStat\.st_ino != originalStat\.st_ino/);
+  assert.match(tests, /originalStat\.st_ino/);
   assert.match(tests, /lateWitnessBackupSymlinkAfterWitnessCannotAdvanceJournal/);
   assert.match(tests, /lateJournalBackupSymlinkAfterWitnessCannotAdvanceJournal/);
   assert.match(tests, /assertLateBackupAliasAfterWitnessDeniesJournal/);
