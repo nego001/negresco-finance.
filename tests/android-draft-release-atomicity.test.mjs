@@ -119,7 +119,7 @@ test('successful staged upload is checked before publication',t=>{
   const {result,log,state}=run(t);
   assert.equal(result.status,0,result.stderr+result.stdout);
   assert.equal(state?.draft,false);
-  assert.deepEqual(log.map(x=>x[1]),['view','api','create','upload','view','edit']);
+  assert.deepEqual(log.map(x=>x[0] === 'api' ? 'api' : x[1]),['view','api','create','upload','view','edit']);
   assert.ok(log[2].includes('--draft'));
   assert.ok(log[2].includes('--prerelease'));
   assert.ok(log[5].includes('--draft=false'));
@@ -138,7 +138,7 @@ test('existing release cannot be overwritten, edited or clobbered',t=>{
   const {result,log,state}=run(t,'existing');
   assert.notEqual(result.status,0);
   assert.equal(state,null);
-  assert.deepEqual(log.map(x=>x[1]),['view']);
+  assert.deepEqual(log.map(x=>x[0] === 'api' ? 'api' : x[1]),['view']);
   assert.match(result.stderr+result.stdout,/already exists/);
 });
 
@@ -175,7 +175,7 @@ test('existing bare git tag cannot be silently rebound by release target',t=>{
   const {result,log,state}=run(t,'tag_exists');
   assert.notEqual(result.status,0);
   assert.equal(state,null);
-  assert.deepEqual(log.map(x=>x[1]),['view','api']);
+  assert.deepEqual(log.map(x=>x[0] === 'api' ? 'api' : x[1]),['view','api']);
   assert.match(result.stderr+result.stdout,/Git tag already exists/);
 });
 
@@ -183,6 +183,6 @@ test('git ref lookup failure blocks rather than treating 503 as a missing tag',t
   const {result,log,state}=run(t,'tag_api_down');
   assert.notEqual(result.status,0);
   assert.equal(state,null);
-  assert.deepEqual(log.map(x=>x[1]),['view','api']);
+  assert.deepEqual(log.map(x=>x[0] === 'api' ? 'api' : x[1]),['view','api']);
   assert.match(result.stderr+result.stdout,/Cannot prove git tag is absent/);
 });
