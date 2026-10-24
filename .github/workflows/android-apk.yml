@@ -22,7 +22,7 @@ concurrency:
   group: android-candidate-${{ github.ref }}
   cancel-in-progress: true
 permissions:
-  contents: write
+  contents: read
 jobs:
   build-test-apk:
     runs-on: ubuntu-latest
@@ -95,13 +95,18 @@ jobs:
               if(u.url!=="https://u.expo.dev/a506611f-a159-4341-bed7-28dcbd47bf95"||u.requestHeaders?.["expo-channel-name"]!=="preview")process.exit(1);
             });
           '
+      - name: Reject stable signing outside a manually dispatched main build
+        if: ${{ inputs.stable_signing && (github.event_name != 'workflow_dispatch' || github.ref != 'refs/heads/main') }}
+        run: |
+          echo "::error::Stable signing is allowed only after an explicit manual dispatch on main."
+          exit 1
       - name: Build standalone test APK
         env:
-          NEGRESCO_USE_STABLE_SIGNING: ${{ inputs.stable_signing && 'true' || 'false' }}
-          NEGRESCO_RELEASE_KEYSTORE_B64: ${{ inputs.stable_signing && secrets.NEGRESCO_RELEASE_KEYSTORE_B64 || '' }}
-          NEGRESCO_RELEASE_STORE_PASSWORD: ${{ inputs.stable_signing && secrets.NEGRESCO_RELEASE_STORE_PASSWORD || '' }}
-          NEGRESCO_RELEASE_KEY_ALIAS: ${{ inputs.stable_signing && secrets.NEGRESCO_RELEASE_KEY_ALIAS || '' }}
-          NEGRESCO_RELEASE_KEY_PASSWORD: ${{ inputs.stable_signing && secrets.NEGRESCO_RELEASE_KEY_PASSWORD || '' }}
+          NEGRESCO_USE_STABLE_SIGNING: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.stable_signing && 'true' || 'false' }}
+          NEGRESCO_RELEASE_KEYSTORE_B64: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.stable_signing && secrets.NEGRESCO_RELEASE_KEYSTORE_B64 || '' }}
+          NEGRESCO_RELEASE_STORE_PASSWORD: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.stable_signing && secrets.NEGRESCO_RELEASE_STORE_PASSWORD || '' }}
+          NEGRESCO_RELEASE_KEY_ALIAS: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.stable_signing && secrets.NEGRESCO_RELEASE_KEY_ALIAS || '' }}
+          NEGRESCO_RELEASE_KEY_PASSWORD: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.stable_signing && secrets.NEGRESCO_RELEASE_KEY_PASSWORD || '' }}
         run: |
           set -euo pipefail
           if [[ "$NEGRESCO_USE_STABLE_SIGNING" == "true" ]]; then
@@ -231,10 +236,30 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      # Pushes, including feature branches, produce artifacts only.
-      # A release requires an explicit manual opt-in on main.
+  # A build on a branch, including an APK candidate, receives only READ access.
+  # The one job with repository WRITE access never runs on push or pull_request.
+  publish-test-prerelease:
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.publish_release }}
+    needs: build-test-apk
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download verified Release candidate artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: negresco-finance-v313-security-preview
+          path: release-payload
+      - name: Verify downloaded candidate contents before publication
+        working-directory: release-payload
+        run: |
+          set -euo pipefail
+          for file in Negresco-Finance-V3.1.3-preview.apk Negresco-Finance-V3.1.3-preview.zip SHA256-release.txt APK-SIGNATURE.txt RELEASE_NOTES.md; do
+            test -s "$file"
+          done
+          sha256sum -c SHA256-release.txt
       - name: Publish APK first, ZIP second in GitHub Releases
-        if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.publish_release }}
+        working-directory: release-payload
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
