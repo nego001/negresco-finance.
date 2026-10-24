@@ -111,7 +111,7 @@ def expected_attempt_methods():
 
 def expected_callback_methods():
     source = CALLBACK_SOURCE.read_text(encoding='utf-8')
-    names = re.findall(r'@Test\\s+fun\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*\\(', source)
+    names = re.findall(r'@Test\s+fun\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(', source)
     if len(names) != len(CALLBACK_REQUIRED_CASES) or set(names) != CALLBACK_REQUIRED_CASES:
         raise ValueError(
             'P0-1 synthetic callback source inventory mismatch: '
