@@ -18,7 +18,8 @@
           "faceIDPermission": "Permitir que o Negresco Finance use Face ID para desbloquear a prévia."
         }
       ],
-      "./plugins/withNegrescoNoDataExtraction"
+      "./plugins/withNegrescoNoDataExtraction",
+      "./plugins/withNegrescoNetworkPolicy"
     ],
     "runtimeVersion": {
       "policy": "appVersion"
