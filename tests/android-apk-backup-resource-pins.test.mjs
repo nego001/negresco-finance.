@@ -21,6 +21,8 @@ const manifest=attrs=>[
   '  E: manifest (line=1)',
   '    E: application (line=7)',
   ...attrs,
+  '      A: android:networkSecurityConfig(0x01010527)=@0x7f140003',
+  '      A: android:usesCleartextTraffic(0x010104ec)=(type 0x12)0x0',
   '      E: activity (line=10)'
 ].join('\n')+'\n';
 
@@ -41,7 +43,7 @@ test('APK CI checks compiled AndroidManifest resource IDs, not fragile res/xml p
 test('compiled manifest with exactly two valid policy resource IDs passes',t=>{
   const result=run(t,manifest(required));
   assert.equal(result.status,0,result.stderr+result.stdout);
-  assert.match(result.stdout,/references modern and legacy backup exclusion resources/);
+  assert.match(result.stdout,/references backup and HTTPS-only network security policies/);
 });
 
 for(const [name,contents,reason] of [
