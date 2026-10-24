@@ -52,3 +52,21 @@ excluído das execuções automáticas, por exigir consentimento real.
 - Uma CI verde comprova somente compilação e os testes automatizados de negação/configuração; o teste **positivo físico continua PENDENTE** até receber evidência real, revisada, dessa execução manual.
 
 **Rastreio:** [PR #14](https://github.com/nego001/negresco-finance./pull/14) (draft). Não tocar PR #17, não publicar APK e não instalar em aparelhos do usuário a partir deste trabalho.
+
+## P0-1 | Integração de QA biometria real + SQLCipher (somente Debug)
+
+`SyntheticBiometricSqlcipherManualQaActivity` vive exclusivamente em `src/debug`, com `android:exported="false"`. Ela é independente do módulo Expo de produção e não expõe métodos financeiros a JavaScript. A biblioteca SQLCipher é vinculada por `debugImplementation`, nunca `implementation` nem API do APK Release. A auditoria do Release AAR rejeita a classe caso ela vaze para a variante Release.
+
+O fluxo manual exige **duas aprovações biométricas genuínas** (`BiometricPrompt(CryptoObject)`, `AUTH_BIOMETRIC_STRONG`, Keystore com autenticação obrigatória a cada uso e invalidada por mudança de cadastro). Depois da primeira aprovação, `Cipher.doFinal` cifra uma senha inventada, que cria um banco descartável com uma linha `test-not-money` na pasta de cache. A segunda aprovação exige outro `doFinal` para reabrir esse banco em `OPEN_READONLY` (sem criar outro banco silenciosamente). O único resultado de sucesso seria `PASS_DEBUG_BIOMETRIC_SQLCIPHER_ONLY`: não é autorização para saldo, Pix ou dados reais.
+
+`SyntheticBiometricSqlcipherManualQaOptInTest` fica normalmente **SKIPPED** na CI, sendo liberado somente com o runner argument exato `negresco.manual.biometric.sqlcipher=YES_PHYSICAL_CONSENT`, seleção explícita da classe e revisão humana de um dispositivo físico com biometria forte. O teste automatizado não simula nem contorna digitais. Na falha, cancelamento, background ou saída da tela, o ensaio tenta apagar alias, senha em RAM e arquivos de teste, sem prometer eliminação de cópias `String` na JVM. A versão atual é **candidata de engenharia até CI e QA físico**, não proteção implantada.
+
+Issue #18 permanece aberta; a interface normal do aplicativo, o armazenamento financeiro e a autoridade nativa seguem **BLOQUEADOS**. Não instalar nem substituir o aplicativo pessoal para executar esse QA.
+
+### Regressão automática de isolamento (novo teste Android sem digital)
+
+`SyntheticBiometricSqlcipherQaIsolationTest` abre a nova Activity **sem iniciar** o teste biométrico. Ela exige `android:exported=false`, identidade visual Debug, nenhum alias AndroidKeyStore novo e nenhum diretório de banco criado somente pela abertura/fechamento da tela. O auditor JUnit exige que este teste rode sem `SKIPPED`. Isso **não** substitui a autenticação positiva real: a prova de dois prompts continua opt-in físico e será apresentada como SKIPPED no emulador.
+
+### Falha de limpeza é HOLD, nunca PASS (QA Debug)
+
+Após um resultado criptográfico sintético válido, o ensaio agora verifica a exclusão do alias no AndroidKeyStore e do diretório SQLCipher descartável. Uma falha reportada na limpeza rebaixa o resultado para `HOLD_CLEANUP_FAILED`, em vez de declarar PASS. A ausência da biblioteca JNI SQLCipher devolve `HOLD_SQLCIPHER_LIBRARY_UNAVAILABLE`, sem sucesso simulado. O QA ainda precisa verificar fisicamente e auditar retenção/cache antes de qualquer integração produtiva.

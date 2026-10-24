@@ -71,11 +71,11 @@ jobs:
           unzip -p "$aar" classes.jar > "$tmpdir/classes.jar"
           jar tf "$tmpdir/classes.jar" > "$tmpdir/classes.txt"
           grep -q 'com/negresco/finance/security/NegrescoFinanceSecurityV1Module.class' "$tmpdir/classes.txt"
-          if grep -Eq 'SyntheticBiometricManualQaActivity|SyntheticJournalCrashWorkerService' "$tmpdir/classes.txt"; then
+          if grep -Eq 'SyntheticBiometricManualQaActivity|SyntheticBiometricSqlcipherManualQaActivity|SyntheticJournalCrashWorkerService' "$tmpdir/classes.txt"; then
             echo 'SEC05 BLOCK: Debug-only QA code incorrectly packaged into Release classes'
             exit 1
           fi
-          if unzip -p "$aar" AndroidManifest.xml | strings | grep -Eq 'SyntheticBiometricManualQaActivity|SyntheticJournalCrashWorkerService'; then
+          if unzip -p "$aar" AndroidManifest.xml | strings | grep -Eq 'SyntheticBiometricManualQaActivity|SyntheticBiometricSqlcipherManualQaActivity|SyntheticJournalCrashWorkerService'; then
             echo 'SEC05 BLOCK: Debug-only QA component incorrectly packaged into Release manifest'
             exit 1
           fi

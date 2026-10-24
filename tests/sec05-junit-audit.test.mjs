@@ -13,6 +13,9 @@ const kotlin = readFileSync(join(root,
 const caseNames = [...kotlin.matchAll(/@Test fun ([A-Za-z0-9_]+)\s*\(/g)].map(m => m[1]);
 const secClass = 'com.negresco.finance.security.SyntheticJournalActualProcessDeathTest';
 const bioClass = 'com.negresco.finance.security.SyntheticBiometricManualQaOptInTest';
+const debugSqlcipherBiometric = 'com.negresco.finance.security.SyntheticBiometricSqlcipherManualQaOptInTest';
+const isolationClass = 'com.negresco.finance.security.SyntheticBiometricSqlcipherQaIsolationTest';
+const isolationCase = 'debugSqlcipherActivityLaunchCannotProvisionKeyOrSyntheticDatabase';
 const required = 'ownerReplacedWithSameUuidAfterWitnessCannotCommitJournal';
 const sliceClass = 'com.negresco.finance.security.SyntheticKeystoreSqlcipherLifecycleBoundaryTest';
 const sliceMethods = [
@@ -40,6 +43,9 @@ function baseline() {
   return [
     ...caseNames.map(name => ({classname: secClass, name, skipped: permittedHardlinks.has(name)})),
     {classname: bioClass, name: 'realStrongBiometricRequiresExplicitPhysicalDeviceConsent', skipped: true},
+    {classname: debugSqlcipherBiometric,
+      name: 'realBiometricTwiceThenSyntheticSqlcipherReopensWithNoJsAccess', skipped: true},
+    {classname: isolationClass, name: isolationCase, skipped: false},
     ...sliceMethods.map(name => ({classname: sliceClass, name, skipped: false})),
     ...preflightMethods.map(name => ({classname: preflightClass, name, skipped: false})),
   ];
@@ -81,7 +87,8 @@ test('26 SEC-05 cases with four expected hardlink skips pass and report missing 
   assert.match(r.summary, /SEC-05 process-death cases present: \*\*26\/26\*\*/);
   assert.match(r.summary, /SEC-05 source method inventory matches JUnit: \*\*True\*\*/);
   assert.match(r.summary, /Synthetic native cipher lifecycle methods: \*\*4\/4\*\*/);
-  assert.match(r.summary, /skipped: \*\*5\*\*/);
+  assert.match(r.summary, /DEBUG SQLCipher biometric isolation case: \\*\\*executed\\*\\*/);
+  assert.match(r.summary, /skipped: \\*\\*6\\*\\*/);
   assert.match(r.summary, /Required same-UUID inode replacement case: \*\*executed\*\*/);
 });
 test('missing XML fails closed', () => {
@@ -195,4 +202,20 @@ test('P0-1 preflight: a forged method with the same count fails closed', () => {
   assert.notEqual(r.status, 0);
   assert.match(r.stderr, /P0-1 native preflight inventory mismatch/);
   assert.match(r.stderr, /forgedAllTrueSignalsStillCannotAuthorizeAnything/);
+});
+
+test('DEBUG SQLCipher isolation is neither missing, skipped nor forged', () => {
+  const missing = run(baseline().filter(c => c.classname !== isolationClass));
+  assert.notEqual(missing.status, 0);
+  assert.match(missing.stderr, /DEBUG SQLCipher QA isolation test missing/);
+  const skipped = baseline();
+  skipped.find(c => c.classname === isolationClass).skipped = true;
+  const result = run(skipped);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /DEBUG SQLCipher QA isolation test missing/);
+  const fake = baseline();
+  fake.find(c => c.classname === isolationClass).name = 'fakeDebugIsolationCase';
+  const forged = run(fake);
+  assert.notEqual(forged.status, 0);
+  assert.match(forged.stderr, /DEBUG SQLCipher QA isolation test missing/);
 });

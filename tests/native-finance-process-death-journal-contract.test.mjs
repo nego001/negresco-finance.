@@ -158,7 +158,7 @@ test('instrumentation observes remote process death and reopen without ever auth
   assert.match(ci, /:negresco-finance-security:compileDebugAndroidTestKotlin/);
   assert.match(ci, /:negresco-finance-security:connectedDebugAndroidTest/);
   assert.match(ci, /:negresco-finance-security:bundleReleaseAar/);
-  assert.match(ci, /SyntheticBiometricManualQaActivity\|SyntheticJournalCrashWorkerService/);
+  assert.match(ci, /SyntheticBiometricManualQaActivity\|SyntheticBiometricSqlcipherManualQaActivity\|SyntheticJournalCrashWorkerService/);
   // A green emulator must contain a real, complete JUnit XML report.
   assert.match(ci, /Audit SEC-05 Android JUnit evidence/);
   assert.match(ci, /python3 tooling\/sec05_android_junit_audit\.py/);
