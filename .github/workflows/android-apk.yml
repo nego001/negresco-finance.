@@ -37,6 +37,7 @@ on:
       - 'tests/android-publish-apk-manifest-security.test.mjs'
       - 'tests/android-expo-data-extraction-rules.test.mjs'
       - 'tests/android-apk-backup-resource-pins.test.mjs'
+      - 'tests/android-publisher-backup-resource-gate.test.mjs'
       - '.github/workflows/android-apk.yml'
 # Keep only the newest candidate compiling when multiple source commits arrive.
 concurrency:
@@ -435,6 +436,24 @@ jobs:
           attribute("allowBackup", true);
           attribute("debuggable", false);
           attribute("testOnly", false);
+          // The privileged publisher must independently prove the downloaded
+          // APK carries BOTH Android 12+ and legacy backup policy references.
+          // Resource IDs can be remapped by AAPT; require typed references,
+          // not a guessed res/xml file path.
+          function policyResource(name) {
+            const found=attrs.filter(line=>
+              new RegExp("^\\s*A: android:"+name+"\\(").test(line));
+            if(found.length!==1 ||
+               !new RegExp("^\\s*A: android:"+name+
+                  "\\(0x[0-9a-fA-F]{8}\\)=@0x([0-9a-fA-F]{1,8})\\s*$").test(found[0])){
+              reject("missing, duplicate or invalid backup policy resource: "+name);
+            }
+            return found[0].match(/=@0x([0-9a-fA-F]{1,8})\s*$/)[1].toLowerCase();
+          }
+          const modernPolicyId=policyResource("dataExtractionRules");
+          const legacyPolicyId=policyResource("fullBackupContent");
+          if(modernPolicyId===legacyPolicyId)
+            reject("modern and legacy backup policies must use different resource IDs");
           if (badging.split(/\r?\n/).some(line => /^application-debuggable(?:\s|$)/.test(line)))
             reject("aapt badging identifies a debuggable APK");
           console.log("PASS: downloaded APK package, biometric permission, backup and debug flags verified");
