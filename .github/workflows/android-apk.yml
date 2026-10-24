@@ -222,6 +222,10 @@ jobs:
           - Assinatura verificada nao comprova atualizacao possivel sobre qualquer instalacao antiga. Compare certificados e versionCode.
           - Nunca desinstale uma versao existente sem antes decidir como preservar os dados locais.
           EOF
+      - name: Verify APK identity across original, standalone and ZIP candidate
+        run: |
+          set -euo pipefail
+          python3 ../../tooling/android/verify_release_bundle_consistency.py .
       # Always upload a complete candidate independently of GitHub Releases write access.
       - name: Preserve full release bundle as Actions artifact
         uses: actions/upload-artifact@v4
