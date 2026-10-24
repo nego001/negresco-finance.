@@ -28,7 +28,9 @@ function mockPlugin() {
     return here(id);
   };
   new Function('require','module','exports',script)(mocked,module,module.exports);
-  return {...module.exports, count:()=>[calledAndroidManifest,calledDangerous]};
+  const plugin=module.exports;
+  plugin.count=()=>[calledAndroidManifest,calledDangerous];
+  return plugin;
 }
 const DOMAINS=['root','file','database','sharedpref','external',
   'device_root','device_file','device_database','device_sharedpref'];
