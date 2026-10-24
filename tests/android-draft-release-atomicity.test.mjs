@@ -33,6 +33,22 @@ fs.appendFileSync(logs, JSON.stringify(args) + '\n');
 const tagFile = path.join(dir, 'tag.json');
 const readsFile = path.join(dir, 'tag-reads.txt');
 if (args[0] === 'api') {
+  if (args.some(x => x.includes('/releases?per_page=100'))) {
+    if (process.env.GH_TOKEN !== 'fixture-publishing-token') process.exit(47);
+    if (mode === 'release_list_fail') process.exit(13);
+    if (mode === 'release_list_bad_json') { process.stdout.write('garbage'); process.exit(0); }
+    if (mode === 'release_list_bad_shape') { process.stdout.write('{}'); process.exit(0); }
+    if (mode === 'release_list_empty_shape') { process.stdout.write('[]'); process.exit(0); }
+    if (mode === 'release_list_partial_page') { process.stdout.write('[{}]'); process.exit(0); }
+    if (mode === 'release_list_bad_release') { process.stdout.write('[[{}]]'); process.exit(0); }
+    const tag='v3.1.3-preview-' + process.env.GITHUB_SHA.slice(0,7);
+    const rec={tag_name:tag,draft:mode==='existing_draft' || mode==='existing_second_page'};
+    const pages=mode==='existing' || mode==='existing_draft' ? [[rec]] :
+      mode==='existing_second_page' ? [[{tag_name:'unrelated',draft:false}],[rec]] :
+      [[{tag_name:'unrelated',draft:true}],[]];
+    process.stdout.write(JSON.stringify(pages));
+    process.exit(0);
+  }
   if (args.some(x => x.endsWith('/immutable-releases'))) {
     if (process.env.GH_TOKEN !== 'fixture-policy-read-only') process.exit(46);
     const readCounter=path.join(dir,'policy-reads.txt');
@@ -164,7 +180,7 @@ test('successful staged upload is checked before publication',t=>{
   const {result,log,state}=run(t);
   assert.equal(result.status,0,result.stderr+result.stdout);
   assert.equal(state?.draft,false);
-  assert.deepEqual(log.map(x=>x[0] === 'api' ? 'api' : x[1]),['api','view','api','api','api','create','upload','view','api','api','edit']);
+  assert.deepEqual(log.map(x=>x[0] === 'api' ? 'api' : x[1]),['api','api','api','api','api','create','upload','view','api','api','edit']);
   assert.ok(log[5].includes('--draft'));
   assert.ok(log[5].includes('--prerelease'));
   assert.ok(log[10].includes('--draft=false'));
@@ -183,7 +199,7 @@ test('existing release cannot be overwritten, edited or clobbered',t=>{
   const {result,log,state}=run(t,'existing');
   assert.notEqual(result.status,0);
   assert.equal(state,null);
-  assert.deepEqual(log.map(x=>x[0] === 'api' ? 'api' : x[1]),['api','view']);
+  assert.deepEqual(log.map(x=>x[0] === 'api' ? 'api' : x[1]),['api','api']);
   assert.match(result.stderr+result.stdout,/already exists/);
 });
 
@@ -220,7 +236,7 @@ test('existing bare git tag cannot be silently rebound by release target',t=>{
   const {result,log,state}=run(t,'tag_exists');
   assert.notEqual(result.status,0);
   assert.equal(state,null);
-  assert.deepEqual(log.map(x=>x[0] === 'api' ? 'api' : x[1]),['api','view','api']);
+  assert.deepEqual(log.map(x=>x[0] === 'api' ? 'api' : x[1]),['api','api','api']);
   assert.match(result.stderr+result.stdout,/Git tag already exists/);
 });
 
@@ -228,7 +244,7 @@ test('git ref lookup failure blocks rather than treating 503 as a missing tag',t
   const {result,log,state}=run(t,'tag_api_down');
   assert.notEqual(result.status,0);
   assert.equal(state,null);
-  assert.deepEqual(log.map(x=>x[0] === 'api' ? 'api' : x[1]),['api','view','api']);
+  assert.deepEqual(log.map(x=>x[0] === 'api' ? 'api' : x[1]),['api','api','api']);
   assert.match(result.stderr+result.stdout,/Cannot prove git tag is absent/);
 });
 
@@ -297,5 +313,24 @@ for(const [mode,expected] of [
     assert.equal(log.some(x=>x[1]==='edit'),false);
     assert.deepEqual(log.filter(x=>x[0]==='api' && x.some(a=>a.endsWith('/immutable-releases'))).length,2);
     assert.match(result.stderr+result.stdout,expected);
+  });
+}
+
+for(const [mode,why] of [
+  ['existing_draft',/release already exists/],
+  ['existing_second_page',/release already exists/],
+  ['release_list_fail',/Cannot enumerate existing/],
+  ['release_list_bad_json',/not valid JSON/],
+  ['release_list_bad_shape',/incomplete or malformed/],
+  ['release_list_empty_shape',/incomplete or malformed/],
+  ['release_list_partial_page',/incomplete or malformed/],
+  ['release_list_bad_release',/incomplete or malformed/]
+]){
+  test('public/private release collision preflight fails closed: '+mode,t=>{
+    const {result,log,state}=run(t,mode);
+    assert.notEqual(result.status,0);
+    assert.equal(state,null);
+    assert.deepEqual(log.map(x=>x[0]),['api','api']);
+    assert.match(result.stderr+result.stdout,why);
   });
 }
