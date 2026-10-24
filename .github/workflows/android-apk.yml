@@ -236,8 +236,8 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  # A build on a branch, including an APK candidate, receives only READ access.
-  # The one job with repository WRITE access never runs on push or pull_request.
+  # Read-only branch builds may generate disposable APK artifacts, never releases.
+  # Only an explicit manual main dispatch can schedule the separate WRITE job.
   publish-test-prerelease:
     if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.publish_release }}
     needs: build-test-apk
