@@ -78,6 +78,16 @@ class SyntheticBiometricSqlcipherManualQaActivity : FragmentActivity() {
         finishQa("HOLD_PREVIOUS_CLEANUP_FAILED")
         return
       }
+      // Process death can leave old QA aliases/files after in-memory handles vanish.
+      // Block until a human resolves such residues in an isolated QA environment.
+      val knownAliases = store().aliases().toList()
+      val knownFolders = requireNotNull(cacheDir.listFiles()) {
+        "Debug QA residue inspection unavailable"
+      }.map { it.name }
+      if (!SyntheticDebugQaOrphanResidueGate.isClear(knownAliases, knownFolders)) {
+        finishQa("HOLD_ORPHANED_DEBUG_QA_RESIDUE")
+        return
+      }
       System.loadLibrary("sqlcipher")
       val temp = File(cacheDir, "negresco_qa_sqlcipher_" + UUID.randomUUID())
       check(temp.mkdirs()) { "isolated QA folder unavailable" }
