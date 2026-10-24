@@ -126,7 +126,8 @@ jobs:
           APK="android/app/build/outputs/apk/release/app-release.apk"
           test -s "$APK"
           unzip -t "$APK" >/dev/null
-          # Inspect the assembled APK as well as the separate Release AAR.
+          # Inspect the exact assembled APK, rejecting missing/duplicate DEX ZIP entries
+          # and any known Debug QA class; the Release AAR gate remains separate.
           python3 ../../tooling/android/verify_release_apk_surface.py "$APK"
           BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
           "$BUILD_TOOLS/aapt" dump badging "$APK" | grep -F "package: name='com.negresco.finance'"
