@@ -32,14 +32,14 @@ const logs = path.join(dir, 'gh-commands.txt');
 fs.appendFileSync(logs, JSON.stringify(args) + '\n');
 if (args[0] === 'api') {
   if (mode === 'tag_exists') {
-    process.stdout.write('HTTP/2.0 200 OK\\n');
+    process.stdout.write('HTTP/2.0 200 OK\n');
     process.exit(0);
   }
   if (mode === 'tag_api_down') {
-    process.stderr.write('HTTP/2.0 503 Service Unavailable\\n');
+    process.stderr.write('HTTP/2.0 503 Service Unavailable\n');
     process.exit(1);
   }
-  process.stdout.write('HTTP/2.0 404 Not Found\\n');
+  process.stdout.write('HTTP/2.0 404 Not Found\n');
   process.exit(1);
 }
 if (args[0] !== 'release') process.exit(2);
