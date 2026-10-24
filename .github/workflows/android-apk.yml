@@ -28,6 +28,7 @@ on:
       - 'tests/android-explicit-release-tag.test.mjs'
       - 'tests/android-immutable-release-policy.test.mjs'
       - 'tests/android-readonly-release-policy-credential.test.mjs'
+      - 'tests/android-release-collision-preflight.test.mjs'
       - '.github/workflows/android-apk.yml'
 # Keep only the newest candidate compiling when multiple source commits arrive.
 concurrency:
@@ -427,12 +428,42 @@ jobs:
               });
             '
           }
-          # A retry must fail closed rather than modify an existing public release.
-          # Never clobber an existing asset or overwrite somebody else's release.
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "::error::Release tag already exists. Refusing to change an existing release."
+          # REST get-by-tag excludes drafts. List EVERY page with the
+          # publishing token, which has push access and can see private drafts.
+          # A failed/incomplete listing must never mean "safe to create".
+          RELEASES_PREFLIGHT="$(mktemp)"
+          if ! gh api --paginate --slurp "repos/${GH_REPO}/releases?per_page=100" >"$RELEASES_PREFLIGHT" 2>/dev/null; then
+            rm -f "$RELEASES_PREFLIGHT"
+            echo "::error::Cannot enumerate existing public or draft releases; refusing to create a tag."
             exit 1
           fi
+          if ! node - "$RELEASES_PREFLIGHT" <<'NODE'
+          const fs = require("node:fs");
+          let pages;
+          try { pages = JSON.parse(fs.readFileSync(process.argv[2], "utf8")); }
+          catch {
+            console.error("BLOCK: release listing is not valid JSON");
+            process.exit(1);
+          }
+          if (!Array.isArray(pages) || pages.length === 0 ||
+              pages.some(page => !Array.isArray(page) ||
+                page.some(release => !release ||
+                  typeof release.tag_name !== "string" ||
+                  typeof release.draft !== "boolean"))) {
+            console.error("BLOCK: release listing is incomplete or malformed");
+            process.exit(1);
+          }
+          if (pages.some(page => page.some(release => release.tag_name === process.env.RELEASE_TAG))) {
+            console.error("BLOCK: release already exists (draft or published); refusing to overwrite");
+            process.exit(1);
+          }
+          console.log("PASS: no conflicting release, including private drafts, in paginated GitHub listing");
+          NODE
+          then
+            rm -f "$RELEASES_PREFLIGHT"
+            exit 1
+          fi
+          rm -f "$RELEASES_PREFLIGHT"
           # GitHub ignores --target if the git tag already exists. A 404 is the
           # only acceptable response; API failure, auth errors and timeouts BLOCK.
           TAG_LOOKUP="$(mktemp)"
