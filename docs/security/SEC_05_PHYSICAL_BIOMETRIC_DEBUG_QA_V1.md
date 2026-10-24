@@ -154,3 +154,28 @@ O auditor JUnit exige **2/2 métodos instrumentados novos, sem SKIPPED**,
 adicionais aos quatro métodos do verificador de nomes da etapa anterior.
 Isso testa uma fronteira de Activity real, mas **não executa autenticação
 biométrica positiva nem simula crash de processo autêntico**.
+
+
+### Falha na enumeração de resíduos de QA (DEBUG-only)
+
+`SyntheticDebugQaOrphanInspection` é uma pequena camada de entrada
+em `src/debug`, invocada diretamente por `startManualQa()`. Recebe
+duas leituras (aliases `AndroidKeyStore` e nomes de entradas do cache)
+e retorna `HOLD_INSPECTION_UNAVAILABLE` se houver exceção ou lista
+de arquivos indisponível. **Nunca converte erro de leitura em coleção
+vazia**, para não gerar chave de teste ao ignorar resíduos que
+simplesmente não puderam ser enumerados.
+
+Se encontrar nomes com os prefixos restritos de QA, retorna
+`HOLD_ORPHANED_DEBUG_QA_RESIDUE`; só retorna
+`QA_FIXTURES_CLEAR` se as duas enumerações forem realizadas e não
+encontrarem resíduos. Esta última resposta **não é `ALLOW`**, não
+substitui biometria, não prova identidade e apenas permite prosseguir
+às etapas de ensaio manual em uma Activity Debug.
+
+`SyntheticDebugQaOrphanInspectionTest` executa **5 casos negativos
+e de controle** em `androidTest`: listagem nula, exceção na leitura
+de alias, exceção no cache, alias/pasta suspeitos e ausência de nomes
+suspeitos. O auditor JUnit exige **5/5 nomes exatos, sem `SKIPPED`**,
+além dos testes anteriores. Nenhuma chave ou SQLCipher real é
+instanciada por esse teste.

@@ -72,6 +72,14 @@ const orphanActivityMethods = [
   'orphanedFixtureFolderBlocksActivityBeforeBiometricPromptOrKeyCreation',
   'unrelatedCacheEntryCannotTriggerOrphanResidueDecision',
 ];
+const inspectionClass = 'com.negresco.finance.security.SyntheticDebugQaOrphanInspectionTest';
+const inspectionMethods = [
+  'missingCacheListingCannotBeTreatedAsEmptyStorage',
+  'thrownAndroidKeystoreEnumerationNeverProceedsToQa',
+  'thrownCacheEnumerationNeverProceedsToQa',
+  'suspectAliasOrFolderAlwaysBlocksNextDebugQa',
+  'cleanNamesPermitOnlyManualDebugPreparationNotFinancialAccess',
+];
 const permittedHardlinks = new Set([
   'hardlinkedJournalNewCannotRedirectWrite',
   'hardlinkedOwnerMarkerCannotAuthorizeWorkerWrite',
@@ -96,6 +104,7 @@ function baseline() {
     ...cleanupMethods.map(name => ({classname: cleanupClass, name, skipped: false})),
     ...orphanMethods.map(name => ({classname: orphanClass, name, skipped: false})),
     ...orphanActivityMethods.map(name => ({classname: orphanActivityClass, name, skipped: false})),
+    ...inspectionMethods.map(name => ({classname: inspectionClass, name, skipped: false})),
   ];
 }
 
@@ -143,6 +152,7 @@ test('26 SEC-05 cases with four expected hardlink skips pass and report missing 
   assert.match(r.summary, /P0-1 Debug cleanup fault-injection methods: \*\*4\/4\*\*/);
   assert.match(r.summary, /P0-1 Debug orphan residue methods: \*\*4\/4\*\*/);
   assert.match(r.summary, /P0-1 Debug live orphan Activity methods: \*\*2\/2\*\*/);
+  assert.match(r.summary, /P0-1 Debug orphan inspection fault methods: \*\*5\/5\*\*/);
   assert.match(r.summary, /Required same-UUID inode replacement case: \*\*executed\*\*/);
 });
 test('missing XML fails closed', () => {
@@ -445,4 +455,26 @@ test('P0-1 live orphan Activity evidence rejects fabricated method names', () =>
   const r = run(cases);
   assert.notEqual(r.status, 0);
   assert.match(r.stderr, /Debug orphan Activity inventory mismatch/);
+});
+
+test('P0-1 unavailable Debug inventory: missing JUnit case blocks audit', () => {
+  const r = run(baseline().filter(c =>
+    !(c.classname === inspectionClass && c.name === inspectionMethods[0])));
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /Debug inspection fault inventory mismatch/);
+});
+test('P0-1 unavailable Debug inventory: SKIPPED case blocks audit', () => {
+  const cases = baseline();
+  cases.find(c => c.classname === inspectionClass && c.name === inspectionMethods[1]).skipped = true;
+  const r = run(cases);
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /Debug inspection fault has SKIPPED tests/);
+});
+test('P0-1 unavailable Debug inventory: renamed same-count method blocks audit', () => {
+  const cases = baseline();
+  cases.find(c => c.classname === inspectionClass && c.name === inspectionMethods[2]).name =
+    'fakeInspectionReturnedApproved';
+  const r = run(cases);
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /Debug inspection fault inventory mismatch/);
 });

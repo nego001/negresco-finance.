@@ -100,6 +100,18 @@ ORPHAN_ACTIVITY_SOURCE = (Path(__file__).resolve().parent.parent /
     'apps/mobile/modules/negresco-finance-security/android/src/androidTest/java/'
     'com/negresco/finance/security/SyntheticDebugQaOrphanActivityBoundaryTest.kt')
 
+INSPECTION_CLASS = 'com.negresco.finance.security.SyntheticDebugQaOrphanInspectionTest'
+INSPECTION_REQUIRED_CASES = frozenset({
+    'missingCacheListingCannotBeTreatedAsEmptyStorage',
+    'thrownAndroidKeystoreEnumerationNeverProceedsToQa',
+    'thrownCacheEnumerationNeverProceedsToQa',
+    'suspectAliasOrFolderAlwaysBlocksNextDebugQa',
+    'cleanNamesPermitOnlyManualDebugPreparationNotFinancialAccess',
+})
+INSPECTION_SOURCE = (Path(__file__).resolve().parent.parent /
+    'apps/mobile/modules/negresco-finance-security/android/src/androidTest/java/'
+    'com/negresco/finance/security/SyntheticDebugQaOrphanInspectionTest.kt')
+
 # CI is unattended: genuine user consent must never be reported as PASS by
 # emulator/fixture evidence. Physical positive QA has its own human gate.
 PHYSICAL_ONLY_CASES = frozenset({
@@ -197,6 +209,16 @@ def expected_orphan_activity_methods():
     if len(names) != len(ORPHAN_ACTIVITY_REQUIRED_CASES) or set(names) != ORPHAN_ACTIVITY_REQUIRED_CASES:
         raise ValueError(
             'P0-1 Debug orphan Activity source inventory mismatch: '
+            f'{sorted(names)}')
+    return set(names)
+
+
+def expected_inspection_methods():
+    source = INSPECTION_SOURCE.read_text(encoding='utf-8')
+    names = re.findall(r'@Test\s+fun\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(', source)
+    if len(names) != len(INSPECTION_REQUIRED_CASES) or set(names) != INSPECTION_REQUIRED_CASES:
+        raise ValueError(
+            'P0-1 Debug inspection fault source inventory mismatch: '
             f'{sorted(names)}')
     return set(names)
 
@@ -353,6 +375,19 @@ def audit(report_dir: Path):
             f'count={len(orphan_activity_cases)}')
     if any(c.find('skipped') is not None for c in orphan_activity_cases):
         reasons.append('P0-1 Debug orphan Activity has SKIPPED tests')
+    inspection_expected = expected_inspection_methods()
+    inspection_cases = [c for c in cases if c.get('classname') == INSPECTION_CLASS]
+    inspection_actual = {c.get('name') for c in inspection_cases}
+    inspection_missing = sorted(inspection_expected - inspection_actual)
+    inspection_extra = sorted(inspection_actual - inspection_expected)
+    if (len(inspection_cases) != len(inspection_expected)
+            or inspection_missing or inspection_extra):
+        reasons.append(
+            'P0-1 Debug inspection fault inventory mismatch: '
+            f'missing={inspection_missing}, unexpected={inspection_extra}, '
+            f'count={len(inspection_cases)}')
+    if any(c.find('skipped') is not None for c in inspection_cases):
+        reasons.append('P0-1 Debug inspection fault has SKIPPED tests')
     status = 'PASS' if not reasons else 'FAIL'
     summary = [
         '### SEC-05 Android JUnit evidence',
@@ -370,6 +405,7 @@ def audit(report_dir: Path):
         f'- P0-1 Debug cleanup fault-injection methods: **{len(cleanup_cases)}/{len(cleanup_expected)}** (zero skips required)',
         f'- P0-1 Debug orphan residue methods: **{len(orphan_cases)}/{len(orphan_expected)}** (zero skips required)',
         f'- P0-1 Debug live orphan Activity methods: **{len(orphan_activity_cases)}/{len(orphan_activity_expected)}** (zero skips required)',
+        f'- P0-1 Debug orphan inspection fault methods: **{len(inspection_cases)}/{len(inspection_expected)}** (zero skips required)',
         f'- Physical biometric consent-only cases kept SKIPPED: **{physical_skipped_count}/{len(PHYSICAL_ONLY_CASES)}** (never a CI pass)',
         f'- Required same-UUID inode replacement case: **{("executed" if len(required) == 1 and required[0].find("skipped") is None else "missing/skipped")}**',
     ]
