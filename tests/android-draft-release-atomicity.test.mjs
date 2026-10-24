@@ -30,17 +30,40 @@ const dir = process.env.FAKE_STATE_DIR;
 const state = path.join(dir, 'draft.json');
 const logs = path.join(dir, 'gh-commands.txt');
 fs.appendFileSync(logs, JSON.stringify(args) + '\n');
+const tagFile = path.join(dir, 'tag.json');
+const readsFile = path.join(dir, 'tag-reads.txt');
 if (args[0] === 'api') {
-  if (mode === 'tag_exists') {
-    process.stdout.write('HTTP/2.0 200 OK\n');
-    process.exit(0);
-  }
-  if (mode === 'tag_api_down') {
-    process.stderr.write('HTTP/2.0 503 Service Unavailable\n');
+  if (args.includes('--include')) {
+    if (mode === 'tag_exists') {
+      process.stdout.write('HTTP/2.0 200 OK\n');
+      process.exit(0);
+    }
+    if (mode === 'tag_api_down') {
+      process.stderr.write('HTTP/2.0 503 Service Unavailable\n');
+      process.exit(1);
+    }
+    process.stdout.write('HTTP/2.0 404 Not Found\n');
     process.exit(1);
   }
-  process.stdout.write('HTTP/2.0 404 Not Found\n');
-  process.exit(1);
+  if (args.includes('POST')) {
+    if (mode === 'tag_create_fail') process.exit(9);
+    const sha = args.find(x => x.startsWith('sha='))?.slice(4);
+    const ref = args.find(x => x.startsWith('ref='))?.slice(4);
+    const response = {ref,object:{type:'commit',sha}};
+    fs.writeFileSync(tagFile,JSON.stringify(response));
+    if (mode === 'tag_create_wrong_response') response.object.sha = 'b'.repeat(40);
+    process.stdout.write(JSON.stringify(response));
+    process.exit(0);
+  }
+  if (!fs.existsSync(tagFile) || mode === 'tag_get_missing') process.exit(10);
+  const response=JSON.parse(fs.readFileSync(tagFile,'utf8'));
+  const reads=Number(fs.existsSync(readsFile)?fs.readFileSync(readsFile,'utf8'):0)+1;
+  fs.writeFileSync(readsFile,String(reads));
+  if (mode === 'tag_get_wrong_sha' || (mode === 'tag_drift' && reads === 2))
+    response.object.sha = 'b'.repeat(40);
+  if (mode === 'tag_get_annotated') response.object.type = 'tag';
+  process.stdout.write(JSON.stringify(response));
+  process.exit(0);
 }
 if (args[0] !== 'release') process.exit(2);
 if (args[1] === 'view') {
