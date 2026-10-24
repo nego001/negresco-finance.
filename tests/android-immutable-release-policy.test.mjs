@@ -7,13 +7,16 @@ const job=workflow.slice(workflow.indexOf('  publish-test-prerelease:'));
 const pub=job.slice(job.indexOf('      - name: Stage private draft and publish only after complete verified upload'));
 
 test('immutable releases are required before writing Git tags or making draft release',()=>{
-  const check=pub.indexOf('gh api "repos/${GH_REPO}/immutable-releases"');
+  const check=pub.indexOf('GH_TOKEN="$RELEASE_POLICY_READ_TOKEN" gh api "repos/${GH_REPO}/immutable-releases"');
   const createTag=pub.indexOf('gh api -X POST "repos/${GH_REPO}/git/refs"');
   const createDraft=pub.indexOf('gh release create "$TAG"');
   assert.ok(check>=0 && createTag>check && createDraft>createTag);
   assert.match(pub,/policy\.enabled !== true/);
   assert.match(pub,/immutable releases must be enabled before creating a release tag/);
   assert.match(pub,/Cannot verify enabled GitHub immutable releases/);
+  assert.ok(pub.lastIndexOf('verify_immutable_policy') > pub.indexOf('gh release upload "$TAG"'));
+  assert.ok(pub.lastIndexOf('verify_immutable_policy') < pub.indexOf('gh release edit "$TAG" --draft=false'));
+  assert.match(pub,/Read-only release policy token is missing/);
 });
 
 test('immutability check does not call settings mutation endpoints or use untrusted code',()=>{
