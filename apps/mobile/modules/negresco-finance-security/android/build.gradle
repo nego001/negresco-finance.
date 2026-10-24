@@ -1,0 +1,55 @@
+// Expo SDK 54 local diagnostic-only module.
+// SDK 54 still uses ExpoModulesCorePlugin.gradle, not the newer Gradle plugin ID.
+// No biometrics, SQLCipher, permissions or production database in main code.
+// Test-only Android Keystore scenarios live exclusively under src/androidTest.
+apply plugin: 'com.android.library'
+
+group = 'com.negresco.finance'
+version = '0.1.0'
+
+def expoModulesCorePlugin = new File(project(":expo-modules-core").projectDir.absolutePath, "ExpoModulesCorePlugin.gradle")
+apply from: expoModulesCorePlugin
+applyKotlinExpoModulesCorePlugin()
+useCoreDependencies()
+useExpoPublishing()
+useDefaultAndroidSdkVersions()
+
+android {
+  namespace 'com.negresco.finance.security'
+  defaultConfig {
+    versionCode 1
+    versionName '0.1.0'
+    // A synthetic emulator-only test runner, never part of the release app.
+    testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+  }
+}
+
+dependencies {
+  // Pure typed snapshot classifier only: no DataStore factory, I/O or JS grant.
+  implementation 'androidx.datastore:datastore-preferences-core:1.2.1'
+  // Process-wide Context preferencesDataStore delegate for *existing-record*
+  // diagnostics only. Never initializes a financial database or grants keys.
+  implementation 'androidx.datastore:datastore-preferences:1.2.1'
+  // Actual DataStore fixture is created only under src/androidTest, never by
+  // the production-facing Expo diagnostic module.
+  androidTestImplementation 'androidx.datastore:datastore-preferences:1.2.1'
+  androidTestImplementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0'
+  // Tests run only in isolated CI emulators; the app has NO Keystore API.
+  // The Zetetic AAR is TEST ONLY: no SQLCipher dependency in the APK-facing
+  // module's implementation scope, nor any JS database or key API.
+  androidTestImplementation 'net.zetetic:sqlcipher-android:4.19.1'
+  androidTestImplementation 'androidx.sqlite:sqlite:2.7.0'
+  // BiometricPrompt.CryptoObject is a test-only wrapper here. This NEVER
+  // creates a prompt, grants a session, or adds biometric APIs to main/JS.
+  // Manual QA Activity exists only in src/debug and never in Release.
+  // This does NOT add a financial biometric API to the production module.
+  debugImplementation 'androidx.biometric:biometric:1.1.0'
+  // Experimental Debug QA only: NOT a Release or financial database.
+  debugImplementation 'net.zetetic:sqlcipher-android:4.19.1'
+  debugImplementation 'androidx.sqlite:sqlite:2.7.0'
+  androidTestImplementation 'androidx.biometric:biometric:1.1.0'
+  androidTestImplementation 'junit:junit:4.13.2'
+  androidTestImplementation 'androidx.test:runner:1.6.2'
+  androidTestImplementation 'androidx.test:core:1.6.1'
+  androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+}

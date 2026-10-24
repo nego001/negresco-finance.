@@ -1,0 +1,284 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {inspectNativeFinanceReadiness} from '../apps/mobile/security/nativeFinanceReadiness.ts';
+
+const read = p => readFileSync(new URL('../' + p, import.meta.url), 'utf8');
+
+function alwaysDenied(result) {
+  assert.equal(result.financialStorageAllowed, false);
+  assert.equal(result.keyReleaseAllowed, false);
+  assert.equal(result.migrationAllowed, false);
+  assert.equal(Object.isFrozen(result), true);
+}
+
+test('Fase 1 native integration diagnostics are read-only and reject missing Android module', async () => {
+  const absent = [undefined, null, {}, {getIntegrationInfo: null}, {getIntegrationInfo: true}];
+  for (const host of absent) {
+    const result = await inspectNativeFinanceReadiness('android', host);
+    assert.equal(result.status, 'native-module-absent');
+    assert.match(result.message, /não integrada/i);
+    alwaysDenied(result);
+  }
+});
+
+test('no Android native finance probe runs on another platform', async () => {
+  let invoked = 0;
+  for (const platform of ['ios', 'web', 'windows', 'linux', '', 'ANDROID']) {
+    const result = await inspectNativeFinanceReadiness(platform, {
+      getIntegrationInfo() { invoked++; throw Error('should not call'); },
+    });
+    assert.equal(result.status, 'unsupported-platform');
+    alwaysDenied(result);
+  }
+  assert.equal(invoked, 0);
+});
+
+test('even a forged native ready claim cannot grant any financial operation', async () => {
+  const results = [
+    {ready: true, financialStorageAllowed: true, unlock: true, sqlcipher: 'ready'},
+    {status: 'VERIFIED_LIVE_CURRENT', keyReleaseAllowed: true, migrationAllowed: true},
+    {protocolVersion: 999, production: true, hardwareBacked: true},
+    true,
+    null,
+    undefined,
+  ];
+  for (const claim of results) {
+    const result = await inspectNativeFinanceReadiness('android', {
+      getIntegrationInfo: async () => claim,
+    });
+    assert.equal(result.status, 'native-lab-only');
+    assert.match(result.message, /BLOQUEADA/);
+    alwaysDenied(result);
+    assert.doesNotMatch(JSON.stringify(result), /VERIFIED_LIVE_CURRENT|hardwareBacked|unlock/);
+  }
+});
+
+test('synchronous or async native diagnostic errors always fail closed', async () => {
+  for (const getIntegrationInfo of [
+    () => { throw Error('private token'); },
+    async () => { throw Error('unexpected sensitive details'); },
+  ]) {
+    const result = await inspectNativeFinanceReadiness('android', {getIntegrationInfo});
+    assert.equal(result.status, 'native-diagnostic-error');
+    assert.doesNotMatch(result.message, /private token|unexpected sensitive details/);
+    alwaysDenied(result);
+  }
+});
+
+test('read-only settings probe is manual, never wired into bank unlock or app startup', () => {
+  const app = read('apps/mobile/App.tsx');
+  const module = read('apps/mobile/security/nativeFinanceReadiness.ts');
+  const expo = read('apps/mobile/app.json');
+  assert.match(app, /onPress=\{checkNativeFinanceDiagnostic\}/);
+  assert.match(app, /getOptionalNativeFinanceDiagnosticHost\(\)/);
+  assert.doesNotMatch(app, /NativeModules\.NegrescoFinanceSecurityV1/);
+  assert.match(app, /nativeFinanceDiagnosticEpoch\.current\+\+/);
+  assert.match(app, /AppState\.currentState==='active'/);
+  assert.match(app, /Segurança financeira nativa · integração pendente/);
+  assert.match(app, /Este diagnóstico é somente leitura e nunca autoriza guardar dados financeiros/);
+  assert.doesNotMatch(app, /useEffect\(\(\)=>\{\s*checkNativeFinanceDiagnostic/);
+  assert.match(module, /financialStorageAllowed: false/);
+  assert.match(module, /keyReleaseAllowed: false/);
+  assert.match(module, /migrationAllowed: false/);
+  assert.doesNotMatch(module, /openDatabase|createDatabase|grantAccess|CryptoObject|disableLock/);
+  assert.doesNotMatch(expo, /native-lock-android-lab|sqlcipher-android-lab/);
+});
+
+
+test('host property access exceptions cannot escape diagnostic or expose secrets', async () => {
+  const secret = 'synthetic-private-token-must-not-leak';
+  const hostileHosts = [
+    Object.defineProperty({}, 'getIntegrationInfo', {
+      get() { throw Error(secret); }
+    }),
+    new Proxy({}, {
+      get(_target, key) {
+        if (key === 'getIntegrationInfo') throw Error(secret);
+        return undefined;
+      },
+    }),
+  ];
+  for (const host of hostileHosts) {
+    const result = await inspectNativeFinanceReadiness('android', host);
+    assert.equal(result.status, 'native-diagnostic-error');
+    assert.doesNotMatch(result.message, /synthetic-private-token/);
+    alwaysDenied(result);
+  }
+});
+
+test('native diagnostic that never responds times out and stays blocked', async () => {
+  const never = new Promise(() => {});
+  const started = Date.now();
+  const result = await inspectNativeFinanceReadiness(
+    'android', {getIntegrationInfo: () => never}, 10
+  );
+  assert.equal(result.status, 'native-diagnostic-error');
+  assert.match(result.message, /tempo esgotado/i);
+  assert.ok(Date.now() - started < 2000, 'manual diagnostic must not hang indefinitely');
+  alwaysDenied(result);
+});
+
+test('delayed success after timeout cannot enable financial storage', async () => {
+  let resolveRequest;
+  const response = new Promise(resolve => { resolveRequest = resolve; });
+  const result = await inspectNativeFinanceReadiness(
+    'android', {getIntegrationInfo: () => response}, 10
+  );
+  assert.equal(result.status, 'native-diagnostic-error');
+  alwaysDenied(result);
+  resolveRequest({ready:true, financialStorageAllowed:true, keyReleaseAllowed:true});
+  await Promise.resolve();
+  assert.equal(result.financialStorageAllowed, false);
+  assert.equal(result.keyReleaseAllowed, false);
+  assert.equal(result.migrationAllowed, false);
+});
+
+test('host getters that throw and diagnostic calls that hang cannot escape fail-closed', async () => {
+  const getterBomb = Object.defineProperty({}, 'getIntegrationInfo', {
+    get() { throw Error('secret diagnostics should never appear in UI'); },
+  });
+  const getterResult = await inspectNativeFinanceReadiness('android', getterBomb);
+  assert.equal(getterResult.status, 'native-diagnostic-error');
+  alwaysDenied(getterResult);
+  assert.doesNotMatch(getterResult.message, /secret diagnostics/);
+
+  let resolveLate;
+  const neverCompletes = new Promise(resolve => {resolveLate = resolve;});
+  const timed = await inspectNativeFinanceReadiness('android', {
+    getIntegrationInfo: () => neverCompletes,
+  }, 5);
+  assert.equal(timed.status, 'native-diagnostic-error');
+  alwaysDenied(timed);
+  resolveLate({ready: true, keyReleaseAllowed: true});
+  await Promise.resolve();
+  assert.equal(timed.keyReleaseAllowed, false, 'late native result never upgrades denied response');
+});
+
+test('native diagnostic timeout input cannot disable its bounded fail-closed timeout', async () => {
+  for (const duration of [0, -1, NaN, Infinity]) {
+    const result = await inspectNativeFinanceReadiness('android', {
+      getIntegrationInfo: () => ({ready: true}),
+    }, duration);
+    assert.equal(result.status, 'native-lab-only');
+    alwaysDenied(result);
+  }
+});
+
+test('manual native lock store presence is informational and never unlocks finance', async () => {
+  const variants = [
+    ['ABSENT', 'absent'],
+    ['PRESENT_UNVERIFIED', 'present-unverified'],
+    ['UNSAFE_ENTRY', 'unsafe-entry'],
+    ['UNAVAILABLE', 'unavailable'],
+    ['READY', 'not-checked'],
+    ['VERIFIED_LIVE_CURRENT', 'not-checked'],
+    [null, 'not-checked'],
+  ];
+  for (const [nativeStatus, expected] of variants) {
+    const result = await inspectNativeFinanceReadiness('android', {
+      getIntegrationInfo: async () => ({ready: true, keyReleaseAllowed: true}),
+      inspectNativeLockStorePresence: async () => ({
+        status: nativeStatus,
+        financialStorageAllowed: true,
+        keyReleaseAllowed: true,
+        migrationAllowed: true,
+      }),
+    });
+    assert.equal(result.status, 'native-lab-only');
+    assert.equal(result.storePresence, expected);
+    alwaysDenied(result);
+    assert.match(result.message, /BLOQUEADA/);
+    assert.doesNotMatch(result.message, /VERIFIED_LIVE_CURRENT|READY/);
+  }
+});
+
+test('malformed or failed optional native metadata inspection never leaks data or allows keys', async () => {
+  for (const inspector of [
+    () => { throw Error('private-key-synthetic'); },
+    async () => { throw Error('private-record-synthetic'); },
+  ]) {
+    const result = await inspectNativeFinanceReadiness('android', {
+      getIntegrationInfo: () => ({moduleKind: 'DIAGNOSTIC_ONLY'}),
+      inspectNativeLockStorePresence: inspector,
+    });
+    assert.equal(result.status, 'native-diagnostic-error');
+    alwaysDenied(result);
+    assert.doesNotMatch(result.message, /private-key-synthetic|private-record-synthetic/);
+  }
+  const result = await inspectNativeFinanceReadiness('android', {
+    getIntegrationInfo: () => ({}),
+    inspectNativeLockStorePresence: () => null,
+  });
+  assert.equal(result.storePresence, 'not-checked');
+  alwaysDenied(result);
+});
+
+test('one timeout bounds BOTH native diagnostic methods, including unresponsive file observation', async () => {
+  const result = await inspectNativeFinanceReadiness('android', {
+    getIntegrationInfo: async () => ({ready: true}),
+    inspectNativeLockStorePresence: () => new Promise(() => {}),
+  }, 10);
+  assert.equal(result.status, 'native-diagnostic-error');
+  alwaysDenied(result);
+  assert.equal(result.storePresence, 'not-checked');
+});
+
+test('existing-record inspection runs only for present native file and never authorizes data', async () => {
+  let count = 0;
+  const absent = await inspectNativeFinanceReadiness('android', {
+    getIntegrationInfo: () => ({}),
+    inspectNativeLockStorePresence: () => ({status: 'ABSENT'}),
+    inspectExistingNativeLockRecord: () => { count++; throw Error('must not read absent record'); },
+  });
+  assert.equal(count, 0);
+  assert.equal(absent.recordDiagnostic, 'not-checked');
+  alwaysDenied(absent);
+
+  const statuses = [
+    ['VALID_UNTRUSTED', 'valid-untrusted'],
+    ['MISSING_REQUIRES_VERIFIED_MIGRATION', 'migration-required'],
+    ['INVALID_LOCKED', 'invalid-locked'],
+    ['UNSUPPORTED_VERSION_LOCKED', 'version-locked'],
+    ['PENDING_DISABLE_LOCKED', 'pending-disable-locked'],
+    ['LIFECYCLE_REVOKED_LOCKED', 'lifecycle-revoked'],
+    ['STORAGE_ERROR_LOCKED', 'storage-error-locked'],
+    ['VERIFIED_LIVE_CURRENT', 'not-checked'],
+    ['UNLOCKED', 'not-checked'],
+  ];
+  for (const [nativeStatus, expected] of statuses) {
+    const result = await inspectNativeFinanceReadiness('android', {
+      getIntegrationInfo: () => ({ready: true}),
+      inspectNativeLockStorePresence: () => ({status: 'PRESENT_UNVERIFIED'}),
+      inspectExistingNativeLockRecord: () => ({
+        status: nativeStatus, keyReleaseAllowed: true, migrationAllowed: true,
+        financialStorageAllowed: true, secret: 'fixture-do-not-echo',
+      }),
+    });
+    assert.equal(result.status, 'native-lab-only');
+    assert.equal(result.storePresence, 'present-unverified');
+    assert.equal(result.recordDiagnostic, expected);
+    assert.doesNotMatch(result.message, /fixture-do-not-echo|VERIFIED_LIVE_CURRENT|UNLOCKED/);
+    alwaysDenied(result);
+  }
+});
+
+test('existing-record read rejection and timeout remain fail-closed', async () => {
+  const failed = await inspectNativeFinanceReadiness('android', {
+    getIntegrationInfo: () => ({}),
+    inspectNativeLockStorePresence: () => ({status: 'PRESENT_UNVERIFIED'}),
+    inspectExistingNativeLockRecord: () => { throw Error('fixture secret key'); },
+  });
+  assert.equal(failed.status, 'native-diagnostic-error');
+  assert.doesNotMatch(failed.message, /fixture secret key/);
+  alwaysDenied(failed);
+
+  const timed = await inspectNativeFinanceReadiness('android', {
+    getIntegrationInfo: () => ({}),
+    inspectNativeLockStorePresence: () => ({status: 'PRESENT_UNVERIFIED'}),
+    inspectExistingNativeLockRecord: () => new Promise(() => {}),
+  }, 10);
+  assert.equal(timed.status, 'native-diagnostic-error');
+  assert.equal(timed.recordDiagnostic, 'not-checked');
+  alwaysDenied(timed);
+});

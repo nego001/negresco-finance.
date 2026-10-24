@@ -1,9 +1,14 @@
-name: Android APK (V3.1 candidate)
+name: Android APK (3.1.3 security preview)
 on:
   workflow_dispatch:
     inputs:
       stable_signing:
         description: 'Sign with the configured private release keystore (requires secrets and certificate fingerprint)'
+        required: true
+        default: false
+        type: boolean
+      publish_release:
+        description: 'Explicitly publish test prerelease from main (never from feature branches)'
         required: true
         default: false
         type: boolean
@@ -17,7 +22,7 @@ concurrency:
   group: android-candidate-${{ github.ref }}
   cancel-in-progress: true
 permissions:
-  contents: write
+  contents: read
 jobs:
   build-test-apk:
     runs-on: ubuntu-latest
@@ -90,13 +95,18 @@ jobs:
               if(u.url!=="https://u.expo.dev/a506611f-a159-4341-bed7-28dcbd47bf95"||u.requestHeaders?.["expo-channel-name"]!=="preview")process.exit(1);
             });
           '
+      - name: Reject stable signing outside a manually dispatched main build
+        if: ${{ inputs.stable_signing && (github.event_name != 'workflow_dispatch' || github.ref != 'refs/heads/main') }}
+        run: |
+          echo "::error::Stable signing is allowed only after an explicit manual dispatch on main."
+          exit 1
       - name: Build standalone test APK
         env:
-          NEGRESCO_USE_STABLE_SIGNING: ${{ inputs.stable_signing && 'true' || 'false' }}
-          NEGRESCO_RELEASE_KEYSTORE_B64: ${{ inputs.stable_signing && secrets.NEGRESCO_RELEASE_KEYSTORE_B64 || '' }}
-          NEGRESCO_RELEASE_STORE_PASSWORD: ${{ inputs.stable_signing && secrets.NEGRESCO_RELEASE_STORE_PASSWORD || '' }}
-          NEGRESCO_RELEASE_KEY_ALIAS: ${{ inputs.stable_signing && secrets.NEGRESCO_RELEASE_KEY_ALIAS || '' }}
-          NEGRESCO_RELEASE_KEY_PASSWORD: ${{ inputs.stable_signing && secrets.NEGRESCO_RELEASE_KEY_PASSWORD || '' }}
+          NEGRESCO_USE_STABLE_SIGNING: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.stable_signing && 'true' || 'false' }}
+          NEGRESCO_RELEASE_KEYSTORE_B64: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.stable_signing && secrets.NEGRESCO_RELEASE_KEYSTORE_B64 || '' }}
+          NEGRESCO_RELEASE_STORE_PASSWORD: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.stable_signing && secrets.NEGRESCO_RELEASE_STORE_PASSWORD || '' }}
+          NEGRESCO_RELEASE_KEY_ALIAS: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.stable_signing && secrets.NEGRESCO_RELEASE_KEY_ALIAS || '' }}
+          NEGRESCO_RELEASE_KEY_PASSWORD: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.stable_signing && secrets.NEGRESCO_RELEASE_KEY_PASSWORD || '' }}
         run: |
           set -euo pipefail
           if [[ "$NEGRESCO_USE_STABLE_SIGNING" == "true" ]]; then
@@ -121,9 +131,12 @@ jobs:
           APK="android/app/build/outputs/apk/release/app-release.apk"
           test -s "$APK"
           unzip -t "$APK" >/dev/null
+          # Inspect the exact assembled APK, rejecting missing/duplicate DEX ZIP entries
+          # and any known Debug QA class; the Release AAR gate remains separate.
+          python3 ../../tooling/android/verify_release_apk_surface.py "$APK"
           BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
           "$BUILD_TOOLS/aapt" dump badging "$APK" | grep -F "package: name='com.negresco.finance'"
-          "$BUILD_TOOLS/aapt" dump badging "$APK" | grep -F "versionCode='33' versionName='3.1.2'"
+          "$BUILD_TOOLS/aapt" dump badging "$APK" | grep -F "versionCode='34' versionName='3.1.3'"
           "$BUILD_TOOLS/aapt" dump permissions "$APK" | grep -F 'android.permission.USE_BIOMETRIC'
           "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK" | tee APK-SIGNATURE.txt
           CERT_HASH="$(sed -nE 's/.*certificate SHA-256 digest: ([0-9a-fA-F]{64}).*/\1/p' APK-SIGNATURE.txt | head -n 1 | tr '[:upper:]' '[:lower:]')"
@@ -145,7 +158,7 @@ jobs:
       - name: Upload standalone APK
         uses: actions/upload-artifact@v4
         with:
-          name: negresco-finance-p0-test-apk
+          name: negresco-finance-v313-test-apk
           path: |
             apps/mobile/android/app/build/outputs/apk/release/app-release.apk
             apps/mobile/android-apk.sha256
@@ -157,32 +170,33 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p release-package
-          cp android/app/build/outputs/apk/release/app-release.apk release-package/Negresco-Finance-V3.1-candidate.apk
+          cp android/app/build/outputs/apk/release/app-release.apk release-package/Negresco-Finance-V3.1.3-preview.apk
           cp android-apk.sha256 release-package/SHA256-original-apk.txt
           cp APK-SIGNATURE.txt release-package/APK-SIGNATURE.txt
           cat > release-package/LEIA-ME.txt <<'EOF'
-          NEGRESCO FINANCE - V3.1 (CANDIDATO DE TESTES)
+          NEGRESCO FINANCE - V3.1.3 (CANDIDATO DE TESTES, NAO PRODUCAO)
           Android package: com.negresco.finance
           Instalacao: extraia o APK ou baixe o APK separado no GitHub Releases.
           Estado: interface inicial experimental; sem operacoes bancarias reais.
           Integridade: confira o SHA256 publicado nos detalhes da versao.
           Identidade de assinatura: compare APK-SIGNATURE.txt entre versoes.
           Com stable_signing=false, assinatura Android Debug. Teste apenas.
+          Este APK nao ativa o SQLCipher, a biometria criptografica nem recuperacao offline de banco.
           Com stable_signing=true, certificado estavel exige credenciais e hash esperados.
           Trocar de certificado pode impedir atualizacao e exigir migracao de dados.
           Atualizacao sobre APK anterior nao e garantida sem compatibilidade de assinatura e versionCode.
           EOF
-          cp release-package/Negresco-Finance-V3.1-candidate.apk Negresco-Finance-V3.1-candidate.apk
-          (cd release-package && zip -q -9 -r ../Negresco-Finance-V3.1-candidate.zip .)
-          sha256sum Negresco-Finance-V3.1-candidate.apk Negresco-Finance-V3.1-candidate.zip APK-SIGNATURE.txt > SHA256-release.txt
+          cp release-package/Negresco-Finance-V3.1.3-preview.apk Negresco-Finance-V3.1.3-preview.apk
+          (cd release-package && zip -q -9 -r ../Negresco-Finance-V3.1.3-preview.zip .)
+          sha256sum Negresco-Finance-V3.1.3-preview.apk Negresco-Finance-V3.1.3-preview.zip APK-SIGNATURE.txt > SHA256-release.txt
           cat > RELEASE_NOTES.md <<'EOF'
-          ## Negresco Finance V3.1 - Candidato de testes
+          ## Negresco Finance V3.1.3 - PREVIA de testes
 
           APK experimental Android, ainda sem validacao manual em dispositivo.
 
           ### Arquivos
-          - Negresco-Finance-V3.1-candidate.apk: instalador Android.
-          - Negresco-Finance-V3.1-candidate.zip: pacote com instalador, instrucoes e hash.
+          - Negresco-Finance-V3.1.3-preview.apk: instalador Android.
+          - Negresco-Finance-V3.1.3-preview.zip: pacote com instalador, instrucoes e hash.
           - SHA256-release.txt: verificacao de integridade dos downloads.
           - APK-SIGNATURE.txt: identidade publica do certificado usado para assinar o APK.
 
@@ -190,12 +204,14 @@ jobs:
           - Interface OLED e preferencias visuais.
           - Bloqueio de interface por biometria forte, opcional nos Ajustes; requer nova instalacao nativa 3.1.1.
           - Diagnostico manual de SecureStore autenticado, com somente marcador ficticio e tentativa de limpeza.
-          - Bloqueio Android de capturas de tela no Guardiao e em areas protegidas pelo bloqueio biometrico; exige novo APK 3.1.2.
+          - Bloqueio Android de capturas de tela no Guardiao e em areas protegidas pelo bloqueio biometrico; exige APK nativo 3.1.2 ou posterior.
           - Guardiao: verificacao matematica de linhas digitaveis, PDF local e historico resumido em armazenamento seguro.
           - Consulta opcional de cadastro CNPJ via BrasilAPI, servico de terceiros.
           - Indicadores transparentes de integracoes indisponiveis.
 
           ### Limitacoes
+          - PREVIA 3.1.3: o APK NAO inclui os laboratorios Kotlin de SQLCipher, CryptoObject ou recuperacao; eles continuam fora do bundle Expo.
+          - A assinatura Debug pode ser diferente da assinatura do APK instalado. Nao tentar sobrepor instalacao existente sem verificar certificado e preservar dados locais.
           - A verificacao matematica e o cadastro de empresa nao comprovam legitimidade de boleto.
           - Sem acesso real a bancos, Pix, Reclame Aqui ou monitoramento automatico.
           - Nao usar para operacoes financeiras reais.
@@ -206,35 +222,62 @@ jobs:
           - Assinatura verificada nao comprova atualizacao possivel sobre qualquer instalacao antiga. Compare certificados e versionCode.
           - Nunca desinstale uma versao existente sem antes decidir como preservar os dados locais.
           EOF
+      - name: Verify APK identity across original, standalone and ZIP candidate
+        run: |
+          set -euo pipefail
+          python3 ../../tooling/android/verify_release_bundle_consistency.py .
       # Always upload a complete candidate independently of GitHub Releases write access.
       - name: Preserve full release bundle as Actions artifact
         uses: actions/upload-artifact@v4
         with:
-          name: negresco-finance-v31-distribution
+          name: negresco-finance-v313-security-preview
           path: |
-            apps/mobile/Negresco-Finance-V3.1-candidate.apk
-            apps/mobile/Negresco-Finance-V3.1-candidate.zip
+            apps/mobile/Negresco-Finance-V3.1.3-preview.apk
+            apps/mobile/Negresco-Finance-V3.1.3-preview.zip
             apps/mobile/SHA256-release.txt
             apps/mobile/APK-SIGNATURE.txt
             apps/mobile/RELEASE_NOTES.md
           if-no-files-found: error
           retention-days: 14
 
+  # Read-only branch builds may generate disposable APK artifacts, never releases.
+  # Only an explicit manual main dispatch can schedule the separate WRITE job.
+  publish-test-prerelease:
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.publish_release }}
+    needs: build-test-apk
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download verified Release candidate artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: negresco-finance-v313-security-preview
+          path: release-payload
+      - name: Verify downloaded candidate contents before publication
+        working-directory: release-payload
+        run: |
+          set -euo pipefail
+          for file in Negresco-Finance-V3.1.3-preview.apk Negresco-Finance-V3.1.3-preview.zip SHA256-release.txt APK-SIGNATURE.txt RELEASE_NOTES.md; do
+            test -s "$file"
+          done
+          sha256sum -c SHA256-release.txt
       - name: Publish APK first, ZIP second in GitHub Releases
+        working-directory: release-payload
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          TAG="v3.1-candidate-${GITHUB_SHA:0:7}"
+          TAG="v3.1.3-preview-${GITHUB_SHA:0:7}"
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release edit "$TAG" --title "Negresco Finance V3.1 - Candidato de testes" --notes-file RELEASE_NOTES.md --prerelease --latest=false
+            gh release edit "$TAG" --title "Negresco Finance V3.1.3 - PREVIA de testes" --notes-file RELEASE_NOTES.md --prerelease --latest=false
           else
-            gh release create "$TAG" --target "${GITHUB_SHA}" --title "Negresco Finance V3.1 - Candidato de testes" --notes-file RELEASE_NOTES.md --prerelease --latest=false
+            gh release create "$TAG" --target "${GITHUB_SHA}" --title "Negresco Finance V3.1.3 - PREVIA de testes" --notes-file RELEASE_NOTES.md --prerelease --latest=false
           fi
           # A 403 is a GitHub repository permissions issue, not an Android build failure.
           # Leave the complete ZIP/APK available as an Actions artifact when this step fails.
-          if ! gh release upload "$TAG" Negresco-Finance-V3.1-candidate.apk Negresco-Finance-V3.1-candidate.zip SHA256-release.txt APK-SIGNATURE.txt --clobber; then
+          if ! gh release upload "$TAG" Negresco-Finance-V3.1.3-preview.apk Negresco-Finance-V3.1.3-preview.zip SHA256-release.txt APK-SIGNATURE.txt --clobber; then
             echo "::error::GitHub Releases upload failed. The APK is preserved in the Actions distribution artifact. Confirm GitHub Actions workflow permissions for this repository."
             exit 1
           fi

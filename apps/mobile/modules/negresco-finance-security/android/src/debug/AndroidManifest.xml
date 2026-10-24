@@ -1,0 +1,25 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <application>
+    <!-- DEBUG ONLY and not exported: cannot be launched by third-party apps.
+         Opt-in instrumented QA launches this Activity on a physical device. -->
+    <activity
+      android:name="com.negresco.finance.security.SyntheticBiometricManualQaActivity"
+      android:exported="false"
+      android:label="Negresco biometric QA (DEBUG)"
+      android:theme="@android:style/Theme.Material.Light.NoActionBar" />
+    <!-- DEBUG ONLY human-operated biometric + synthetic SQLCipher.
+         Never exported, not linked to JS and absent from Release. -->
+    <activity
+      android:name="com.negresco.finance.security.SyntheticBiometricSqlcipherManualQaActivity"
+      android:exported="false"
+      android:label="Negresco SQLCipher biometric QA (DEBUG)"
+      android:theme="@android:style/Theme.Material.Light.NoActionBar" />
+    <!-- DEBUG ONLY; runs real SIGKILL in a dedicated remote process.
+         Not exported, and absolutely absent from Release. -->
+    <service
+      android:name="com.negresco.finance.security.SyntheticJournalCrashWorkerService"
+      android:exported="false"
+      android:process=":negresco_synthetic_journal"
+      android:stopWithTask="true" />
+  </application>
+</manifest>

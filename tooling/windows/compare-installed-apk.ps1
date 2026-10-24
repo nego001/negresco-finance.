@@ -6,7 +6,15 @@
 param(
   [Parameter(Mandatory=$true)]
   [ValidateNotNullOrEmpty()]
-  [string]$ApkPath
+  [string]$ApkPath,
+  [ValidatePattern('^[a-fA-F0-9]{64}$')]
+  [string]$ExpectedSha256,
+  [ValidatePattern('^[a-fA-F0-9]{64}$')]
+  [string]$ExpectedCertSha256,
+  [ValidatePattern('^[0-9]+[.][0-9]+[.][0-9]+$')]
+  [string]$ExpectedVersionName,
+  [ValidateRange(1,2147483647)]
+  [long]$ExpectedVersionCode
 )
 $ErrorActionPreference='Stop'
 $packageName='com.negresco.finance'
@@ -74,6 +82,23 @@ try {
   if($candidate.Package -cne $packageName) { throw 'Pacote APK diferente de com.negresco.finance.' }
   $candidateCert=Apk-Certificate $signer $apk
   $sha=(Get-FileHash -LiteralPath $apk -Algorithm SHA256).Hash.ToLowerInvariant()
+  # Optional trusted pins are verified BEFORE inspecting the device via adb.
+  if($PSBoundParameters.ContainsKey('ExpectedSha256') -and
+     $sha -cne $ExpectedSha256.ToLowerInvariant()) {
+    throw 'Hash SHA-256 do APK diferente do publicado. Arquivo rejeitado.'
+  }
+  if($PSBoundParameters.ContainsKey('ExpectedCertSha256') -and
+     $candidateCert -cne $ExpectedCertSha256.ToLowerInvariant()) {
+    throw 'Certificado do APK diferente do esperado. Arquivo rejeitado.'
+  }
+  if($PSBoundParameters.ContainsKey('ExpectedVersionName') -and
+     $candidate.VersionName -cne $ExpectedVersionName) {
+    throw 'Nome da versao do APK diferente do esperado. Arquivo rejeitado.'
+  }
+  if($PSBoundParameters.ContainsKey('ExpectedVersionCode') -and
+     $candidate.VersionCode -ne $ExpectedVersionCode) {
+    throw 'Codigo da versao do APK diferente do esperado. Arquivo rejeitado.'
+  }
   Write-Host '=== NEGRESCO FINANCE | ANALISE SOMENTE LEITURA ===' -ForegroundColor Cyan
   Write-Host ("Arquivo candidato: versao {0}, codigo {1}" -f $candidate.VersionName,$candidate.VersionCode)
   Write-Host ("SHA256 do arquivo: {0}" -f $sha)

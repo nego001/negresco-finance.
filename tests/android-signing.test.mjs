@@ -61,3 +61,14 @@ test('workflow requires explicit manual opt in and checks the certificate finger
  assert.match(workflow,/CN=Android Debug/);
  assert.match(workflow,/apksigner/);
 });
+
+test('feature branch pushes cannot publish GitHub releases without explicit main dispatch',()=>{
+ const workflow=readFileSync(new URL('../.github/workflows/android-apk.yml',import.meta.url),'utf8');
+ assert.match(workflow,/publish_release:\s*\n\s*description:[^\n]*\n\s*required: true\s*\n\s*default: false\s*\n\s*type: boolean/);
+ const publishJob=workflow.match(/  publish-test-prerelease:\n[\s\S]*?- name: Publish APK first, ZIP second in GitHub Releases/)?.[0];
+ assert.ok(publishJob,'separate guarded publication job must exist');
+ assert.match(publishJob,/if: \$\{\{ github\.event_name == 'workflow_dispatch' && github\.ref == 'refs\/heads\/main' && inputs\.publish_release \}\}/);
+ assert.match(publishJob,/needs: build-test-apk/);
+ assert.match(publishJob,/permissions:\s*\n      contents: write/);
+ assert.match(workflow,/name: Preserve full release bundle as Actions artifact/);
+});

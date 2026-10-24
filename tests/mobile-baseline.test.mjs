@@ -30,10 +30,11 @@ test('P0 build produces a standalone APK artifact',()=>{
  assert.match(workflow,/upload-artifact@v4/);
 });
 
-test('V3.1 uses a separate OTA runtime from builds with older native modules',()=>{
- assert.equal(config.version,'3.1.2');
+test('3.1.3 preview uses a separate OTA runtime from older native builds',()=>{
+ assert.equal(config.version,'3.1.3');
  assert.equal(mobile.version,config.version);
- assert.equal(config.android.versionCode,33);
+ assert.ok(!Object.keys(mobile.dependencies).some(name=>name.toLowerCase().includes('sqlcipher')), 'SQLCipher lab must not be bundled into the Expo preview');
+ assert.equal(config.android.versionCode,34);
  assert.equal(config.android.allowBackup,false,'Android Auto Backup must remain disabled for sensitive prototype data');
  assert.ok(mobile.dependencies['expo-local-authentication'],'native biometric module must be bundled');
  assert.equal(mobile.dependencies['expo-screen-capture'],'~8.0.9','Android privacy guard needs SDK54-native package');
@@ -45,9 +46,9 @@ test('V3.1 uses a separate OTA runtime from builds with older native modules',()
 test('Android distribution artifact survives a GitHub Releases permission denial',()=>{
  const workflow=readFileSync(new URL('../.github/workflows/android-apk.yml',import.meta.url),'utf8');
  assert.match(workflow,/Preserve full release bundle as Actions artifact/);
- assert.match(workflow,/negresco-finance-v31-distribution/);
+ assert.match(workflow,/negresco-finance-v313-security-preview/);
  assert.match(workflow,/apps\/mobile\/APK-SIGNATURE\.txt/);
- assert.match(workflow,/apps\/mobile\/Negresco-Finance-V3\.1-candidate\.apk/);
+ assert.match(workflow,/apps\/mobile\/Negresco-Finance-V3\.1\.3-preview\.apk/);
  assert.match(workflow,/cancel-in-progress: true/);
  assert.ok(workflow.indexOf('Preserve full release bundle as Actions artifact')<workflow.indexOf('Publish APK first, ZIP second in GitHub Releases'));
 });

@@ -1,0 +1,463 @@
+# Negresco Finance | Fase 1: fronteira da integração nativa com Expo
+
+**Status em 22/10/2026:** diagnóstico integrado na tela Ajustes e módulo local Expo/Kotlin de diagnóstico criado no código-fonte; **NÃO** existem chaves financeiras, banco SQLCipher operacional, opt-out nativo completo, QA físico ou release seguro. O autolinking/compilação do módulo precisa ser confirmado no workflow Android para o commit exato. Sem autorização para dados reais, merge ou atualização de APK. PR #14 continua em draft.
+
+## Mudança efetivamente realizada nesta revisão
+
+- `apps/mobile/security/nativeFinanceReadiness.ts` mantém inspeção manual, somente leitura e sempre bloqueada; `apps/mobile/modules/negresco-finance-security/src/NegrescoFinanceSecurityV1.ts` resolve o módulo via `requireOptionalNativeModule('NegrescoFinanceSecurityV1')`, da Expo Modules API.
+- `apps/mobile/App.tsx` inclui botão em **Ajustes → Segurança financeira nativa**. A inspeção ocorre apenas depois do toque do usuário, sem argumentos financeiros. Ausência do módulo é exibida claramente, não interpretada como proteção.
+- O resultado do host é **descartado**: mesmo que ele alegue `ready`, `VERIFIED_LIVE_CURRENT`, KeyStore ou SQLCipher, todas as saídas retornam `financialStorageAllowed=false`, `keyReleaseAllowed=false`, `migrationAllowed=false`. Erro ou host ausente também fecham.
+- Respostas assíncronas após saída de Ajustes ou background são ignoradas por uma época local. Nenhuma operação de segurança toma decisão com base nesse valor JS.
+- `tests/native-finance-readiness.test.mjs` cobre ausência, plataformas diferentes, host falso, exceções e isolamento da UI.
+- **Existe um módulo Kotlin local com três métodos exclusivamente diagnósticos (`getIntegrationInfo()`, `inspectNativeLockStorePresence()` e `inspectExistingNativeLockRecord()`)**, com flags falsas e sem operações financeiras. É uma implementação de diagnóstico, ainda sem comprovação de execução em hardware ou integração das políticas Kotlin/SQLCipher de laboratório. Isso NÃO constitui um controle criptográfico, de acesso, de biometria ou cofre.
+
+## Tratamento de falhas na consulta diagnóstica
+
+A inspeção manual do módulo opcional agora possui **limite máximo de cinco segundos** e captura também falhas ao consultar a propriedade `getIntegrationInfo` em objetos hostis ou proxies JS. Exceção nativa, getter que lança erro, promessa que nunca resolve e resposta atrasada **não** concedem acesso: `financialStorageAllowed=false`, `keyReleaseAllowed=false` e `migrationAllowed=false` permanecem fixos. Erros internos não mostram mensagens potencialmente sensíveis na UI.
+
+A expiração encerra apenas a **espera da interface**; não cancela nem reverte uma operação Kotlin. Isso é aceitável aqui somente porque a futura interface `getIntegrationInfo` está contratualmente limitada a diagnóstico **sem mutação**. O módulo nativo real deverá ter cancelamento/ciclo de vida próprios e nunca reutilizar esse resultado como autorização de chave ou banco. Testes regressivos específicos estão em `tests/native-finance-readiness.test.mjs`. Nenhum binário nativo novo foi conectado nesta revisão.
+
+## Primeiro módulo local Expo Android, somente diagnóstico
+
+**Implementação de código (sem homologação de aparelho):** criado
+`apps/mobile/modules/negresco-finance-security/` com configuração de
+autolinking Expo, Gradle Android library e a classe Kotlin
+`NegrescoFinanceSecurityV1Module`. A classe exporta **somente**
+`getIntegrationInfo()`, sem parâmetros ou operações financeiras, e devolve
+`DIAGNOSTIC_ONLY` com os cinco campos de segurança fixos como `false`.
+A UI do app consulta o módulo via `requireOptionalNativeModule`, mecanismo
+do Expo Modules API, não através de `React Native NativeModules`.
+
+Nenhum componente de DataStore/SQLCipher/Keystore foi importado para esse
+módulo, nenhuma permissão extra foi solicitada e nenhuma chave é gerada,
+aberta ou exportada. O diagnóstico continua manual e todos os caminhos
+`financialStorageAllowed`, `keyReleaseAllowed` e `migrationAllowed`
+permanecem desativados no TypeScript, independentemente de uma resposta
+potencialmente forjada. O teste `tests/native-finance-expo-module-contract.test.mjs`
+impede exportações acidentais de funções financeiras pelo módulo.
+
+A presença do módulo num APK **não significa** que segurança nativa ou banco
+criptografado estejam prontos. CI Kotlin/Android, build de APK de testes e
+homologação física devem validar a compilação antes de considerar essa
+primeira integração tecnológica concluída; ela ainda **não** satisfaz os
+gates de proteção financeira, opt-out atômico ou recuperação. A build
+automática de artefatos de CI nunca autoriza publicação estável ou instalação
+no aparelho existente.
+
+## SEC-05 | Prova de uso AndroidKeyStore dentro da estrutura Expo (emulador, não APK)
+
+O código de **instrumentação exclusivamente de teste** do módulo local está em
+`apps/mobile/modules/negresco-finance-security/android/src/androidTest/java/com/negresco/finance/security/SyntheticNativeKeystoreRoundTripTest.kt`.
+Ele cria uma chave **efêmera** AES-256-GCM no provider `AndroidKeyStore`, autentica
+a criptografia de bytes fictícios, reabre a chave no mesmo dispositivo, detecta
+adulteração da tag GCM e remove o alias aleatório em bloco `finally`. Não registra
+nem transmite chaves, IVs, dados ou ciphertext. A chave é criada **sem exigência
+de autenticação** (`setUserAuthenticationRequired(false)`), justamente para
+não confundir este teste do mecanismo criptográfico com aprovação de biometria,
+CryptoObject, hardware dedicado, armazenamento SQLCipher ou autorização financeira.
+
+O job CI `expo-native-diagnostic-compile` compila também as fontes de
+instrumentação, e o novo job `expo-native-diagnostic-emulator` as executa
+em um Android 35 descartável. O segundo job compila/instala um pacote
+**de teste instrumental**, NÃO gera APK de distribuição nem altera o app
+que o usuário tem instalado. O arquivo de produção
+`NegrescoFinanceSecurityV1Module.kt` continua expondo apenas
+`getIntegrationInfo()` como diagnóstico sem autoridade. O módulo não possui
+operação de dados financeiros, autorização, persistência, SQLCipher ou migração.
+
+**Critério pendente:** obter logs do emulador com os testes aprovados; em
+seguida integrar uma operação nativa com banco SQLCipher **também sintético**
+e, separadamente, autorização vinculada a BiometricPrompt/Keystore, sessão
+e lifecycle. Mesmo uma CI totalmente verde não comprova proteção em um
+Samsung real nem segurança contra rollback de um serviço externo.
+
+## SQLCipher dentro do `androidTest` Expo (somente dados descartáveis)
+
+O fixture `SyntheticExpoSqlcipherPersistenceTest.kt` exercita a biblioteca
+pinned `net.zetetic:sqlcipher-android:4.19.1` e
+`androidx.sqlite:sqlite:2.7.0` **apenas via `androidTestImplementation`** do
+módulo local Expo. Os testes criam bancos em diretórios aleatórios do cache
+do **emulador descartável**, carregam a biblioteca JNI, escrevem uma linha
+inventada, fecham/reabrem com a senha sintética correta, tentam leitura com
+chave errada sob `OPEN_READONLY` e confirmam que uma transação sem commit
+não sobrevive à reabertura. Arquivos de teste, WAL, SHM e journal são apagados
+em `finally` pela rotina de limpeza; nada é gravado no banco do app real.
+
+**Limites:** a senha do fixture é gerada em RAM e **não** é envolvida por
+Android Keystore/BiometricPrompt; o banco não contém finanças reais nem
+autorização de sessão. O teste não faz backup, migração, restauração,
+sincronização ou release; o módulo Kotlin exportado continua exclusivamente
+de diagnóstico e reporta `sqlcipherIntegrated=false`,
+`financialStorageAllowed=false`. Provar criptografia de um banco sintético
+no emulador é um passo de engenharia, **não** permissão para gravar saldos.
+
+**Critério de aceite desta etapa:** job `expo-native-diagnostic-emulator`
+precisa executar e aprovar testes `androidTest` reais, junto com a matriz
+Node `native-finance-sqlcipher-instrumentation.test.mjs`. A CI anterior
+#39796759531 tinha falhas no contrato de número de funções diagnósticas e
+no shell do emulador. Foram corrigidas em commits subsequentes; não marcar
+concluída até aprovação da nova execução. Persistência financeira real
+permanece bloqueada até chaves nativas vinculadas a autenticação, gestão de
+ciclo de vida, migração/backup e QA no Samsung.
+
+## Key-wrapping sintético no módulo Expo: AndroidKeyStore → SQLCipher
+
+Após validação da CI #39802901753 (**9/9**, incluindo 14 testes instrumentados), uma
+nova classe **exclusivamente** em `src/androidTest` exercita a união dos dois
+mecanismos: `SyntheticKeystoreWrappedSqlcipherLifecycleTest.kt`. Um alias
+AndroidKeyStore aleatório protege por AES-256-GCM uma senha SQLCipher inventada;
+o envelope cifrado é vinculado por AAD a uma identidade de conta fictícia e ao
+nome do banco. Um novo acesso ao provider recupera a senha para reabrir o banco
+descartável. Adulteração da tag, troca do vínculo de conta e perda do alias
+devem causar bloqueio, sem criar outro banco ou destruir o ciphertext existente.
+Arquivos e alias temporários são removidos em `finally`.
+
+O teste explicita que a chave **não exige biometria**
+(`setUserAuthenticationRequired(false)`). A API de SQLCipher usada nesta
+fixture converte a senha a `String` na JVM; portanto, apagar `ByteArray`
+não comprova eliminação de todas as cópias em memória. A proteção forte
+dos segredos, o ciclo de vida, a retenção dos dados reais e a autorização do
+titular dependem de outro contrato de implementação e homologação.
+
+Não foram acrescentadas funções de gravação, abertura de banco ou liberação
+de chave à interface Expo. O `NegrescoFinanceSecurityV1Module` continua
+devolvendo `financialStorageAllowed=false`, `keyReleaseAllowed=false` e
+`sqlcipherIntegrated=false`. Nenhum dado pessoal, financeiro ou aplicativo
+instalado é afetado.
+
+**Critério de aceite da nova etapa:** `expo-native-diagnostic-compile` deve
+compilar o `androidTest`, `expo-native-diagnostic-emulator` deve executá-lo,
+e o contrato `native-finance-keywrap-lifecycle.test.mjs` deve passar. Mesmo
+com CI verde, isso é demonstração de integração criptográfica com senha de
+teste, não um cofre financeiro pronto.
+
+## Etapa negativa: chave AndroidKeyStore exigindo BIOMETRIC_STRONG
+
+A fixture `SyntheticStrongBiometricKeyDenialTest.kt` está somente em
+`src/androidTest` do módulo Expo e exige uma chave AES-GCM AndroidKeyStore
+com `setUserAuthenticationRequired(true)`,
+`setUserAuthenticationParameters(0, AUTH_BIOMETRIC_STRONG)` e invalidação por
+alteração do cadastro biométrico. Ela **não apresenta prompt nem simula a
+aprovação de uma digital**. Sem uma operação autorizada via
+`BiometricPrompt(CryptoObject)`, uma tentativa de criptografia deve ser
+recusada; se o emulador sequer permitir criar a chave por ausência de
+biometria/cadastro seguro, isso também é registrado exclusivamente como
+capacidade indisponível e bloqueada. Todo alias efêmero é removido em
+`finally`.
+
+**Uma CI verde nessa fixture não significa autenticação biométrica funcional
+ou segurança financeira homologada.** É uma prova **negativa** (negação antes
+da autorização) e não um teste positivo de uso após aprovação do usuário.
+Ainda será necessário implementar na camada nativa um fluxo de consentimento
+vinculado ao próprio `CryptoObject`, proteger a senha SQLCipher com esse
+fluxo, bloquear operações por sessão/foreground, lidar com alteração de
+cadastro, key-loss, migração, backup e homologar no Samsung físico.
+Nenhuma interface JavaScript recebe chave, senha ou bit de autorização;
+`financialStorageAllowed=false` e `keyReleaseAllowed=false` continuam.
+
+## Teste de fronteira CryptoObject: callbacks forjados continuam sem autoridade
+
+O laboratório agora contém `SyntheticCryptoObjectCallbackFirewallTest.kt`
+somente em `src/androidTest`, com
+`androidTestImplementation 'androidx.biometric:biometric:1.1.0'`.
+O código prova uma propriedade negativa importante: construir um
+`BiometricPrompt.CryptoObject(cipher)` em Kotlin, ou fabricar uma suposta
+resposta de sucesso, **não autentica o usuário**. O fluxo sintético exige
+`KeyInfo` de uma chave verdadeira `AndroidKeyStore`, autenticação por
+operação (validade `-1`), a mesma instância de `Cipher`, um token único
+e um período foreground ainda vigente antes de tentar `Cipher.doFinal()`.
+Somente o próprio provedor Keystore pode permitir o uso criptográfico.
+Uma tentativa já consumida, callback associado a outra cifra, chave apenas
+em software ou foreground revogado terminam negados. Se o emulador não
+conseguir provisionar biometria forte, a ausência é tratada como
+pré-requisito **indisponível**, jamais como autenticação aprovada.
+
+O retorno `OBSERVED_CRYPTO_ONLY_NOT_AUTHORIZATION` é estritamente
+um indicador do laboratório, **não** uma autorização de aplicativo:
+nenhum caminho grava/saca finanças, libera senha SQLCipher, migra conta,
+exporta chave ou responde `financialStorageAllowed=true`.
+O experimento intencionalmente **não abre um BiometricPrompt real** nem
+executa um teste positivo com digital. Essa etapa requer uma Activity
+real de teste, consentimento Android genuíno e validação em aparelho
+físico antes de integrar o cofre. A autorização da operação deve ficar
+inteiramente no processo Kotlin e ser revalidada após perda de foco,
+cancelamento, rotação, timeout e troca de cadastro biométrico.
+
+## Preparação do fluxo positivo real com BiometricPrompt (somente androidTest)
+
+O harness `SyntheticBiometricPromptDispatchHarness.kt`, ainda **exclusivamente
+em `src/androidTest`**, possui a chamada real
+`BiometricPrompt.authenticate(PromptInfo, CryptoObject(cipher))` e um callback
+nativo que somente observa sucesso após o **AndroidKeyStore executar
+`Cipher.doFinal`** da cifra apresentada. O prompt usa
+`BIOMETRIC_STRONG` sem fallback para senha/PIN. O harness valida
+`KeyInfo` de chave `AndroidKeyStore` com autenticação por operação,
+identidade exata de `Cipher`, época foreground e consumo único da tentativa,
+revogando-a após interrupção/erro. O resultado criptográfico é mantido
+na instrumentação nativa, limpo imediatamente e **nunca** convertido em
+`financialStorageAllowed=true`, token de JS ou abertura de SQLCipher.
+
+A suíte automática `SyntheticBiometricPromptDispatchHarnessTest.kt`
+verifica somente a configuração do prompt, negação de chave em software
+e isolamento da instrumentação. **Ela NÃO abre o prompt em CI e NÃO
+simula digital aprovada.** O método
+`requestWithRealOperatingSystemPrompt` exige uma `FragmentActivity`
+ativa e só poderá ser exercitado de maneira positiva em QA
+interativo com consentimento biométrico real, em Android devidamente
+cadastrado, após integrar um invocador de teste apropriado.
+Não registrar o fluxo positivo como aprovado até obter essa evidência.
+
+Este código não participa do binário público do módulo Expo. Falta
+implementar o fluxo de produto com autenticação real vinculada à senha do
+banco e ao ciclo de vida das operações, decisões explícitas sobre troca de
+cadastro, recuperação e proteção contra rollback, além da homologação física.
+
+## Interface futura mínima (NÃO DISPONÍVEL)
+
+A implementação de diagnóstico usa um módulo local Expo Kotlin **identificado por versão**; qualquer API real de autenticação, persistência ou chaves depende integralmente dos gates abaixo. A superfície JS deve ser mínima:
+
+| Operação | Resultado para JS | Autoridade |
+| --- | --- | --- |
+| `getIntegrationInfo()` | Diagnóstico de versão/instalação, somente informativo | Não pode habilitar banco/chaves; resposta não confiável |
+| `readPublicLockPresentation()` (eventual) | Estado de UI sem segredo, sem capability de autenticação | Nativo DataStore é fonte de verdade; JS apenas desenha |
+| `requestUnlock()` (futuro e condicionado) | UI pode pedir operação, mas nunca fornecer `authenticated=true` | BiometricPrompt/CryptoObject e sessão/KeyStore nativos |
+| `requestDisable()` (futuro e condicionado) | Não expor enquanto opt-out transacional não for comprovado | Atualmente `disable()` deve permanecer DENIED |
+| Acesso à base financeira (futuro) | Somente comandos de negócio limitados e autorizados | Chave e banco permanecem exclusivamente no processo nativo, sem API `getKey` |
+
+**Proibido:** método JS `unlockWithBoolean`, `forceDisable`, chave da base em memória JS, fallback para AsyncStorage/SQLite comum, re-enrollment automático após corrupção, recuperação por alegação de assinatura/nonce de fixture ou leitura do banco em claro sem autorização nativa.
+
+## Dependências concretas antes de conectar Kotlin ao produto
+
+1. **Comprovar compilação do módulo local Expo para Android**, em projeto específico do app e com versionamento/compatibilidade ABI; manter `tooling/native-lock-android-lab` e `tooling/sqlcipher-android-lab` como fixtures separadas.
+2. **Autenticação e opt-out**: integrar DataStore e BiometricPrompt à Activity, controlar background/restart, autenticação por operação e revogação; concluir fluxo de desativação sem lacuna de commit. NUNCA usar retorno de login visual como chave de dados.
+3. **Proteção criptográfica**: gerar e envelopar chave SQLCipher separada com Android Keystore; testar CryptoObject, mudança de biometria, perda de chave, fallback e política de backup.
+4. **Banco financeiro**: SQLCipher real dentro do app, chave errada/ausente não cria banco novo, integridade WAL, esquema/migrações e operação offline com dados sintéticos.
+5. **Assinatura e migração**: identidade de assinatura permanente, pré-verificação de APK existente, preservação de preferências/Guardião e plano de recuperação antes de trocar o binário. APK atual é Debug e não pode receber atualização se certificados forem incompatíveis.
+6. **QA/auditoria**: testes CI Kotlin/Node/emulador **e** Samsung físico com consentimento e dados fictícios, ameaças, privacy/logs, auditoria de dependências. Guardar evidência do commit, certificado e modelo testado.
+
+**Critério de saída:** só chamar “integrado” quando existir binário compilado, instalação homologada, chaves, banco e regras de autenticação nativas validadas. A nova UI diagnóstica isolada não satisfaz nenhum dos gates de criptografia ou release.
+
+## Próxima entrega de código recomendada
+
+Extrair interfaces nativas testáveis de `tooling/native-lock-android-lab` para um módulo local Expo **desabilitado por padrão**, começar pelo caminho de leitura do DataStore e diagnósticos, e implementar o ciclo de vida/opt-out com testes instrumentados antes de criar métodos para manipular bancos. Não publicar APK, não mesclar PR #14 nem tocar na PR #17 até confirmação do usuário e revisão específica.
+
+
+## Atualização: esqueleto nativo Android local criado (ainda diagnóstico)
+
+O módulo `apps/mobile/modules/negresco-finance-security` registra a classe Kotlin `com.negresco.finance.security.NegrescoFinanceSecurityV1Module` pelo `expo-module.config.json` Android-only. A classe oferece exatamente `getIntegrationInfo()` e responde `financialStorageAllowed=false`, `keyReleaseAllowed=false`, `migrationAllowed=false`, `sqlcipherIntegrated=false`, `hardwareKeyAuthorizationIntegrated=false`. Ela não lê arquivos, não solicita permissões, não cria banco, não utiliza Keystore e não contém biometria. A fachada TypeScript usa `requireOptionalNativeModule`, permitindo rodar em binários antigos sem o módulo. A inspeção de dados retornados continua sendo **não autoritativa** em `nativeFinanceReadiness.ts`.
+
+**Compatibilidade:** o aplicativo usa Expo SDK 54. O Gradle do módulo foi alinhado ao `ExpoModulesCorePlugin.gradle` do template dessa versão, com `applyKotlinExpoModulesCorePlugin()`, `useCoreDependencies()` e `useDefaultAndroidSdkVersions()`. Essa configuração **precisa ser compilada e conferida pelo workflow Android/APK em GitHub Actions**; contratos JS ou compilações dos projetos `tooling/` não comprovam esse resultado.
+
+O workflow Android APK existente é disparado por mudanças em `apps/mobile/**` e pode gerar um **artefato Debug de teste**. Isso não publica automaticamente uma versão estável, não instala no Samsung e não autoriza migração, mesmo que um futuro build seja aprovado. Antes de considerar a próxima fase concluída, conferir log de `expo prebuild`, compilação Gradle, pacote/assinatura, e executar QA físico consentido com dados fictícios. A proteção financeira continua BLOQUEADA.
+
+
+## Diagnóstico passivo da presença de DataStore (nova subetapa)
+
+O módulo Kotlin agora oferece **`inspectNativeLockStorePresence()`**, além de `getIntegrationInfo()`. Não abre nem instancia DataStore, não lê ou decodifica seus bytes, não cria diretórios/arquivos, não migra preferências JS, não persiste mudanças e não executa biometria. Examina exclusivamente metadados do nome reservado `files/datastore/negresco_native_lock.preferences_pb` na sandbox do próprio app, sem enviar caminho, conteúdo, chave ou revisão ao JavaScript.
+
+A checagem retorna somente `ABSENT`, `PRESENT_UNVERIFIED`, `UNSAFE_ENTRY` ou `UNAVAILABLE`. Diretórios/arquivos simbólicos, arquivos que não sejam regulares, sem leitura ou maiores que 1 MiB são sinalizados como inseguros. Sistemas anteriores à API 26 retornam indisponível. Mesmo `PRESENT_UNVERIFIED` **não autentica versão, revisão, integridade, estado enabled, titular ou dispositivo**. O arquivo pode estar corrompido, adulterado ou ter sido restaurado de backup. É uma inspeção passiva e está sujeita a condições de corrida no filesystem.
+
+O TypeScript chama opcionalmente essa função somente após o botão de Ajustes, dentro do mesmo timeout global de cinco segundos do diagnóstico. Interpreta apenas rótulos limitados, sem propagar respostas arbitrárias do host. `financialStorageAllowed`, `keyReleaseAllowed` e `migrationAllowed` permanecem `false` para TODOS os resultados; a leitura não cria capacidade de autenticação nem de acesso. Testes Node protegem contra claims forjados, respostas desconhecidas, falhas de inspeção e timeout. O teste do contrato nativo proíbe métodos de leitura/escrita de bytes, migração e emissão de APIs de desbloqueio.
+
+**Gates ainda pendentes:** leitura tipada de DataStore com instância única vinculada à Activity, migração transacional do estado legado, autenticação forte nativa, opt-out seguro, autorização de chave via Keystore/CryptoObject, SQLCipher dentro do aplicativo e QA físico Samsung. **Nenhum deles foi satisfeito por este diagnóstico de presença.** Sem APK estável, merge ou uso de dados reais.
+
+
+## Leitura tipada em Android isolado, sem autorização (Fase 1, subetapa seguinte)
+
+Foi adicionado `NativeLockTypedSnapshotClassifier.kt` ao módulo Android, **não exportado** por `NegrescoFinanceSecurityV1Module`. O classificador recebe um `Preferences` já lido e examina, com chaves tipadas, somente `protocol_version`, `enabled`, `revision` e `disable_pending`. Os resultados possíveis são `MISSING_REQUIRES_VERIFIED_MIGRATION`, `INVALID_LOCKED`, `UNSUPPORTED_VERSION_LOCKED`, `PENDING_DISABLE_LOCKED` ou `VALID_UNTRUSTED`. Mesmo o último resultado não autentica quem gravou os dados, não garante que a revisão é atual e **não significa desbloqueado**. Registros habilitados ou desabilitados são tratados igualmente como não confiáveis, sem autorizar opt-out.
+
+A leitura efetiva de um `DataStore<Preferences>` ocorre **somente na suíte Android de instrumentação** `SyntheticTypedNativeLockSnapshotTest.kt` usando `PreferenceDataStoreFactory`, arquivos temporários com UUID sob `noBackupFilesDir` da aplicação de teste e limpeza após cancelar a scope. As oito situações cobrem vazio, tipagem válida sem liberação, estado desabilitado sem autorização, estado pendente, inconsistência de pending, revisão negativa, esquema futuro e campo obrigatório ausente. A base DataStore **já usada pelo app não é aberta**. Em produção, somente `getIntegrationInfo()` e `inspectNativeLockStorePresence()` são exportados, e nenhuma API lê ou escreve preferências tipadas.
+
+A próxima etapa de implantação deve estabelecer **instância única DataStore por arquivo/processo**, observação com revogação de sessão, estado de migração atômico, gestão do ciclo de vida Activity e validação em hardware. A simples capacidade de analisar uma preferência tipada em laboratório não elimina restore/replay, conflito entre escritores nem a lacuna de opt-out. **SQLCipher e acesso financeiro real permanecem bloqueados.**
+
+### Pendências de CI desta subetapa
+
+A CI anterior `39796759531` apresentou 7/9 jobs aprovados. O contrato Node falhou porque um teste antigo contava uma única função pública depois da adição do segundo método diagnóstico, e o novo emulador Expo não conseguiu conectar o daemon ADB durante o boot; este último erro ocorreu **antes de executar testes**. O contrato foi ajustado para enumerar os dois métodos existentes. Os novos testes de DataStore e eventuais correções de infraestrutura só devem ser considerados aprovados após logs do novo HEAD.
+
+
+## Leitor tipado com DataStore injetado, apenas em instrumentação
+
+A próxima pequena integração de Fase 1 adicionou `NativeLockReadOnlySnapshotReader.kt`. O leitor **aceita por injeção** um `DataStore<Preferences>` que já tem um responsável, chama `data.first()`, encaminha o snapshot a `NativeLockTypedSnapshotClassifier` e retorna apenas um rótulo de classificação. Ele não contém `PreferenceDataStoreFactory`, caminho de arquivo, operação `updateData`, migração, nem API de desbloqueio. Erros de leitura retornam `STORAGE_ERROR_LOCKED`; cancelamento de coroutine é propagado para preservar o ciclo de vida. `VALID_UNTRUSTED` continua sem autorizar qualquer operação.
+
+`SyntheticReadOnlyNativeLockReaderTest.kt` fornece a **única instância DataStore** para um arquivo aleatório sob `noBackupFilesDir`, nunca para o arquivo persistido do app. Cinco testes Android instrumentados cobrem snapshot ausente, estados ligado/desligado sem autenticação, `disablePending` contraditório ou pendente, valor com tipo errado e leituras concorrentes pela mesma instância. Outros dois testes, em `SyntheticReadOnlyNativeLockErrorTest.kt`, injetam um DataStore que falha: erro de leitura retorna `STORAGE_ERROR_LOCKED` e cancelamento de coroutine é propagado. Todos os sete casos continuam isolados de dados reais. A criação/edição de preferências existe **exclusivamente no fixture de teste**, não no leitor e não no aplicativo distribuído. `tests/native-finance-readonly-datastore-contract.test.mjs` preserva essa fronteira.
+
+**Ainda não implementado:** instância única de DataStore de produção, observador contínuo de revogação na Activity, migração de preferências legadas, reconciliação com biometria e Keystore, desbloqueio nativo ou SQLCipher com autorização. Nenhum método de leitura do snapshot foi exportado ao módulo Expo. Este trabalho precisa passar na compilação Android e no emulador do commit exato antes de ser considerado validado. O APK instalado no telefone permanece inalterado.
+
+
+## Fase 1 | Revogação por ciclo de vida Android de leituras diagnósticas
+
+A classe Kotlin interna `NativeLockLifecycleFence.kt` foi adicionada ao módulo Expo SDK 54 como **cerca de geração de diagnóstico, sem capacidade de conceder acesso**. A definição do módulo registra os eventos documentados `OnActivityEntersForeground`, `OnUserLeavesActivity`, `OnActivityEntersBackground`, `OnActivityDestroys` e `OnDestroy`. Retorno ao primeiro plano inicia uma nova geração de leitura, **não autentica e não desbloqueia**; saída/destroi marca gerações anteriores como inválidas. Instâncias destruídas não reabrem. O estado interno da cerca não é exportado pelo bridge.
+
+O leitor `NativeLockReadOnlySnapshotReader` agora exige injeção de **dois objetos já existentes**: `DataStore<Preferences>` (com dono único por arquivo/processo) e `NativeLockLifecycleFence`. Se a Activity não está em primeiro plano, retorna `LIFECYCLE_REVOKED_LOCKED` sem solicitar dados. Se a Activity perde o foco ou é destruída **enquanto** `data.first()` aguarda, o resultado é descartado e substituído por `LIFECYCLE_REVOKED_LOCKED`. Erros de storage continuam `STORAGE_ERROR_LOCKED` e `CancellationException` é propagada. Mesmo uma leitura vigente é apenas `VALID_UNTRUSTED` ou outra classificação sem permissões.
+
+Foi criada `SyntheticNativeLifecycleRevocationTest.kt`, com cinco testes instrumentados de estado inicial bloqueado, troca de geração ao sair/voltar, destruição permanente, leitura concorrente pausada que termina após background e leitura de foreground estritamente diagnóstica. Foram atualizados os sete testes existentes para injetar explicitamente a cerca no leitor. Contrato Node adicional verifica os hooks SDK 54 e proíbe expansão da superfície Expo além dos dois métodos informativos.
+
+**Limites:** a cerca protege só a **futura observação tipada interna**; não substitui autenticação Android BiometricPrompt/CryptoObject, autorização do titular, proteção contra rollback, nem automaticamente revoga uma sessão financeira, porque **não existe sessão financeira nativa integrada neste módulo**. A Activity, singleton de DataStore persistente e políticas de migração/opt-out ainda não foram conectadas ao armazenamento de produção. Os resultados desta revisão requerem compilação Gradle e testes do emulador no HEAD exato antes de aprovação; sem merge, APK, publicação ou QA físico.
+
+
+## Fase 1 | Primeira leitura nativa de registro EXISTENTE (apenas diagnóstico)
+
+Foi incluído `NativeLockExistingRecordDiagnostic.kt` no aplicativo Android, com uma única propriedade delegada `Context.negrescoExistingLockDiagnostic by preferencesDataStore(name="negresco_native_lock")`. O delegado é único por processo, evita a criação de uma segunda instância a cada renderização/Activity, e não faz leitura antecipada no boot.
+
+A execução ocorre **somente após o botão manual de Ajustes**, usando o novo método Expo SDK 54 `inspectExistingNativeLockRecord` definido via `AsyncFunction { SuspendBody { ... } }`. Antes de acessar o DataStore, o Kotlin exige Activity no primeiro plano e o preflight passivo `NativeLockFilePresenceDiagnostic.inspect()` com resultado `PRESENT_UNVERIFIED`. Se o arquivo não existe, retorna `MISSING_REQUIRES_VERIFIED_MIGRATION` e não abre o delegado; arquivo suspeito, contexto ausente e falha de leitura permanecem bloqueados. O leitor tipado verifica novamente a geração do lifecycle antes de entregar o resultado.
+
+O JavaScript recebe **somente rótulos de diagnóstico em lista fechada**, sem preferência `enabled`, revisão interna, saldos, chave, identidade, dados financeiros ou ciphertext. Mesmo `VALID_UNTRUSTED` representa apenas sintaxe de registro, **jamais login, biometria, autorização de dados, opt-out ou autorização de migração**. O método nativo e a resposta JS fixam `financialStorageAllowed=false`, `keyReleaseAllowed=false` e `migrationAllowed=false`. O mesmo timeout manual de cinco segundos limita o resultado da UI. Nenhuma chamada ocorre automaticamente na inicialização do app.
+
+**Riscos ainda pendentes:** o preflight e a abertura do DataStore não são uma operação atômica de sistema de arquivos; o arquivo pode desaparecer ou mudar entre os dois. DataStore pode realizar inicialização interna se ocorrer uma corrida. Portanto, esta rota **não deve ser anunciada como leitura forense garantidamente imutável** e **não é um sistema de migração ou um verificador de integridade/replay**. A migração/autorização transacional só poderá ser ativada quando houver política de segurança, dono de dados e recuperação definitivos e testes no aparelho real. Não usa/instala dados reais voluntariamente e não publica APK.
+
+`SyntheticExistingRecordDiagnosticGateTest.kt` tem três casos de negação com Context nulo, Activity em background e Activity destruída, sem tocar no arquivo de bloqueio existente. O contrato `tests/native-finance-existing-record-contract.test.mjs` valida o singleton por delegado, preflight, API suspend e invariantes de não autorização; `tests/native-finance-readiness.test.mjs` simula registros falsificados e erros/timeout. A compilação SDK 54 e a instrumentação de todos os testes novos **dependem da CI do commit exato**.
+
+
+## Fase 1 | Preflight determinístico de migração do bloqueio antigo (somente avaliação)
+
+Em 22/10/2026 foi criada a classe **interna, pura e não exportada** `NativeLockMigrationPreflight.kt`, que recebe **valores de cenário**, não lê o `AsyncStorage` do usuário e não grava no DataStore. Os nomes e estados legados são os definidos em `apps/mobile/security/localLockPolicy.ts`: preferência `negresco.local_lock.v1` com `enabled`, `disabled` e `disable-pending`; jornal `negresco.local_lock.optout.v1` com `pending`.
+
+O preflight rejeita ou segura, sem exceções de autorização:
+
+- `pending` no jornal ou `disable-pending` no registro exige **recuperação de opt-out**; não importa se a preferência primária diz `disabled`.
+- `disabled` **não é prova de opt-out autenticado** e não concede desbloqueio na versão nativa.
+- Ausência de preferência não inicia provisionamento ou migração automática.
+- Registro DataStore detectado como existente, mas ainda não autenticado, **nunca é sobrescrito** por uma alegação do `AsyncStorage`.
+- Presença de arquivo contraditória com o diagnóstico tipado, versão malformada, entrada de armazenamento suspeita ou valores desconhecidos provocam `DENY_` apropriado.
+- Um estado legado `enabled` só identifica a necessidade de autenticação forte futura; não autoriza a migração.
+- **Não existe saída `ALLOW`, `MIGRATED` ou `UNLOCKED`**, nem método Expo para solicitar migração. Não há leitura/escrita de arquivos reais, biometria, movimentação de preferências nem solicitação de chave.
+
+`SyntheticNativeLockMigrationPreflightTest.kt` define oito cenários instrumentados no emulador, com combinações adversariais de estados e nenhum arquivo/dispositivo pessoal. `tests/native-finance-migration-preflight-contract.test.mjs` verifica as restrições de API, isolamento e ausência de mutação.
+
+**Esta etapa não conclui a migração.** Antes de permitir qualquer alteração de dados será necessário desenvolver e homologar: prova de titular/biometria vinculada a uma operação nativa, acordo de versão e semântica entre AsyncStorage e DataStore, journal durável e operação atômica, backup e recuperação testados, política de perda de chave e revogação de sessões, análise de restauração/rollback e atualização do APK com certificado compatível. As leituras existentes continuam apenas diagnósticas e o SQLCipher permanece indisponível para dados reais. Testes desta subetapa contam como aprovados somente após CI do commit exato.
+
+
+## Fase 1 | Simulação de interrupção/restore da migração, sem escrita
+
+`NativeLockMigrationInterruptionGate.kt` introduz **somente um classificador puro** dos passos hipotéticos `NOT_STARTED`, `INTENT_RECORDED`, `SOURCE_BACKED_UP`, `NATIVE_STAGED`, `SOURCE_RETIRE_REQUESTED` e `FINALIZED_UNVERIFIED`. Todos os dados que entram nessa função são **alegações sintéticas não autenticadas**, inclusive `durableIntentClaim` e a existência dos arquivos; esses nomes **não são registros de journal realmente persistidos**.
+
+O classificador sinaliza ausência de journal após o início, conclusão prematura, perda de fonte antes do commit verificável, presença prematura do destino, destino desaparecido/restaurado, registros inválidos e invalidação por background. Um marcador `completed` com registro `VALID_UNTRUSTED` ainda retorna **`HOLD_COMPLETED_MARKER_NOT_AUTHORITY`**, jamais um grant. O resultado sempre começa com `HOLD_` ou `DENY_`; não há operações de arquivo, DataStore, migração, desbloqueio, autenticação ou SQLCipher.
+
+`SyntheticNativeMigrationInterruptionGateTest.kt` contém oito cenários Android, inclusive uma matriz combinatória de **2.560 estados de laboratório** para verificar que nenhum libera finanças. `tests/native-finance-migration-interruption-contract.test.mjs` veda operações reais e exportação inadvertida pela bridge Expo. Esses testes só podem ser declarados aprovados após a CI do commit correspondente.
+
+**Limite essencial:** não existe durabilidade comprovada, verificação externa de monotonicidade, prova criptográfica de backup nem recuperação automática. Uma restauração consistente e maliciosa de TODOS os marcadores pode parecer internamente válida e não será detectada por esse classificador; o resultado continua sem autoridade para uso financeiro. Antes de escrever o migrador real, são necessários: autenticação do titular vinculada à operação, fonte de verdade nativa única, journal persistente com semântica de recuperação/crash, backup testado, atualizações seguras do APK, integração SQLCipher/Keystore com política explícita de perda de chave e QA físico.
+
+
+## Fase 1 | Journal Android realmente gravado, EXCLUSIVAMENTE em androidTest
+
+O arquivo `src/androidTest/java/com/negresco/finance/security/SyntheticAtomicMigrationJournal.kt` acrescenta um **journal de fixture** baseado em `android.util.AtomicFile`, inteiramente fora do código compilado no APK de release. A implementação não é exposta no módulo Expo nem integrada ao bloqueio legado. O único nome de arquivo aceito pela classe é `synthetic-migration.journal`; os testes sempre o criam dentro de uma pasta aleatória sob `noBackupFilesDir` do ambiente de instrumentação.
+
+A escrita usa `AtomicFile.startWrite/finishWrite` e `failWrite` para aborto controlado. Cada checkpoint contém versão, sequência limitada, etapa sintética e SHA-256 sem chave; a leitura usa limite de 256 bytes e recusa corrupção, UTF-8 inválido, versão/campo desconhecido e tamanho excessivo. Uma nova instância da classe consegue reabrir o mesmo arquivo de fixture. O teste de aborto é **injeção de falha controlada**, não comprovação de `kill -9`, reinício do Android ou interrupção de energia.
+
+`SyntheticAtomicMigrationJournalTest.kt` inclui oito testes Android: ausência sem provisionar, leitura por instância recriada, aborto preservando checkpoint anterior, corrupção e truncamento, excesso de tamanho/UTF-8 inválido, versão/etapa inválida, finalização não autoritativa e replay válido de checkpoint antigo. O replay demonstra uma limitação **intencional**: SHA-256 sem segredo detecta corrupção casual mas não prova autenticidade, monotonicidade, titular ou atualidade. Assim, mesmo o checksum válido retorna `HOLD_SYNTHETIC_JOURNAL_READ_NOT_AUTHORITY`, nunca acesso.
+
+O contrato `tests/native-finance-atomic-migration-journal-contract.test.mjs` impede que a classe de escrita seja movida para o módulo de produção, exige `AtomicFile` e a matriz de testes. A CI precisa executar a instrumentação no emulador do commit exato. Este avanço **não implementa o journal de migração de produção**, não toca nas preferências reais, não configura DataStore de escrita nem liga SQLCipher a dados financeiros.
+
+**Próximo gate real:** autoridade de migração autenticada dentro de operação nativa, anti-rollback independente, recuperação após processo morto e troca de certificado/upgrade, homologação física de chave perdida ou biometria alterada e só então comandos financeiros persistentes.
+
+## Primeira integração vertical sintética (SEC-05 / AndroidTest somente)
+
+A fixture `SyntheticKeystoreSqlcipherLifecycleBoundaryTest.kt` reúne, numa única execução Android de teste, uma chave efêmera `AndroidKeyStore`, envelope AES-GCM com AAD, senha de um banco SQLCipher descartável, linha inteiramente fictícia e a cerca `NativeLockLifecycleFence` já presente no módulo nativo.
+
+- Sem primeiro plano, sem permissão **inventada no teste**, ou com época revogada após sair/retornar ao aplicativo, a fixture recusa o acesso **antes de consultar o Keystore**.
+- Com época e permissão exclusivas do teste, verifica a linha fictícia e devolve somente `OBSERVED_FIXTURE_ONLY_NOT_AUTHORIZATION`, nunca o valor decifrado ou um sinal de desbloqueio financeiro.
+- Excluir a chave do Keystore exige `HOLD_MISSING_TEST_KEY`: o banco cifrado e o envelope não podem ser apagados nem substituídos por nova identidade.
+- O teste usa `setUserAuthenticationRequired(false)`: **não prova autenticação biométrica, sessão de titular ou proteção de segredos real**. A API de teste SQLCipher materializa senha em `String` JVM, que não pode ser zerada de maneira garantida.
+
+**Limite obrigatório:** o arquivo existe só sob `src/androidTest`. O módulo do aplicativo continua diagnóstico, com `financialStorageAllowed=false`, `keyReleaseAllowed=false` e `migrationAllowed=false`. Precisamos de validação Kotlin + instrumentação Android com os dois novos casos efetivamente executados, seguida de um projeto separado de autenticação forte real, seguro contra eventos concorrentes, antes de prometer integração financeira.
+
+## SEC-05 | Corridas de revogação durante observação do banco fictício (laboratório)
+
+A revisão do ensaio `SyntheticKeystoreSqlcipherLifecycleBoundaryTest` adiciona checkpoints de negação em dois momentos que a instrumentação anterior ainda não exercitava:
+
+1. `revocationBetweenPreflightAndKeystoreLookupMustHold`: o callback de teste força `onBackground()` **após o preflight e antes de consultar a chave**. O método deve devolver `HOLD_REVOKED_BEFORE_KEY_LOOKUP`, sem abrir o banco nem alterar o ciphertext.
+2. `revocationAfterSqlcipherReadCannotReportSuccess`: outro callback de teste força `onBackground()` **depois da leitura SQLCipher e antes do resultado**, exigindo `HOLD_REVOKED_AFTER_READ`, jamais sucesso por resultado atrasado.
+
+As verificações são determinísticas, usam apenas duas callbacks de teste e não demonstram exclusão contra todos os interleavings adversariais. O `fixturePermit` continua sendo um parâmetro arbitrário do teste, **não** autenticação biométrica real. O auditor JUnit exige que os **quatro** testes dessa classe estejam presentes e que nenhum deles seja `SKIPPED`. A integração nativa de produto permanece BLOQUEADA.
+
+## Issue #18 / P0-1: fronteira nativa de operação somente bloqueante
+
+O primeiro arquivo Kotlin de preparação **em `src/main`** é `NativeFinancialOperationPreflight.kt`. Ele apresenta motivos de bloqueio específicos para sessão revogada, ausência de prova de criptografia forte, cofre não provisionado e falta da autoridade nativa autenticada. **Não existe resultado `ALLOW`**, nem mesmo quando todas as observações de entrada são `true`: booleanos de diagnóstico são dados não confiáveis, não prova do Android.
+
+O código **não é invocado pelo Expo nem exportado para JavaScript**, não instancia banco ou chave, e não autoriza uma operação de teste. `SyntheticFinancialOperationPreflightTest.kt`, somente em `androidTest`, exercita entradas contraditórias e sinais falsificados em um emulador descartável. O contrato Node exige que o conjunto de respostas permaneça bloqueante e que nenhuma função do módulo exponha a política.
+
+**Gate real ainda bloqueado:** criar autorização baseada no próprio resultado de `BiometricPrompt(CryptoObject)` e operação do Keystore, definir semântica de sessão e inicialização/migração SQLCipher, sem aceitar booleanos ou retornos JS como equivalentes. Falta QA humano em aparelho físico e auditoria de segredos/backup/upgrade. Relacionado à [issue #18](https://github.com/nego001/negresco-finance./issues/18).
+
+
+## P0-1 | Ensaio DENY-only por intenção sintética e época nativa
+
+O arquivo `NativeSyntheticOperationAttemptFence.kt` em `src/main` amplia exclusivamente
+a preparação negativa. Duas intenções **fictícias tipadas**
+(`READ_DISPOSABLE_FIXTURE` e `WRITE_DISPOSABLE_FIXTURE`) passam pelo
+`NativeFinancialOperationPreflight`. A classe consome no máximo uma tentativa
+por época de foreground, recusa repetição, background e destruição, e preserva
+motivos `HOLD_*` mesmo sob sinais falsificados `true`.
+
+O nome da operação **não** é um identificador de permissão. Nenhuma operação de
+leitura ou gravação é executada, nenhuma chave ou banco é criado, não há
+CryptoObject, e o módulo Expo **não instancia nem exporta** essa classe. Uma
+época diagnóstica não é sessão autenticada, e o replay-fence não substitui
+autorização Keystore por operação.
+
+O teste instrumental `SyntheticOperationAttemptFenceTest.kt` deve executar
+**4/4 métodos**, sem `SKIPPED`, comprovados pelo auditor JUnit nominal.
+A CI não deve declarar biometria física `PASS`: os dois métodos positivos
+manuais continuam `SKIPPED` e exigem homologação interativa separada.
+
+**Próximo gate não concluído:** desenhar e testar um autorizador Kotlin ligado
+ao `BiometricPrompt(CryptoObject)` verdadeiro, com material sintético de
+SQLCipher em laboratório e limpeza/revogação de sessão em situações de falha.
+Não utilizar booleans de JS como evidência, habilitar banco financeiro, atualizar
+aplicativo ou promover Release por causa desta simulação.
+
+
+## P0-1 | Correlação negativa de callback por intenção, ciclo de vida e tentativa
+
+Em uma branch de laboratório isolada, `NativeSyntheticCallbackDenialFence.kt`
+prepara uma restrição **sempre DENY-only** para callbacks não confiáveis,
+sem qualquer integração de produto. A classe gera uma `Receipt` interna,
+um marcador de identidade em RAM **que NÃO é segredo, prova biométrica,
+chave ou capacidade de acesso**. A tentativa fictícia só registra esse
+marcador após `NativeSyntheticOperationAttemptFence` retornar
+`HOLD_NATIVE_AUTHORITY_NOT_IMPLEMENTED`; esse HOLD nunca é convertido em
+autorização.
+
+Mesmo um callback informando sucesso, com receipt e intenção idênticos,
+retorna `HOLD_NATIVE_AUTHORITY_NOT_IMPLEMENTED`. Callback de intenção trocada,
+receipt antiga, sem tentativa ativa, duplicada, cancelada, pós-background ou
+pós-destruição retorna outro `HOLD_*`. Cada callback consome a tentativa
+antes de observar dados alegados. O código não importa BiometricPrompt,
+CryptoObject, Cipher, SQLCipher nem chaves; não é instanciado ou exposto pelo
+módulo Expo, não grava nem lê nada.
+
+**Limite crítico:** o marcador é correlação em memória, não atestação
+criptográfica. Não serve para autenticar titular, impedir fraude em si só ou
+abrir banco. Para evolução real é obrigatório exigir o mesmo
+`BiometricPrompt(CryptoObject)`, prova do provedor AndroidKeyStore
+(`Cipher.doFinal`), validação por operação e lifecycle, QA físico consentido,
+recuperação e reavaliação de riscos.
+
+`SyntheticCallbackDenialFenceTest.kt` adiciona seis cenários negativos
+instrumentados; o auditor JUnit exige **6/6 nomes exatos sem SKIPPED**,
+além de todos os gates anteriores. A PR mantém-se isolada até obter a
+evidência completa do SHA exato. O roteiro de 17 IAs da PR #23 não
+antecipa estes controles.
+
+
+## P0-1 | Sequências adversariais determinísticas de callbacks falsos
+
+A classe `SyntheticCallbackAdversarialSequencesTest.kt` existe **somente em
+`androidTest`** e é uma etapa de estresse controlado, **não pentest real
+de banco e não QA de biometria física**. Ela exercita centenas de ciclos
+com duas intenções fictícias, tentativas de sucesso falsificado, alteração
+de intenção, repetição, ausência de tentativa, retorno após revogação,
+destruição e sinais aleatórios *determinísticos* de preflight (semente
+fixa `0x5EED`). Qualquer decisão diferente de `HOLD_*` falha o teste.
+
+A auditoria Android deve provar **4/4 métodos de estresse** por classe e
+nome exatos, sem `SKIPPED`, além dos **6/6 callbacks negativos**,
+**4/4 tentativas**, **3/3 preflight** e demais gates SEC-05. O teste
+deliberadamente não executa `BiometricPrompt`, não abre SQLCipher, não
+toca o banco de produto, não modifica a autorização e não atravessa a API
+Expo.
+
+Por ser um conjunto de casos adversariais determinísticos, não prova
+resistência geral a invasão, bugs em hardware, vazamentos, tentativas por
+um segundo processo, sincronização distribuída ou manipulação da UI.
+Esses riscos exigem modelo de ameaça, fuzzing mais amplo e testes físicos
+autorizados em etapas futuras.

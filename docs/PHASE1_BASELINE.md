@@ -30,11 +30,51 @@ Status: **em andamento**. Esta fase é pré-requisito para iniciar a Fase 2 (con
   - [ ] [Issue #5](https://github.com/nego001/negresco-finance./issues/5): executar QA-35/QA-36 para screenshot, gravação e miniatura no Samsung. Ainda sem confirmação de proteção real em hardware.
   - [ ] [Issue #3](https://github.com/nego001/negresco-finance./issues/3): homologar autenticação Android real, e depois vincular chaves ao Keystore e ao futuro SQLCipher. Não declarar liberado apenas com CI verde.
 
+- [x] Mitigação de desativação interrompida: diário independente `optout.v1=pending` com prioridade no boot, marcador `disable-pending`, tentativas de restauração e testes simulados de morte do processo. **Ainda não é transação atômica: encerramento durante a exclusão final do diário permanece risco residual de opt-out inesperado.**
+
+- [x] Recuperação da leitura inicial da preferência após background: ao retornar ao primeiro plano, um novo carregamento substitui o resultado invalidado. Teste de regressão no CI, **QA-40 físico pendente**.
+- [x] [Contrato nativo de persistência do bloqueio](security/NATIVE_LOCK_PERSISTENCE_V1.md) documentado com critérios de transação, migração e homologação. **A arquitetura está documentada e existem laboratórios Kotlin separados; ainda não há integração Expo nem autenticação transacional nativa.**
+
+- [x] Gate do GitHub Actions reforçado: builds de push/feature branch geram somente artefatos; GitHub Release candidato exige disparo manual em `main` com `publish_release=true`. Política testada no CI; **não revoga releases antigos automaticamente**.
+
+- [x] Núcleo Kotlin experimental do bloqueio criado fora do app, com políticas de sessão e 10 cenários JVM; adaptadores separados foram criados posteriormente. Continua sem integração Expo. **Não é módulo Android nativo homologado, não habilita SQLCipher ou chaves reais.**
+
+- [x] Laboratório JVM DataStore: repositório com `updateData` atômico e testes de persistência em arquivo, corrupção, revisão e concorrência. **Não incorporado ao APK; 15 cenários DataStore/migração executados no CI, homologação Android ainda exigida.**
+
+- [x] Classificação conservadora das preferências biométricas antigas e migração inicial transacional apenas para **bloqueado**, preservando estado nativo previamente existente. Cenários `null`/`disabled` exigem configuração explícita antes da integração. Sem migração real do APK.
+- [x] Laboratório `tooling/native-lock-android-lab` com singleton DataStore e adaptador BiometricPrompt forte; compilação Android controlada por job separado. **Não existe ponte Expo nem coordenador que vincule autenticação ao commit.**
+
+- [x] Coordenador Kotlin suspendido de laboratório para desbloqueio e ativação, com verificação de época/revisão, revogação síncrona no background, vínculo do desbloqueio à revisão do DataStore e serialização de prompts. A desativação fica negada. **Não integrado ao APK, sem validação no Samsung e sem transação de opt-out segura.**
+
+- [x] Observação reativa do DataStore no laboratório Android: alterações de revisão, registro inválido ou ausente revogam a sessão de interface quando recebidas; verificação por leitura direta permanece como segunda barreira. **Não integrado ao APK, sem prova criptográfica ou QA físico.**
+
+- [x] Gate de saúde do observador DataStore no laboratório Android: sem primeira emissão válida não há autenticação; observação ausente, corrompida ou interrompida trava a autorização pela vida da Activity. Preferência válida `enabled=false` segue habilitável mediante biometria. Testes JVM adicionais; **sem integração com APK 3.1.2 ou QA Samsung**.
+
+- [x] Pré-fase transacional de desativação no laboratório Kotlin: `disablePending` preserva `enabled=true` e a revisão DataStore; reabertura e recuperação atômica rearma o bloqueio. O resultado `PREPARED` não é opt-out concluído; `disable()` permanece recusado, e a preparação não é exportada no Android nem ao Expo. **Sem migração instalada nem QA físico**.
+
+- [x] Removido bypass de desativação no coordenador Kotlin síncrono de laboratório; as duas políticas recusam opt-out final. Três testes de interrupção simulada antes/depois da gravação e cancelamento verificam que a preparação conserva `enabled=true`. **São testes sintéticos, sem liberação de APK ou QA físico.**
+
+- [x] API DataStore experimental restrita a `enableIfCurrent(expectedRevision)`, sem argumento Boolean que possa gravar `enabled=false`. Cenários com preferência desativada usam somente fixtures sintéticas dos testes; ativação repetida falha sem alterar revisão. **Não foi integrada ao APK nem homologada em Samsung.**
+
+- [x] Detecção de retrocesso de revisão DataStore no laboratório: revisão menor ou alteração com mesma revisão encerra autenticação pela vida da Activity; leituras pré/pós-biometria também verificam. **Não detecta rollback entre processos, sem Keystore nem QA físico.**
+
+- [x] Protótipo HMAC-SHA256 de integridade do estado nativo, codificação canônica e verificação constante de MAC. Adaptador Android Keystore independente com provisão explícita somente sintética; 15 cenários JVM testam adulteração, chave ausente e reprodução de registro antigo (que **ainda é aceito**). **Não protege o banco financeiro nem equivale ao Bitwarden.**
+- [ ] Meta Bitwarden ou superior: requisitos e bloqueios de release documentados em `docs/security/BITWARDEN_GRADE_SECURITY_GATES.md`. Exige criptografia real, gestão de chaves, auditoria externa e testes móveis antes de qualquer alegação de equivalência.
+
+- [x] Envelope AEAD AES-256-GCM sintético para registros financeiros com AAD vinculando tipo, ID lógico e revisão, 23 cenários JVM e laboratório separado de chave AES no Android Keystore. **Não há banco financeiro persistente ou SQLCipher, uso biométrico criptográfico, zero-knowledge real ou integração ao APK.** Detalhes: `docs/security/FINANCIAL_RECORD_ENVELOPE_LAB_V1.md`.
+
+- [x] Módulo `tooling/sqlcipher-android-lab` separado da aplicação com SQLCipher Community `4.19.1` e AndroidX SQLite `2.7.0` oficiais, compilação CI isolada, APIs de criação sintética explícita e abertura existente com chave (nunca fallback para SQLite comum). Doze cenários JVM validam recusa de cabeçalho plaintext, arquivo ausente/truncado e passphrase sintética; seis testes instrumentados Android foram **escritos/compilados, não executados**. **Não é banco financeiro real, não há chaves autorizadas por biometria e a licença/nativos/ABIs exigem auditoria.** Ver `tooling/sqlcipher-android-lab/README.md`.
+
+- [x] 9/9 cenários instrumentados de SQLCipher passaram no emulador Android (GitHub Actions do PR #6). Foram adicionados **três cenários adversariais** de adulteração de página cifrada, WAL confirmado e WAL abortado; sua execução no emulador exige aprovação do CI desta revisão. **Não são testes de desligamento abrupto, recuperação após perda de energia ou QA Samsung.**
+
+- [x] Teste instrumentado de subprocesso privado em `tooling/sqlcipher-android-lab`: transação WAL não confirmada é interrompida via `Process.killProcess()` **somente no PID auxiliar**, com verificação do registro confirmado após reabrir. O caso 13 **passou** no emulador após corrigir a corrida IPC, run 39347703529; não equivale a teste de energia ou Samsung.
+- [x] Desenho de hierarquia de chaves SQLCipher, chave de envelopamento Keystore separada, pré-requisitos `CryptoObject`, recuperação e migração em `docs/security/SQLCIPHER_KEY_WRAP_DESIGN_V1.md`. **Somente documentação: chaves de produção ainda não são provisionadas.**
+
 ## Ainda pendente para concluir a Fase 1
 - [ ] **Homologação no Samsung:** executar [roteiro de QA da V3.1](ANDROID_QA_V3.1.md), registrar falhas e corrigi-las. Sem execução física não declarar aprovado.
   - [x] Ferramenta **somente leitura** de pré-diagnóstico ADB/versão/hash preparada para Windows; sem validação física até o usuário executar no Samsung.
   - [x] [Comparador somente leitura de assinatura e versionCode](ANDROID_UPGRADE_PREFLIGHT.md) criado para Windows; consulta APK instalado e candidato sem modificar o celular, **não executado no aparelho nesta sessão**.
-  - [ ] Executar QA-01 a QA-38 no aparelho e anexar relatório sem informações privadas (inclui biometria, Keystore, captura, prompts e assinatura de APK).
+  - [ ] Executar QA-01 a QA-40 no aparelho e anexar relatório sem informações privadas (inclui biometria, Keystore, captura, prompts e assinatura de APK).
 - [ ] **Identidade de assinatura estável:** configurar keystore de distribuição administrado com segurança fora do Git, com segredos no GitHub Actions; confirmar atualização sobre APK anterior **sem perder dados**. Nunca publicar chave privada no repositório.
   - [x] [Procedimento de configuração e migração documentado](ANDROID_SIGNING_V3_1.md), com exigência de hash SHA-256 do certificado.
   - [ ] Criar/provisionar chave permanente fora do GitHub, executar build opt-in e testar atualização entre duas versões com a mesma assinatura.

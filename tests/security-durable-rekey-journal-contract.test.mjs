@@ -1,0 +1,500 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+
+const read = path => readFileSync(new URL('../' + path, import.meta.url), 'utf8');
+const kotlin = 'tooling/native-lock-spike/src/main/kotlin/com/negresco/finance/security/';
+const fixtures = 'tooling/native-lock-spike/src/test/kotlin/com/negresco/finance/security/';
+
+test('SEC-05K stages encrypted records with fsync and atomic rename, not plaintext keys', () => {
+  const code = read(kotlin + 'SyntheticDurableRekeyJournalLab.kt');
+  assert.match(code, /channel\.force\(true\)/);
+  assert.match(code, /syncDirectory\(\)/);
+  assert.match(code, /StandardCopyOption\.ATOMIC_MOVE/);
+  assert.match(code, /channel\.tryLock\(\)/);
+  assert.match(code, /private fun encodeState/);
+  assert.match(code, /SyntheticEncryptedRecordLab/);
+  assert.match(code, /private fun equivalentCiphertexts/);
+  assert.match(code, /MessageDigest\.isEqual\(p, q\)/);
+  assert.match(code, /oldKey\.fill\(0\); newKey\.fill\(0\)/);
+  assert.doesNotMatch(code, /DataOutputStream\(.*secret/i);
+});
+
+test('SEC-05K durable decision follows PREPARED and precedes replacing active snapshot', () => {
+  const code = read(kotlin + 'SyntheticDurableRekeyJournalLab.kt');
+  const p = code.indexOf('atomicWrite(pending, pendingBytes)');
+  const prep = code.indexOf('atomicWrite(journal, encodeJournal(marker))');
+  const commit = code.indexOf('SyntheticJournalPhaseLab.COMMITTED, j.account');
+  const publish = code.indexOf('Files.move(pending, active');
+  assert.ok(p > 0 && prep > p && commit > prep && publish > commit);
+  assert.match(code, /RECOVERED_PREPARE_ROLLBACK/);
+  assert.match(code, /RECOVERED_COMMIT_FINALIZED/);
+  assert.match(code, /FAIL_CLOSED/);
+  assert.match(code, /AFTER_COMMIT_SYNC/);
+  assert.match(code, /AFTER_ACTIVE_REPLACE/);
+});
+
+test('SEC-05K JVM runner covers restart, corruption, stale replay and 2-writer race', () => {
+  const cases = read(fixtures + 'SyntheticDurableRekeyJournalLabTest.kt');
+  const runner = read(fixtures + 'NativeLockCoordinatorTest.kt');
+  assert.match(cases, /AFTER_PENDING_SYNC/);
+  assert.match(cases, /AFTER_PREPARE_SYNC/);
+  assert.match(cases, /AFTER_COMMIT_SYNC/);
+  assert.match(cases, /AFTER_ACTIVE_REPLACE/);
+  assert.match(cases, /flipFirstByte/);
+  assert.match(cases, /newFixedThreadPool\(2\)/);
+  assert.match(cases, /DENY_RECOVERY_PROOF/);
+  assert.match(cases, /PASS: SEC-05K/);
+  assert.match(runner, /runSyntheticDurableRekeyJournalScenarios\(\)/);
+});
+
+test('SEC-05K lab and future multiagent charter stay outside the mobile runtime', () => {
+  const doc = read('docs/security/SEC_05K_DURABLE_REKEY_JOURNAL_LAB.md');
+  const future = read('docs/AI_MULTIAGENT_FUTURE_VISION.md');
+  const roadmap = read('docs/ROADMAP.md');
+  const mobile = read('apps/mobile/package.json');
+  assert.match(doc, /SEC-05K/);
+  assert.match(doc, /não é|NÃO É/i);
+  assert.match(doc, /BLOQUEADO/);
+  assert.match(doc, /backup externo/i);
+  assert.match(future, /Negão/);
+  assert.match(future, /Sophia/);
+  assert.match(future, /Amanda/);
+  assert.match(future, /Flávio/);
+  assert.match(future, /Igor/);
+  assert.match(future, /Michelle/);
+  assert.match(future, /personalidade/);
+  assert.match(roadmap, /AI_MULTIAGENT_FUTURE_VISION/);
+  assert.doesNotMatch(mobile, /SyntheticDurableRekeyJournalLab/);
+});
+
+
+test('SEC-05K child JVM performs independent recovery without passing secret material', () => {
+  const cases = read(fixtures + 'SyntheticDurableRekeyJournalLabTest.kt');
+  const runner = read(fixtures + 'NativeLockCoordinatorTest.kt');
+  assert.match(runner, /fun main\(args: Array<String>\)/);
+  assert.match(runner, /--sec05k-recover-fixture-only/);
+  assert.match(runner, /SEC05K_CHILD_RESULT=/);
+  assert.match(cases, /ProcessBuilder\(/);
+  assert.match(cases, /java\.class\.path/);
+  assert.match(cases, /recoverInIndependentJvm/);
+  assert.match(cases, /FileChannel\.open/);
+  assert.match(cases, /SyntheticJournalCheckLab\.DENY_BUSY/);
+  assert.match(cases, /SyntheticJournalCheckLab\.RECOVERED_PREPARE_ROLLBACK/);
+  assert.match(cases, /SyntheticJournalCheckLab\.RECOVERED_COMMIT_FINALIZED/);
+  assert.match(cases, /SyntheticJournalCheckLab\.FAIL_CLOSED/);
+  assert.doesNotMatch(cases, /"--sec05k-recover-fixture-only",[\s\S]{0,200}(oldSecret|newSecret|oldKey)/);
+});
+
+test('SEC-05K abrupt child JVM termination checks detached export without leaking kit secret via argv', () => {
+  const cases = read(fixtures + 'SyntheticDurableRekeyJournalLabTest.kt');
+  const runner = read(fixtures + 'NativeLockCoordinatorTest.kt');
+  assert.match(runner, /--sec05k-commit-halt-after-marker-fixture-only/);
+  assert.match(runner, /--sec05k-commit-halt-after-active-fixture-only/);
+  assert.match(runner, /DataInputStream\(System\.\`in\`\)\.readFully\(secret\)/);
+  assert.match(runner, /secret\.fill\(0\)/);
+  assert.match(runner, /Runtime\.getRuntime\(\)\.halt\(73\)/);
+  assert.match(runner, /SEC05K_CHILD_DENIED=/);
+  assert.match(cases, /exportBackupFixtureOnly/);
+  assert.match(cases, /channel\.force\(true\)/);
+  assert.match(cases, /child\.outputStream\.use \{ it\.write\(secret\)/);
+  assert.match(cases, /hardStopCommitInIndependentJvm/);
+  assert.match(cases, /RECOVERED_COMMIT_FINALIZED/);
+  assert.match(cases, /RECOVERED_PREPARE_ROLLBACK/);
+  assert.match(cases, /secret = randomKey\(\)/);
+  assert.doesNotMatch(cases, /mode, dir\.toAbsolutePath\(\)\.toString\(\), account, s\.before\.kitId,\s*(oldSecret|newSecret|oldKey)/);
+});
+
+test('SEC-05K fresh-JVM detached kit recovery checks every encrypted record without owner authority', () => {
+  const code = read(kotlin + 'SyntheticDurableRekeyJournalLab.kt');
+  const cases = read(fixtures + 'SyntheticDurableRekeyJournalLabTest.kt');
+  const runner = read(fixtures + 'NativeLockCoordinatorTest.kt');
+  assert.match(code, /VERIFIED_DETACHED_BACKUP_FIXTURE_ONLY/);
+  assert.match(code, /verifyDetachedBackupAfterRestartFixtureOnly/);
+  assert.match(code, /existsNoFollow\(journal\) \|\| existsNoFollow\(pending\)/);
+  assert.match(code, /current\.records\.values\.all/);
+  assert.match(code, /clear\?\.fill\(0\)/);
+  assert.match(code, /dataKey\.fill\(0\)/);
+  assert.match(code, /MessageDigest\.isEqual\(snapshot\.envelope, externallySuppliedEnvelope\)/);
+  assert.match(runner, /--sec05k-verify-detached-fixture-only/);
+  assert.match(runner, /SEC05K_DETACHED_PROOF=/);
+  assert.match(runner, /readNBytes\(secret, 0, secret\.size\)/);
+  assert.match(cases, /verifyDetachedInIndependentJvm/);
+  assert.match(cases, /fresh third JVM decrypts every current record/);
+  assert.match(cases, /wrong detached recovery secret/);
+  assert.match(cases, /rollback\/stale expected generation/);
+  assert.match(cases, /corrupted durable active ciphertext fails closed/);
+  assert.doesNotMatch(runner, /--sec05k-verify-detached-fixture-only",[\s\S]{0,200}s\.newSecret/);
+});
+
+test('SEC-05K filesystem fixture refuses symlink and dangling aliases without following them', () => {
+  const code = read(kotlin + 'SyntheticDurableRekeyJournalLab.kt');
+  const cases = read(fixtures + 'SyntheticDurableRekeyJournalLabTest.kt');
+  assert.match(code, /LinkOption\.NOFOLLOW_LINKS/);
+  assert.match(code, /Files\.isSymbolicLink\(directory\)/);
+  assert.match(code, /listOf\(active, pending, journal, lockPath, provisioned\)\.none\(Files::isSymbolicLink\)/);
+  assert.match(code, /private fun existsNoFollow/);
+  assert.match(code, /Files\.isRegularFile\(path, LinkOption\.NOFOLLOW_LINKS\)/);
+  assert.match(cases, /Files\.createSymbolicLink\(dir\.resolve\("active\.snapshot"\)/);
+  assert.match(cases, /Files\.createSymbolicLink\(dir\.resolve\("pending\.snapshot"\)/);
+  assert.match(cases, /Files\.createSymbolicLink\(dir\.resolve\("migration\.journal"\)/);
+  assert.match(cases, /Files\.createSymbolicLink\(dir\.resolve\("migration\.lock"\)/);
+  assert.match(cases, /Files\.createSymbolicLink\(alias, dir\)/);
+  assert.match(cases, /Files\.createSymbolicLink\(dangling,/);
+  assert.match(cases, /symlinked fixture root directory cannot be trusted/);
+  assert.match(cases, /dangling pending alias is not misclassified/);
+});
+
+test('SEC-05K journal cleanup requires post-publish readback and descriptor-bound nofollow reads', () => {
+  const code = read(kotlin + 'SyntheticDurableRekeyJournalLab.kt');
+  const cases = read(fixtures + 'SyntheticDurableRekeyJournalLabTest.kt');
+  assert.match(code, /FileChannel\.open\(path, StandardOpenOption\.READ, LinkOption\.NOFOLLOW_LINKS\)/);
+  assert.match(code, /val size = channel\.size\(\)/);
+  assert.match(code, /require\(channel\.size\(\) == size\)/);
+  assert.match(code, /TAMPER_PENDING_BEFORE_PUBLISH_FIXTURE_ONLY/);
+  assert.match(code, /TAMPER_ACTIVE_AFTER_PUBLISH_FIXTURE_ONLY/);
+  assert.match(code, /tamperFirstByteFixtureOnly\(pending\)/);
+  assert.match(code, /tamperFirstByteFixtureOnly\(active\)/);
+  const commit = code.slice(code.indexOf('fun commitFixtureOnly('), code.indexOf('fun recoverFixtureOnly()'));
+  const move = commit.indexOf('Files.move(pending, active');
+  const attested = commit.indexOf('if (!same(readBytes(active), j.newHash))');
+  const cleanup = commit.lastIndexOf('remove(journal)');
+  assert.ok(move >= 0 && attested > move && cleanup > attested);
+  const recovery = code.slice(code.indexOf('fun recoverFixtureOnly()'), code.indexOf('fun verifyDetachedBackupAfterRestartFixtureOnly('));
+  const recoverMove = recovery.lastIndexOf('Files.move(pending, active');
+  const recoverAttested = recovery.lastIndexOf('if (!same(readBytes(active), j.newHash))');
+  const recoverCleanup = recovery.lastIndexOf('remove(journal)');
+  assert.ok(recoverMove >= 0 && recoverAttested > recoverMove && recoverCleanup > recoverAttested);
+  assert.match(cases, /tamper after durable commit decision is rejected/);
+  assert.match(cases, /post-promotion corruption is detected/);
+  assert.match(cases, /COMMITTED journal remains/);
+});
+
+test('SEC-05K ignores advisory lock in restricted child fixture yet never clears unverified COMMITTED journal', () => {
+  const code = read(kotlin + 'SyntheticDurableRekeyJournalLab.kt');
+  const cases = read(fixtures + 'SyntheticDurableRekeyJournalLabTest.kt');
+  const runner = read(fixtures + 'NativeLockCoordinatorTest.kt');
+  assert.match(code, /TAMPER_PENDING_AFTER_FINAL_CHECK_FIXTURE_ONLY/);
+  assert.match(code, /tamperFirstByteFixtureOnly\(pending\)/);
+  assert.match(cases, /mutation after last pre-move checksum fails post-publish attestation/);
+  assert.match(cases, /mutatePendingWithoutLockInIndependentJvm/);
+  assert.match(cases, /COMMITTED marker retained after a corrupted candidate was promoted/);
+  assert.match(cases, /PREPARED rollback discards concurrently tampered candidate/);
+  assert.match(cases, /COMMITTED recovery rejects candidate corrupted by JVM ignoring lock/);
+  assert.match(runner, /--sec05k-noncooperative-candidate-fixture-only/);
+  assert.match(runner, /dir\.fileName\.toString\(\)\.startsWith\("negresco-sec05k-disposable-"\)/);
+  assert.match(runner, /SEC05K_NONCOOPERATIVE_CANDIDATE_MUTATED=FIXTURE_ONLY/);
+});
+
+test('SEC-05K provision guard and bounded malformed storage prevent silent reprovision', () => {
+  const code = read(kotlin + 'SyntheticDurableRekeyJournalLab.kt');
+  const cases = read(fixtures + 'SyntheticDurableRekeyJournalLabTest.kt');
+  assert.match(code, /provisioned = directory\.resolve\("provisioned\.guard"\)/);
+  assert.match(code, /private fun provisionedBytes\(\)/);
+  assert.match(code, /atomicWrite\(provisioned, provisionedBytes\(\)\)/);
+  assert.match(code, /existsNoFollow\(provisioned\)/);
+  assert.match(code, /readBytes\(provisioned\)/);
+  assert.match(code, /MessageDigest\.isEqual\(/);
+  const seed = code.slice(code.indexOf('fun seedFixtureOnly('), code.indexOf('fun prepareFixtureOnly('));
+  assert.ok(seed.indexOf('atomicWrite(provisioned, provisionedBytes())') <
+    seed.indexOf('atomicWrite(active, encodeState(state))'));
+  assert.match(cases, /missing active with durable provision marker is denied re-provision/);
+  assert.match(cases, /corrupted provision marker prevents normal recovery/);
+  assert.match(cases, /absent provision marker with surviving active is not trusted/);
+  assert.match(cases, /invalid active file size \$size fails closed/);
+  assert.match(cases, /COMMITTED candidate malformed size \$size must fail closed/);
+  assert.match(cases, /malformed journal size \$size does not guess/);
+  assert.match(cases, /missing COMMITTED pending cannot silently restore old active generation/);
+});
+
+test('SEC-05K detached signed generation witness detects local rollback but documents signed-pair replay', () => {
+  const code = read(kotlin + 'SyntheticDetachedGenerationWitnessLab.kt');
+  const cases = read(fixtures + 'SyntheticDurableRekeyJournalLabTest.kt');
+  const mobile = read('apps/mobile/package.json');
+  assert.match(code, /Mac\.getInstance\("HmacSHA256"\)/);
+  assert.match(code, /macDomain/);
+  assert.match(code, /MessageDigest\.isEqual/);
+  assert.match(code, /LinkOption\.NOFOLLOW_LINKS/);
+  assert.match(code, /StandardCopyOption\.ATOMIC_MOVE/);
+  assert.match(code, /channel\.force\(true\)/);
+  assert.match(code, /bootstrapFixtureOnly/);
+  assert.match(code, /advanceFixtureOnly/);
+  assert.match(code, /verifyFixtureOnly/);
+  assert.match(code, /after\.generation != expectedBefore\.generation \+ 1/);
+  assert.match(code, /detachedMacKey\.size != 32/);
+  assert.match(cases, /replayed old ciphertext is detected by independently retained witness/);
+  assert.match(cases, /external witness detects locally reseeded state after paired file wipe/);
+  assert.match(cases, /tampered signed generation receipt fails HMAC verification/);
+  assert.match(cases, /loss of detached receipt must fail closed/);
+  assert.match(cases, /known limitation: replaying BOTH signed witness and old ciphertext remains possible/);
+  assert.match(cases, /external witness cannot be stored inside local journal directory/);
+  assert.doesNotMatch(mobile, /SyntheticDetachedGenerationWitnessLab/);
+});
+
+test('SEC-05K reconciliation requires genuinely fresh pinned authority and never treats HMAC witness as live monotonic authority', () => {
+  const code = read(kotlin + 'SyntheticJournalAuthorityReconciliationPolicyLab.kt');
+  const cases = read(fixtures + 'SyntheticJournalAuthorityReconciliationPolicyLabTest.kt');
+  const runner = read(fixtures + 'NativeLockCoordinatorTest.kt');
+  const mobile = read('apps/mobile/package.json');
+  assert.match(code, /VERIFIED_LIVE_CURRENT/);
+  assert.match(code, /REPLAYABLE_DETACHED_HMAC_ONLY/);
+  assert.match(code, /MISSING_OR_OFFLINE/);
+  assert.match(code, /INVALID_OR_STALE/);
+  assert.match(code, /MAY_DISCARD_PREPARED_CANDIDATE_ONLY/);
+  assert.match(code, /MAY_FINALIZE_COMMITTED_NEW_SNAPSHOT_ONLY/);
+  assert.match(code, /MAY_CLEAR_COMMITTED_MARKER_ONLY/);
+  assert.match(code, /HOLD_EXTERNAL_AUTHORITY_REQUIRED/);
+  assert.match(code, /input\.authorityEvidence != SyntheticRekeyAuthorityEvidenceLab\.VERIFIED_LIVE_CURRENT/);
+  assert.match(code, /input\.newGeneration != input\.oldGeneration \+ 1L/);
+  assert.match(code, /input\.newVersion != input\.oldVersion \+ 1L/);
+  assert.match(cases, /replaying old advance request|already-published NEW with OLD authority|COMMITTED local with authority still OLD/);
+  assert.match(cases, /runSyntheticJournalAuthorityReconciliationPolicyScenarios/);
+  assert.match(runner, /runSyntheticJournalAuthorityReconciliationPolicyScenarios/);
+  assert.doesNotMatch(mobile, /SyntheticJournalAuthorityReconciliationPolicyLab/);
+});
+
+test('SEC-05K signed generation challenge verifier cannot promote signature fixture to live monotonic authority', () => {
+  const code = read(kotlin + 'SyntheticSignedRekeyAuthorityChallengeLab.kt');
+  const suite = read(fixtures + 'SyntheticSignedRekeyAuthorityChallengeLabTest.kt');
+  const policy = read(kotlin + 'SyntheticJournalAuthorityReconciliationPolicyLab.kt');
+  const cases = read(fixtures + 'SyntheticJournalAuthorityReconciliationPolicyLabTest.kt');
+  const runner = read(fixtures + 'NativeLockCoordinatorTest.kt');
+  assert.match(code, /Signature\.getInstance\("Ed25519"\)/);
+  assert.match(code, /SyntheticSignedDeviceProofLab\.fingerprint\(key\)/);
+  assert.match(code, /challenge\.copyOf\(\)/);
+  assert.match(code, /@Synchronized/);
+  assert.match(code, /used = true/);
+  assert.match(code, /MessageDigest\.isEqual\(challenge, returnedChallenge\)/);
+  assert.match(code, /VERIFIED_SIGNATURE_FIXTURE_ONLY_NOT_LIVE_AUTHORITY/);
+  assert.match(code, /ciphertextHash/);
+  assert.match(code, /out\.writeLong\(claim\.generation\)/);
+  assert.match(code, /out\.write\(freshChallenge\)/);
+  assert.match(policy, /SIGNED_CHALLENGE_FIXTURE_ONLY_NO_LIVE_AUTHORITY/);
+  assert.match(cases, /SIGNED_CHALLENGE_FIXTURE_ONLY_NO_LIVE_AUTHORITY/);
+  assert.match(suite, /signature replay using new challenge is rejected/);
+  assert.match(suite, /failed challenge attempt consumes nonce too/);
+  assert.match(suite, /valid signature from unpinned signer fails/);
+  assert.match(suite, /P-256 key cannot masquerade as Ed25519/);
+  assert.match(suite, /signed response bound to wrong \$reason is rejected/);
+  assert.match(runner, /runSyntheticSignedRekeyAuthorityChallengeScenarios/);
+  const resultEnum = code.slice(
+    code.indexOf('internal enum class SyntheticSignedRekeyChallengeCheckLab'),
+    code.indexOf('internal object SyntheticSignedRekeyAuthorityChallengeLab')
+  );
+  assert.doesNotMatch(resultEnum, /VERIFIED_LIVE_CURRENT/);
+});
+
+test('SEC-05K CAS lost response is idempotent only for exact request and never confers live authority', () => {
+  const code = read(kotlin + 'SyntheticRekeyAuthorityCasTimeoutLab.kt');
+  const cases = read(fixtures + 'SyntheticRekeyAuthorityCasTimeoutLabTest.kt');
+  const runner = read(fixtures + 'NativeLockCoordinatorTest.kt');
+  assert.match(code, /@Synchronized/);
+  assert.match(code, /loseResponseAfterCommit: Boolean = false/);
+  assert.match(code, /state\.current = desiredAfter/);
+  assert.match(code, /state\.operations\[operationId\] = Applied/);
+  assert.match(code, /if \(loseResponseAfterCommit\) return null/);
+  assert.match(code, /DENY_CONFLICTING_OPERATION_ID/);
+  assert.match(code, /ALREADY_APPLIED_CURRENT_FIXTURE_ONLY/);
+  assert.match(code, /DENY_STALE_OR_CONFLICTING_GENERATION/);
+  assert.match(code, /signedCurrentFixtureOnly/);
+  assert.match(code, /Signature\.getInstance\("Ed25519"\)/);
+  assert.match(code, /newGeneration|after\.generation == before\.generation \+ 1/);
+  assert.match(cases, /server CAS advances but network reply disappears/);
+  assert.match(cases, /retry same id and payload does not advance twice/);
+  assert.match(cases, /fixture signature cannot authorize journal promotion/);
+  assert.match(cases, /signed reads follow current in-memory generation after two advances/);
+  assert.match(cases, /only one concurrent compare-and-swap advances generation/);
+  assert.match(cases, /second concurrent writer sees stale predecessor/);
+  assert.match(runner, /runSyntheticRekeyAuthorityCasTimeoutScenarios/);
+  assert.doesNotMatch(code, /VERIFIED_LIVE_CURRENT/);
+});
+
+test('SEC-05K PostgreSQL CAS retains operation receipts after process restart and lost reply', () => {
+  const ddl = read('tooling/security-authority-protocol-lab/postgres/004_sec05k_cas_persistence_lab.sql');
+  const tests = read(fixtures + 'SyntheticJdbcRekeyCasPersistenceLabTest.kt');
+  const gradle = read('tooling/native-lock-spike/build.gradle.kts');
+  const workflow = read('.github/workflows/ci.yml');
+  assert.match(ddl, /CREATE SCHEMA IF NOT EXISTS negresco_sec05k_cas_lab/);
+  assert.match(ddl, /CREATE TABLE IF NOT EXISTS negresco_sec05k_cas_lab\.generations/);
+  assert.match(ddl, /CREATE TABLE IF NOT EXISTS negresco_sec05k_cas_lab\.operation_receipts/);
+  assert.match(ddl, /PRIMARY KEY \(account_id,operation_id\)/);
+  assert.match(ddl, /CHECK \(after_generation = before_generation \+ 1\)/);
+  assert.match(tests, /SELECT kit_id,version,generation,ciphertext_sha256/);
+  assert.match(tests, /FOR UPDATE/);
+  assert.match(tests, /db\.transactionIsolation=Connection\.TRANSACTION_READ_COMMITTED/);
+  assert.match(tests, /state\.current|UPDATE \$schema\.generations/);
+  assert.match(tests, /INSERT INTO \$schema\.operation_receipts/);
+  assert.match(tests, /db\.rollback\(\)/);
+  assert.match(tests, /loseResponseAfterCommit: Boolean = false/);
+  assert.match(tests, /if\(loseResponseAfterCommit\) null/);
+  assert.match(tests, /DENY_IDEMPOTENCY_COLLISION/);
+  assert.match(tests, /DENY_STALE_RECEIPT_NOT_CURRENT/);
+  assert.match(tests, /ProcessBuilder\(/);
+  assert.match(tests, /--verify-persisted-cas-fixture-only/);
+  assert.match(tests, /only one of eight concurrent JDBC CAS sessions wins/);
+  assert.match(gradle, /tasks\.register<JavaExec>\("pgRekeyCasCheck"\)/);
+  assert.match(workflow, /004_sec05k_cas_persistence_lab\.sql/);
+  assert.match(workflow, /pgBoundProofCheck pgRekeyCasCheck --no-daemon/);
+});
+
+test('SEC-05K PostgreSQL and journal reconciliation observations never promote unauthenticated fixture to authority', () => {
+  const journal = read(kotlin + 'SyntheticDurableRekeyJournalLab.kt');
+  const cases = read(fixtures + 'SyntheticJdbcJournalAuthorityDivergenceLabTest.kt');
+  const jdbc = read(fixtures + 'SyntheticJdbcRekeyCasPersistenceLabTest.kt');
+  assert.match(journal, /fun observeAgainstCasFixtureOnly/);
+  assert.match(journal, /OBSERVED_FIXTURE_ONLY_NOT_AUTHORITY/);
+  assert.match(journal, /val marker = journalBytes\?\.let \{ decodeJournal\(it\) \}/);
+  assert.match(journal, /MessageDigest\.isEqual\(marker\.newHash, after\.ciphertextHash\)/);
+  assert.match(journal, /SIGNED_CHALLENGE_FIXTURE_ONLY_NO_LIVE_AUTHORITY/);
+  assert.match(journal, /SyntheticRekeyAuthorityGenerationLab\.UNKNOWN_OR_OTHER/);
+  assert.match(cases, /COMMITTED written durably, still old active/);
+  assert.match(cases, /remote CAS commits but reply is lost while local COMMITTED is still pending/);
+  assert.match(cases, /remote ahead of local PREPARED/);
+  assert.match(cases, /COMMITTED and new active published/);
+  assert.match(cases, /corrupt candidate fails closed even though PostgreSQL is NEW_CURRENT/);
+  assert.match(cases, /read-only observation does not publish, roll back, or delete any journal files/);
+  assert.match(cases, /fixture-only observation NEVER authorizes journal publication or cleanup/);
+  assert.match(jdbc, /runSyntheticJdbcJournalAuthorityDivergenceScenarios\(\)/);
+});
+
+test('SEC-05K fresh signatures do not imply PostgreSQL linearizable current state', () => {
+  const suite = read(fixtures + 'SyntheticJdbcSignedReadRaceLabTest.kt');
+  const jdbc = read(fixtures + 'SyntheticJdbcRekeyCasPersistenceLabTest.kt');
+  assert.match(suite, /runSyntheticJdbcSignedReadRaceScenarios/);
+  assert.match(suite, /Signature\.getInstance\("Ed25519"\)/);
+  assert.match(suite, /SyntheticSignedRekeyChallengeSessionLab/);
+  assert.match(suite, /new generation commits after stale reply was signed/);
+  assert.match(suite, /valid Ed25519 signature remains valid even though response is NOW STALE/);
+  assert.match(suite, /HOLD_EXTERNAL_AUTHORITY_REQUIRED/);
+  assert.match(suite, /DENY_REUSED_OR_EXPIRED_SESSION/);
+  assert.match(suite, /DENY_SIGNATURE/);
+  assert.match(suite, /DELETE FROM negresco_sec05k_cas_lab\.operation_receipts WHERE account_id=\?/);
+  assert.match(suite, /UPDATE negresco_sec05k_cas_lab\.generations SET/);
+  assert.match(suite, /CRITICAL LIMIT: fresh signature can authenticate rolled-back SQL generation/);
+  assert.match(suite, /locally restored database has no proof of previous committed operation/);
+  assert.match(jdbc, /runSyntheticJdbcSignedReadRaceScenarios\(\)/);
+});
+
+test('SEC-05K independent child process floor exposes PostgreSQL rollback and volatile restart limit', () => {
+  const oracle = read(fixtures + 'SyntheticIndependentGenerationFloorFixtureLab.kt');
+  const suite = read(fixtures + 'SyntheticJdbcIsolatedFloorRollbackLabTest.kt');
+  const runner = read(fixtures + 'SyntheticJdbcRekeyCasPersistenceLabTest.kt');
+  assert.match(oracle, /--sec05k-independent-floor-fixture-only/);
+  assert.match(oracle, /KeyPairGenerator\.getInstance\("Ed25519"\)/);
+  assert.match(oracle, /Signature\.getInstance\("Ed25519"\)/);
+  assert.match(oracle, /DENY_PREDECESSOR/);
+  assert.match(oracle, /DENY_ALREADY_ENROLLED/);
+  assert.match(oracle, /crypto\.equivalentFixtureOnly\(previous, expected\)/);
+  assert.match(oracle, /next\.generation != expected\.generation \+ 1/);
+  assert.match(oracle, /ProcessBuilder\(/);
+  assert.match(oracle, /Trust-on-creation ONLY for fixture/);
+  assert.match(suite, /simulated admin rolls back only fixture generation/);
+  assert.match(suite, /independent floor reveals DB rollback even when SQL receipts were erased/);
+  assert.match(suite, /stale quote remains cryptographically valid after separate floor advanced/);
+  assert.match(suite, /ephemeral signed child evidence is never promoted to trusted live authority/);
+  assert.match(suite, /critical limit: newly restarted oracle has LOST its previous floor/);
+  assert.match(suite, /critical limit: a new child can enroll OLD absent persistent secure state/);
+  assert.match(runner, /runSyntheticJdbcIsolatedFloorRollbackScenarios\(\)/);
+});
+
+
+test('SEC-05K independent durable floor persists across JVM restart but cannot certify tamper-proof authority', () => {
+  const oracle = read(fixtures + 'SyntheticDurableGenerationFloorFixtureLab.kt');
+  const scenarios = read(fixtures + 'SyntheticJdbcDurableFloorRollbackLabTest.kt');
+  const runner = read(fixtures + 'SyntheticJdbcRekeyCasPersistenceLabTest.kt');
+  const mobile = read('apps/mobile/package.json');
+  assert.match(oracle, /--sec05k-durable-floor-fixture-only/);
+  assert.match(oracle, /StandardCopyOption\.ATOMIC_MOVE/);
+  assert.match(oracle, /channel\.force\(true\)/);
+  assert.match(oracle, /provisioned\.guard/);
+  assert.match(oracle, /DENY_MISSING_DURABLE_STATE/);
+  assert.match(oracle, /channel\.lock\(\)/);
+  assert.match(oracle, /LinkOption\.NOFOLLOW_LINKS/);
+  assert.match(oracle, /Signature\.getInstance\("Ed25519"\)/);
+  assert.match(oracle, /DENY_PREDECESSOR/);
+  assert.match(oracle, /UNENROLLED/);
+  assert.match(oracle, /stored UNENCRYPTED|UNENCRYPTED in a synthetic file/);
+  assert.match(scenarios, /restart retains NEW generation/);
+  assert.match(scenarios, /persisted separate process detects PostgreSQL-only rollback/);
+  assert.match(scenarios, /critical limit: restoring authority file itself replays OLD generation/);
+  assert.match(scenarios, /critical limit: replayed floor produces VALID signature with original pin/);
+  assert.match(scenarios, /DENY_MALFORMED_OR_CORRUPT/);
+  assert.match(runner, /runSyntheticJdbcDurableFloorRollbackScenarios\(\)/);
+  assert.doesNotMatch(mobile, /SyntheticDurableGenerationFloorFixtureLab/);
+});
+
+
+test('SEC-05K dual independent signed floors detect a single rollback but paired rollback remains valid', () => {
+  const fixture = read(fixtures + 'SyntheticDualDurableFloorAgreementLabTest.kt');
+  const runner = read(fixtures + 'NativeLockCoordinatorTest.kt');
+  const mobile = read('apps/mobile/package.json');
+  assert.match(fixture, /HOLD_MISSING_WITNESS_OR_PIN/);
+  assert.match(fixture, /HOLD_SAME_SIGNER/);
+  assert.match(fixture, /HOLD_NONCE_OR_SIGNATURE/);
+  assert.match(fixture, /HOLD_DIVERGENT_FLOORS/);
+  assert.match(fixture, /AGREEMENT_FIXTURE_ONLY_NOT_LIVE_AUTHORITY/);
+  assert.match(fixture, /signatureValidFixtureOnly/);
+  assert.match(fixture, /MessageDigest\.isEqual/);
+  assert.match(fixture, /single-authority restore causes signed divergence/);
+  assert.match(fixture, /CRITICAL LIMIT: paired file restore produces valid OLD agreement/);
+  assert.match(fixture, /fresh nonces still cannot discover erased histories/);
+  assert.match(fixture, /HOLD_EXTERNAL_AUTHORITY_REQUIRED/);
+  assert.match(fixture, /coordinated replay of both witness state files/);
+  assert.match(runner, /runSyntheticDualDurableFloorAgreementScenarios\(\)/);
+  assert.doesNotMatch(mobile, /SyntheticDualDurableFloorAgreementLabTest|SyntheticDualFloorAgreementPolicyFixtureLab/);
+});
+
+
+test('SEC-05K PostgreSQL plus two durable JVMs remain blocked when the non-rewindable anchor is only simulated', () => {
+  const scenario = read(fixtures + 'SyntheticJdbcThreeDomainRollbackBoundaryLabTest.kt');
+  const runner = read(fixtures + 'SyntheticJdbcRekeyCasPersistenceLabTest.kt');
+  const anchor = read(fixtures + 'SyntheticProtectedAnchorBoundaryLabTest.kt');
+  const mobile = read('apps/mobile/package.json');
+  assert.match(scenario, /DriverManager\.getConnection\(/);
+  assert.match(scenario, /SyntheticProtectedAnchorFixtureLab/);
+  assert.match(scenario, /SyntheticDurableFloorClientFixtureLab/);
+  assert.match(scenario, /dropReplyAfterCommit = true/);
+  assert.match(scenario, /loseResponseAfterCommit = true/);
+  assert.match(scenario, /oldA = Files\.readAllBytes/);
+  assert.match(scenario, /oldB = Files\.readAllBytes/);
+  assert.match(scenario, /Files\.write\(dirA\.resolve\("authority\.state"\), oldA\)/);
+  assert.match(scenario, /Files\.write\(dirB\.resolve\("authority\.state"\), oldB\)/);
+  assert.match(scenario, /CRITICAL: PostgreSQL and BOTH signing witnesses were replayed to OLD/);
+  assert.match(scenario, /offline anchor refuses any fallback/);
+  assert.match(scenario, /DENY_WRONG_ANCHOR_PIN/);
+  assert.match(scenario, /HOLD_EXTERNAL_AUTHORITY_REQUIRED/);
+  assert.match(scenario, /in-memory anchor cannot survive own rollback or restart/);
+  assert.match(scenario, /replacement with erased history can re-enroll OLD/);
+  assert.match(scenario, /self-pinning a replacement makes OLD appear consistent/);
+  assert.match(scenario, /a pin retained outside restored stores rejects replacement/);
+  assert.match(scenario, /simulatePrivilegedFullAuthorityRollbackFixtureOnly/);
+  assert.match(scenario, /all four domains at OLD appear consistent with SAME anchor pin/);
+  assert.match(scenario, /full anchor rewind erased original idempotency receipt/);
+  assert.match(scenario, /even four mutually consistent rolled-back fixtures cannot authorize recovery/);
+  assert.match(runner, /runSyntheticJdbcThreeDomainRollbackBoundaryScenarios\(\)/);
+  assert.match(anchor, /NEVER A REAL ANTI-ROLLBACK AUTHORITY/);
+  assert.doesNotMatch(mobile, /SyntheticJdbcThreeDomainRollbackBoundaryLabTest/);
+});
+
+
+test('SEC-05K full four-domain replay cannot turn three genuine Ed25519 signatures into live authority', () => {
+  const suite = read(fixtures + 'SyntheticJdbcAllDomainsRollbackIndistinguishabilityLabTest.kt');
+  const runner = read(fixtures + 'SyntheticJdbcRekeyCasPersistenceLabTest.kt');
+  const policy = read(kotlin + 'SyntheticJournalAuthorityReconciliationPolicyLab.kt');
+  const app = read('apps/mobile/package.json');
+  assert.match(suite, /DriverManager\.getConnection\(/);
+  assert.match(suite, /three different Ed25519 public keys/);
+  assert.match(suite, /db\.compareAndSwapFixtureOnly\(operation, old, next\)/);
+  assert.match(suite, /DELETE FROM negresco_sec05k_cas_lab\.operation_receipts/);
+  assert.match(suite, /UPDATE negresco_sec05k_cas_lab\.generations/);
+  assert.match(suite, /for \(i in 0\.\.1\)/);
+  assert.match(suite, /not-rewound third signer still reports NEW/);
+  assert.match(suite, /Files\.write\(roots\[2\]\.resolve\("authority\.state"\), snapshots\[2\]\)/);
+  assert.match(suite, /CRITICAL LIMIT: each signer state file equals its PRE-COMMIT bytes/);
+  assert.match(suite, /restored signer freshly signs OLD under ORIGINAL pinned key/);
+  assert.match(suite, /three valid signatures and restored SQL still NEVER authorize journal writes/);
+  assert.match(suite, /HOLD_EXTERNAL_AUTHORITY_REQUIRED/);
+  assert.match(policy, /SIGNED_CHALLENGE_FIXTURE_ONLY_NO_LIVE_AUTHORITY/);
+  assert.match(runner, /runSyntheticJdbcAllDomainsRollbackIndistinguishabilityScenarios\(\)/);
+  assert.doesNotMatch(app, /SyntheticJdbcAllDomainsRollbackIndistinguishability/);
+});

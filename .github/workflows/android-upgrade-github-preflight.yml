@@ -1,0 +1,179 @@
+name: Android 3.1.2 to 3.1.3 safe upgrade preflight
+on:
+  push:
+    paths:
+      - '.github/workflows/android-upgrade-github-preflight.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+
+# Tests ONLY published GitHub binaries, never the user's installed Samsung APK.
+# The old APK below is a specific public test release, not necessarily the
+# build installed on a personal phone.
+concurrency:
+  group: negresco-upgrade-preflight-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compare-published-apks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      compatible: ${{ steps.compare.outputs.compatible }}
+    steps:
+      - name: Download pinned 3.1.2 release and 3.1.3 Actions artifact
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p previous candidate
+          gh release download v3.1-candidate-c8c6153 \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern 'Negresco-Finance-V3.1-candidate.apk' \
+            --pattern 'APK-SIGNATURE.txt' \
+            --pattern 'SHA256-release.txt' \
+            --dir previous
+          gh run download 39376841287 \
+            --repo "$GITHUB_REPOSITORY" \
+            --name negresco-finance-v313-test-apk \
+            --dir candidate
+          test -s previous/Negresco-Finance-V3.1-candidate.apk
+          test -s previous/SHA256-release.txt
+          test -s previous/APK-SIGNATURE.txt
+          test "$(find candidate -type f -name '*.apk' | wc -l)" -eq 1
+
+      - name: Check full APK signatures, versions, hashes and update eligibility
+        id: compare
+        shell: bash
+        run: |
+          set -euo pipefail
+          OLD=previous/Negresco-Finance-V3.1-candidate.apk
+          NEW="$(find candidate -type f -name '*.apk' -print -quit)"
+          test -n "$NEW"
+          BUILD_TOOLS="$(find "${ANDROID_HOME:?Android SDK missing}/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+          AAPT="$BUILD_TOOLS/aapt"
+          SIGNER="$BUILD_TOOLS/apksigner"
+          test -x "$AAPT"
+          test -x "$SIGNER"
+          unzip -t "$OLD" >/dev/null
+          unzip -t "$NEW" >/dev/null
+          OLD_HASH="$(sha256sum "$OLD" | cut -d ' ' -f 1)"
+          NEW_HASH="$(sha256sum "$NEW" | cut -d ' ' -f 1)"
+          # Verify previous bytes against that release's published digest.
+          grep -qiF "$OLD_HASH" previous/SHA256-release.txt || {
+            echo "::error::Prior GitHub release APK does not match published SHA256."
+            exit 1
+          }
+          EXPECTED_NEW=f70ba5107c24e4e59c423ba898f281d9cc8aebc8852f4a0f999cb5923d1c0077
+          test "$NEW_HASH" = "$EXPECTED_NEW" || {
+            echo "::error::3.1.3 APK bytes differ from validated build."
+            exit 1
+          }
+          OLD_BADGING="$("$AAPT" dump badging "$OLD")"
+          NEW_BADGING="$("$AAPT" dump badging "$NEW")"
+          echo "$OLD_BADGING" | grep -F "package: name='com.negresco.finance'"
+          echo "$NEW_BADGING" | grep -F "package: name='com.negresco.finance'"
+          echo "$OLD_BADGING" | grep -F "versionCode='33' versionName='3.1.2'"
+          echo "$NEW_BADGING" | grep -F "versionCode='34' versionName='3.1.3'"
+          "$SIGNER" verify --verbose --print-certs "$OLD" > previous-verified-signature.txt
+          "$SIGNER" verify --verbose --print-certs "$NEW" > candidate-verified-signature.txt
+          get_certificate() {
+            sed -nE 's/.*certificate SHA-256 digest: ([0-9a-fA-F]{64}).*/\1/p' "$1" \
+              | head -n 1 | tr '[:upper:]' '[:lower:]'
+          }
+          OLD_CERT="$(get_certificate previous-verified-signature.txt)"
+          NEW_CERT="$(get_certificate candidate-verified-signature.txt)"
+          [[ "$OLD_CERT" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$NEW_CERT" =~ ^[0-9a-f]{64}$ ]]
+          grep -qiF "$OLD_CERT" previous/APK-SIGNATURE.txt || {
+            echo "::error::Old APK fingerprint differs from its published signature report."
+            exit 1
+          }
+          PINNED_NEW_CERT=fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c
+          test "$NEW_CERT" = "$PINNED_NEW_CERT" || {
+            echo "::error::Candidate 3.1.3 signing identity differs from pinned report."
+            exit 1
+          }
+          if [ "$OLD_CERT" = "$NEW_CERT" ]; then
+            compatible=true
+            verdict="ELIGIBLE FOR EMULATOR UPGRADE TEST (NOT THE PERSONAL PHONE)"
+          else
+            compatible=false
+            verdict="BLOCKED: DIFFERENT APK SIGNING CERTIFICATES; DO NOT UPGRADE IN PLACE"
+            echo "::warning::GitHub 3.1.2 and 3.1.3 APKs have different signatures. Skipping emulator update."
+          fi
+          echo "compatible=$compatible" >> "$GITHUB_OUTPUT"
+          {
+            echo '# Negresco Finance 3.1.2 → 3.1.3 (GitHub binary preflight)'
+            echo ''
+            echo "**Verdict: $verdict**"
+            echo ''
+            echo '| Verified artifact | Details |'
+            echo '| --- | --- |'
+            echo "| Old test release | v3.1-candidate-c8c6153, 3.1.2 (33) |"
+            echo "| New test artifact | Actions 39376841287, 3.1.3 (34) |"
+            echo "| Old APK SHA256 | \`$OLD_HASH\` |"
+            echo "| New APK SHA256 | \`$NEW_HASH\` |"
+            echo "| Old certificate SHA256 | \`$OLD_CERT\` |"
+            echo "| New certificate SHA256 | \`$NEW_CERT\` |"
+            echo ''
+            echo '> No phone was connected. The public old APK may not match the'
+            echo '> locally installed APK. No user data or migration was verified.'
+          } | tee upgrade-preflight-report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Preserve signing and upgrade report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: negresco-github-apk-upgrade-preflight
+          path: |
+            upgrade-preflight-report.md
+            previous-verified-signature.txt
+            candidate-verified-signature.txt
+          if-no-files-found: warn
+          retention-days: 14
+
+  emulator-upgrade-smoke:
+    # Explicit fail-closed gate: NEVER install a different-signature APK.
+    needs: compare-published-apks
+    if: needs.compare-published-apks.outputs.compatible == 'true'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download the exact two verified GitHub APK binaries
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p previous candidate
+          gh release download v3.1-candidate-c8c6153 \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern 'Negresco-Finance-V3.1-candidate.apk' \
+            --dir previous
+          gh run download 39376841287 \
+            --repo "$GITHUB_REPOSITORY" \
+            --name negresco-finance-v313-test-apk \
+            --dir candidate
+          NEW="$(find candidate -type f -name '*.apk' -print -quit)"
+          test -n "$NEW"
+          echo 'f70ba5107c24e4e59c423ba898f281d9cc8aebc8852f4a0f999cb5923d1c0077  '"$NEW" | sha256sum -c -
+
+      - name: Enable accelerated disposable Android emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-negresco-kvm.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Try in-place update ONLY in a throwaway emulator
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
+        with:
+          api-level: 35
+          target: default
+          arch: x86_64
+          profile: pixel_6
+          emulator-boot-timeout: 600
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          script: bash tooling/ci/android-upgrade-emulator-smoke.sh
