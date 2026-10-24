@@ -45,6 +45,19 @@ ATTEMPT_SOURCE = (Path(__file__).resolve().parent.parent /
     'apps/mobile/modules/negresco-finance-security/android/src/androidTest/java/'
     'com/negresco/finance/security/SyntheticOperationAttemptFenceTest.kt')
 
+CALLBACK_CLASS = 'com.negresco.finance.security.SyntheticCallbackDenialFenceTest'
+CALLBACK_REQUIRED_CASES = frozenset({
+    'callbackWithoutPendingAttemptIsDenied',
+    'forgedSuccessWithMatchingIntentAndReceiptCannotAuthorize',
+    'wrongIntentBurnsAttemptAndCorrectedReplayIsDenied',
+    'staleReceiptAfterBackgroundCannotConsumeNewEpoch',
+    'cancelledClaimAndPreflightFailureCannotTurnIntoApproval',
+    'destructionAndDuplicateForegroundNeverResurrectReceipt',
+})
+CALLBACK_SOURCE = (Path(__file__).resolve().parent.parent /
+    'apps/mobile/modules/negresco-finance-security/android/src/androidTest/java/'
+    'com/negresco/finance/security/SyntheticCallbackDenialFenceTest.kt')
+
 # CI is unattended: genuine user consent must never be reported as PASS by
 # emulator/fixture evidence. Physical positive QA has its own human gate.
 PHYSICAL_ONLY_CASES = frozenset({
@@ -93,6 +106,16 @@ def expected_attempt_methods():
     if len(names) != len(ATTEMPT_REQUIRED_CASES) or set(names) != ATTEMPT_REQUIRED_CASES:
         raise ValueError(
             f'P0-1 synthetic operation attempt source inventory mismatch: {sorted(names)}')
+    return set(names)
+
+
+def expected_callback_methods():
+    source = CALLBACK_SOURCE.read_text(encoding='utf-8')
+    names = re.findall(r'@Test\\s+fun\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*\\(', source)
+    if len(names) != len(CALLBACK_REQUIRED_CASES) or set(names) != CALLBACK_REQUIRED_CASES:
+        raise ValueError(
+            'P0-1 synthetic callback source inventory mismatch: '
+            f'{sorted(names)}')
     return set(names)
 
 
@@ -187,6 +210,18 @@ def audit(report_dir: Path):
             f'count={len(attempt_cases)}')
     if any(c.find('skipped') is not None for c in attempt_cases):
         reasons.append('P0-1 synthetic operation attempt has SKIPPED tests')
+    callback_expected = expected_callback_methods()
+    callback_cases = [c for c in cases if c.get('classname') == CALLBACK_CLASS]
+    callback_actual = {c.get('name') for c in callback_cases}
+    callback_missing = sorted(callback_expected - callback_actual)
+    callback_extra = sorted(callback_actual - callback_expected)
+    if (len(callback_cases) != len(callback_expected) or callback_missing or callback_extra):
+        reasons.append(
+            'P0-1 synthetic callback inventory mismatch: '
+            f'missing={callback_missing}, unexpected={callback_extra}, '
+            f'count={len(callback_cases)}')
+    if any(c.find('skipped') is not None for c in callback_cases):
+        reasons.append('P0-1 synthetic callback has SKIPPED tests')
     status = 'PASS' if not reasons else 'FAIL'
     summary = [
         '### SEC-05 Android JUnit evidence',
@@ -199,6 +234,7 @@ def audit(report_dir: Path):
         f'- Synthetic native cipher lifecycle methods: **{len(slice_cases)}/4** (zero skips required)',
         f'- P0-1 native preflight methods: **{len(preflight_cases)}/{len(preflight_expected)}** (zero skips required)',
         f'- P0-1 native synthetic operation attempt methods: **{len(attempt_cases)}/{len(attempt_expected)}** (zero skips required)',
+        f'- P0-1 native untrusted callback deny methods: **{len(callback_cases)}/{len(callback_expected)}** (zero skips required)',
         f'- Physical biometric consent-only cases kept SKIPPED: **{physical_skipped_count}/{len(PHYSICAL_ONLY_CASES)}** (never a CI pass)',
         f'- Required same-UUID inode replacement case: **{("executed" if len(required) == 1 and required[0].find("skipped") is None else "missing/skipped")}**',
     ]

@@ -404,3 +404,36 @@ ao `BiometricPrompt(CryptoObject)` verdadeiro, com material sintético de
 SQLCipher em laboratório e limpeza/revogação de sessão em situações de falha.
 Não utilizar booleans de JS como evidência, habilitar banco financeiro, atualizar
 aplicativo ou promover Release por causa desta simulação.
+
+
+## P0-1 | Correlação negativa de callback por intenção, ciclo de vida e tentativa
+
+Em uma branch de laboratório isolada, `NativeSyntheticCallbackDenialFence.kt`
+prepara uma restrição **sempre DENY-only** para callbacks não confiáveis,
+sem qualquer integração de produto. A classe gera uma `Receipt` interna,
+um marcador de identidade em RAM **que NÃO é segredo, prova biométrica,
+chave ou capacidade de acesso**. A tentativa fictícia só registra esse
+marcador após `NativeSyntheticOperationAttemptFence` retornar
+`HOLD_NATIVE_AUTHORITY_NOT_IMPLEMENTED`; esse HOLD nunca é convertido em
+autorização.
+
+Mesmo um callback informando sucesso, com receipt e intenção idênticos,
+retorna `HOLD_NATIVE_AUTHORITY_NOT_IMPLEMENTED`. Callback de intenção trocada,
+receipt antiga, sem tentativa ativa, duplicada, cancelada, pós-background ou
+pós-destruição retorna outro `HOLD_*`. Cada callback consome a tentativa
+antes de observar dados alegados. O código não importa BiometricPrompt,
+CryptoObject, Cipher, SQLCipher nem chaves; não é instanciado ou exposto pelo
+módulo Expo, não grava nem lê nada.
+
+**Limite crítico:** o marcador é correlação em memória, não atestação
+criptográfica. Não serve para autenticar titular, impedir fraude em si só ou
+abrir banco. Para evolução real é obrigatório exigir o mesmo
+`BiometricPrompt(CryptoObject)`, prova do provedor AndroidKeyStore
+(`Cipher.doFinal`), validação por operação e lifecycle, QA físico consentido,
+recuperação e reavaliação de riscos.
+
+`SyntheticCallbackDenialFenceTest.kt` adiciona seis cenários negativos
+instrumentados; o auditor JUnit exige **6/6 nomes exatos sem SKIPPED**,
+além de todos os gates anteriores. A PR mantém-se isolada até obter a
+evidência completa do SHA exato. O roteiro de 17 IAs da PR #23 não
+antecipa estes controles.

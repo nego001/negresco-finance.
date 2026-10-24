@@ -37,6 +37,15 @@ const attemptMethods = [
   'backgroundAndDestroyRevokeSyntheticOperationEpoch',
   'forgedStrongCryptoAndStorageRemainDeniedForBothIntents'
 ];
+const callbackClass = 'com.negresco.finance.security.SyntheticCallbackDenialFenceTest';
+const callbackMethods = [
+  'callbackWithoutPendingAttemptIsDenied',
+  'forgedSuccessWithMatchingIntentAndReceiptCannotAuthorize',
+  'wrongIntentBurnsAttemptAndCorrectedReplayIsDenied',
+  'staleReceiptAfterBackgroundCannotConsumeNewEpoch',
+  'cancelledClaimAndPreflightFailureCannotTurnIntoApproval',
+  'destructionAndDuplicateForegroundNeverResurrectReceipt'
+];
 const permittedHardlinks = new Set([
   'hardlinkedJournalNewCannotRedirectWrite',
   'hardlinkedOwnerMarkerCannotAuthorizeWorkerWrite',
@@ -56,6 +65,7 @@ function baseline() {
     ...sliceMethods.map(name => ({classname: sliceClass, name, skipped: false})),
     ...preflightMethods.map(name => ({classname: preflightClass, name, skipped: false})),
     ...attemptMethods.map(name => ({classname: attemptClass, name, skipped: false})),
+    ...callbackMethods.map(name => ({classname: callbackClass, name, skipped: false})),
   ];
 }
 
@@ -98,6 +108,7 @@ test('26 SEC-05 cases with four expected hardlink skips pass and report missing 
   assert.match(r.summary, /DEBUG SQLCipher biometric isolation case: \*\*executed\*\*/);
   assert.match(r.summary, /skipped: \*\*6\*\*/);
   assert.match(r.summary, /Physical biometric consent-only cases kept SKIPPED: \*\*2\/2\*\*/);
+  assert.match(r.summary, /P0-1 native untrusted callback deny methods: \*\*6\/6\*\*/);
   assert.match(r.summary, /Required same-UUID inode replacement case: \*\*executed\*\*/);
 });
 test('missing XML fails closed', () => {
@@ -284,4 +295,27 @@ test('P0-1: forged synthetic operation attempt method at same count fails', () =
   assert.notEqual(r.status, 0);
   assert.match(r.stderr, /synthetic operation attempt inventory mismatch/);
   assert.match(r.stderr, /backgroundAndDestroyRevokeSyntheticOperationEpoch/);
+});
+
+test('P0-1 callbacks: missing nominal case fails evidence audit', () => {
+  const r = run(baseline().filter(c =>
+    !(c.classname === callbackClass && c.name === callbackMethods[0])));
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /synthetic callback inventory mismatch/);
+});
+test('P0-1 callbacks: SKIPPED nominal case fails evidence audit', () => {
+  const cases = baseline();
+  cases.find(c => c.classname === callbackClass && c.name === callbackMethods[1]).skipped = true;
+  const r = run(cases);
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /synthetic callback has SKIPPED tests/);
+});
+test('P0-1 callbacks: fake method with same count cannot impersonate a required case', () => {
+  const cases = baseline();
+  cases.find(c => c.classname === callbackClass && c.name === callbackMethods[2]).name =
+    'fakeCallbackAuthorizedFinancialTransaction';
+  const r = run(cases);
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /synthetic callback inventory mismatch/);
+  assert.match(r.stderr, /wrongIntentBurnsAttemptAndCorrectedReplayIsDenied/);
 });
