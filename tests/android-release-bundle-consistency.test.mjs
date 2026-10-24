@@ -46,7 +46,7 @@ function fixture(options={}) {
     "  data=(b'X'*(512*1024)) if opts.get('bombReadme') and name=='LEIA-ME.txt' else base64.b64decode(encoded)",
     '  z.writestr(info,data)',
     'z.close()',
-  ].join('\\n');
+  ].join('\n');
   const make = spawnSync('python3', ['-c',makeZip,
     join(dir,zipName),JSON.stringify(zipEntries),JSON.stringify(options)],{encoding:'utf8'});
   assert.equal(make.status,0,make.stderr);
