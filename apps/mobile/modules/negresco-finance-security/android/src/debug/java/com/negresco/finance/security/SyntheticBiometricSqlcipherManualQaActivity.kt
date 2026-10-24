@@ -203,34 +203,27 @@ class SyntheticBiometricSqlcipherManualQaActivity : FragmentActivity() {
     encrypted = null
     nonce = null
     key = null
-    var complete = true
-    alias?.let { name ->
-      try {
+    val residue = SyntheticDebugQaCleanupLedger.cleanup(
+      alias = alias,
+      directory = root,
+      deleteAlias = { name ->
         store().deleteEntry(name)
-        if (store().containsAlias(name)) {
-          complete = false
-        } else {
-          alias = null
-        }
-      } catch (_: Exception) { complete = false }
-      // On failure keep alias so subsequent cleanup can retry revocation.
-    }
-    root?.let { dir ->
-      var deleted = true
-      try { SQLiteDatabase.deleteDatabase(File(dir, "synthetic.db")) }
-      catch (_: Exception) { deleted = false }
-      try {
-        if (!dir.deleteRecursively() || dir.exists()) deleted = false
-      } catch (_: Exception) { deleted = false }
-      if (deleted) {
-        root = null
-      } else {
-        complete = false
+        !store().containsAlias(name)
+      },
+      deleteDirectory = { dir ->
+        var removed = true
+        try { SQLiteDatabase.deleteDatabase(File(dir, "synthetic.db")) }
+        catch (_: Exception) { removed = false }
+        try {
+          if (!dir.deleteRecursively() || dir.exists()) removed = false
+        } catch (_: Exception) { removed = false }
+        removed
       }
-      // Never forget a residue path when deletion failed.
-    }
+    )
+    alias = residue.alias
+    root = residue.directory
     if (::button.isInitialized) button.isEnabled = true
-    return complete
+    return residue.complete
   }
 
   private fun finishQa(outcome: String) {

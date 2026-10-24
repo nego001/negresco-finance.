@@ -56,7 +56,14 @@ test('unattended QA checks nonexported launch without prompts or encrypted DB se
 
 test('failed Debug QA cleanup blocks restart, preserves retry handles and overrides all results', () => {
   assert.match(activity, /if \(!cleanup\(\)\)\s*\{\s*finishQa\("HOLD_PREVIOUS_CLEANUP_FAILED"\)\s*return/);
-  assert.match(activity, /if \(store\(\)\.containsAlias\(name\)\)\s*\{\s*complete = false\s*\} else \{\s*alias = null/);
-  assert.match(activity, /if \(deleted\)\s*\{\s*root = null\s*\} else \{\s*complete = false/);
+  const ledger = read(base+'src/debug/java/com/negresco/finance/security/SyntheticDebugQaCleanupLedger.kt');
+  assert.match(activity, /val residue = SyntheticDebugQaCleanupLedger\.cleanup\(/);
+  assert.match(activity, /alias = residue\.alias/);
+  assert.match(activity, /root = residue\.directory/);
+  assert.match(activity, /return residue\.complete/);
+  assert.match(activity, /!store\(\)\.containsAlias\(name\)/);
+  assert.match(ledger, /if \(removed\) aliasLeft = null/);
+  assert.match(ledger, /if \(removed\) directoryLeft = null/);
+  assert.match(ledger, /complete = aliasLeft == null && directoryLeft == null/);
   assert.match(activity, /val finalStatus = if \(!complete\) "HOLD_CLEANUP_FAILED" else outcome/);
 });
