@@ -31,6 +31,7 @@ on:
       - 'tests/android-release-collision-preflight.test.mjs'
       - 'tests/android-postpublish-immutable-audit.test.mjs'
       - 'tests/android-draft-rest-crosscheck.test.mjs'
+      - 'tests/android-rest-authoritative-assets.test.mjs'
       - '.github/workflows/android-apk.yml'
 # Keep only the newest candidate compiling when multiple source commits arrive.
 concurrency:
@@ -505,15 +506,10 @@ jobs:
           # A successful upload command alone does not prove a complete release.
           export RELEASE_DRAFT_ID_FILE
           RELEASE_DRAFT_ID_FILE="$(mktemp)"
-          gh release view "$TAG" --json isDraft,isPrerelease,tagName,assets,databaseId | node -e '
+          # CLI only supplies draft identity. Its assets representation is NOT
+          # authoritative for the remote SHA256 or upload state.
+          gh release view "$TAG" --json isDraft,isPrerelease,tagName,databaseId | node -e '
             const fs = require("node:fs");
-            const crypto = require("node:crypto");
-            const required = [
-              "Negresco-Finance-V3.1.3-preview.apk",
-              "Negresco-Finance-V3.1.3-preview.zip",
-              "SHA256-release.txt",
-              "APK-SIGNATURE.txt"
-            ];
             let raw = "";
             process.stdin.on("data", chunk => raw += chunk);
             process.stdin.on("end", () => {
@@ -526,36 +522,12 @@ jobs:
                 console.error("BLOCK: draft release identity or target SHA differs");
                 process.exit(1);
               }
-              if (!Array.isArray(release.assets) ||
-                  release.assets.length !== required.length) {
-                console.error("BLOCK: remote asset count differs");
-                process.exit(1);
-              }
-              const names = new Set();
-              for (const asset of release.assets) {
-                if (names.has(asset.name) || !required.includes(asset.name) ||
-                    !Number.isSafeInteger(asset.size) || asset.size < 1 ||
-                    asset.size !== fs.statSync(asset.name).size ||
-                    asset.state !== "uploaded" ||
-                    typeof asset.digest !== "string" ||
-                    !/^sha256:[a-f0-9]{64}$/.test(asset.digest) ||
-                    asset.digest !== ("sha256:" +
-                      crypto.createHash("sha256").update(fs.readFileSync(asset.name)).digest("hex"))) {
-                  console.error("BLOCK: unexpected, duplicate or mismatched remote asset digest");
-                  process.exit(1);
-                }
-                names.add(asset.name);
-              }
-              if (required.some(name => !names.has(name))) {
-                console.error("BLOCK: missing remote release asset");
-                process.exit(1);
-              }
               fs.writeFileSync(process.env.RELEASE_DRAFT_ID_FILE, String(release.databaseId));
-              console.log("PASS: private draft has all four expected remote assets");
+              console.log("PASS: CLI draft identity confirmed, REST asset proof required next");
             });
           '
-          # Independent REST view of the exact draft ID. gh release view
-          # may omit fields or normalize asset data; REST must agree on bytes.
+          # REST is the SOLE authority for GitHub-uploaded SHA256 and asset state.
+          # Do not promote any draft without proving all four uploaded REST assets.
           gh api "repos/${GH_REPO}/releases/$(cat "$RELEASE_DRAFT_ID_FILE")" | node -e '
             const fs = require("node:fs");
             const crypto = require("node:crypto");

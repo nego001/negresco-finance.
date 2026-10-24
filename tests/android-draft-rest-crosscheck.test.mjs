@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 
 const workflow=readFileSync(new URL('../.github/workflows/android-apk.yml',import.meta.url),'utf8');
 const step=workflow.slice(workflow.indexOf('      - name: Stage private draft and publish only after complete verified upload'));
-const cli=step.indexOf('gh release view "$TAG" --json isDraft,isPrerelease,tagName,assets,databaseId');
+const cli=step.indexOf('gh release view "$TAG" --json isDraft,isPrerelease,tagName,databaseId');
 const rest=step.indexOf('gh api "repos/${GH_REPO}/releases/$(cat "$RELEASE_DRAFT_ID_FILE")"');
 const promote=step.indexOf('gh release edit "$TAG" --draft=false');
 const post=step.indexOf('gh api "repos/${GH_REPO}/releases/tags/${TAG}"');

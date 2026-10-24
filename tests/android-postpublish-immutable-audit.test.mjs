@@ -8,7 +8,7 @@ const publish=pub.indexOf('gh release edit "$TAG" --draft=false');
 const after=pub.slice(publish);
 
 test('require draft database identity before public release transition',()=>{
-  const draft=pub.indexOf('gh release view "$TAG" --json isDraft,isPrerelease,tagName,assets,databaseId');
+  const draft=pub.indexOf('gh release view "$TAG" --json isDraft,isPrerelease,tagName,databaseId');
   assert.ok(draft>=0&&draft<publish);
   assert.match(pub,/Number\.isSafeInteger\(release\.databaseId\)/);
   assert.match(pub,/RELEASE_DRAFT_ID_FILE/);
