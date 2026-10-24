@@ -20,7 +20,8 @@ test('separate publishing job has narrow main-only manual gate and needs build',
   assert.match(publishJob, /needs: build-test-apk/);
   assert.match(publishJob, /permissions:\s*\n      contents: write/);
   assert.match(publishJob, /actions\/download-artifact@v4/);
-  assert.match(publishJob, /sha256sum -c SHA256-release\.txt/);
+  assert.match(publishJob, /sha256sum --strict --check SHA256-release\.txt/);
+  assert.match(publishJob, /unexpected, duplicate or unsafe checksum path/);
   assert.match(publishJob, /gh release create/);
   assert.match(publishJob, /gh release upload/);
 });

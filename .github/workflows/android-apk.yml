@@ -32,6 +32,7 @@ on:
       - 'tests/android-postpublish-immutable-audit.test.mjs'
       - 'tests/android-draft-rest-crosscheck.test.mjs'
       - 'tests/android-rest-authoritative-assets.test.mjs'
+      - 'tests/android-strict-sha256-manifest.test.mjs'
       - '.github/workflows/android-apk.yml'
 # Keep only the newest candidate compiling when multiple source commits arrive.
 concurrency:
@@ -279,10 +280,45 @@ jobs:
         working-directory: release-payload
         run: |
           set -euo pipefail
-          for file in Negresco-Finance-V3.1.3-preview.apk Negresco-Finance-V3.1.3-preview.zip SHA256-release.txt APK-SIGNATURE.txt RELEASE_NOTES.md; do
-            test -f "$file" && test ! -L "$file" && test -s "$file"
-          done
-          sha256sum -c SHA256-release.txt
+          # The checksum file is input from a downloaded build artifact.
+          # sha256sum -c accepts arbitrary listed paths, so parse and bound
+          # the manifest before it can open any file.
+          node <<'NODE'
+          const fs = require("node:fs");
+          const expectedHashes = [
+            "Negresco-Finance-V3.1.3-preview.apk",
+            "Negresco-Finance-V3.1.3-preview.zip",
+            "APK-SIGNATURE.txt"
+          ];
+          const expectedFiles = [...expectedHashes, "SHA256-release.txt", "RELEASE_NOTES.md"];
+          function block(message) {
+            console.error("BLOCK: invalid release payload manifest: " + message);
+            process.exit(1);
+          }
+          const actual = fs.readdirSync(".");
+          if (actual.length !== expectedFiles.length ||
+              actual.some(name => !expectedFiles.includes(name))) {
+            block("unexpected, hidden or missing downloaded files");
+          }
+          for (const name of expectedFiles) {
+            const stat = fs.lstatSync(name);
+            if (!stat.isFile() || stat.isSymbolicLink() || stat.size === 0)
+              block("missing, empty, linked or nonregular artifact: " + name);
+          }
+          const raw = fs.readFileSync("SHA256-release.txt");
+          if (raw.length > 4096 || raw.includes(0) || raw.includes(13))
+            block("manifest is too large or contains NUL/CR bytes");
+          const lines = raw.toString("utf8").split("\n");
+          if (lines.length !== expectedHashes.length + 1 || lines.at(-1) !== "")
+            block("manifest must contain exactly three newline-terminated entries");
+          for (let i = 0; i < expectedHashes.length; i++) {
+            const match = /^([a-f0-9]{64})  (.+)$/.exec(lines[i]);
+            if (!match || match[2] !== expectedHashes[i])
+              block("unexpected, duplicate or unsafe checksum path");
+          }
+          console.log("PASS: checksum manifest and payload contain exactly the approved files");
+          NODE
+          sha256sum --strict --check SHA256-release.txt
       - name: Reverify downloaded release certificate and ZIP identity
         working-directory: release-payload
         env:

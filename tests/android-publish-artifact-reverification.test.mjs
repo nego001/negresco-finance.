@@ -84,7 +84,8 @@ test('publisher runs independent signed APK verification before gh release, with
   assert.doesNotMatch(job, /actions\/checkout/);
   assert.ok(job.indexOf('Reverify downloaded release certificate') <
     job.indexOf('gh release create'));
-  assert.match(workflow, /test ! -L "\$file"/);
+  assert.match(workflow, /stat\.isSymbolicLink\(\)/);
+  assert.match(workflow, /sha256sum --strict --check SHA256-release\.txt/);
 });
 
 test('publisher accepts a self-consistent, pinned single-signer test fixture', t => {
