@@ -20,7 +20,7 @@ const files = [
   'APK-SIGNATURE.txt'
 ];
 
-const fakeGh = `#!/usr/bin/env node
+const fakeGh = String.raw`#!/usr/bin/env node
 const fs = require('node:fs');
 const path = require('node:path');
 const args = process.argv.slice(2);
