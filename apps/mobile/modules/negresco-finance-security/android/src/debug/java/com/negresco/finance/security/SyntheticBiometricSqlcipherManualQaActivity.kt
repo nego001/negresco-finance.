@@ -66,13 +66,9 @@ class SyntheticBiometricSqlcipherManualQaActivity : FragmentActivity() {
   fun startManualQa(done: ((String) -> Unit)?) {
     if (active) return
     observer = done
-    if (BiometricManager.from(this).canAuthenticate(
-        BiometricManager.Authenticators.BIOMETRIC_STRONG) !=
-        BiometricManager.BIOMETRIC_SUCCESS) {
-      finishQa("HOLD_NO_STRONG_BIOMETRIC")
-      return
-    }
     try {
+      // Inspect residues BEFORE checking for a biometric sensor, so a
+      // device lacking biometrics cannot conceal a crash residue from QA.
       // Never create a new test key/database while previous cleanup failed.
       if (!cleanup()) {
         finishQa("HOLD_PREVIOUS_CLEANUP_FAILED")
@@ -86,6 +82,12 @@ class SyntheticBiometricSqlcipherManualQaActivity : FragmentActivity() {
       }.map { it.name }
       if (!SyntheticDebugQaOrphanResidueGate.isClear(knownAliases, knownFolders)) {
         finishQa("HOLD_ORPHANED_DEBUG_QA_RESIDUE")
+        return
+      }
+      if (BiometricManager.from(this).canAuthenticate(
+          BiometricManager.Authenticators.BIOMETRIC_STRONG) !=
+          BiometricManager.BIOMETRIC_SUCCESS) {
+        finishQa("HOLD_NO_STRONG_BIOMETRIC")
         return
       }
       System.loadLibrary("sqlcipher")
