@@ -36,6 +36,7 @@ on:
       - 'tests/android-publish-apk-identity.test.mjs'
       - 'tests/android-publish-apk-manifest-security.test.mjs'
       - 'tests/android-expo-data-extraction-rules.test.mjs'
+      - 'tests/android-apk-backup-resource-pins.test.mjs'
       - '.github/workflows/android-apk.yml'
 # Keep only the newest candidate compiling when multiple source commits arrive.
 concurrency:
@@ -193,9 +194,31 @@ jobs:
           "$BUILD_TOOLS/aapt" dump badging "$APK" | grep -F "package: name='com.negresco.finance'"
           "$BUILD_TOOLS/aapt" dump badging "$APK" | grep -F "versionCode='34' versionName='3.1.3'"
           "$BUILD_TOOLS/aapt" dump permissions "$APK" | grep -F 'android.permission.USE_BIOMETRIC'
-          # Prove that both XML security policy resources survived packaging.
-          "$BUILD_TOOLS/aapt" dump xmltree "$APK" res/xml/negresco_no_data_extraction.xml | grep -F 'E: data-extraction-rules'
-          "$BUILD_TOOLS/aapt" dump xmltree "$APK" res/xml/negresco_legacy_no_backup.xml | grep -F 'E: full-backup-content'
+          # Resource packaging can remap XML paths, so check the compiled
+          # AndroidManifest resource IDs instead of guessing res/xml filenames.
+          "$BUILD_TOOLS/aapt" dump xmltree "$APK" AndroidManifest.xml > verified-apk-backup-manifest.txt
+          node <<'NODE'
+          const fs=require("node:fs");
+          const xml=fs.readFileSync("verified-apk-backup-manifest.txt","utf8");
+          const lines=xml.split(/\r?\n/);
+          const app=lines.map((line,index)=>({line,index}))
+            .filter(({line})=>/^\s*E: application(?:\s|$)/.test(line));
+          const block=message=>{console.error("BLOCK: compiled Android backup policy "+message);process.exit(1)};
+          if(app.length!==1)block("must contain exactly one application element");
+          const attrs=[];
+          for(let i=app[0].index+1;i<lines.length;i++){
+            if(/^\s*E: /.test(lines[i]))break;
+            if(/^\s*A: /.test(lines[i]))attrs.push(lines[i]);
+          }
+          for(const attr of ["dataExtractionRules","fullBackupContent"]){
+            const found=attrs.filter(line=>new RegExp("android:"+attr+"\\(").test(line));
+            if(found.length!==1||
+               !new RegExp("android:"+attr+"\\(0x[0-9a-fA-F]{8}\\)=@0x[0-9a-fA-F]+(?:\\s|$)").test(found[0])){
+              block("missing, malformed or duplicated "+attr+" resource reference");
+            }
+          }
+          console.log("PASS: compiled APK references modern and legacy backup exclusion resources");
+          NODE
           "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK" | tee APK-SIGNATURE.txt
           CERT_HASH="$(sed -nE 's/.*certificate SHA-256 digest: ([0-9a-fA-F]{64}).*/\1/p' APK-SIGNATURE.txt | head -n 1 | tr '[:upper:]' '[:lower:]')"
           [[ "$CERT_HASH" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::Could not identify APK signing certificate SHA-256."; exit 1; }
