@@ -280,7 +280,7 @@ for(const [scenario,contents,reason] of [
   ['resource attribute copied to nested activity only',
     compiledManifest.replace(modern+'\n','')+'\n        '+modern.trim(),/dataExtractionRules/],
   ['modern and legacy refs point to same resource',
-    compiledManifest.replace('@0x7f150002','@0x7f150001'),/different resource IDs/]
+    compiledManifest.replace('@0x7f150002','@0x7f150001'),/distinct resource IDs/]
 ]){
   test('published APK backup resource gate refuses: '+scenario,t=>{
     const result=runGate(fixture(t,{xmltree:contents}));
