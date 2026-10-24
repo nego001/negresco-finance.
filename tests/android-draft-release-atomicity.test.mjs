@@ -66,6 +66,34 @@ if (args[0] === 'api') {
     }));
     process.exit(0);
   }
+  if (args.some(x => /\/releases\/123$/.test(x))) {
+    if (mode === 'draft_rest_api_down') process.exit(80);
+    if (mode === 'draft_rest_bad_json') {process.stdout.write('oops');process.exit(0);}
+    const existing=fs.existsSync(state)?JSON.parse(fs.readFileSync(state,'utf8')):null;
+    if (!existing || !existing.draft) process.exit(81);
+    const items=['Negresco-Finance-V3.1.3-preview.apk',
+      'Negresco-Finance-V3.1.3-preview.zip','SHA256-release.txt','APK-SIGNATURE.txt'];
+    const assets=items.map(name=>({
+      name,size:fs.statSync(name).size,state:'uploaded',
+      digest:'sha256:' + crypto.createHash('sha256').update(fs.readFileSync(name)).digest('hex')
+    }));
+    if (mode === 'draft_rest_digest') assets[0].digest='sha256:'+'0'.repeat(64);
+    if (mode === 'draft_rest_no_digest') delete assets[0].digest;
+    if (mode === 'draft_rest_wrong_size') assets[0].size++;
+    if (mode === 'draft_rest_wrong_state') assets[0].state='starter';
+    if (mode === 'draft_rest_missing') assets.pop();
+    if (mode === 'draft_rest_duplicate') assets[3]={...assets[0]};
+    if (mode === 'draft_rest_extra') assets.push({name:'surprise',size:1});
+    process.stdout.write(JSON.stringify({
+      id:mode === 'draft_rest_wrong_id' ? 456 : 123,
+      tag_name:mode === 'draft_rest_wrong_tag' ? 'other' :
+        'v3.1.3-preview-' + process.env.GITHUB_SHA.slice(0,7),
+      draft:mode !== 'draft_rest_public',
+      prerelease:mode !== 'draft_rest_stable',
+      assets
+    }));
+    process.exit(0);
+  }
   if (args.some(x => x.includes('/releases/tags/'))) {
     if (mode === 'published_api_down') process.exit(70);
     const existing=fs.existsSync(state) ? JSON.parse(fs.readFileSync(state,'utf8')) : null;
@@ -209,11 +237,12 @@ test('successful staged upload is checked before publication',t=>{
   const {result,log,state}=run(t);
   assert.equal(result.status,0,result.stderr+result.stdout);
   assert.equal(state?.draft,false);
-  assert.deepEqual(log.map(x=>x[0] === 'api' ? 'api' : x[1]),['api','api','api','api','api','create','upload','view','api','api','edit','api','api']);
+  assert.deepEqual(log.map(x=>x[0] === 'api' ? 'api' : x[1]),['api','api','api','api','api','create','upload','view','api','api','api','edit','api','api']);
   assert.ok(log[5].includes('--draft'));
   assert.ok(log[5].includes('--prerelease'));
-  assert.ok(log[10].includes('--draft=false'));
-  assert.equal(log[12].some(x=>x.includes('/releases/tags/')),true);
+  assert.ok(log[11].includes('--draft=false'));
+  assert.equal(log[13].some(x=>x.includes('/releases/tags/')),true);
+  assert.equal(log[8].some(x=>x.includes('/releases/123')),true);
   assert.equal(log[6].filter(x=>files.includes(x)).length,files.length);
 });
 
@@ -388,5 +417,29 @@ for(const [mode,expected] of [
     assert.equal(state?.draft,false,mode);
     assert.equal(log.filter(x=>x[1]==='edit').length,1,mode);
     if(expected) assert.match(result.stderr+result.stdout,expected);
+  });
+}
+
+for(const [mode,why] of [
+  ['draft_rest_api_down',null],
+  ['draft_rest_bad_json',null],
+  ['draft_rest_wrong_id',/REST draft release identity differs/],
+  ['draft_rest_wrong_tag',/REST draft release identity differs/],
+  ['draft_rest_public',/REST draft release identity differs/],
+  ['draft_rest_stable',/REST draft release identity differs/],
+  ['draft_rest_digest',/REST draft asset SHA256 or metadata differs/],
+  ['draft_rest_no_digest',/REST draft asset SHA256 or metadata differs/],
+  ['draft_rest_wrong_size',/REST draft asset SHA256 or metadata differs/],
+  ['draft_rest_wrong_state',/REST draft asset SHA256 or metadata differs/],
+  ['draft_rest_missing',/REST draft asset count differs/],
+  ['draft_rest_duplicate',/REST draft asset SHA256 or metadata differs/],
+  ['draft_rest_extra',/REST draft asset count differs/]
+]){
+  test('private draft REST crosscheck refuses publication: '+mode,t=>{
+    const {result,log,state}=run(t,mode);
+    assert.notEqual(result.status,0,mode);
+    assert.equal(state?.draft,true,mode);
+    assert.equal(log.some(x=>x[1]==='edit'),false,mode);
+    if(why) assert.match(result.stderr+result.stdout,why);
   });
 }
