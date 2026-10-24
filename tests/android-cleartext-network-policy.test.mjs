@@ -84,7 +84,7 @@ test('native build and privileged publisher independently pin cleartext policy',
   assert.match(wf,/android:networkSecurityConfig="@xml\/negresco_network_security"/);
   assert.match(wf,/android:usesCleartextTraffic="false"/);
   assert.match(wf,/aapt" dump xmltree "\$APK" AndroidManifest\.xml/);
-  assert.match(wf,/networkSecurityConfig","?\s*\]/);
+  assert.match(wf,/for\(const attr of \["dataExtractionRules","fullBackupContent","networkSecurityConfig"\]\)/);
   assert.match(pub,/policyResource\("networkSecurityConfig"\)/);
   assert.match(pub,/attribute\("usesCleartextTraffic", true\)/);
   assert.match(pub,/backup and network policies must use distinct resource IDs/);
