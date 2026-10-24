@@ -124,3 +124,15 @@ test('highly compressible readme is rejected before unbounded expansion',()=>{
   assert.equal(result.status,1);
   assert.match(result.stderr,/suspicious compression ratio/);
 });
+
+test('ZIP or APK scanner changes always trigger a candidate Android APK build',()=>{
+  const pushBlock=workflow.split('  push:\\n    paths:')[1]?.split('\\n# Keep only')[0];
+  assert.ok(pushBlock,'push path filters must be explicit');
+  for (const path of [
+    'tooling/android/verify_release_bundle_consistency.py',
+    'tooling/android/verify_release_apk_surface.py',
+    'tests/android-release-bundle-consistency.test.mjs',
+    'tests/android-release-apk-debug-surface.test.mjs',
+    '.github/workflows/android-apk.yml'
+  ]) assert.ok(pushBlock.includes(path),path+' must trigger assembled APK check');
+});
