@@ -34,10 +34,21 @@ function fixture(options={}) {
     'LEIA-ME.txt':Buffer.from('This is only a test fixture').toString('base64'),
   };
   if (options.extra) zipEntries['../evil.txt']=Buffer.from('bad').toString('base64');
-  const make = spawnSync('python3', ['-c',
-    'import sys,json,base64,zipfile;z=zipfile.ZipFile(sys.argv[1],"w");' +
-    '[z.writestr(name,base64.b64decode(encoded)) for name,encoded in json.loads(sys.argv[2]).items()];z.close()',
-    join(dir,zipName),JSON.stringify(zipEntries)],{encoding:'utf8'});
+  const makeZip = [
+    'import sys,json,base64,zipfile',
+    'z=zipfile.ZipFile(sys.argv[1],"w")',
+    'opts=json.loads(sys.argv[3])',
+    'for name,encoded in json.loads(sys.argv[2]).items():',
+    '  info=zipfile.ZipInfo(name)',
+    "  if opts.get('symlinkReadme') and name=='LEIA-ME.txt': info.create_system=3;info.external_attr=0o120777<<16",
+    "  if opts.get('lzmaReadme') and name=='LEIA-ME.txt': info.compress_type=zipfile.ZIP_LZMA",
+    "  if opts.get('bombReadme') and name=='LEIA-ME.txt': info.compress_type=zipfile.ZIP_DEFLATED",
+    "  data=(b'X'*(512*1024)) if opts.get('bombReadme') and name=='LEIA-ME.txt' else base64.b64decode(encoded)",
+    '  z.writestr(info,data)',
+    'z.close()',
+  ].join('\\n');
+  const make = spawnSync('python3', ['-c',makeZip,
+    join(dir,zipName),JSON.stringify(zipEntries),JSON.stringify(options)],{encoding:'utf8'});
   assert.equal(make.status,0,make.stderr);
   const records = [apkName,zipName,'APK-SIGNATURE.txt'].map(
     name=>sha(readFileSync(join(dir,name)))+'  '+name).join('\n')+'\n';
@@ -96,4 +107,20 @@ test('malformed nested original hash and missing assembled APK fail closed',()=>
   const missing=check({},f=>unlinkSync(join(f.dir,f.assembled)));
   assert.equal(missing.status,1);
   assert.match(missing.stderr,/absent, empty or symlinked artifact/);
+});
+
+test('ZIP symlink posing as readme cannot pass even with matching outer checksums',()=>{
+  const result=check({symlinkReadme:true});
+  assert.equal(result.status,1);
+  assert.match(result.stderr,/symlink, directory or special file/);
+});
+test('ZIP LZMA file is denied to keep extractor compatibility explicit',()=>{
+  const result=check({lzmaReadme:true});
+  assert.equal(result.status,1);
+  assert.match(result.stderr,/unsupported compression/);
+});
+test('highly compressible readme is rejected before unbounded expansion',()=>{
+  const result=check({bombReadme:true});
+  assert.equal(result.status,1);
+  assert.match(result.stderr,/suspicious compression ratio/);
 });

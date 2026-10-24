@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+import stat
 import sys
 import zipfile
 from pathlib import Path
@@ -22,6 +23,15 @@ NOTES = "LEIA-ME.txt"
 EXPECTED_ZIP = frozenset((APK, SIGNATURE, NESTED_HASHES, NOTES))
 EXPECTED_HASHES = frozenset((APK, BUNDLE, SIGNATURE))
 MAX_MEMBER_BYTES = 1024 * 1024 * 1024
+MAX_COMPRESSION_RATIO = 200
+LIMIT_BY_MEMBER = {
+    APK: MAX_MEMBER_BYTES,
+    SIGNATURE: 1024 * 1024,
+    NESTED_HASHES: 512,
+    NOTES: 1024 * 1024,
+}
+ALLOWED_COMPRESSION = frozenset((zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED))
+
 
 
 def digest_file(path: Path) -> str:
@@ -96,8 +106,19 @@ def audit(work_dir: Path) -> None:
         if len(names) != len(set(names)) or set(names) != EXPECTED_ZIP:
             raise ValueError("ZIP has duplicated, missing or extra entries")
         for member in archive.infolist():
-            if member.is_dir() or member.file_size <= 0 or member.file_size > MAX_MEMBER_BYTES:
+            # Reject symlinks and special files before a consumer extracts the ZIP.
+            mode = (member.external_attr >> 16) & 0xFFFF
+            member_type = stat.S_IFMT(mode) if member.create_system == 3 else 0
+            if member.is_dir() or member_type not in (0, stat.S_IFREG):
+                raise ValueError("ZIP contains symlink, directory or special file")
+            if member.flag_bits & 0x1 or member.compress_type not in ALLOWED_COMPRESSION:
+                raise ValueError("ZIP uses encrypted or unsupported compression")
+            if (member.file_size <= 0
+                    or member.file_size > LIMIT_BY_MEMBER[member.filename]
+                    or member.compress_size <= 0):
                 raise ValueError("ZIP contains invalid/oversized member")
+            if member.file_size > member.compress_size * MAX_COMPRESSION_RATIO:
+                raise ValueError("ZIP contains suspicious compression ratio")
         with archive.open(APK) as z_apk:
             if digest_stream(z_apk) != original:
                 raise ValueError("APK in ZIP differs from assembled APK")

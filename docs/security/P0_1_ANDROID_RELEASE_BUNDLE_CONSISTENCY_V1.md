@@ -30,3 +30,21 @@ assinatura estável e revisão independente.
 A build de branch segue com token `contents:read`, e o único job de
 publicação requer opt-in manual em `main`. Não publicar nem instalar o
 candidato até cumprir os gates físicos/financeiros externos.
+
+
+## Limites de segurança para extração ZIP
+
+O auditor também rejeita entradas ZIP marcadas como **links simbólicos ou
+arquivos especiais**, criptografia ZIP ou métodos de compressão diferentes de
+`STORED` e `DEFLATED`. Além do limite global do APK (1 GiB), cada
+relatório ou texto auxiliar tem limite próprio (assinatura até 1 MiB,
+SHA original até 512 bytes, `LEIA-ME.txt` até 1 MiB). A razão entre
+tamanho descomprimido e comprimido é limitada a 200:1 por membro.
+Essas verificações ocorrem antes de ler o conteúdo comprimido.
+
+Os novos testes fabricam um ZIP com `LEIA-ME.txt` marcado como symlink,
+outro com método LZMA e outro com texto exageradamente compactável,
+**recalculando o hash externo** para comprovar que ele não é uma
+justificativa para confiar em qualquer ZIP. O empacotamento normal
+`zip -9` permanece permitido. Esse é um controle de candidato
+de distribuição, não um substituto de sandbox na extração do usuário.
