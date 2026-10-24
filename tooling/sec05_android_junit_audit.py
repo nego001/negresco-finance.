@@ -34,13 +34,17 @@ PREFLIGHT_SOURCE = (Path(__file__).resolve().parent.parent /
     'apps/mobile/modules/negresco-finance-security/android/src/androidTest/java/'
     'com/negresco/finance/security/SyntheticFinancialOperationPreflightTest.kt')
 
-# Whitelist the exact class and method. A similarly named testcase from
-# an unrelated class must not inherit SEC-05 permission to be SKIPPED.
-ALLOWED_SKIPS = {
+# CI is unattended: genuine user consent must never be reported as PASS by
+# emulator/fixture evidence. Physical positive QA has its own human gate.
+PHYSICAL_ONLY_CASES = frozenset({
     ('com.negresco.finance.security.SyntheticBiometricManualQaOptInTest',
      'realStrongBiometricRequiresExplicitPhysicalDeviceConsent'),
     ('com.negresco.finance.security.SyntheticBiometricSqlcipherManualQaOptInTest',
      'realBiometricTwiceThenSyntheticSqlcipherReopensWithNoJsAccess'),
+})
+# Whitelist exact class+method. All physical-only cases MUST be SKIPPED.
+# Other skips remain whitelist-only, and cannot impersonate physical consent.
+ALLOWED_SKIPS = set(PHYSICAL_ONLY_CASES) | {
     (SEC05_CLASS, 'hardlinkedJournalNewCannotRedirectWrite'),
     (SEC05_CLASS, 'hardlinkedOwnerMarkerCannotAuthorizeWorkerWrite'),
     (SEC05_CLASS, 'hardlinkedWitnessNewCannotRedirectWrite'),
@@ -96,6 +100,22 @@ def audit(report_dir: Path):
     missing_slice = sorted(SLICE_REQUIRED_CASES - slice_methods)
     extra_slice = sorted(slice_methods - SLICE_REQUIRED_CASES)
     reasons = []
+    # Mandatory opposite gates: automated negative tests must run, while
+    # physical-positive biometric tests must be present but strictly SKIPPED.
+    case_by_id = dict(zip(case_ids, cases))
+    physical_missing = sorted(PHYSICAL_ONLY_CASES - set(case_ids))
+    physical_false_pass = sorted(
+        case_id for case_id in PHYSICAL_ONLY_CASES
+        if case_id in case_by_id and case_by_id[case_id].find('skipped') is None
+    )
+    if physical_missing or physical_false_pass:
+        reasons.append(
+            'physical-only biometric QA must be SKIPPED in unattended CI: '
+            f'missing={physical_missing}, non_skipped={physical_false_pass}')
+    physical_skipped_count = sum(
+        case_id in case_by_id and case_by_id[case_id].find('skipped') is not None
+        for case_id in PHYSICAL_ONLY_CASES
+    )
     if errors:
         reasons.append(f'{len(errors)} failing/error test cases')
     if unexpected:
@@ -144,6 +164,7 @@ def audit(report_dir: Path):
         f'- DEBUG SQLCipher biometric isolation case: **{("executed" if len(qa_isolation) == 1 and qa_isolation[0].get("name") == ISOLATION_CASE and qa_isolation[0].find("skipped") is None else "missing/skipped")}**',
         f'- Synthetic native cipher lifecycle methods: **{len(slice_cases)}/4** (zero skips required)',
         f'- P0-1 native preflight methods: **{len(preflight_cases)}/{len(preflight_expected)}** (zero skips required)',
+        f'- Physical biometric consent-only cases kept SKIPPED: **{physical_skipped_count}/{len(PHYSICAL_ONLY_CASES)}** (never a CI pass)',
         f'- Required same-UUID inode replacement case: **{("executed" if len(required) == 1 and required[0].find("skipped") is None else "missing/skipped")}**',
     ]
     for case in skipped:

@@ -89,6 +89,7 @@ test('26 SEC-05 cases with four expected hardlink skips pass and report missing 
   assert.match(r.summary, /Synthetic native cipher lifecycle methods: \*\*4\/4\*\*/);
   assert.match(r.summary, /DEBUG SQLCipher biometric isolation case: \*\*executed\*\*/);
   assert.match(r.summary, /skipped: \*\*6\*\*/);
+  assert.match(r.summary, /Physical biometric consent-only cases kept SKIPPED: \*\*2\/2\*\*/);
   assert.match(r.summary, /Required same-UUID inode replacement case: \*\*executed\*\*/);
 });
 test('missing XML fails closed', () => {
@@ -218,4 +219,37 @@ test('DEBUG SQLCipher isolation is neither missing, skipped nor forged', () => {
   const forged = run(fake);
   assert.notEqual(forged.status, 0);
   assert.match(forged.stderr, /DEBUG SQLCipher QA isolation test missing/);
+});
+
+const physicalCases = [
+  {classname: bioClass, name: 'realStrongBiometricRequiresExplicitPhysicalDeviceConsent'},
+  {classname: debugSqlcipherBiometric,
+    name: 'realBiometricTwiceThenSyntheticSqlcipherReopensWithNoJsAccess'},
+];
+
+test('physical biometric QA cannot be forged as CI PASS even if all other tests pass', () => {
+  for (const physical of physicalCases) {
+    const cases = baseline();
+    cases.find(c => c.classname === physical.classname && c.name === physical.name).skipped = false;
+    const r = run(cases);
+    assert.notEqual(r.status, 0, physical.name);
+    assert.match(r.stderr, /physical-only biometric QA must be SKIPPED in unattended CI/);
+    assert.match(r.stderr, /non_skipped=/);
+  }
+});
+
+test('missing or renamed physical biometric QA cannot vanish from CI evidence', () => {
+  for (const physical of physicalCases) {
+    const without = run(baseline().filter(c =>
+      !(c.classname === physical.classname && c.name === physical.name)));
+    assert.notEqual(without.status, 0, physical.name);
+    assert.match(without.stderr, /physical-only biometric QA must be SKIPPED in unattended CI/);
+    assert.match(without.stderr, /missing=/);
+
+    const forged = baseline();
+    forged.find(c => c.classname === physical.classname && c.name === physical.name).name += 'Fake';
+    const r = run(forged);
+    assert.notEqual(r.status, 0, physical.name);
+    assert.match(r.stderr, /physical-only biometric QA must be SKIPPED in unattended CI/);
+  }
 });
