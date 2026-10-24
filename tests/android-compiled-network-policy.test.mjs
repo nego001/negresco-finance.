@@ -70,6 +70,38 @@ test('compiled network XML linked by APK resource ID enforces HTTPS/system CA',t
   assert.match(result.stdout,/PASS: packaged network security XML forbids cleartext/);
 });
 
+test('aapt2 may preserve an unnamespaced false attribute as a string without weakening policy',t=>{
+  for(const safeValue of [
+    '"false" (Raw: "false")',
+    '"false"',
+    '(type 0x03)0x00000005 (Raw: "false")'
+  ]){
+    const variant=policy.replace('(type 0x12)0x0',safeValue);
+    const result=check(t,{policy:variant});
+    assert.equal(result.status,0,safeValue+'\n'+result.stderr+result.stdout);
+  }
+});
+
+for(const unsafeValue of [
+  '"true" (Raw: "true")',
+  '"false" (Raw: "true")',
+  '"FALSE" (Raw: "FALSE")',
+  '" false " (Raw: " false ")',
+  '(type 0x03)0x00000005 (Raw: "true")',
+  '(type 0x12)0x1',
+  '(type 0x12)0xffffffff',
+  '(type 0x10)0x0',
+  'false',
+  '"false" (Raw: "false") unexpected'
+]){
+  test('compiled network policy rejects unsafe/unrecognized HTTP value: '+unsafeValue,t=>{
+    const result=check(t,{policy:policy.replace('(type 0x12)0x0',unsafeValue)});
+    assert.notEqual(result.status,0,unsafeValue);
+    assert.match(result.stderr,/cleartextTrafficPermitted must be explicitly false/);
+  });
+}
+
+
 for(const [label,opts,reason] of [
   ['different manifest resource ID',{manifest:manifest.replace(resourceId,'0x7f150099')},/resource ID is missing/],
   ['different network resource name',{resources:resources.replace('xml/negresco_network_security','xml/unexpected')},/unexpected XML resource/],
