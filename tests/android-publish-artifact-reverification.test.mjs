@@ -50,7 +50,7 @@ function fixture(t, overrides = {}) {
     '      A: android:debuggable(0x0101000f)=(type 0x12)0x0',
     '      A: android:testOnly(0x01010272)=(type 0x12)0x0',
     '      E: activity (line=15)'
-  ].join('\\n');
+  ].join('\n');
 
   const apk = Buffer.from('FAKE-APK-TEST-NOT-INSTALLABLE-' + '0123456789abcdef'.repeat(16));
   writeFileSync(join(dir, APK), apk);
