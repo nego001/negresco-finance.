@@ -34,11 +34,20 @@ const tagFile = path.join(dir, 'tag.json');
 const readsFile = path.join(dir, 'tag-reads.txt');
 if (args[0] === 'api') {
   if (args.some(x => x.endsWith('/immutable-releases'))) {
-    if (['immutable_missing','immutable_forbidden','immutable_api_down'].includes(mode))
+    if (process.env.GH_TOKEN !== 'fixture-policy-read-only') process.exit(46);
+    const readCounter=path.join(dir,'policy-reads.txt');
+    const reads=Number(fs.existsSync(readCounter)?fs.readFileSync(readCounter,'utf8'):0)+1;
+    fs.writeFileSync(readCounter,String(reads));
+    if (['immutable_missing','immutable_forbidden','immutable_api_down'].includes(mode) ||
+        (mode === 'immutable_flip_api_down' && reads === 2))
       process.exit(mode === 'immutable_missing' ? 44 : mode === 'immutable_forbidden' ? 43 : 50);
     if (mode === 'immutable_bad_json') { process.stdout.write('not json'); process.exit(0); }
     if (mode === 'immutable_empty') { process.stdout.write(''); process.exit(0); }
-    process.stdout.write(JSON.stringify({enabled:mode !== 'immutable_disabled',enforced_by_owner:false}));
+    process.stdout.write(JSON.stringify({
+      enabled:!['immutable_disabled'].includes(mode) &&
+        !(mode === 'immutable_flip_disabled' && reads === 2),
+      enforced_by_owner:false
+    }));
     process.exit(0);
   }
   if (args.includes('--include')) {
@@ -126,7 +135,12 @@ function run(t,mode='ok') {
     cwd:dir,encoding:'utf8',timeout:15000,
     env:{...process.env,PATH:dir+':'+process.env.PATH,
       GITHUB_SHA:mode==='bad_sha' ? 'not-a-commit' : 'aabbccddeeff00112233445566778899aabbccdd',
-      FAKE_MODE:mode,FAKE_STATE_DIR:dir,GH_REPO:'fixture/negresco-finance'}
+      FAKE_MODE:mode,FAKE_STATE_DIR:dir,GH_REPO:'fixture/negresco-finance',
+      GH_TOKEN:'fixture-publishing-token',
+      RELEASE_POLICY_READ_TOKEN:
+        mode==='immutable_token_missing' ? '' :
+        mode==='immutable_token_shared' ? 'fixture-publishing-token' :
+        'fixture-policy-read-only'}
   });
   const path = join(dir,'gh-commands.txt');
   const log = existsSync(path) ? readFileSync(path,'utf8')
@@ -150,10 +164,10 @@ test('successful staged upload is checked before publication',t=>{
   const {result,log,state}=run(t);
   assert.equal(result.status,0,result.stderr+result.stdout);
   assert.equal(state?.draft,false);
-  assert.deepEqual(log.map(x=>x[0] === 'api' ? 'api' : x[1]),['api','view','api','api','api','create','upload','view','api','edit']);
+  assert.deepEqual(log.map(x=>x[0] === 'api' ? 'api' : x[1]),['api','view','api','api','api','create','upload','view','api','api','edit']);
   assert.ok(log[5].includes('--draft'));
   assert.ok(log[5].includes('--prerelease'));
-  assert.ok(log[9].includes('--draft=false'));
+  assert.ok(log[10].includes('--draft=false'));
   assert.equal(log[6].filter(x=>files.includes(x)).length,files.length);
 });
 
@@ -256,6 +270,32 @@ for (const [mode,expected] of [
     assert.notEqual(result.status,0);
     assert.equal(state,null);
     assert.deepEqual(log.map(x=>x[0]),['api']);
+    assert.match(result.stderr+result.stdout,expected);
+  });
+}
+
+for(const [mode,expected] of [
+  ['immutable_token_missing',/Read-only release policy token is missing/],
+  ['immutable_token_shared',/must not reuse the publishing token/]
+]){
+  test('incorrect release policy credential blocks any GitHub call: '+mode,t=>{
+    const {result,log,state}=run(t,mode);
+    assert.notEqual(result.status,0);
+    assert.equal(state,null);
+    assert.equal(log.length,0);
+    assert.match(result.stderr+result.stdout,expected);
+  });
+}
+for(const [mode,expected] of [
+  ['immutable_flip_disabled',/immutable releases must be enabled/],
+  ['immutable_flip_api_down',/Cannot verify enabled GitHub immutable releases/]
+]){
+  test('policy disabled or unavailable after upload leaves private draft: '+mode,t=>{
+    const {result,log,state}=run(t,mode);
+    assert.notEqual(result.status,0);
+    assert.equal(state?.draft,true);
+    assert.equal(log.some(x=>x[1]==='edit'),false);
+    assert.deepEqual(log.filter(x=>x[0]==='api' && x.some(a=>a.endsWith('/immutable-releases'))).length,2);
     assert.match(result.stderr+result.stdout,expected);
   });
 }
