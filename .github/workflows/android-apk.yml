@@ -392,7 +392,8 @@ jobs:
           fi
           # Confirm the remote draft contains exactly the expected assets/sizes.
           # A successful upload command alone does not prove a complete release.
-          RELEASE_TAG="$TAG" gh release view "$TAG" --json isDraft,isPrerelease,tagName,targetCommitish,assets | node -e '
+          export RELEASE_TAG="$TAG"
+          gh release view "$TAG" --json isDraft,isPrerelease,tagName,targetCommitish,assets | node -e '
             const fs = require("node:fs");
             const crypto = require("node:crypto");
             const required = [
