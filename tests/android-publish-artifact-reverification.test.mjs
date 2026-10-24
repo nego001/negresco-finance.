@@ -148,7 +148,7 @@ test('publisher rejects mismatched package name, versionCode and versionName',t=
     {packageName:'com.example.fake',reason:/package name, versionCode or versionName differs/},
     {versionCode:'33',reason:/package name, versionCode or versionName differs/},
     {versionName:'3.1.2',reason:/package name, versionCode or versionName differs/},
-    {badging:"package: name='com.negresco.finance' versionCode='34' versionName='3.1.3'\\npackage: name='com.example.fake' versionCode='34' versionName='3.1.3'",reason:/exactly one package declaration/},
+    {badging:"package: name='com.negresco.finance' versionCode='34' versionName='3.1.3'\npackage: name='com.example.fake' versionCode='34' versionName='3.1.3'",reason:/exactly one package declaration/},
     {badging:"package: name='com.negresco.finance' versionCode=34 versionName='3.1.3'",reason:/package name, versionCode or versionName differs/}
   ]) {
     const result=runGate(fixture(t,overrides));
@@ -159,7 +159,7 @@ test('publisher rejects mismatched package name, versionCode and versionName',t=
 
 test('publisher requires one verified USE_BIOMETRIC permission',t=>{
   for(const permissions of ["", "uses-permission: name='android.permission.INTERNET'",
-    "uses-permission: name='android.permission.USE_BIOMETRIC'\\nuses-permission: name='android.permission.USE_BIOMETRIC'"]) {
+    "uses-permission: name='android.permission.USE_BIOMETRIC'\nuses-permission: name='android.permission.USE_BIOMETRIC'"]) {
     const result=runGate(fixture(t,{permissions}));
     assert.notEqual(result.status,0,JSON.stringify(permissions));
     assert.match(result.stderr+result.stdout,/USE_BIOMETRIC permission/);
