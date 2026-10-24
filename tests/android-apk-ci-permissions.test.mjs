@@ -16,7 +16,7 @@ test('APK workflow has read-only default token and does not publish in build job
 });
 
 test('separate publishing job has narrow main-only manual gate and needs build', () => {
-  assert.match(publishJob, /if: \$\{\{ github\.event_name == 'workflow_dispatch' && github\.ref == 'refs\/heads\/main' && inputs\.publish_release \}\}/);
+  assert.match(publishJob, /if: \$\{\{ github\.event_name == 'workflow_dispatch' && github\.ref == 'refs\/heads\/main' && inputs\.publish_release && inputs\.stable_signing \}\}/);
   assert.match(publishJob, /needs: build-test-apk/);
   assert.match(publishJob, /permissions:\s*\n      contents: write/);
   assert.match(publishJob, /actions\/download-artifact@v4/);
