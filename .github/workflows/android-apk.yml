@@ -38,6 +38,7 @@ on:
       - 'tests/android-expo-data-extraction-rules.test.mjs'
       - 'tests/android-apk-backup-resource-pins.test.mjs'
       - 'tests/android-publisher-backup-resource-gate.test.mjs'
+      - 'tests/android-cleartext-network-policy.test.mjs'
       - '.github/workflows/android-apk.yml'
 # Keep only the newest candidate compiling when multiple source commits arrive.
 concurrency:
@@ -109,10 +110,13 @@ jobs:
           const fs=require("node:fs");
           const path=require("node:path");
           const p=require("./plugins/withNegrescoNoDataExtraction");
+          const net=require("./plugins/withNegrescoNetworkPolicy");
           const manifest=fs.readFileSync("android/app/src/main/AndroidManifest.xml","utf8");
           const checks=[
             ['android:dataExtractionRules="@xml/negresco_no_data_extraction"', "modern extraction rule"],
-            ['android:fullBackupContent="@xml/negresco_legacy_no_backup"', "legacy backup rule"]
+            ['android:fullBackupContent="@xml/negresco_legacy_no_backup"', "legacy backup rule"],
+            ['android:networkSecurityConfig="@xml/negresco_network_security"', "HTTPS network policy"],
+            ['android:usesCleartextTraffic="false"', "explicit cleartext ban"]
           ];
           for(const [attribute,label] of checks) {
             if (!manifest.includes(attribute)) {
@@ -123,7 +127,8 @@ jobs:
           const xmlDir="android/app/src/main/res/xml";
           for(const [name,expected] of [
             ["negresco_no_data_extraction.xml",p.DATA_EXTRACTION_XML],
-            ["negresco_legacy_no_backup.xml",p.LEGACY_FULL_BACKUP_XML]
+            ["negresco_legacy_no_backup.xml",p.LEGACY_FULL_BACKUP_XML],
+            [net.NETWORK_SECURITY_FILE,net.NETWORK_SECURITY_XML]
           ]) {
             const file=path.join(xmlDir,name), info=fs.lstatSync(file);
             if (!info.isFile() || info.isSymbolicLink() ||
@@ -211,14 +216,18 @@ jobs:
             if(/^\s*E: /.test(lines[i]))break;
             if(/^\s*A: /.test(lines[i]))attrs.push(lines[i]);
           }
-          for(const attr of ["dataExtractionRules","fullBackupContent"]){
+          for(const attr of ["dataExtractionRules","fullBackupContent","networkSecurityConfig"]){
             const found=attrs.filter(line=>new RegExp("android:"+attr+"\\(").test(line));
             if(found.length!==1||
                !new RegExp("android:"+attr+"\\(0x[0-9a-fA-F]{8}\\)=@0x[0-9a-fA-F]+(?:\\s|$)").test(found[0])){
               block("missing, malformed or duplicated "+attr+" resource reference");
             }
           }
-          console.log("PASS: compiled APK references modern and legacy backup exclusion resources");
+          const clear=attrs.filter(line=>/android:usesCleartextTraffic\(/.test(line));
+          if(clear.length!==1||
+             !/android:usesCleartextTraffic\(0x[0-9a-fA-F]{8}\)=\(type 0x12\)0x0+\s*$/.test(clear[0]))
+            block("cleartext network traffic must be explicitly false");
+          console.log("PASS: compiled APK references backup and HTTPS-only network security policies");
           NODE
           "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK" | tee APK-SIGNATURE.txt
           CERT_HASH="$(sed -nE 's/.*certificate SHA-256 digest: ([0-9a-fA-F]{64}).*/\1/p' APK-SIGNATURE.txt | head -n 1 | tr '[:upper:]' '[:lower:]')"
@@ -452,8 +461,10 @@ jobs:
           }
           const modernPolicyId=policyResource("dataExtractionRules");
           const legacyPolicyId=policyResource("fullBackupContent");
-          if(modernPolicyId===legacyPolicyId)
-            reject("modern and legacy backup policies must use different resource IDs");
+          const networkPolicyId=policyResource("networkSecurityConfig");
+          if(new Set([modernPolicyId,legacyPolicyId,networkPolicyId]).size!==3)
+            reject("backup and network policies must use distinct resource IDs");
+          attribute("usesCleartextTraffic", true);
           if (badging.split(/\r?\n/).some(line => /^application-debuggable(?:\s|$)/.test(line)))
             reject("aapt badging identifies a debuggable APK");
           console.log("PASS: downloaded APK package, biometric permission, backup and debug flags verified");

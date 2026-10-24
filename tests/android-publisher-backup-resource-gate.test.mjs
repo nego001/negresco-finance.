@@ -13,7 +13,7 @@ test('publisher checks both native backup resource references before remote muta
   assert.ok(check>=0&&signer>check&&mutation>signer);
   assert.match(block,/policyResource\("dataExtractionRules"\)/);
   assert.match(block,/policyResource\("fullBackupContent"\)/);
-  assert.match(block,/must use different resource IDs/);
+  assert.match(block,/backup and network policies must use distinct resource IDs/);
   assert.match(block,/missing, duplicate or invalid backup policy resource/);
 });
 

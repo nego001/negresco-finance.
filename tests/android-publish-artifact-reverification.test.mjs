@@ -51,6 +51,8 @@ function fixture(t, overrides = {}) {
     '      A: android:testOnly(0x01010272)=(type 0x12)0x0',
     '      A: android:dataExtractionRules(0x0101062e)=@0x7f150001',
     '      A: android:fullBackupContent(0x010104eb)=@0x7f150002',
+    '      A: android:networkSecurityConfig(0x01010527)=@0x7f150003',
+    '      A: android:usesCleartextTraffic(0x010104ec)=(type 0x12)0x0',
     '      E: activity (line=15)'
   ].join('\n');
 
@@ -200,6 +202,8 @@ const compiledManifest = [
   '      A: android:testOnly(0x01010272)=(type 0x12)0x0',
   '      A: android:dataExtractionRules(0x0101062e)=@0x7f150001',
   '      A: android:fullBackupContent(0x010104eb)=@0x7f150002',
+  '      A: android:networkSecurityConfig(0x01010527)=@0x7f150003',
+  '      A: android:usesCleartextTraffic(0x010104ec)=(type 0x12)0x0',
   '      E: activity (line=15)'
 ].join('\n');
 
@@ -276,11 +280,38 @@ for(const [scenario,contents,reason] of [
   ['resource attribute copied to nested activity only',
     compiledManifest.replace(modern+'\n','')+'\n        '+modern.trim(),/dataExtractionRules/],
   ['modern and legacy refs point to same resource',
-    compiledManifest.replace('@0x7f150002','@0x7f150001'),/different resource IDs/]
+    compiledManifest.replace('@0x7f150002','@0x7f150001'),/distinct resource IDs/]
 ]){
   test('published APK backup resource gate refuses: '+scenario,t=>{
     const result=runGate(fixture(t,{xmltree:contents}));
     assert.notEqual(result.status,0,scenario);
     assert.match(result.stdout+result.stderr,reason);
+  });
+}
+
+const secureNetwork="      A: android:networkSecurityConfig(0x01010527)=@0x7f150003";
+const cleartextOff="      A: android:usesCleartextTraffic(0x010104ec)=(type 0x12)0x0";
+for(const [scenario,xmltree,expected] of [
+  ['network config missing',
+    compiledManifest.replace(secureNetwork+'\n',''),/networkSecurityConfig/],
+  ['network config duplicated',
+    compiledManifest.replace(secureNetwork,secureNetwork+'\n'+secureNetwork),/networkSecurityConfig/],
+  ['network config is literal rather than resource',
+    compiledManifest.replace(secureNetwork,'      A: android:networkSecurityConfig(0x01010527)="@xml/test"'),/networkSecurityConfig/],
+  ['network config shares backup resource',
+    compiledManifest.replace('@0x7f150003','@0x7f150001'),/distinct resource IDs/],
+  ['usesCleartextTraffic missing',
+    compiledManifest.replace(cleartextOff+'\n',''),/usesCleartextTraffic/],
+  ['usesCleartextTraffic explicitly true',
+    compiledManifest.replace(cleartextOff,cleartextOff.replace('(type 0x12)0x0','(type 0x12)0xffffffff')),/usesCleartextTraffic must be false/],
+  ['usesCleartextTraffic textual false rather than boolean',
+    compiledManifest.replace(cleartextOff,'      A: android:usesCleartextTraffic(0x010104ec)="false"'),/usesCleartextTraffic must be false/],
+  ['usesCleartextTraffic duplicated',
+    compiledManifest.replace(cleartextOff,cleartextOff+'\n'+cleartextOff),/duplicate application android:usesCleartextTraffic/]
+]){
+  test('privileged network policy rejects: '+scenario,t=>{
+    const result=runGate(fixture(t,{xmltree}));
+    assert.notEqual(result.status,0,scenario);
+    assert.match(result.stdout+result.stderr,expected);
   });
 }
