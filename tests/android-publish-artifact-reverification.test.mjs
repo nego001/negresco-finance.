@@ -288,3 +288,30 @@ for(const [scenario,contents,reason] of [
     assert.match(result.stdout+result.stderr,reason);
   });
 }
+
+const secureNetwork="      A: android:networkSecurityConfig(0x01010527)=@0x7f150003";
+const cleartextOff="      A: android:usesCleartextTraffic(0x010104ec)=(type 0x12)0x0";
+for(const [scenario,xmltree,expected] of [
+  ['network config missing',
+    compiledManifest.replace(secureNetwork+'\n',''),/networkSecurityConfig/],
+  ['network config duplicated',
+    compiledManifest.replace(secureNetwork,secureNetwork+'\n'+secureNetwork),/networkSecurityConfig/],
+  ['network config is literal rather than resource',
+    compiledManifest.replace(secureNetwork,'      A: android:networkSecurityConfig(0x01010527)="@xml/test"'),/networkSecurityConfig/],
+  ['network config shares backup resource',
+    compiledManifest.replace('@0x7f150003','@0x7f150001'),/distinct resource IDs/],
+  ['usesCleartextTraffic missing',
+    compiledManifest.replace(cleartextOff+'\n',''),/usesCleartextTraffic/],
+  ['usesCleartextTraffic explicitly true',
+    compiledManifest.replace(cleartextOff,cleartextOff.replace('(type 0x12)0x0','(type 0x12)0xffffffff')),/usesCleartextTraffic must be false/],
+  ['usesCleartextTraffic textual false rather than boolean',
+    compiledManifest.replace(cleartextOff,'      A: android:usesCleartextTraffic(0x010104ec)="false"'),/usesCleartextTraffic must be false/],
+  ['usesCleartextTraffic duplicated',
+    compiledManifest.replace(cleartextOff,cleartextOff+'\n'+cleartextOff),/duplicate application android:usesCleartextTraffic/]
+]){
+  test('privileged network policy rejects: '+scenario,t=>{
+    const result=runGate(fixture(t,{xmltree}));
+    assert.notEqual(result.status,0,scenario);
+    assert.match(result.stdout+result.stderr,expected);
+  });
+}
