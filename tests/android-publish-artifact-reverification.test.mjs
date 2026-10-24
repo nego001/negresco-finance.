@@ -35,13 +35,22 @@ function fixture(t, overrides = {}) {
   writeFileSync(mock, '#!/bin/sh\nprintf "%s\\n" "$FAKE_SIGNER_OUTPUT"\n', {mode:0o755});
   const aapt = join(tools, 'aapt');
   if (!overrides.aaptMissing) {
-    writeFileSync(aapt, '#!/bin/sh\nif [ "$1" != dump ]; then exit 70; fi\ncase "$2" in\n badging) printf "%s\\n" "$FAKE_AAPT_BADGING";;\n permissions) printf "%s\\n" "$FAKE_AAPT_PERMISSIONS";;\n *) exit 71;;\nesac\n', {mode:0o755});
+    writeFileSync(aapt, '#!/bin/sh\nif [ "$1" != dump ]; then exit 70; fi\ncase "$2" in\n badging) printf "%s\\n" "$FAKE_AAPT_BADGING";;\n permissions) printf "%s\\n" "$FAKE_AAPT_PERMISSIONS";;\n xmltree) printf "%s\\n" "$FAKE_AAPT_XMLTREE";;\n *) exit 71;;\nesac\n', {mode:0o755});
   }
   const badging = overrides.badging ?? "package: name='" +
     (overrides.packageName ?? 'com.negresco.finance') + "' versionCode='" +
     (overrides.versionCode ?? '34') + "' versionName='" +
     (overrides.versionName ?? '3.1.3') + "' platformBuildVersionName='16'";
   const permissions = overrides.permissions ?? "uses-permission: name='android.permission.USE_BIOMETRIC'";
+  const xmltree = overrides.xmltree ?? [
+    'N: android=http://schemas.android.com/apk/res/android',
+    '  E: manifest (line=2)',
+    '    E: application (line=9)',
+    '      A: android:allowBackup(0x01010280)=(type 0x12)0x0',
+    '      A: android:debuggable(0x0101000f)=(type 0x12)0x0',
+    '      A: android:testOnly(0x01010272)=(type 0x12)0x0',
+    '      E: activity (line=15)'
+  ].join('\\n');
 
   const apk = Buffer.from('FAKE-APK-TEST-NOT-INSTALLABLE-' + '0123456789abcdef'.repeat(16));
   writeFileSync(join(dir, APK), apk);
@@ -72,7 +81,7 @@ function fixture(t, overrides = {}) {
     ...process.env, ANDROID_HOME:sdk,
     NEGRESCO_EXPECTED_CERT_SHA256:overrides.pin ?? PIN,
     FAKE_SIGNER_OUTPUT:actualReport,
-    FAKE_AAPT_BADGING:badging, FAKE_AAPT_PERMISSIONS:permissions
+    FAKE_AAPT_BADGING:badging, FAKE_AAPT_PERMISSIONS:permissions, FAKE_AAPT_XMLTREE:xmltree
   }};
 }
 
