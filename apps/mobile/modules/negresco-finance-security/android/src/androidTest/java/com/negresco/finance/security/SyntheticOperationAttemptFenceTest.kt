@@ -25,6 +25,9 @@ class SyntheticOperationAttemptFenceTest {
     fence.foreground()
     assertEquals(denial,
       fence.attempt(NativeSyntheticOperationAttemptFence.Intent.READ_DISPOSABLE_FIXTURE, true, true))
+    // Duplicate onForeground while already active must NOT reset the epoch.
+    fence.foreground()
+    fence.foreground()
     assertEquals(NativeSyntheticOperationAttemptFence.Decision.HOLD_REPLAYED_ATTEMPT,
       fence.attempt(NativeSyntheticOperationAttemptFence.Intent.WRITE_DISPOSABLE_FIXTURE, true, true))
   }

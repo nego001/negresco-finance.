@@ -27,16 +27,25 @@ internal class NativeSyntheticOperationAttemptFence(
   }
 
   private var consumedForegroundEpoch: Long? = null
+  private var foregroundObserved = false
+  private var destroyed = false
 
   @Synchronized fun foreground() {
+    // A duplicate Android foreground notification is not a new session:
+    // it must not mint another diagnostic epoch and bypass one-shot denial.
+    if (destroyed || foregroundObserved) return
+    foregroundObserved = true
     lifecycle.onForeground()
   }
 
   @Synchronized fun background() {
+    foregroundObserved = false
     lifecycle.onBackground()
   }
 
   @Synchronized fun destroy() {
+    foregroundObserved = false
+    destroyed = true
     lifecycle.onDestroyed()
   }
 

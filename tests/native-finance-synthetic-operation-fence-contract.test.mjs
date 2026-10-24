@@ -13,6 +13,8 @@ test('per-intent Kotlin attempt fence stays internal, typed, one-shot and deny-o
   assert.match(policy, /READ_DISPOSABLE_FIXTURE/);
   assert.match(policy, /WRITE_DISPOSABLE_FIXTURE/);
   assert.match(policy, /consumedForegroundEpoch == epoch/);
+  assert.match(policy, /if \(destroyed \|\| foregroundObserved\) return/);
+  assert.match(policy, /foregroundObserved = false/);
   assert.match(policy, /lifecycle\.onBackground\(\)/);
   assert.match(policy, /lifecycle\.onDestroyed\(\)/);
   assert.match(policy, /NativeFinancialOperationPreflight\.evaluate\(/);
@@ -33,4 +35,6 @@ test('instrumentation covers native revocation, duplicate and forged observation
     'forgedStrongCryptoAndStorageRemainDeniedForBothIntents'
   ]);
   assert.match(tests, /it[.]name[.]startsWith\("HOLD_"\)/);
+  assert.match(tests, /Duplicate onForeground while already active/);
+  assert.match(tests, /fence\.foreground\(\)\s*fence\.foreground\(\)/);
 });
