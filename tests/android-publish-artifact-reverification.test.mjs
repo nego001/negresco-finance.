@@ -51,6 +51,8 @@ function fixture(t, overrides = {}) {
     '      A: android:testOnly(0x01010272)=(type 0x12)0x0',
     '      A: android:dataExtractionRules(0x0101062e)=@0x7f150001',
     '      A: android:fullBackupContent(0x010104eb)=@0x7f150002',
+    '      A: android:networkSecurityConfig(0x01010527)=@0x7f150003',
+    '      A: android:usesCleartextTraffic(0x010104ec)=(type 0x12)0x0',
     '      E: activity (line=15)'
   ].join('\n');
 
@@ -200,6 +202,8 @@ const compiledManifest = [
   '      A: android:testOnly(0x01010272)=(type 0x12)0x0',
   '      A: android:dataExtractionRules(0x0101062e)=@0x7f150001',
   '      A: android:fullBackupContent(0x010104eb)=@0x7f150002',
+  '      A: android:networkSecurityConfig(0x01010527)=@0x7f150003',
+  '      A: android:usesCleartextTraffic(0x010104ec)=(type 0x12)0x0',
   '      E: activity (line=15)'
 ].join('\n');
 
