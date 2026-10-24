@@ -33,6 +33,15 @@ function fixture(t, overrides = {}) {
   if (overrides.secondSigner) actualReport += 'Signer #2 certificate SHA-256 digest: ' + 'b'.repeat(64) + '\n';
   const mock = join(tools, 'apksigner');
   writeFileSync(mock, '#!/bin/sh\nprintf "%s\\n" "$FAKE_SIGNER_OUTPUT"\n', {mode:0o755});
+  const aapt = join(tools, 'aapt');
+  if (!overrides.aaptMissing) {
+    writeFileSync(aapt, '#!/bin/sh\nif [ "$1" != dump ]; then exit 70; fi\ncase "$2" in\n badging) printf "%s\\n" "$FAKE_AAPT_BADGING";;\n permissions) printf "%s\\n" "$FAKE_AAPT_PERMISSIONS";;\n *) exit 71;;\nesac\n', {mode:0o755});
+  }
+  const badging = overrides.badging ?? "package: name='" +
+    (overrides.packageName ?? 'com.negresco.finance') + "' versionCode='" +
+    (overrides.versionCode ?? '34') + "' versionName='" +
+    (overrides.versionName ?? '3.1.3') + "' platformBuildVersionName='16'";
+  const permissions = overrides.permissions ?? "uses-permission: name='android.permission.USE_BIOMETRIC'";
 
   const apk = Buffer.from('FAKE-APK-TEST-NOT-INSTALLABLE-' + '0123456789abcdef'.repeat(16));
   writeFileSync(join(dir, APK), apk);
@@ -62,7 +71,8 @@ function fixture(t, overrides = {}) {
   return {dir, env:{
     ...process.env, ANDROID_HOME:sdk,
     NEGRESCO_EXPECTED_CERT_SHA256:overrides.pin ?? PIN,
-    FAKE_SIGNER_OUTPUT:actualReport
+    FAKE_SIGNER_OUTPUT:actualReport,
+    FAKE_AAPT_BADGING:badging, FAKE_AAPT_PERMISSIONS:permissions
   }};
 }
 
@@ -131,4 +141,41 @@ test('publisher refuses swapped APK, ZIP symlink, and highly compressed ZIP memb
     assert.notEqual(result.status, 0, JSON.stringify(opts));
     assert.match(result.stderr + result.stdout, opts.expected);
   }
+});
+
+test('publisher rejects mismatched package name, versionCode and versionName',t=>{
+  for(const overrides of [
+    {packageName:'com.example.fake',reason:/package name, versionCode or versionName differs/},
+    {versionCode:'33',reason:/package name, versionCode or versionName differs/},
+    {versionName:'3.1.2',reason:/package name, versionCode or versionName differs/},
+    {badging:"package: name='com.negresco.finance' versionCode='34' versionName='3.1.3'\npackage: name='com.example.fake' versionCode='34' versionName='3.1.3'",reason:/exactly one package declaration/},
+    {badging:"package: name='com.negresco.finance' versionCode=34 versionName='3.1.3'",reason:/package name, versionCode or versionName differs/}
+  ]) {
+    const result=runGate(fixture(t,overrides));
+    assert.notEqual(result.status,0,JSON.stringify(overrides));
+    assert.match(result.stderr+result.stdout,overrides.reason);
+  }
+});
+
+test('publisher requires one verified USE_BIOMETRIC permission',t=>{
+  for(const permissions of ["", "uses-permission: name='android.permission.INTERNET'",
+    "uses-permission: name='android.permission.USE_BIOMETRIC'\nuses-permission: name='android.permission.USE_BIOMETRIC'"]) {
+    const result=runGate(fixture(t,{permissions}));
+    assert.notEqual(result.status,0,JSON.stringify(permissions));
+    assert.match(result.stderr+result.stdout,/USE_BIOMETRIC permission/);
+  }
+});
+
+test('publisher fails closed when Android build-tools aapt is missing',t=>{
+  const result=runGate(fixture(t,{aaptMissing:true}));
+  assert.notEqual(result.status,0);
+});
+
+test('publisher rechecks downloaded APK identity before inspecting signing certificate',()=>{
+  assert.ok(block.indexOf('aapt" dump badging')>=0);
+  assert.ok(block.indexOf('aapt" dump permissions')>=0);
+  assert.ok(block.indexOf('aapt" dump badging')<block.indexOf('apksigner" verify'));
+  assert.match(block,/exactly one package declaration is required/);
+  assert.match(block,/com\\.negresco\\.finance|com\.negresco\.finance/);
+  assert.match(block,/versionCode or versionName differs/);
 });

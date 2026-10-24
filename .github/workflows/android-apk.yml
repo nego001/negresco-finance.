@@ -33,6 +33,7 @@ on:
       - 'tests/android-draft-rest-crosscheck.test.mjs'
       - 'tests/android-rest-authoritative-assets.test.mjs'
       - 'tests/android-strict-sha256-manifest.test.mjs'
+      - 'tests/android-publish-apk-identity.test.mjs'
       - '.github/workflows/android-apk.yml'
 # Keep only the newest candidate compiling when multiple source commits arrive.
 concurrency:
@@ -330,6 +331,30 @@ jobs:
           test -d "${ANDROID_HOME:?Android SDK unavailable}"
           BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
           test -x "$BUILD_TOOLS/apksigner"
+          # Re-parse the downloaded APK, never just the build job's claims.
+          # These checks run in the separate privileged publisher without a checkout.
+          test -x "$BUILD_TOOLS/aapt"
+          "$BUILD_TOOLS/aapt" dump badging Negresco-Finance-V3.1.3-preview.apk > verified-apk-badging.txt
+          "$BUILD_TOOLS/aapt" dump permissions Negresco-Finance-V3.1.3-preview.apk > verified-apk-permissions.txt
+          node <<'NODE'
+          const fs = require("node:fs");
+          function reject(message) {
+            console.error("BLOCK: unexpected signed APK identity: " + message);
+            process.exit(1);
+          }
+          const badging = fs.readFileSync("verified-apk-badging.txt", "utf8");
+          const packageLines = badging.split(/\r?\n/).filter(line => line.startsWith("package:"));
+          if (packageLines.length !== 1) reject("exactly one package declaration is required");
+          const match = /^package: name='([^']+)' versionCode='([^']+)' versionName='([^']+)'(?: .*)?$/.exec(packageLines[0]);
+          if (!match || match[1] !== "com.negresco.finance" ||
+              match[2] !== "34" || match[3] !== "3.1.3")
+            reject("package name, versionCode or versionName differs");
+          const permissions = fs.readFileSync("verified-apk-permissions.txt", "utf8");
+          const biometric = permissions.split(/\r?\n/)
+            .filter(line => /^uses-permission: name='android\.permission\.USE_BIOMETRIC'(?: |$)/.test(line));
+          if (biometric.length !== 1) reject("expected single USE_BIOMETRIC permission is absent or duplicated");
+          console.log("PASS: downloaded signed APK identity, version and biometric permission verified");
+          NODE
           "$BUILD_TOOLS/apksigner" verify --verbose --print-certs Negresco-Finance-V3.1.3-preview.apk > verified-apk-signer.txt
           mapfile -t CERT_HASHES < <(sed -nE 's/.*certificate SHA-256 digest: ([0-9a-fA-F]{64}).*/\1/p' verified-apk-signer.txt | tr '[:upper:]' '[:lower:]')
           mapfile -t REPORT_HASHES < <(sed -nE 's/.*certificate SHA-256 digest: ([0-9a-fA-F]{64}).*/\1/p' APK-SIGNATURE.txt | tr '[:upper:]' '[:lower:]')
