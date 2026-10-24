@@ -377,3 +377,30 @@ O primeiro arquivo Kotlin de preparação **em `src/main`** é `NativeFinancialO
 O código **não é invocado pelo Expo nem exportado para JavaScript**, não instancia banco ou chave, e não autoriza uma operação de teste. `SyntheticFinancialOperationPreflightTest.kt`, somente em `androidTest`, exercita entradas contraditórias e sinais falsificados em um emulador descartável. O contrato Node exige que o conjunto de respostas permaneça bloqueante e que nenhuma função do módulo exponha a política.
 
 **Gate real ainda bloqueado:** criar autorização baseada no próprio resultado de `BiometricPrompt(CryptoObject)` e operação do Keystore, definir semântica de sessão e inicialização/migração SQLCipher, sem aceitar booleanos ou retornos JS como equivalentes. Falta QA humano em aparelho físico e auditoria de segredos/backup/upgrade. Relacionado à [issue #18](https://github.com/nego001/negresco-finance./issues/18).
+
+
+## P0-1 | Ensaio DENY-only por intenção sintética e época nativa
+
+O arquivo `NativeSyntheticOperationAttemptFence.kt` em `src/main` amplia exclusivamente
+a preparação negativa. Duas intenções **fictícias tipadas**
+(`READ_DISPOSABLE_FIXTURE` e `WRITE_DISPOSABLE_FIXTURE`) passam pelo
+`NativeFinancialOperationPreflight`. A classe consome no máximo uma tentativa
+por época de foreground, recusa repetição, background e destruição, e preserva
+motivos `HOLD_*` mesmo sob sinais falsificados `true`.
+
+O nome da operação **não** é um identificador de permissão. Nenhuma operação de
+leitura ou gravação é executada, nenhuma chave ou banco é criado, não há
+CryptoObject, e o módulo Expo **não instancia nem exporta** essa classe. Uma
+época diagnóstica não é sessão autenticada, e o replay-fence não substitui
+autorização Keystore por operação.
+
+O teste instrumental `SyntheticOperationAttemptFenceTest.kt` deve executar
+**4/4 métodos**, sem `SKIPPED`, comprovados pelo auditor JUnit nominal.
+A CI não deve declarar biometria física `PASS`: os dois métodos positivos
+manuais continuam `SKIPPED` e exigem homologação interativa separada.
+
+**Próximo gate não concluído:** desenhar e testar um autorizador Kotlin ligado
+ao `BiometricPrompt(CryptoObject)` verdadeiro, com material sintético de
+SQLCipher em laboratório e limpeza/revogação de sessão em situações de falha.
+Não utilizar booleans de JS como evidência, habilitar banco financeiro, atualizar
+aplicativo ou promover Release por causa desta simulação.

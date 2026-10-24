@@ -34,6 +34,17 @@ PREFLIGHT_SOURCE = (Path(__file__).resolve().parent.parent /
     'apps/mobile/modules/negresco-finance-security/android/src/androidTest/java/'
     'com/negresco/finance/security/SyntheticFinancialOperationPreflightTest.kt')
 
+ATTEMPT_CLASS = 'com.negresco.finance.security.SyntheticOperationAttemptFenceTest'
+ATTEMPT_REQUIRED_CASES = frozenset({
+    'attemptWithoutForegroundCannotRun',
+    'repeatedIntentInSameForegroundEpochAlwaysDenies',
+    'backgroundAndDestroyRevokeSyntheticOperationEpoch',
+    'forgedStrongCryptoAndStorageRemainDeniedForBothIntents',
+})
+ATTEMPT_SOURCE = (Path(__file__).resolve().parent.parent /
+    'apps/mobile/modules/negresco-finance-security/android/src/androidTest/java/'
+    'com/negresco/finance/security/SyntheticOperationAttemptFenceTest.kt')
+
 # CI is unattended: genuine user consent must never be reported as PASS by
 # emulator/fixture evidence. Physical positive QA has its own human gate.
 PHYSICAL_ONLY_CASES = frozenset({
@@ -72,6 +83,16 @@ def expected_preflight_methods():
         raise ValueError(
             f'P0-1 preflight source inventory mismatch: found={sorted(names)}; '
             f'required={sorted(PREFLIGHT_REQUIRED_CASES)}')
+    return set(names)
+
+
+def expected_attempt_methods():
+    # This is source+JUnit inventory, never a simulated biometric approval.
+    source = ATTEMPT_SOURCE.read_text(encoding='utf-8')
+    names = re.findall(r'@Test\s+fun\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(', source)
+    if len(names) != len(ATTEMPT_REQUIRED_CASES) or set(names) != ATTEMPT_REQUIRED_CASES:
+        raise ValueError(
+            f'P0-1 synthetic operation attempt source inventory mismatch: {sorted(names)}')
     return set(names)
 
 
@@ -153,6 +174,19 @@ def audit(report_dir: Path):
             f'count={len(preflight_cases)}')
     if any(c.find('skipped') is not None for c in preflight_cases):
         reasons.append('P0-1 native preflight has SKIPPED tests')
+    attempt_expected = expected_attempt_methods()
+    attempt_cases = [c for c in cases if c.get('classname') == ATTEMPT_CLASS]
+    attempt_actual = {c.get('name') for c in attempt_cases}
+    attempt_missing = sorted(attempt_expected - attempt_actual)
+    attempt_extra = sorted(attempt_actual - attempt_expected)
+    if (len(attempt_cases) != len(attempt_expected)
+            or attempt_missing or attempt_extra):
+        reasons.append(
+            'P0-1 synthetic operation attempt inventory mismatch: '
+            f'missing={attempt_missing}, unexpected={attempt_extra}, '
+            f'count={len(attempt_cases)}')
+    if any(c.find('skipped') is not None for c in attempt_cases):
+        reasons.append('P0-1 synthetic operation attempt has SKIPPED tests')
     status = 'PASS' if not reasons else 'FAIL'
     summary = [
         '### SEC-05 Android JUnit evidence',
@@ -164,6 +198,7 @@ def audit(report_dir: Path):
         f'- DEBUG SQLCipher biometric isolation case: **{("executed" if len(qa_isolation) == 1 and qa_isolation[0].get("name") == ISOLATION_CASE and qa_isolation[0].find("skipped") is None else "missing/skipped")}**',
         f'- Synthetic native cipher lifecycle methods: **{len(slice_cases)}/4** (zero skips required)',
         f'- P0-1 native preflight methods: **{len(preflight_cases)}/{len(preflight_expected)}** (zero skips required)',
+        f'- P0-1 native synthetic operation attempt methods: **{len(attempt_cases)}/{len(attempt_expected)}** (zero skips required)',
         f'- Physical biometric consent-only cases kept SKIPPED: **{physical_skipped_count}/{len(PHYSICAL_ONLY_CASES)}** (never a CI pass)',
         f'- Required same-UUID inode replacement case: **{("executed" if len(required) == 1 and required[0].find("skipped") is None else "missing/skipped")}**',
     ]

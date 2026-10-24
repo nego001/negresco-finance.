@@ -30,6 +30,13 @@ const preflightMethods = [
   'unavailableCryptoAndStorageDenyBeforeNativeAuthority',
   'forgedAllTrueSignalsStillCannotAuthorizeAnything',
 ];
+const attemptClass = 'com.negresco.finance.security.SyntheticOperationAttemptFenceTest';
+const attemptMethods = [
+  'attemptWithoutForegroundCannotRun',
+  'repeatedIntentInSameForegroundEpochAlwaysDenies',
+  'backgroundAndDestroyRevokeSyntheticOperationEpoch',
+  'forgedStrongCryptoAndStorageRemainDeniedForBothIntents'
+];
 const permittedHardlinks = new Set([
   'hardlinkedJournalNewCannotRedirectWrite',
   'hardlinkedOwnerMarkerCannotAuthorizeWorkerWrite',
@@ -48,6 +55,7 @@ function baseline() {
     {classname: isolationClass, name: isolationCase, skipped: false},
     ...sliceMethods.map(name => ({classname: sliceClass, name, skipped: false})),
     ...preflightMethods.map(name => ({classname: preflightClass, name, skipped: false})),
+    ...attemptMethods.map(name => ({classname: attemptClass, name, skipped: false})),
   ];
 }
 
@@ -181,6 +189,7 @@ test('P0-1 preflight: all three instrumented methods appear in JUnit evidence', 
   const r = run(baseline());
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.summary, /P0-1 native preflight methods: \*\*3\/3\*\*/);
+  assert.match(r.summary, /P0-1 native synthetic operation attempt methods: \*\*4\/4\*\*/);
 });
 test('P0-1 preflight: a missing required testcase fails closed', () => {
   const r = run(baseline().filter(c =>
@@ -252,4 +261,27 @@ test('missing or renamed physical biometric QA cannot vanish from CI evidence', 
     assert.notEqual(r.status, 0, physical.name);
     assert.match(r.stderr, /physical-only biometric QA must be SKIPPED in unattended CI/);
   }
+});
+
+test('P0-1: missing synthetic operation attempt method fails JUnit evidence', () => {
+  const r = run(baseline().filter(c =>
+    !(c.classname === attemptClass && c.name === attemptMethods[0])));
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /synthetic operation attempt inventory mismatch/);
+});
+test('P0-1: skipped synthetic operation attempt method fails JUnit evidence', () => {
+  const cases = baseline();
+  cases.find(c => c.classname === attemptClass && c.name === attemptMethods[1]).skipped = true;
+  const r = run(cases);
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /synthetic operation attempt has SKIPPED tests/);
+});
+test('P0-1: forged synthetic operation attempt method at same count fails', () => {
+  const cases = baseline();
+  cases.find(c => c.classname === attemptClass && c.name === attemptMethods[2]).name =
+    'fakeNativeOperationAuthorized';
+  const r = run(cases);
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /synthetic operation attempt inventory mismatch/);
+  assert.match(r.stderr, /backgroundAndDestroyRevokeSyntheticOperationEpoch/);
 });
