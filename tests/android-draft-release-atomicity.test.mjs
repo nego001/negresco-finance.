@@ -93,7 +93,7 @@ if (args[1] === 'view') {
   process.exit(0);
 }
 if (args[1] === 'create') {
-  if (!args.includes('--draft') || !args.includes('--prerelease')) process.exit(4);
+  if (!args.includes('--draft') || !args.includes('--prerelease') || !args.includes('--verify-tag') || !fs.existsSync(tagFile)) process.exit(4);
   fs.writeFileSync(state, JSON.stringify({draft:true}));
   process.exit(0);
 }
@@ -142,11 +142,11 @@ test('successful staged upload is checked before publication',t=>{
   const {result,log,state}=run(t);
   assert.equal(result.status,0,result.stderr+result.stdout);
   assert.equal(state?.draft,false);
-  assert.deepEqual(log.map(x=>x[0] === 'api' ? 'api' : x[1]),['view','api','create','upload','view','edit']);
-  assert.ok(log[2].includes('--draft'));
-  assert.ok(log[2].includes('--prerelease'));
-  assert.ok(log[5].includes('--draft=false'));
-  assert.equal(log[3].filter(x=>files.includes(x)).length,files.length);
+  assert.deepEqual(log.map(x=>x[0] === 'api' ? 'api' : x[1]),['view','api','api','api','create','upload','view','api','edit']);
+  assert.ok(log[4].includes('--draft'));
+  assert.ok(log[4].includes('--prerelease'));
+  assert.ok(log[8].includes('--draft=false'));
+  assert.equal(log[5].filter(x=>files.includes(x)).length,files.length);
 });
 
 test('failed artifact upload leaves private draft without publishing',t=>{
@@ -174,7 +174,7 @@ for (const [mode,why] of [
   ['remote_digest',/mismatched remote asset digest/],
   ['remote_no_digest',/mismatched remote asset digest/],
   ['remote_state',/mismatched remote asset digest/],
-  ['wrong_target',/draft release identity/],
+  ['tag_drift',/git tag does not resolve/],
   ['wrong_tag',/draft release identity/],
   ['not_prerelease',/draft release identity/]
 ]) {
@@ -208,4 +208,21 @@ test('git ref lookup failure blocks rather than treating 503 as a missing tag',t
   assert.equal(state,null);
   assert.deepEqual(log.map(x=>x[0] === 'api' ? 'api' : x[1]),['view','api']);
   assert.match(result.stderr+result.stdout,/Cannot prove git tag is absent/);
+});
+
+test('git tag creation must be checked before a release draft is created',t=>{
+  for(const mode of ['tag_create_fail','tag_create_wrong_response','tag_get_wrong_sha','tag_get_annotated','tag_get_missing']){
+    const {result,log,state}=run(t,mode);
+    assert.notEqual(result.status,0,mode);
+    assert.equal(state,null,mode);
+    assert.equal(log.some(x=>x[1]==='create'),false,mode);
+  }
+});
+
+test('a tag mutated after the draft upload cannot be promoted to a public release',t=>{
+  const {result,log,state}=run(t,'tag_drift');
+  assert.notEqual(result.status,0);
+  assert.equal(state?.draft,true);
+  assert.equal(log.some(x=>x[1]==='edit'),false);
+  assert.match(result.stderr+result.stdout,/git tag does not resolve/);
 });
