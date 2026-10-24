@@ -49,6 +49,8 @@ function fixture(t, overrides = {}) {
     '      A: android:allowBackup(0x01010280)=(type 0x12)0x0',
     '      A: android:debuggable(0x0101000f)=(type 0x12)0x0',
     '      A: android:testOnly(0x01010272)=(type 0x12)0x0',
+    '      A: android:dataExtractionRules(0x0101062e)=@0x7f150001',
+    '      A: android:fullBackupContent(0x010104eb)=@0x7f150002',
     '      E: activity (line=15)'
   ].join('\n');
 
@@ -196,6 +198,8 @@ const compiledManifest = [
   '      A: android:allowBackup(0x01010280)=(type 0x12)0x0',
   '      A: android:debuggable(0x0101000f)=(type 0x12)0x0',
   '      A: android:testOnly(0x01010272)=(type 0x12)0x0',
+  '      A: android:dataExtractionRules(0x0101062e)=@0x7f150001',
+  '      A: android:fullBackupContent(0x010104eb)=@0x7f150002',
   '      E: activity (line=15)'
 ].join('\n');
 
@@ -252,3 +256,31 @@ test('badging debuggable flag is a separate independent block',t=>{
   assert.notEqual(result.status,0);
   assert.match(result.stdout+result.stderr,/aapt badging identifies a debuggable APK/);
 });
+
+test('both Android backup exclusion resource IDs are independently checked in publisher',t=>{
+  const result=runGate(fixture(t,{xmltree:compiledManifest}));
+  assert.equal(result.status,0,result.stdout+result.stderr);
+});
+
+const modern="      A: android:dataExtractionRules(0x0101062e)=@0x7f150001";
+const legacy="      A: android:fullBackupContent(0x010104eb)=@0x7f150002";
+for(const [scenario,contents,reason] of [
+  ['missing modern backup policy',compiledManifest.replace(modern+'\n',''),/dataExtractionRules/],
+  ['missing legacy backup policy',compiledManifest.replace(legacy+'\n',''),/fullBackupContent/],
+  ['duplicated modern policy',compiledManifest.replace(modern,modern+'\n'+modern),/dataExtractionRules/],
+  ['duplicated legacy policy',compiledManifest.replace(legacy,legacy+'\n'+legacy),/fullBackupContent/],
+  ['literal XML string instead of resource ref',
+    compiledManifest.replace(modern,'      A: android:dataExtractionRules(0x0101062e)="@xml/negresco_no_data_extraction"'),/dataExtractionRules/],
+  ['malformed resource ID',
+    compiledManifest.replace(modern,modern.replace('@0x7f150001','@unknown')),/dataExtractionRules/],
+  ['resource attribute copied to nested activity only',
+    compiledManifest.replace(modern+'\n','')+'\n        '+modern.trim(),/dataExtractionRules/],
+  ['modern and legacy refs point to same resource',
+    compiledManifest.replace('@0x7f150002','@0x7f150001'),/different resource IDs/]
+]){
+  test('published APK backup resource gate refuses: '+scenario,t=>{
+    const result=runGate(fixture(t,{xmltree:contents}));
+    assert.notEqual(result.status,0,scenario);
+    assert.match(result.stdout+result.stderr,reason);
+  });
+}
