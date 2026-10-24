@@ -59,3 +59,14 @@ test('missing DEX and missing Android manifest both fail closed', () => {
   assert.equal(check({'AndroidManifest.xml':'<manifest/>'}).status, 1);
   assert.equal(check({'classes.dex':'Lcom/negresco/finance/App;'}).status, 1);
 });
+
+test('only secondary DEX is not a valid production Android package', () => {
+  const result = check({'classes2.dex':'fake-secondary', 'AndroidManifest.xml':'<manifest/>'});
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /missing classes\.dex/);
+});
+test('even unusual classes1.dex cannot carry hidden Debug-only classes', () => {
+  const result = check({...clean,'classes1.dex':'SyntheticBiometricManualQaActivity'});
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /SyntheticBiometricManualQaActivity/);
+});

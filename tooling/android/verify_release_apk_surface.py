@@ -25,7 +25,7 @@ FORBIDDEN = (
     "SyntheticDebugQaOrphanInspectionTest",
     "SyntheticJournalCrashWorkerService",
 )
-DEX_NAME = re.compile(r"classes(?:[2-9][0-9]*)?\.dex\Z")
+DEX_NAME = re.compile(r"classes(?:[0-9]+)?\.dex\Z")
 MAX_ENTRY_BYTES = 256 * 1024 * 1024
 
 
@@ -33,9 +33,12 @@ def audit_apk(apk: Path) -> None:
     if not apk.is_file() or not apk.stat().st_size:
         raise ValueError("Release APK missing or empty")
     with zipfile.ZipFile(apk) as archive:
-        names = set(archive.namelist())
+        raw_names = archive.namelist()
+        names = set(raw_names)
+        if len(raw_names) != len(names):
+            raise ValueError("APK contains duplicate ZIP entry names")
         dex = sorted(n for n in names if DEX_NAME.fullmatch(n))
-        if not dex:
+        if "classes.dex" not in names:
             raise ValueError("Release APK is missing classes.dex")
         if "AndroidManifest.xml" not in names:
             raise ValueError("Release APK is missing AndroidManifest.xml")
