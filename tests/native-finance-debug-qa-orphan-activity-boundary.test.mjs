@@ -10,7 +10,7 @@ const expo = read(root+'src/main/java/com/negresco/finance/security/NegrescoFina
 
 test('crash residue scan runs before biometric availability and before key generation', () => {
   const start = activity.indexOf('fun startManualQa(');
-  const orphan = activity.indexOf('SyntheticDebugQaOrphanResidueGate.isClear', start);
+  const orphan = activity.indexOf('SyntheticDebugQaOrphanInspection.inspect', start);
   const sensor = activity.indexOf('BiometricManager.from(this).canAuthenticate(', start);
   const generation = activity.indexOf('generator.generateKey()', start);
   assert.ok(start >= 0 && start < orphan && orphan < sensor && sensor < generation);

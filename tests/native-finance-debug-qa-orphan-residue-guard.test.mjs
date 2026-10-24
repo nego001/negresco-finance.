@@ -10,13 +10,13 @@ const qa = read(base+'src/androidTest/java/com/negresco/finance/security/Synthet
 const expo = read(base+'src/main/java/com/negresco/finance/security/NegrescoFinanceSecurityV1Module.kt');
 
 test('Debug QA checks orphaned Keystore aliases and cache before provisioning new fixture', () => {
-  const check = activity.indexOf('SyntheticDebugQaOrphanResidueGate.isClear');
+  const check = activity.indexOf('SyntheticDebugQaOrphanInspection.inspect');
   const load = activity.indexOf('System.loadLibrary("sqlcipher")');
   const generate = activity.indexOf('generator.generateKey()');
   assert.ok(check >= 0 && check < load && load < generate);
   assert.match(activity, /HOLD_ORPHANED_DEBUG_QA_RESIDUE/);
-  assert.match(activity, /requireNotNull\(cacheDir.listFiles\(\)\)/);
-  assert.match(activity, /store\(\)\.aliases\(\)\.toList\(\)/);
+  assert.match(activity, /readCache = \{ cacheDir\.listFiles\(\)\?\.map \{ it\.name \} \}/);
+  assert.match(activity, /readAliases = \{ store\(\)\.aliases\(\)\.toList\(\) \}/);
   assert.match(guard, /negresco_debug_sqlcipher_/);
   assert.match(guard, /negresco_qa_sqlcipher_/);
   assert.match(guard, /keystoreAliases.none \{ it.startsWith\(ALIAS_PREFIX\) \}/);

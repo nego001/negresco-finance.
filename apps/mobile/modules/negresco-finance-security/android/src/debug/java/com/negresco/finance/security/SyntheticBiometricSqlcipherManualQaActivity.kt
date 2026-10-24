@@ -76,13 +76,19 @@ class SyntheticBiometricSqlcipherManualQaActivity : FragmentActivity() {
       }
       // Process death can leave old QA aliases/files after in-memory handles vanish.
       // Block until a human resolves such residues in an isolated QA environment.
-      val knownAliases = store().aliases().toList()
-      val knownFolders = requireNotNull(cacheDir.listFiles()) {
-        "Debug QA residue inspection unavailable"
-      }.map { it.name }
-      if (!SyntheticDebugQaOrphanResidueGate.isClear(knownAliases, knownFolders)) {
-        finishQa("HOLD_ORPHANED_DEBUG_QA_RESIDUE")
-        return
+      when (SyntheticDebugQaOrphanInspection.inspect(
+        readAliases = { store().aliases().toList() },
+        readCache = { cacheDir.listFiles()?.map { it.name } }
+      )) {
+        SyntheticDebugQaOrphanInspection.Decision.QA_FIXTURES_CLEAR -> Unit
+        SyntheticDebugQaOrphanInspection.Decision.HOLD_ORPHANED_DEBUG_QA_RESIDUE -> {
+          finishQa("HOLD_ORPHANED_DEBUG_QA_RESIDUE")
+          return
+        }
+        SyntheticDebugQaOrphanInspection.Decision.HOLD_INSPECTION_UNAVAILABLE -> {
+          finishQa("HOLD_DEBUG_INSPECTION_UNAVAILABLE")
+          return
+        }
       }
       if (BiometricManager.from(this).canAuthenticate(
           BiometricManager.Authenticators.BIOMETRIC_STRONG) !=
