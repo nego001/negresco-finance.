@@ -50,5 +50,5 @@ test('Android distribution artifact survives a GitHub Releases permission denial
  assert.match(workflow,/apps\/mobile\/APK-SIGNATURE\.txt/);
  assert.match(workflow,/apps\/mobile\/Negresco-Finance-V3\.1\.3-preview\.apk/);
  assert.match(workflow,/cancel-in-progress: true/);
- assert.ok(workflow.indexOf('Preserve full release bundle as Actions artifact')<workflow.indexOf('Publish APK first, ZIP second in GitHub Releases'));
+ assert.ok(workflow.indexOf('Preserve full release bundle as Actions artifact')<workflow.indexOf('Stage private draft and publish only after complete verified upload'));
 });
