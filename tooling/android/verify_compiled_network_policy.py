@@ -105,7 +105,9 @@ def verify_compiled_policy(tree: str) -> None:
     source = [x for x in attrs if x[1] == "src"]
     if len(clear) != 1 or not re.match(r"^\(type 0x12\)0x0+$", clear[0][2]):
         reject("cleartextTrafficPermitted must be explicitly Boolean false")
-    if clear[0][0] <= elements[1][0] or clear[0][0] >= elements[2][0]:
+    # Attributes of base-config share the indentation of its child
+    # trust-anchors element in aapt2 XML tree output.
+    if clear[0][0] != elements[2][0]:
         reject("cleartext attribute not nested under base-config")
     if len(source) != 1:
         reject("network policy must use one trusted certificate source")
