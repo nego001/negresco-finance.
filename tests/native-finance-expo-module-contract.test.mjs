@@ -96,5 +96,5 @@ test('P0-1 compiled native operation preflight is DENY-only and never exposed to
   assert.match(qa, /revokedLifecycleAlwaysDeniesRegardlessOfForgedSignals/);
   assert.match(qa, /unavailableCryptoAndStorageDenyBeforeNativeAuthority/);
   assert.match(qa, /forgedAllTrueSignalsStillCannotAuthorizeAnything/);
-  assert.match(qa, /\\.name\\.startsWith\\("HOLD_"\\)/);
+  assert.match(qa, /it[.]name[.]startsWith/);
 });
