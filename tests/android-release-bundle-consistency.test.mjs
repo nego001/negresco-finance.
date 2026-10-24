@@ -126,7 +126,7 @@ test('highly compressible readme is rejected before unbounded expansion',()=>{
 });
 
 test('ZIP or APK scanner changes always trigger a candidate Android APK build',()=>{
-  const pushBlock=workflow.split('  push:\\n    paths:')[1]?.split('\\n# Keep only')[0];
+  const pushBlock=workflow.split('  push:\n    paths:')[1]?.split('\n# Keep only')[0];
   assert.ok(pushBlock,'push path filters must be explicit');
   for (const path of [
     'tooling/android/verify_release_bundle_consistency.py',
