@@ -172,7 +172,7 @@ test('replacing lifecycle slice method with a fake at same count fails', () => {
 test('P0-1 preflight: all three instrumented methods appear in JUnit evidence', () => {
   const r = run(baseline());
   assert.equal(r.status, 0, r.stderr);
-  assert.match(r.summary, /P0-1 native preflight methods: \\*\\*3\\/3\\*\\*/);
+  assert.match(r.summary, /P0-1 native preflight methods: \*\*3\/3\*\*/);
 });
 test('P0-1 preflight: a missing required testcase fails closed', () => {
   const r = run(baseline().filter(c =>

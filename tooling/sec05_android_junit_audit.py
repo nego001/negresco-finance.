@@ -59,7 +59,7 @@ def expected_sec05_methods():
 def expected_preflight_methods():
     # Pin the source inventory AND the JUnit XML, not merely an arbitrary count.
     source = PREFLIGHT_SOURCE.read_text(encoding='utf-8')
-    names = re.findall(r'@Test\\s+fun\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*\\(', source)
+    names = re.findall(r'@Test\s+fun\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(', source)
     if len(names) != len(PREFLIGHT_REQUIRED_CASES) or set(names) != PREFLIGHT_REQUIRED_CASES:
         raise ValueError(
             f'P0-1 preflight source inventory mismatch: found={sorted(names)}; '
