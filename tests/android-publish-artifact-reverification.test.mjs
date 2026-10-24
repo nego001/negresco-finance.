@@ -35,13 +35,22 @@ function fixture(t, overrides = {}) {
   writeFileSync(mock, '#!/bin/sh\nprintf "%s\\n" "$FAKE_SIGNER_OUTPUT"\n', {mode:0o755});
   const aapt = join(tools, 'aapt');
   if (!overrides.aaptMissing) {
-    writeFileSync(aapt, '#!/bin/sh\nif [ "$1" != dump ]; then exit 70; fi\ncase "$2" in\n badging) printf "%s\\n" "$FAKE_AAPT_BADGING";;\n permissions) printf "%s\\n" "$FAKE_AAPT_PERMISSIONS";;\n *) exit 71;;\nesac\n', {mode:0o755});
+    writeFileSync(aapt, '#!/bin/sh\nif [ "$1" != dump ]; then exit 70; fi\ncase "$2" in\n badging) printf "%s\\n" "$FAKE_AAPT_BADGING";;\n permissions) printf "%s\\n" "$FAKE_AAPT_PERMISSIONS";;\n xmltree) printf "%s\\n" "$FAKE_AAPT_XMLTREE";;\n *) exit 71;;\nesac\n', {mode:0o755});
   }
   const badging = overrides.badging ?? "package: name='" +
     (overrides.packageName ?? 'com.negresco.finance') + "' versionCode='" +
     (overrides.versionCode ?? '34') + "' versionName='" +
     (overrides.versionName ?? '3.1.3') + "' platformBuildVersionName='16'";
   const permissions = overrides.permissions ?? "uses-permission: name='android.permission.USE_BIOMETRIC'";
+  const xmltree = overrides.xmltree ?? [
+    'N: android=http://schemas.android.com/apk/res/android',
+    '  E: manifest (line=2)',
+    '    E: application (line=9)',
+    '      A: android:allowBackup(0x01010280)=(type 0x12)0x0',
+    '      A: android:debuggable(0x0101000f)=(type 0x12)0x0',
+    '      A: android:testOnly(0x01010272)=(type 0x12)0x0',
+    '      E: activity (line=15)'
+  ].join('\n');
 
   const apk = Buffer.from('FAKE-APK-TEST-NOT-INSTALLABLE-' + '0123456789abcdef'.repeat(16));
   writeFileSync(join(dir, APK), apk);
@@ -72,7 +81,7 @@ function fixture(t, overrides = {}) {
     ...process.env, ANDROID_HOME:sdk,
     NEGRESCO_EXPECTED_CERT_SHA256:overrides.pin ?? PIN,
     FAKE_SIGNER_OUTPUT:actualReport,
-    FAKE_AAPT_BADGING:badging, FAKE_AAPT_PERMISSIONS:permissions
+    FAKE_AAPT_BADGING:badging, FAKE_AAPT_PERMISSIONS:permissions, FAKE_AAPT_XMLTREE:xmltree
   }};
 }
 
@@ -178,4 +187,68 @@ test('publisher rechecks downloaded APK identity before inspecting signing certi
   assert.match(block,/exactly one package declaration is required/);
   assert.match(block,/com\\.negresco\\.finance|com\.negresco\.finance/);
   assert.match(block,/versionCode or versionName differs/);
+});
+
+const compiledManifest = [
+  'N: android=http://schemas.android.com/apk/res/android',
+  '  E: manifest (line=2)',
+  '    E: application (line=9)',
+  '      A: android:allowBackup(0x01010280)=(type 0x12)0x0',
+  '      A: android:debuggable(0x0101000f)=(type 0x12)0x0',
+  '      A: android:testOnly(0x01010272)=(type 0x12)0x0',
+  '      E: activity (line=15)'
+].join('\n');
+
+test('privileged publisher accepts explicit no-backup and non-debuggable Android manifest',t=>{
+  const run = runGate(fixture(t,{xmltree:compiledManifest}));
+  assert.equal(run.status,0,run.stdout+run.stderr);
+  assert.match(run.stdout,/backup and debug flags verified/);
+});
+
+test('missing debuggable/testOnly flags retains platform safe defaults',t=>{
+  const withoutDefaults = compiledManifest.split('\n')
+    .filter(line=>!line.includes('android:debuggable')&&!line.includes('android:testOnly'))
+    .join('\n');
+  const run=runGate(fixture(t,{xmltree:withoutDefaults}));
+  assert.equal(run.status,0,run.stdout+run.stderr);
+});
+
+for(const [scenario,xmltree,reason] of [
+  ['default backup enabled because flag absent',
+    compiledManifest.replace(/^.*android:allowBackup.*\n/m,''),/missing or duplicate application android:allowBackup/],
+  ['explicit allowBackup=true',
+    compiledManifest.replace('android:allowBackup(0x01010280)=(type 0x12)0x0','android:allowBackup(0x01010280)=(type 0x12)0xffffffff'),/application android:allowBackup must be false/],
+  ['string-backed backup value instead of Boolean',
+    compiledManifest.replace('android:allowBackup(0x01010280)=(type 0x12)0x0','android:allowBackup(0x01010280)="false"'),/application android:allowBackup must be false/],
+  ['duplicate backup declaration',
+    compiledManifest.replace('      E: activity', '      A: android:allowBackup(0x01010280)=(type 0x12)0x0\n      E: activity'),/missing or duplicate application android:allowBackup/],
+  ['allowBackup appears on nested activity only',
+    compiledManifest.replace('      A: android:allowBackup(0x01010280)=(type 0x12)0x0\n','')
+      +'\n        A: android:allowBackup(0x01010280)=(type 0x12)0x0',/missing or duplicate application android:allowBackup/],
+  ['debuggable explicitly true',
+    compiledManifest.replace('android:debuggable(0x0101000f)=(type 0x12)0x0','android:debuggable(0x0101000f)=(type 0x12)0xffffffff'),/application android:debuggable must be false/],
+  ['testOnly explicitly true',
+    compiledManifest.replace('android:testOnly(0x01010272)=(type 0x12)0x0','android:testOnly(0x01010272)=(type 0x12)0xffffffff'),/application android:testOnly must be false/],
+  ['duplicate debuggable declaration',
+    compiledManifest.replace('      E: activity','      A: android:debuggable(0x0101000f)=(type 0x12)0x0\n      E: activity'),/missing or duplicate application android:debuggable/],
+  ['missing application element',
+    compiledManifest.replace('E: application (line=9)','E: activity (line=9)'),/exactly one compiled application element/],
+  ['duplicate application elements',
+    compiledManifest+'\n    E: application (line=99)',/exactly one compiled application element/],
+  ['nonnumeric allowBackup value',
+    compiledManifest.replace('=(type 0x12)0x0','=(type 0x03)0x0'),/application android:allowBackup must be false/],
+]){
+  test('privileged APK manifest fails closed: '+scenario,t=>{
+    const result=runGate(fixture(t,{xmltree}));
+    assert.notEqual(result.status,0,scenario);
+    assert.match(result.stderr+result.stdout,reason);
+  });
+}
+
+test('badging debuggable flag is a separate independent block',t=>{
+  const good="package: name='com.negresco.finance' versionCode='34' versionName='3.1.3'"+
+    "\napplication-debuggable";
+  const result=runGate(fixture(t,{badging:good}));
+  assert.notEqual(result.status,0);
+  assert.match(result.stdout+result.stderr,/aapt badging identifies a debuggable APK/);
 });
