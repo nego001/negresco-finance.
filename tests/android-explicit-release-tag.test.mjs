@@ -26,8 +26,10 @@ test('resolved Git reference is verified once before creating the draft and agai
   const create=script.indexOf('gh release create "$TAG"');
   const check1=script.indexOf('          verify_exact_tag',define+1);
   const publish=script.indexOf('gh release edit "$TAG" --draft=false');
-  const lastVerify=script.lastIndexOf('verify_exact_tag');
-  assert.ok(define>=0&&check1>=0&&check1<create&&lastVerify>create&&lastVerify<publish);
+  const prePublishVerify=script.slice(0,publish).lastIndexOf('verify_exact_tag');
+  const postPublishVerify=script.indexOf('verify_exact_tag',publish);
+  assert.ok(define>=0&&check1>=0&&check1<create&&prePublishVerify>create&&prePublishVerify<publish);
+  assert.ok(postPublishVerify>publish,'audit must reverify the tag after publication');
   assert.match(script,/gh api "repos\/\$\{GH_REPO\}\/git\/ref\/tags\/\$\{TAG\}"/);
 });
 
