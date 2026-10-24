@@ -87,8 +87,8 @@ test('26 SEC-05 cases with four expected hardlink skips pass and report missing 
   assert.match(r.summary, /SEC-05 process-death cases present: \*\*26\/26\*\*/);
   assert.match(r.summary, /SEC-05 source method inventory matches JUnit: \*\*True\*\*/);
   assert.match(r.summary, /Synthetic native cipher lifecycle methods: \*\*4\/4\*\*/);
-  assert.match(r.summary, /DEBUG SQLCipher biometric isolation case: \\*\\*executed\\*\\*/);
-  assert.match(r.summary, /skipped: \\*\\*6\\*\\*/);
+  assert.match(r.summary, /DEBUG SQLCipher biometric isolation case: \*\*executed\*\*/);
+  assert.match(r.summary, /skipped: \*\*6\*\*/);
   assert.match(r.summary, /Required same-UUID inode replacement case: \*\*executed\*\*/);
 });
 test('missing XML fails closed', () => {
