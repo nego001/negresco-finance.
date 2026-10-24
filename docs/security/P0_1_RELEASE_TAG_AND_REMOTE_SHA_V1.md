@@ -21,9 +21,11 @@ uma nova tag. Um tag existente, timeout, autenticação rejeitada ou outra
 falha de API impedem a operação. O teste ainda rejeita releases existentes
 independentemente do estado draft.
 
-A conferência final lê `tagName`, `targetCommitish`, `isDraft`,
-`isPrerelease` e os metadados de quatro assets pela CLI `gh`.
-Ela exige exatamente o SHA de 40 caracteres de `GITHUB_SHA`, a tag
+A conferência final lê `tagName`, `isDraft`, `isPrerelease`
+e os metadados de quatro assets pela CLI `gh`. A identidade do commit
+não depende do campo `targetCommitish`: a revisão posterior exige uma
+referência Git *lightweight*, consultada diretamente, cujo objeto é
+`commit` com o SHA exato de 40 caracteres de `GITHUB_SHA`, e uma tag
 calculada, modo draft e prerelease, lista estrita de arquivos, tamanhos
 idênticos, estado `uploaded` e um digest SHA-256 remoto de cada asset
 igual ao hash SHA-256 calculado sobre os bytes locais.
@@ -44,7 +46,9 @@ rascunho só ocorre após todos os controles.
 
 A integração end-to-end com a API de GitHub Releases e o próprio
 certificado estável de produção **não é exercitada**: publicar continuaria
-exigindo autorização explícita. A checagem de `targetCommitish` é
+exigindo autorização explícita. A conferência da tag Git é
 pré-publicação e não fornece uma transação atômica contra mudanças
-concorrentes no Git. Continuidade exige revisão independente e CI real
+concorrentes no Git. A tag criada explicitamente antes do draft poderá
+ficar visível mesmo se o upload do APK falhar; essa falha não publica
+um APK e exige limpeza manual com aprovação do titular. Continuidade exige revisão independente e CI real
 no SHA final, mantendo `publish-test-prerelease` SKIPPED na branch.
