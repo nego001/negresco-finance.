@@ -19,7 +19,6 @@ for attempt in 1 2 3; do
     echo "PASS: Gradle dependency metadata resolved (attempt $attempt)"
     exit 0
   fi
-  result=$?
   cat "$log" >&2
   if ! grep -Eiq 'Received status code[[:space:]]+429|HTTP[^[:cntrl:]]*429|Too Many Requests' "$log"; then
     echo "BLOCK: Gradle error was not a retryable dependency HTTP 429" >&2
