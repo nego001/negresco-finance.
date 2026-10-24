@@ -135,3 +135,22 @@ resíduos mistos. O auditor JUnit exige **4/4 métodos nominais executados**,
 além dos quatro cenários de falha de limpeza da etapa anterior. Esses
 testes não simulam biometria física, não exercem efetiva persistência
 após matar um processo nem provam limpeza de resíduos com o aparelho desligado.
+
+
+### Ensaio de integração real da Activity emulada sem sensor biométrico
+
+A inspeção de alias/pastas órfãos foi colocada **antes da verificação de
+disponibilidade do sensor**, para permitir que uma Activity de QA
+identifique resíduos mesmo em um emulador sem biometria cadastrada.
+`SyntheticDebugQaOrphanActivityBoundaryTest` cria uma pasta de cache
+**fictícia e exclusiva da própria execução**, abre a Activity Debug não
+exportada, invoca `startManualQa(null)` e exige
+`HOLD_ORPHANED_DEBUG_QA_RESIDUE` sem novo alias no AndroidKeyStore.
+O teste verifica que a pasta não foi apagada silenciosamente e remove
+somente o próprio fixture no `finally`. Um segundo caso verifica que
+nomes de arquivos de outros módulos não se confundem com o prefixo QA.
+
+O auditor JUnit exige **2/2 métodos instrumentados novos, sem SKIPPED**,
+adicionais aos quatro métodos do verificador de nomes da etapa anterior.
+Isso testa uma fronteira de Activity real, mas **não executa autenticação
+biométrica positiva nem simula crash de processo autêntico**.
