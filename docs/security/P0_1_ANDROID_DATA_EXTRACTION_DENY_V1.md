@@ -45,9 +45,12 @@ ou for um symlink, o plugin **falha sem sobrescrevê-lo**.
 
 O workflow de compilação valida o manifesto Android resultante do Expo
 prebuild e os dois arquivos XML contra o conteúdo fixo do plugin.
-Depois de compilar o APK, o `aapt dump xmltree` é chamado
-nos dois recursos XML embutidos, exigindo a existência das raízes
-`data-extraction-rules` e `full-backup-content`.
+Depois de compilar o APK, o `aapt dump xmltree` inspeciona o
+`AndroidManifest.xml` binário. O publicador exige referências de
+recursos Android válidas e únicas para `dataExtractionRules` e
+`fullBackupContent`. O caminho interno `res/xml/...` não é assumido,
+pois o empacotamento pode remapeá-lo. Os dois XMLs de origem já são
+comparados integralmente no passo posterior ao Expo prebuild.
 
 A suíte Node exercita o plugin usando funções de modificação Expo
 simuladas, validando os dois modos de transferência, configuração
@@ -61,9 +64,10 @@ ou mecanismo proprietário vá respeitar a política, e não protege contra
 exportações de dados feitas deliberadamente pelo próprio aplicativo.
 Testes de restauração/cloud e D2D em aparelhos reais seguem necessários.
 
-A inspeção atual do APK confirma que os recursos foram incluídos, não
-todas as propriedades das tags compiladas; uma auditoria independente
-do conteúdo do XML compilado continua desejável antes de distribuição.
+A inspeção atual do APK confirma referências válidas aos recursos no
+manifesto compilado, mas não prova o conteúdo das tags XML já binárias;
+uma auditoria independente desse conteúdo e testes em aparelho físico
+continuam necessários antes de distribuição.
 
 Referências Android:
 https://developer.android.com/identity/data/autobackup
