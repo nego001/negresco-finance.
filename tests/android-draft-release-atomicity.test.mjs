@@ -77,13 +77,13 @@ if (args[0] === 'api') {
       name,size:fs.statSync(name).size,state:'uploaded',
       digest:'sha256:' + crypto.createHash('sha256').update(fs.readFileSync(name)).digest('hex')
     }));
-    if (mode === 'draft_rest_digest') assets[0].digest='sha256:'+'0'.repeat(64);
-    if (mode === 'draft_rest_no_digest') delete assets[0].digest;
-    if (mode === 'draft_rest_wrong_size') assets[0].size++;
-    if (mode === 'draft_rest_wrong_state') assets[0].state='starter';
-    if (mode === 'draft_rest_missing') assets.pop();
-    if (mode === 'draft_rest_duplicate') assets[3]={...assets[0]};
-    if (mode === 'draft_rest_extra') assets.push({name:'surprise',size:1});
+    if (mode === 'draft_rest_digest' || mode === 'remote_digest') assets[0].digest='sha256:'+'0'.repeat(64);
+    if ((mode === 'draft_rest_no_digest' || mode === 'remote_no_digest')) delete assets[0].digest;
+    if ((mode === 'draft_rest_wrong_size' || mode === 'remote_size')) assets[0].size++;
+    if ((mode === 'draft_rest_wrong_state' || mode === 'remote_state')) assets[0].state='starter';
+    if ((mode === 'draft_rest_missing' || mode === 'remote_missing')) assets.pop();
+    if ((mode === 'draft_rest_duplicate' || mode === 'remote_duplicate')) assets[3]={...assets[0]};
+    if ((mode === 'draft_rest_extra' || mode === 'remote_extra')) assets.push({name:'surprise',size:1});
     process.stdout.write(JSON.stringify({
       id:mode === 'draft_rest_wrong_id' ? 456 : 123,
       tag_name:mode === 'draft_rest_wrong_tag' ? 'other' :
@@ -178,7 +178,7 @@ if (args[1] === 'view') {
     isPrerelease:mode !== 'not_prerelease',
     targetCommitish: mode === 'wrong_target' ? 'b'.repeat(40) : process.env.GITHUB_SHA,
     tagName:mode === 'wrong_tag' ? 'v-malicious' : 'v3.1.3-preview-' + process.env.GITHUB_SHA.slice(0,7),
-    assets
+    ...(mode === 'cli_assets_unavailable' ? {} : {assets})
   }));
   process.exit(0);
 }
@@ -263,16 +263,16 @@ test('existing release cannot be overwritten, edited or clobbered',t=>{
 });
 
 for (const [mode,why] of [
-  ['remote_missing',/asset count differs/],
-  ['remote_extra',/asset count differs/],
-  ['remote_duplicate',/duplicate or mismatched/],
-  ['remote_size',/duplicate or mismatched/],
+  ['remote_missing',/REST draft asset count differs/],
+  ['remote_extra',/REST draft asset count differs/],
+  ['remote_duplicate',/REST draft asset SHA256 or metadata differs/],
+  ['remote_size',/REST draft asset SHA256 or metadata differs/],
   ['remote_public',/draft release identity/],
   ['draft_no_id',/draft release identity/],
   ['draft_wrong_id',/draft release identity/],
-  ['remote_digest',/mismatched remote asset digest/],
-  ['remote_no_digest',/mismatched remote asset digest/],
-  ['remote_state',/mismatched remote asset digest/],
+  ['remote_digest',/REST draft asset SHA256 or metadata differs/],
+  ['remote_no_digest',/REST draft asset SHA256 or metadata differs/],
+  ['remote_state',/REST draft asset SHA256 or metadata differs/],
   ['tag_drift',/git tag does not resolve/],
   ['wrong_tag',/draft release identity/],
   ['not_prerelease',/draft release identity/]
@@ -443,3 +443,11 @@ for(const [mode,why] of [
     if(why) assert.match(result.stderr+result.stdout,why);
   });
 }
+
+test('CLI may omit all nested asset fields when REST independently validates the uploaded bytes',t=>{
+  const {result,log,state}=run(t,'cli_assets_unavailable');
+  assert.equal(result.status,0,result.stderr+result.stdout);
+  assert.equal(state?.draft,false);
+  assert.equal(log.filter(x=>x[0]==='api'&&x.some(a=>a.includes('/releases/123'))).length,1);
+  assert.equal(log.filter(x=>x[1]==='edit').length,1);
+});
