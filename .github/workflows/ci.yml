@@ -326,5 +326,8 @@ jobs:
             python3 tooling/security-authority-protocol-lab/tests/sec05d_multi_connection_smoke.py
           psql -h localhost -U postgres -d negresco_sec05c_lab -v ON_ERROR_STOP=1 \
             -f tooling/security-authority-protocol-lab/postgres/004_sec05k_cas_persistence_lab.sql
+          # Resolve Gradle plugins before assertions, retrying ONLY Maven HTTP 429.
+          # PostgreSQL SQL and Kotlin policy tests are never retried or suppressed.
+          bash tooling/ci/gradle-metadata-429-preflight.sh tooling/native-lock-spike
           NEGRESCO_LAB_PG_URL=jdbc:postgresql://localhost:5432/negresco_sec05c_lab \
             PGUSER=postgres gradle -p tooling/native-lock-spike pgBoundProofCheck pgRekeyCasCheck --no-daemon
