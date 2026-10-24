@@ -132,7 +132,7 @@ Requisitos: leitores de tela, textos redimensionáveis, alvos de toque amplos, n
 
 Funcionalidades de recuperação e segurança são transversais: **projetá-las na Fase 1**, implementar primeiro com simulações, homologá-las antes de bancos reais; não adiar todo o sistema de recuperação à Fase 5. Uma parte útil da interface e do assistente pode evoluir em paralelo em branches experimentais, **sem atravessar gates**.
 
-**Trabalho ativo não pode ser perdido:** [Issue #18](https://github.com/nego001/negresco-finance./issues/18) (P0-1), [PR #14 DRAFT](https://github.com/nego001/negresco-finance./pull/14), [PR #22 DRAFT](https://github.com/nego001/negresco-finance./pull/22) (tentativa sintética com 4/4 testes instrumentais ainda exigidos no SHA `7dd4dfe` na ocasião da criação desta visão). Esta documentação não altera código, não promove branch e não declara CI nova aprovada.
+**Trabalho ativo não pode ser perdido:** [Issue #18](https://github.com/nego001/negresco-finance./issues/18) (P0-1), [PR #14 DRAFT](https://github.com/nego001/negresco-finance./pull/14), [PR #22 DRAFT](https://github.com/nego001/negresco-finance./pull/22) (tentativa sintética instrumentada no SHA `7dd4dfe`, **CI #40059354036 aprovada 9/9**: 4/4 métodos de tentativa, 3/3 preflight, 119 JUnit com 113 PASS, 0 FAIL e 6 SKIPPED; integração à PR #14 ainda não efetuada). Esta documentação não altera código, não promove branch e não declara CI nova aprovada.
 
 ## 8. Fontes e limites regulatórios a confirmar em cada entrega
 

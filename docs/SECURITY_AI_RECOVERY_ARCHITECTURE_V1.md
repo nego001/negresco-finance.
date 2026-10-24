@@ -94,7 +94,7 @@ Somente ambientes próprios/homologados, **sem atacar sistemas de bancos ou terc
 
 ## 6. Gates reais da etapa corrente
 
-**Em 24/10/2026, Fase 1/5:** Issue [#18](https://github.com/nego001/negresco-finance./issues/18), [PR #14](https://github.com/nego001/negresco-finance./pull/14) (DRAFT), [PR #22](https://github.com/nego001/negresco-finance./pull/22) (DRAFT). O próximo avanço de código é a auditoria Android completa dos **4/4 métodos de tentativa sintética** no **SHA revisado `7dd4dfecc22e`** e demais gates nominais, não a implementação imediata do banco real.
+**Em 24/10/2026, Fase 1/5:** Issue [#18](https://github.com/nego001/negresco-finance./issues/18), [PR #14](https://github.com/nego001/negresco-finance./pull/14) (DRAFT), [PR #22](https://github.com/nego001/negresco-finance./pull/22) (DRAFT). A auditoria Android do **SHA revisado `7dd4dfecc22e`** foi **concluída com sucesso na [CI #40059354036](https://github.com/nego001/negresco-finance./actions/runs/40059354036)**: 9/9 jobs, auditor nominal PASS, 4/4 métodos de tentativa sintética e 3/3 preflight; 119 JUnit (113 PASS, 0 FAIL/ERROR, 6 SKIPPED, incluindo dois positivos biométricos físicos). **A promoção da PR #22 à PR #14 ainda depende de decisão e verificação separadas**; o próximo avanço não é a implementação imediata do banco real.
 
 **Continuam proibidos:** merge/release na `main`, instalação ou desinstalação do app pessoal, biometria positiva alegada apenas pelo emulador, credenciais reais, integração com Santander/Mercado Pago fora de parceiro autorizado, exportação de chaves, `financialStorageAllowed=true`, `keyReleaseAllowed=true`, `migrationAllowed=true`, autoaprendizado irrestrito e automodificação privilegiada.
 
