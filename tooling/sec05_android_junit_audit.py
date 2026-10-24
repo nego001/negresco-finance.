@@ -69,6 +69,17 @@ STRESS_SOURCE = (Path(__file__).resolve().parent.parent /
     'apps/mobile/modules/negresco-finance-security/android/src/androidTest/java/'
     'com/negresco/finance/security/SyntheticCallbackAdversarialSequencesTest.kt')
 
+CLEANUP_CLASS = 'com.negresco.finance.security.SyntheticDebugQaCleanupLedgerTest'
+CLEANUP_REQUIRED_CASES = frozenset({
+    'failingAliasRevocationRetainsAliasAndBlocksCleanState',
+    'failingDirectoryDeletionRetainsPathAndBlocksCleanState',
+    'retryCannotReportCleanUntilAllResiduesAreRemoved',
+    'thrownRevocationAndDeletionCannotBeMisreportedAsPass',
+})
+CLEANUP_SOURCE = (Path(__file__).resolve().parent.parent /
+    'apps/mobile/modules/negresco-finance-security/android/src/androidTest/java/'
+    'com/negresco/finance/security/SyntheticDebugQaCleanupLedgerTest.kt')
+
 # CI is unattended: genuine user consent must never be reported as PASS by
 # emulator/fixture evidence. Physical positive QA has its own human gate.
 PHYSICAL_ONLY_CASES = frozenset({
@@ -136,6 +147,16 @@ def expected_stress_methods():
     if len(names) != len(STRESS_REQUIRED_CASES) or set(names) != STRESS_REQUIRED_CASES:
         raise ValueError(
             'P0-1 synthetic callback stress source inventory mismatch: '
+            f'{sorted(names)}')
+    return set(names)
+
+
+def expected_cleanup_methods():
+    source = CLEANUP_SOURCE.read_text(encoding='utf-8')
+    names = re.findall(r'@Test\s+fun\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(', source)
+    if len(names) != len(CLEANUP_REQUIRED_CASES) or set(names) != CLEANUP_REQUIRED_CASES:
+        raise ValueError(
+            'P0-1 Debug cleanup fault injection source inventory mismatch: '
             f'{sorted(names)}')
     return set(names)
 
@@ -255,6 +276,18 @@ def audit(report_dir: Path):
             f'count={len(stress_cases)}')
     if any(c.find('skipped') is not None for c in stress_cases):
         reasons.append('P0-1 synthetic callback stress has SKIPPED tests')
+    cleanup_expected = expected_cleanup_methods()
+    cleanup_cases = [c for c in cases if c.get('classname') == CLEANUP_CLASS]
+    cleanup_actual = {c.get('name') for c in cleanup_cases}
+    cleanup_missing = sorted(cleanup_expected - cleanup_actual)
+    cleanup_extra = sorted(cleanup_actual - cleanup_expected)
+    if (len(cleanup_cases) != len(cleanup_expected) or cleanup_missing or cleanup_extra):
+        reasons.append(
+            'P0-1 Debug cleanup fault injection inventory mismatch: '
+            f'missing={cleanup_missing}, unexpected={cleanup_extra}, '
+            f'count={len(cleanup_cases)}')
+    if any(c.find('skipped') is not None for c in cleanup_cases):
+        reasons.append('P0-1 Debug cleanup fault injection has SKIPPED tests')
     status = 'PASS' if not reasons else 'FAIL'
     summary = [
         '### SEC-05 Android JUnit evidence',
@@ -269,6 +302,7 @@ def audit(report_dir: Path):
         f'- P0-1 native synthetic operation attempt methods: **{len(attempt_cases)}/{len(attempt_expected)}** (zero skips required)',
         f'- P0-1 native untrusted callback deny methods: **{len(callback_cases)}/{len(callback_expected)}** (zero skips required)',
         f'- P0-1 native adversarial callback stress methods: **{len(stress_cases)}/{len(stress_expected)}** (zero skips required)',
+        f'- P0-1 Debug cleanup fault-injection methods: **{len(cleanup_cases)}/{len(cleanup_expected)}** (zero skips required)',
         f'- Physical biometric consent-only cases kept SKIPPED: **{physical_skipped_count}/{len(PHYSICAL_ONLY_CASES)}** (never a CI pass)',
         f'- Required same-UUID inode replacement case: **{("executed" if len(required) == 1 and required[0].find("skipped") is None else "missing/skipped")}**',
     ]

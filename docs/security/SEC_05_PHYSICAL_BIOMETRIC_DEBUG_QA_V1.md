@@ -88,3 +88,26 @@ biometria positiva ou de limpeza forçada em hardware real**; esse
 comportamento precisa ser inspecionado com dispositivo de QA autorizado,
 cenários de armazenamento indisponível, falha de exclusão e logs saneados.
 O cofre financeiro real segue inacessível.
+
+
+### Falhas de limpeza injetadas automaticamente (laboratório Debug)
+
+Uma parte de `cleanup()` foi separada em
+`SyntheticDebugQaCleanupLedger`, uma classe **exclusiva de `src/debug`**,
+efetivamente chamada pela Activity de QA. Ela recebe operações de exclusão
+fornecidas pelo chamador e mantém alias/caminho enquanto os callbacks
+retornarem falha ou lançarem exceção. O resultado `complete` somente é
+verdadeiro quando nenhum identificador residual resta.
+
+`SyntheticDebugQaCleanupLedgerTest`, de `androidTest`, injeta
+**quatro cenários automatizados**: falha de revogação de alias, falha
+de limpeza de diretório, retentativa parcial e exceções de exclusão.
+O auditor JUnit obriga **4/4 métodos exatos executados, sem `SKIPPED`**,
+além dos gates preexistentes. Esses ensaios não criam nem apagam
+chaves reais, não dependem de autenticação e não desbloqueiam
+nenhuma operação financeira.
+
+A implementação ainda exige teste humano em dispositivo Android físico
+para comprovar `BiometricPrompt(CryptoObject)`, chamadas reais de
+`KeyStore.deleteEntry()` e limpeza de SQLCipher durante falhas de I/O.
+A CI por si só não fornece atestação de sensor biométrico físico.

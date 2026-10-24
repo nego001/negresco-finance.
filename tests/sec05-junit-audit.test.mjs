@@ -53,6 +53,13 @@ const stressMethods = [
   'invalidatedForegroundAndDestroyedSessionsAlwaysRejectLateCallbacks',
   'randomizedClaimsNeverProduceAReceiptAfterDeniedPreflight',
 ];
+const cleanupClass = 'com.negresco.finance.security.SyntheticDebugQaCleanupLedgerTest';
+const cleanupMethods = [
+  'failingAliasRevocationRetainsAliasAndBlocksCleanState',
+  'failingDirectoryDeletionRetainsPathAndBlocksCleanState',
+  'retryCannotReportCleanUntilAllResiduesAreRemoved',
+  'thrownRevocationAndDeletionCannotBeMisreportedAsPass',
+];
 const permittedHardlinks = new Set([
   'hardlinkedJournalNewCannotRedirectWrite',
   'hardlinkedOwnerMarkerCannotAuthorizeWorkerWrite',
@@ -74,6 +81,7 @@ function baseline() {
     ...attemptMethods.map(name => ({classname: attemptClass, name, skipped: false})),
     ...callbackMethods.map(name => ({classname: callbackClass, name, skipped: false})),
     ...stressMethods.map(name => ({classname: stressClass, name, skipped: false})),
+    ...cleanupMethods.map(name => ({classname: cleanupClass, name, skipped: false})),
   ];
 }
 
@@ -118,6 +126,7 @@ test('26 SEC-05 cases with four expected hardlink skips pass and report missing 
   assert.match(r.summary, /Physical biometric consent-only cases kept SKIPPED: \*\*2\/2\*\*/);
   assert.match(r.summary, /P0-1 native untrusted callback deny methods: \*\*6\/6\*\*/);
   assert.match(r.summary, /P0-1 native adversarial callback stress methods: \*\*4\/4\*\*/);
+  assert.match(r.summary, /P0-1 Debug cleanup fault-injection methods: \*\*4\/4\*\*/);
   assert.match(r.summary, /Required same-UUID inode replacement case: \*\*executed\*\*/);
 });
 test('missing XML fails closed', () => {
@@ -350,4 +359,29 @@ test('P0-1 callback stress evidence rejects a same-count forged test name', () =
   assert.notEqual(r.status, 0);
   assert.match(r.stderr, /synthetic callback stress inventory mismatch/);
   assert.match(r.stderr, /invalidatedForegroundAndDestroyedSessionsAlwaysRejectLateCallbacks/);
+});
+
+test('P0-1 Debug cleanup evidence fails if a fault-injection method is absent', () => {
+  const r = run(baseline().filter(c =>
+    !(c.classname === cleanupClass && c.name === cleanupMethods[0])));
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /Debug cleanup fault injection inventory mismatch/);
+});
+
+test('P0-1 Debug cleanup evidence rejects SKIPPED injected failure tests', () => {
+  const cases = baseline();
+  cases.find(c => c.classname === cleanupClass && c.name === cleanupMethods[1]).skipped = true;
+  const r = run(cases);
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /Debug cleanup fault injection has SKIPPED tests/);
+});
+
+test('P0-1 Debug cleanup evidence rejects a fake same-count test name', () => {
+  const cases = baseline();
+  cases.find(c => c.classname === cleanupClass && c.name === cleanupMethods[2]).name =
+    'fakeCleanupGrantApproved';
+  const r = run(cases);
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /Debug cleanup fault injection inventory mismatch/);
+  assert.match(r.stderr, /retryCannotReportCleanUntilAllResiduesAreRemoved/);
 });
