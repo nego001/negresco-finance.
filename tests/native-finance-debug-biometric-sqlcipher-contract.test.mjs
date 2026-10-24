@@ -22,6 +22,10 @@ test('DEBUG only two-prompt SQLCipher rehearsal is excluded from Release and nev
   assert.match(activity, /cipher\.doFinal\(requireNotNull\(encrypted\)\)/);
   assert.match(activity, /SQLiteDatabase\.OPEN_READONLY/);
   assert.match(activity, /DENY_BACKGROUND/);
+  assert.match(activity, /HOLD_CLEANUP_FAILED/);
+  assert.match(activity, /store\(\)\.containsAlias\(name\)/);
+  assert.match(activity, /dir\.deleteRecursively\(\) \|\| dir\.exists\(\)/);
+  assert.match(activity, /HOLD_SQLCIPHER_LIBRARY_UNAVAILABLE/);
   assert.match(gradle, /debugImplementation 'net\.zetetic:sqlcipher-android:4\.19\.1'/);
   assert.doesNotMatch(gradle, /^  implementation 'net\.zetetic:sqlcipher-android/m);
   assert.doesNotMatch(release, /BiometricPrompt|SQLiteDatabase|SyntheticBiometricSqlcipherManualQaActivity/);

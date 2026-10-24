@@ -66,3 +66,7 @@ Issue #18 permanece aberta; a interface normal do aplicativo, o armazenamento fi
 ### Regressão automática de isolamento (novo teste Android sem digital)
 
 `SyntheticBiometricSqlcipherQaIsolationTest` abre a nova Activity **sem iniciar** o teste biométrico. Ela exige `android:exported=false`, identidade visual Debug, nenhum alias AndroidKeyStore novo e nenhum diretório de banco criado somente pela abertura/fechamento da tela. O auditor JUnit exige que este teste rode sem `SKIPPED`. Isso **não** substitui a autenticação positiva real: a prova de dois prompts continua opt-in físico e será apresentada como SKIPPED no emulador.
+
+### Falha de limpeza é HOLD, nunca PASS (QA Debug)
+
+Após um resultado criptográfico sintético válido, o ensaio agora verifica a exclusão do alias no AndroidKeyStore e do diretório SQLCipher descartável. Uma falha reportada na limpeza rebaixa o resultado para `HOLD_CLEANUP_FAILED`, em vez de declarar PASS. A ausência da biblioteca JNI SQLCipher devolve `HOLD_SQLCIPHER_LIBRARY_UNAVAILABLE`, sem sucesso simulado. O QA ainda precisa verificar fisicamente e auditar retenção/cache antes de qualquer integração produtiva.

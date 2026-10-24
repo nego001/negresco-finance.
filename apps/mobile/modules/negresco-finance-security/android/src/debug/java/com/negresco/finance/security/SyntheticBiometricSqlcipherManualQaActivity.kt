@@ -98,6 +98,7 @@ class SyntheticBiometricSqlcipherManualQaActivity : FragmentActivity() {
       button.isEnabled = false
       request(cipher, 1)
     } catch (_: Exception) { finishQa("HOLD_SETUP_ERROR") }
+      catch (_: UnsatisfiedLinkError) { finishQa("HOLD_SQLCIPHER_LIBRARY_UNAVAILABLE") }
   }
 
   private fun request(cipher: Cipher, stage: Int) {
@@ -187,7 +188,7 @@ class SyntheticBiometricSqlcipherManualQaActivity : FragmentActivity() {
     } finally { secret.fill(0) }
   }
 
-  private fun cleanup() {
+  private fun cleanup(): Boolean {
     ++epoch
     active = false
     consumed = true
@@ -198,23 +199,32 @@ class SyntheticBiometricSqlcipherManualQaActivity : FragmentActivity() {
     encrypted = null
     nonce = null
     key = null
-    alias?.let { try { store().deleteEntry(it) } catch (_: Exception) {} }
+    var complete = true
+    alias?.let { name ->
+      try {
+        store().deleteEntry(name)
+        if (store().containsAlias(name)) complete = false
+      } catch (_: Exception) { complete = false }
+    }
     alias = null
-    root?.let {
-      try { SQLiteDatabase.deleteDatabase(File(it, "synthetic.db")) }
-      catch (_: Exception) {}
-      it.deleteRecursively()
+    root?.let { dir ->
+      try { SQLiteDatabase.deleteDatabase(File(dir, "synthetic.db")) }
+      catch (_: Exception) { complete = false }
+      if (!dir.deleteRecursively() || dir.exists()) complete = false
     }
     root = null
     if (::button.isInitialized) button.isEnabled = true
+    return complete
   }
 
   private fun finishQa(outcome: String) {
-    if (::label.isInitialized) label.text = "DEBUG QA: " + outcome
-    cleanup()
+    val complete = cleanup()
+    val finalStatus = if (outcome.startsWith("PASS_") && !complete)
+      "HOLD_CLEANUP_FAILED" else outcome
+    if (::label.isInitialized) label.text = "DEBUG QA: " + finalStatus
     val callback = observer
     observer = null
-    callback?.invoke(outcome)
+    callback?.invoke(finalStatus)
   }
 
   override fun onStop() {
