@@ -13,6 +13,7 @@ const kotlin = readFileSync(join(root,
 const caseNames = [...kotlin.matchAll(/@Test fun ([A-Za-z0-9_]+)\s*\(/g)].map(m => m[1]);
 const secClass = 'com.negresco.finance.security.SyntheticJournalActualProcessDeathTest';
 const bioClass = 'com.negresco.finance.security.SyntheticBiometricManualQaOptInTest';
+const debugSqlcipherBiometric = 'com.negresco.finance.security.SyntheticBiometricSqlcipherManualQaOptInTest';
 const required = 'ownerReplacedWithSameUuidAfterWitnessCannotCommitJournal';
 const sliceClass = 'com.negresco.finance.security.SyntheticKeystoreSqlcipherLifecycleBoundaryTest';
 const sliceMethods = [
@@ -34,6 +35,8 @@ function baseline() {
   return [
     ...caseNames.map(name => ({classname: secClass, name, skipped: permittedHardlinks.has(name)})),
     {classname: bioClass, name: 'realStrongBiometricRequiresExplicitPhysicalDeviceConsent', skipped: true},
+    {classname: debugSqlcipherBiometric,
+      name: 'realBiometricTwiceThenSyntheticSqlcipherReopensWithNoJsAccess', skipped: true},
     ...sliceMethods.map(name => ({classname: sliceClass, name, skipped: false})),
   ];
 }
@@ -74,7 +77,7 @@ test('26 SEC-05 cases with four expected hardlink skips pass and report missing 
   assert.match(r.summary, /SEC-05 process-death cases present: \*\*26\/26\*\*/);
   assert.match(r.summary, /SEC-05 source method inventory matches JUnit: \*\*True\*\*/);
   assert.match(r.summary, /Synthetic native cipher lifecycle methods: \*\*4\/4\*\*/);
-  assert.match(r.summary, /skipped: \*\*5\*\*/);
+  assert.match(r.summary, /skipped: \*\*6\*\*/);
   assert.match(r.summary, /Required same-UUID inode replacement case: \*\*executed\*\*/);
 });
 test('missing XML fails closed', () => {

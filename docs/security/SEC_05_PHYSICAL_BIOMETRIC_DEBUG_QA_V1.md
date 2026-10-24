@@ -52,3 +52,13 @@ excluído das execuções automáticas, por exigir consentimento real.
 - Uma CI verde comprova somente compilação e os testes automatizados de negação/configuração; o teste **positivo físico continua PENDENTE** até receber evidência real, revisada, dessa execução manual.
 
 **Rastreio:** [PR #14](https://github.com/nego001/negresco-finance./pull/14) (draft). Não tocar PR #17, não publicar APK e não instalar em aparelhos do usuário a partir deste trabalho.
+
+## P0-1 | Integração de QA biometria real + SQLCipher (somente Debug)
+
+`SyntheticBiometricSqlcipherManualQaActivity` vive exclusivamente em `src/debug`, com `android:exported="false"`. Ela é independente do módulo Expo de produção e não expõe métodos financeiros a JavaScript. A biblioteca SQLCipher é vinculada por `debugImplementation`, nunca `implementation` nem API do APK Release. A auditoria do Release AAR rejeita a classe caso ela vaze para a variante Release.
+
+O fluxo manual exige **duas aprovações biométricas genuínas** (`BiometricPrompt(CryptoObject)`, `AUTH_BIOMETRIC_STRONG`, Keystore com autenticação obrigatória a cada uso e invalidada por mudança de cadastro). Depois da primeira aprovação, `Cipher.doFinal` cifra uma senha inventada, que cria um banco descartável com uma linha `test-not-money` na pasta de cache. A segunda aprovação exige outro `doFinal` para reabrir esse banco em `OPEN_READONLY` (sem criar outro banco silenciosamente). O único resultado de sucesso seria `PASS_DEBUG_BIOMETRIC_SQLCIPHER_ONLY`: não é autorização para saldo, Pix ou dados reais.
+
+`SyntheticBiometricSqlcipherManualQaOptInTest` fica normalmente **SKIPPED** na CI, sendo liberado somente com o runner argument exato `negresco.manual.biometric.sqlcipher=YES_PHYSICAL_CONSENT`, seleção explícita da classe e revisão humana de um dispositivo físico com biometria forte. O teste automatizado não simula nem contorna digitais. Na falha, cancelamento, background ou saída da tela, o ensaio tenta apagar alias, senha em RAM e arquivos de teste, sem prometer eliminação de cópias `String` na JVM. A versão atual é **candidata de engenharia até CI e QA físico**, não proteção implantada.
+
+Issue #18 permanece aberta; a interface normal do aplicativo, o armazenamento financeiro e a autoridade nativa seguem **BLOQUEADOS**. Não instalar nem substituir o aplicativo pessoal para executar esse QA.

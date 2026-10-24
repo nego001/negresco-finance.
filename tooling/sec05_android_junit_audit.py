@@ -27,6 +27,8 @@ SLICE_REQUIRED_CASES = frozenset({
 ALLOWED_SKIPS = {
     ('com.negresco.finance.security.SyntheticBiometricManualQaOptInTest',
      'realStrongBiometricRequiresExplicitPhysicalDeviceConsent'),
+    ('com.negresco.finance.security.SyntheticBiometricSqlcipherManualQaOptInTest',
+     'realBiometricTwiceThenSyntheticSqlcipherReopensWithNoJsAccess'),
     (SEC05_CLASS, 'hardlinkedJournalNewCannotRedirectWrite'),
     (SEC05_CLASS, 'hardlinkedOwnerMarkerCannotAuthorizeWorkerWrite'),
     (SEC05_CLASS, 'hardlinkedWitnessNewCannotRedirectWrite'),

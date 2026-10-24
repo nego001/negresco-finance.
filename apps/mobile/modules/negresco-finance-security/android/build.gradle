@@ -44,6 +44,9 @@ dependencies {
   // Manual QA Activity exists only in src/debug and never in Release.
   // This does NOT add a financial biometric API to the production module.
   debugImplementation 'androidx.biometric:biometric:1.1.0'
+  // Experimental Debug QA only: NOT a Release or financial database.
+  debugImplementation 'net.zetetic:sqlcipher-android:4.19.1'
+  debugImplementation 'androidx.sqlite:sqlite:2.7.0'
   androidTestImplementation 'androidx.biometric:biometric:1.1.0'
   androidTestImplementation 'junit:junit:4.13.2'
   androidTestImplementation 'androidx.test:runner:1.6.2'
