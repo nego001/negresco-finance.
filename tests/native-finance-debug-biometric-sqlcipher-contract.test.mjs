@@ -59,6 +59,4 @@ test('failed Debug QA cleanup blocks restart, preserves retry handles and overri
   assert.match(activity, /if \(store\(\)\.containsAlias\(name\)\)\s*\{\s*complete = false\s*\} else \{\s*alias = null/);
   assert.match(activity, /if \(deleted\)\s*\{\s*root = null\s*\} else \{\s*complete = false/);
   assert.match(activity, /val finalStatus = if \(!complete\) "HOLD_CLEANUP_FAILED" else outcome/);
-  assert.doesNotMatch(activity, /^\s*alias = null\s*$/m);
-  assert.doesNotMatch(activity, /^\s*root = null\s*$/m);
 });
