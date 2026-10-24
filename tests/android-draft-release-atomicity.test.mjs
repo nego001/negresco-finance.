@@ -66,6 +66,33 @@ if (args[0] === 'api') {
     }));
     process.exit(0);
   }
+  if (args.some(x => x.includes('/releases/tags/'))) {
+    if (mode === 'published_api_down') process.exit(70);
+    const existing=fs.existsSync(state) ? JSON.parse(fs.readFileSync(state,'utf8')) : null;
+    if (!existing || existing.draft) process.exit(71);
+    const items=['Negresco-Finance-V3.1.3-preview.apk',
+      'Negresco-Finance-V3.1.3-preview.zip','SHA256-release.txt','APK-SIGNATURE.txt'];
+    let assets=items.map(name=>({
+      name,size:fs.statSync(name).size,state:'uploaded',
+      digest:'sha256:' + crypto.createHash('sha256').update(fs.readFileSync(name)).digest('hex')
+    }));
+    if (mode === 'published_missing') assets.pop();
+    if (mode === 'published_extra') assets.push({name:'extra.bin',size:10});
+    if (mode === 'published_digest') assets[0].digest='sha256:' + '0'.repeat(64);
+    if (mode === 'published_wrong_size') assets[0].size++;
+    if (mode === 'published_wrong_state') assets[0].state='starter';
+    if (mode === 'published_duplicate') assets[3]={...assets[0]};
+    process.stdout.write(JSON.stringify({
+      id:mode === 'published_wrong_id' ? 124 : 123,
+      tag_name:mode === 'published_wrong_tag' ? 'unexpected-tag' :
+        'v3.1.3-preview-' + process.env.GITHUB_SHA.slice(0,7),
+      draft:mode === 'published_draft',
+      prerelease:mode !== 'published_not_prerelease',
+      immutable:mode !== 'published_not_immutable',
+      assets
+    }));
+    process.exit(0);
+  }
   if (args.includes('--include')) {
     if (mode === 'tag_exists') {
       process.stdout.write('HTTP/2.0 200 OK\n');
@@ -92,7 +119,8 @@ if (args[0] === 'api') {
   const response=JSON.parse(fs.readFileSync(tagFile,'utf8'));
   const reads=Number(fs.existsSync(readsFile)?fs.readFileSync(readsFile,'utf8'):0)+1;
   fs.writeFileSync(readsFile,String(reads));
-  if (mode === 'tag_get_wrong_sha' || (mode === 'tag_drift' && reads === 2))
+  if (mode === 'tag_get_wrong_sha' || (mode === 'tag_drift' && reads === 2) ||
+      (mode === 'published_tag_drift' && reads === 3))
     response.object.sha = 'b'.repeat(40);
   if (mode === 'tag_get_annotated') response.object.type = 'tag';
   process.stdout.write(JSON.stringify(response));
@@ -117,6 +145,7 @@ if (args[1] === 'view') {
   if (mode === 'remote_size') assets[0].size++;
   if (mode === 'remote_duplicate') assets[3] = {...assets[0]};
   process.stdout.write(JSON.stringify({
+    databaseId: mode === 'draft_no_id' ? null : mode === 'draft_wrong_id' ? 'not-an-id' : 123,
     isDraft:mode !== 'remote_public',
     isPrerelease:mode !== 'not_prerelease',
     targetCommitish: mode === 'wrong_target' ? 'b'.repeat(40) : process.env.GITHUB_SHA,
@@ -180,10 +209,11 @@ test('successful staged upload is checked before publication',t=>{
   const {result,log,state}=run(t);
   assert.equal(result.status,0,result.stderr+result.stdout);
   assert.equal(state?.draft,false);
-  assert.deepEqual(log.map(x=>x[0] === 'api' ? 'api' : x[1]),['api','api','api','api','api','create','upload','view','api','api','edit']);
+  assert.deepEqual(log.map(x=>x[0] === 'api' ? 'api' : x[1]),['api','api','api','api','api','create','upload','view','api','api','edit','api','api']);
   assert.ok(log[5].includes('--draft'));
   assert.ok(log[5].includes('--prerelease'));
   assert.ok(log[10].includes('--draft=false'));
+  assert.equal(log[12].some(x=>x.includes('/releases/tags/')),true);
   assert.equal(log[6].filter(x=>files.includes(x)).length,files.length);
 });
 
@@ -209,6 +239,8 @@ for (const [mode,why] of [
   ['remote_duplicate',/duplicate or mismatched/],
   ['remote_size',/duplicate or mismatched/],
   ['remote_public',/draft release identity/],
+  ['draft_no_id',/draft release identity/],
+  ['draft_wrong_id',/draft release identity/],
   ['remote_digest',/mismatched remote asset digest/],
   ['remote_no_digest',/mismatched remote asset digest/],
   ['remote_state',/mismatched remote asset digest/],
@@ -332,5 +364,29 @@ for(const [mode,why] of [
     assert.equal(state,null);
     assert.deepEqual(log.map(x=>x[0]),['api','api']);
     assert.match(result.stderr+result.stdout,why);
+  });
+}
+
+for(const [mode,expected] of [
+  ['published_not_immutable',/published release identity or immutable state differs/],
+  ['published_wrong_id',/published release identity or immutable state differs/],
+  ['published_wrong_tag',/published release identity or immutable state differs/],
+  ['published_draft',/published release identity or immutable state differs/],
+  ['published_not_prerelease',/published release identity or immutable state differs/],
+  ['published_missing',/published asset count differs/],
+  ['published_extra',/published asset count differs/],
+  ['published_digest',/published asset digest differs/],
+  ['published_wrong_size',/published asset digest differs/],
+  ['published_wrong_state',/published asset digest differs/],
+  ['published_duplicate',/published asset digest differs/],
+  ['published_api_down',null],
+  ['published_tag_drift',/git tag does not resolve/]
+]){
+  test('postpublication audit must fail on a changed released object: '+mode,t=>{
+    const {result,log,state}=run(t,mode);
+    assert.notEqual(result.status,0,mode);
+    assert.equal(state?.draft,false,mode);
+    assert.equal(log.filter(x=>x[1]==='edit').length,1,mode);
+    if(expected) assert.match(result.stderr+result.stdout,expected);
   });
 }
