@@ -8,7 +8,7 @@ on:
         default: false
         type: boolean
       publish_release:
-        description: 'Explicitly publish test prerelease from main (never from feature branches)'
+        description: 'Publish only a stable-signed, fingerprint-verified prerelease from a manual main dispatch'
         required: true
         default: false
         type: boolean
@@ -101,6 +101,11 @@ jobs:
               if(u.url!=="https://u.expo.dev/a506611f-a159-4341-bed7-28dcbd47bf95"||u.requestHeaders?.["expo-channel-name"]!=="preview")process.exit(1);
             });
           '
+      - name: Reject release publication with Debug signing or wrong trigger
+        if: ${{ inputs.publish_release && (!inputs.stable_signing || github.event_name != 'workflow_dispatch' || github.ref != 'refs/heads/main') }}
+        run: |
+          echo "::error::Publishing requires explicitly enabled stable signing and a manual dispatch on main."
+          exit 1
       - name: Reject stable signing outside a manually dispatched main build
         if: ${{ inputs.stable_signing && (github.event_name != 'workflow_dispatch' || github.ref != 'refs/heads/main') }}
         run: |
@@ -249,7 +254,7 @@ jobs:
   # Read-only branch builds may generate disposable APK artifacts, never releases.
   # Only an explicit manual main dispatch can schedule the separate WRITE job.
   publish-test-prerelease:
-    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.publish_release }}
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.publish_release && inputs.stable_signing }}
     needs: build-test-apk
     runs-on: ubuntu-latest
     permissions:
