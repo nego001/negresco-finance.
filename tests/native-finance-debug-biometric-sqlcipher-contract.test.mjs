@@ -53,3 +53,12 @@ test('unattended QA checks nonexported launch without prompts or encrypted DB se
   assert.doesNotMatch(negative, /startManualQa\(|BiometricPrompt\.authenticate/);
   assert.match(auditor, /ISOLATION_CASE = 'debugSqlcipherActivityLaunchCannotProvisionKeyOrSyntheticDatabase'/);
 });
+
+test('failed Debug QA cleanup blocks restart, preserves retry handles and overrides all results', () => {
+  assert.match(activity, /if \(!cleanup\(\)\)\s*\{\s*finishQa\("HOLD_PREVIOUS_CLEANUP_FAILED"\)\s*return/);
+  assert.match(activity, /if \(store\(\)\.containsAlias\(name\)\)\s*\{\s*complete = false\s*\} else \{\s*alias = null/);
+  assert.match(activity, /if \(deleted\)\s*\{\s*root = null\s*\} else \{\s*complete = false/);
+  assert.match(activity, /val finalStatus = if \(!complete\) "HOLD_CLEANUP_FAILED" else outcome/);
+  assert.doesNotMatch(activity, /^\s*alias = null\s*$/m);
+  assert.doesNotMatch(activity, /^\s*root = null\s*$/m);
+});

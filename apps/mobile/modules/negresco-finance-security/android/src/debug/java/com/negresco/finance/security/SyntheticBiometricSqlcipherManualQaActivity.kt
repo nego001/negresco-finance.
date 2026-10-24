@@ -73,7 +73,11 @@ class SyntheticBiometricSqlcipherManualQaActivity : FragmentActivity() {
       return
     }
     try {
-      cleanup()
+      // Never create a new test key/database while previous cleanup failed.
+      if (!cleanup()) {
+        finishQa("HOLD_PREVIOUS_CLEANUP_FAILED")
+        return
+      }
       System.loadLibrary("sqlcipher")
       val temp = File(cacheDir, "negresco_qa_sqlcipher_" + UUID.randomUUID())
       check(temp.mkdirs()) { "isolated QA folder unavailable" }
@@ -203,24 +207,36 @@ class SyntheticBiometricSqlcipherManualQaActivity : FragmentActivity() {
     alias?.let { name ->
       try {
         store().deleteEntry(name)
-        if (store().containsAlias(name)) complete = false
+        if (store().containsAlias(name)) {
+          complete = false
+        } else {
+          alias = null
+        }
       } catch (_: Exception) { complete = false }
+      // On failure keep alias so subsequent cleanup can retry revocation.
     }
-    alias = null
     root?.let { dir ->
+      var deleted = true
       try { SQLiteDatabase.deleteDatabase(File(dir, "synthetic.db")) }
-      catch (_: Exception) { complete = false }
-      if (!dir.deleteRecursively() || dir.exists()) complete = false
+      catch (_: Exception) { deleted = false }
+      try {
+        if (!dir.deleteRecursively() || dir.exists()) deleted = false
+      } catch (_: Exception) { deleted = false }
+      if (deleted) {
+        root = null
+      } else {
+        complete = false
+      }
+      // Never forget a residue path when deletion failed.
     }
-    root = null
     if (::button.isInitialized) button.isEnabled = true
     return complete
   }
 
   private fun finishQa(outcome: String) {
     val complete = cleanup()
-    val finalStatus = if (outcome.startsWith("PASS_") && !complete)
-      "HOLD_CLEANUP_FAILED" else outcome
+    // Cleanup failure overrides *every* outcome, not just apparent success.
+    val finalStatus = if (!complete) "HOLD_CLEANUP_FAILED" else outcome
     if (::label.isInitialized) label.text = "DEBUG QA: " + finalStatus
     val callback = observer
     observer = null

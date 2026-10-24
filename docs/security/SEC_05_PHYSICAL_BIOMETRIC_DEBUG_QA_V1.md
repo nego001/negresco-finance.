@@ -70,3 +70,21 @@ Issue #18 permanece aberta; a interface normal do aplicativo, o armazenamento fi
 ### Falha de limpeza é HOLD, nunca PASS (QA Debug)
 
 Após um resultado criptográfico sintético válido, o ensaio agora verifica a exclusão do alias no AndroidKeyStore e do diretório SQLCipher descartável. Uma falha reportada na limpeza rebaixa o resultado para `HOLD_CLEANUP_FAILED`, em vez de declarar PASS. A ausência da biblioteca JNI SQLCipher devolve `HOLD_SQLCIPHER_LIBRARY_UNAVAILABLE`, sem sucesso simulado. O QA ainda precisa verificar fisicamente e auditar retenção/cache antes de qualquer integração produtiva.
+
+
+### Retentativa fail-closed de limpeza no ensaio Debug
+
+No laboratório manual `SyntheticBiometricSqlcipherManualQaActivity`, qualquer
+falha da limpeza anterior **impede iniciar outra sessão**: retorno
+`HOLD_PREVIOUS_CLEANUP_FAILED`. Enquanto alias AndroidKeyStore ou diretório
+fictício não puderem ser confirmados como eliminados, a Activity mantém as
+referências necessárias para **nova tentativa de limpeza**. Uma falha de
+revogação/limpeza substitui inclusive resultados prévios de cancelamento ou
+erro por `HOLD_CLEANUP_FAILED`, nunca `PASS`.
+
+O teste Node verifica o contrato estrutural e o gate de Release AAR continua
+excluindo a Activity da distribuição. **Não existe teste automatizado de
+biometria positiva ou de limpeza forçada em hardware real**; esse
+comportamento precisa ser inspecionado com dispositivo de QA autorizado,
+cenários de armazenamento indisponível, falha de exclusão e logs saneados.
+O cofre financeiro real segue inacessível.
