@@ -117,7 +117,7 @@ function run(t,mode='ok') {
   const result = spawnSync('bash',['-e','-c',script],{
     cwd:dir,encoding:'utf8',timeout:15000,
     env:{...process.env,PATH:dir+':'+process.env.PATH,
-      GITHUB_SHA:'aabbccddeeff00112233445566778899aabbccdd',
+      GITHUB_SHA:mode==='bad_sha' ? 'not-a-commit' : 'aabbccddeeff00112233445566778899aabbccdd',
       FAKE_MODE:mode,FAKE_STATE_DIR:dir,GH_REPO:'fixture/negresco-finance'}
   });
   const path = join(dir,'gh-commands.txt');
@@ -225,4 +225,12 @@ test('a tag mutated after the draft upload cannot be promoted to a public releas
   assert.equal(state?.draft,true);
   assert.equal(log.some(x=>x[1]==='edit'),false);
   assert.match(result.stderr+result.stdout,/git tag does not resolve/);
+});
+
+test('malformed workflow SHA cannot create a tag or release',t=>{
+  const {result,log,state}=run(t,'bad_sha');
+  assert.notEqual(result.status,0);
+  assert.equal(state,null);
+  assert.equal(log.length,0);
+  assert.match(result.stderr+result.stdout,/Invalid GitHub commit SHA/);
 });
