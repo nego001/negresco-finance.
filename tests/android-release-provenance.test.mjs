@@ -23,8 +23,10 @@ test('publisher refuses preexisting tag and non-404 ref lookup failures',()=>{
 });
 
 test('publisher requires exact SHA release identity, complete asset digest and uploaded state',()=>{
-  assert.match(block,/--json isDraft,isPrerelease,tagName,targetCommitish,assets/);
-  assert.match(block,/release\.targetCommitish !== process\.env\.GITHUB_SHA/);
+  assert.match(block,/--json isDraft,isPrerelease,tagName,assets/);
+  assert.match(block,/ref\.object\.sha !== process\.env\.GITHUB_SHA/);
+  assert.match(block,/verify_exact_tag/);
+  assert.match(block,/--verify-tag/);
   assert.match(block,/release\.tagName !== process\.env\.RELEASE_TAG/);
   assert.match(block,/asset\.state !== "uploaded"/);
   assert.match(block,/asset\.digest !== \("sha256:" \+/);
@@ -36,7 +38,7 @@ test('publishing does not clobber and occurs strictly after draft checks',()=>{
   assert.doesNotMatch(block,/--clobber/);
   const make = block.indexOf('gh release create "$TAG"');
   const upload = block.indexOf('gh release upload "$TAG"');
-  const inspect = block.indexOf('--json isDraft,isPrerelease,tagName,targetCommitish,assets');
+  const inspect = block.indexOf('--json isDraft,isPrerelease,tagName,assets');
   const publish = block.indexOf('gh release edit "$TAG" --draft=false');
   assert.ok(make>=0 && make < upload && upload < inspect && inspect < publish);
 });

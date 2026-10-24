@@ -30,17 +30,40 @@ const dir = process.env.FAKE_STATE_DIR;
 const state = path.join(dir, 'draft.json');
 const logs = path.join(dir, 'gh-commands.txt');
 fs.appendFileSync(logs, JSON.stringify(args) + '\n');
+const tagFile = path.join(dir, 'tag.json');
+const readsFile = path.join(dir, 'tag-reads.txt');
 if (args[0] === 'api') {
-  if (mode === 'tag_exists') {
-    process.stdout.write('HTTP/2.0 200 OK\n');
-    process.exit(0);
-  }
-  if (mode === 'tag_api_down') {
-    process.stderr.write('HTTP/2.0 503 Service Unavailable\n');
+  if (args.includes('--include')) {
+    if (mode === 'tag_exists') {
+      process.stdout.write('HTTP/2.0 200 OK\n');
+      process.exit(0);
+    }
+    if (mode === 'tag_api_down') {
+      process.stderr.write('HTTP/2.0 503 Service Unavailable\n');
+      process.exit(1);
+    }
+    process.stdout.write('HTTP/2.0 404 Not Found\n');
     process.exit(1);
   }
-  process.stdout.write('HTTP/2.0 404 Not Found\n');
-  process.exit(1);
+  if (args.includes('POST')) {
+    if (mode === 'tag_create_fail') process.exit(9);
+    const sha = args.find(x => x.startsWith('sha='))?.slice(4);
+    const ref = args.find(x => x.startsWith('ref='))?.slice(4);
+    const response = {ref,object:{type:'commit',sha}};
+    fs.writeFileSync(tagFile,JSON.stringify(response));
+    if (mode === 'tag_create_wrong_response') response.object.sha = 'b'.repeat(40);
+    process.stdout.write(JSON.stringify(response));
+    process.exit(0);
+  }
+  if (!fs.existsSync(tagFile) || mode === 'tag_get_missing') process.exit(10);
+  const response=JSON.parse(fs.readFileSync(tagFile,'utf8'));
+  const reads=Number(fs.existsSync(readsFile)?fs.readFileSync(readsFile,'utf8'):0)+1;
+  fs.writeFileSync(readsFile,String(reads));
+  if (mode === 'tag_get_wrong_sha' || (mode === 'tag_drift' && reads === 2))
+    response.object.sha = 'b'.repeat(40);
+  if (mode === 'tag_get_annotated') response.object.type = 'tag';
+  process.stdout.write(JSON.stringify(response));
+  process.exit(0);
 }
 if (args[0] !== 'release') process.exit(2);
 if (args[1] === 'view') {
@@ -70,7 +93,7 @@ if (args[1] === 'view') {
   process.exit(0);
 }
 if (args[1] === 'create') {
-  if (!args.includes('--draft') || !args.includes('--prerelease')) process.exit(4);
+  if (!args.includes('--draft') || !args.includes('--prerelease') || !args.includes('--verify-tag') || !fs.existsSync(tagFile)) process.exit(4);
   fs.writeFileSync(state, JSON.stringify({draft:true}));
   process.exit(0);
 }
@@ -94,7 +117,7 @@ function run(t,mode='ok') {
   const result = spawnSync('bash',['-e','-c',script],{
     cwd:dir,encoding:'utf8',timeout:15000,
     env:{...process.env,PATH:dir+':'+process.env.PATH,
-      GITHUB_SHA:'aabbccddeeff00112233445566778899aabbccdd',
+      GITHUB_SHA:mode==='bad_sha' ? 'not-a-commit' : 'aabbccddeeff00112233445566778899aabbccdd',
       FAKE_MODE:mode,FAKE_STATE_DIR:dir,GH_REPO:'fixture/negresco-finance'}
   });
   const path = join(dir,'gh-commands.txt');
@@ -119,11 +142,11 @@ test('successful staged upload is checked before publication',t=>{
   const {result,log,state}=run(t);
   assert.equal(result.status,0,result.stderr+result.stdout);
   assert.equal(state?.draft,false);
-  assert.deepEqual(log.map(x=>x[0] === 'api' ? 'api' : x[1]),['view','api','create','upload','view','edit']);
-  assert.ok(log[2].includes('--draft'));
-  assert.ok(log[2].includes('--prerelease'));
-  assert.ok(log[5].includes('--draft=false'));
-  assert.equal(log[3].filter(x=>files.includes(x)).length,files.length);
+  assert.deepEqual(log.map(x=>x[0] === 'api' ? 'api' : x[1]),['view','api','api','api','create','upload','view','api','edit']);
+  assert.ok(log[4].includes('--draft'));
+  assert.ok(log[4].includes('--prerelease'));
+  assert.ok(log[8].includes('--draft=false'));
+  assert.equal(log[5].filter(x=>files.includes(x)).length,files.length);
 });
 
 test('failed artifact upload leaves private draft without publishing',t=>{
@@ -151,7 +174,7 @@ for (const [mode,why] of [
   ['remote_digest',/mismatched remote asset digest/],
   ['remote_no_digest',/mismatched remote asset digest/],
   ['remote_state',/mismatched remote asset digest/],
-  ['wrong_target',/draft release identity/],
+  ['tag_drift',/git tag does not resolve/],
   ['wrong_tag',/draft release identity/],
   ['not_prerelease',/draft release identity/]
 ]) {
@@ -185,4 +208,29 @@ test('git ref lookup failure blocks rather than treating 503 as a missing tag',t
   assert.equal(state,null);
   assert.deepEqual(log.map(x=>x[0] === 'api' ? 'api' : x[1]),['view','api']);
   assert.match(result.stderr+result.stdout,/Cannot prove git tag is absent/);
+});
+
+test('git tag creation must be checked before a release draft is created',t=>{
+  for(const mode of ['tag_create_fail','tag_create_wrong_response','tag_get_wrong_sha','tag_get_annotated','tag_get_missing']){
+    const {result,log,state}=run(t,mode);
+    assert.notEqual(result.status,0,mode);
+    assert.equal(state,null,mode);
+    assert.equal(log.some(x=>x[1]==='create'),false,mode);
+  }
+});
+
+test('a tag mutated after the draft upload cannot be promoted to a public release',t=>{
+  const {result,log,state}=run(t,'tag_drift');
+  assert.notEqual(result.status,0);
+  assert.equal(state?.draft,true);
+  assert.equal(log.some(x=>x[1]==='edit'),false);
+  assert.match(result.stderr+result.stdout,/git tag does not resolve/);
+});
+
+test('malformed workflow SHA cannot create a tag or release',t=>{
+  const {result,log,state}=run(t,'bad_sha');
+  assert.notEqual(result.status,0);
+  assert.equal(state,null);
+  assert.equal(log.length,0);
+  assert.match(result.stderr+result.stdout,/Invalid GitHub commit SHA/);
 });
