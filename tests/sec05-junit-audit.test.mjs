@@ -46,6 +46,13 @@ const callbackMethods = [
   'cancelledClaimAndPreflightFailureCannotTurnIntoApproval',
   'destructionAndDuplicateForegroundNeverResurrectReceipt'
 ];
+const stressClass = 'com.negresco.finance.security.SyntheticCallbackAdversarialSequencesTest';
+const stressMethods = [
+  'hundredsOfForgedSuccessCallbacksNeverAuthorize',
+  'crossIntentInjectionConsumesAttemptBeforeCorrection',
+  'invalidatedForegroundAndDestroyedSessionsAlwaysRejectLateCallbacks',
+  'randomizedClaimsNeverProduceAReceiptAfterDeniedPreflight',
+];
 const permittedHardlinks = new Set([
   'hardlinkedJournalNewCannotRedirectWrite',
   'hardlinkedOwnerMarkerCannotAuthorizeWorkerWrite',
@@ -66,6 +73,7 @@ function baseline() {
     ...preflightMethods.map(name => ({classname: preflightClass, name, skipped: false})),
     ...attemptMethods.map(name => ({classname: attemptClass, name, skipped: false})),
     ...callbackMethods.map(name => ({classname: callbackClass, name, skipped: false})),
+    ...stressMethods.map(name => ({classname: stressClass, name, skipped: false})),
   ];
 }
 
@@ -109,6 +117,7 @@ test('26 SEC-05 cases with four expected hardlink skips pass and report missing 
   assert.match(r.summary, /skipped: \*\*6\*\*/);
   assert.match(r.summary, /Physical biometric consent-only cases kept SKIPPED: \*\*2\/2\*\*/);
   assert.match(r.summary, /P0-1 native untrusted callback deny methods: \*\*6\/6\*\*/);
+  assert.match(r.summary, /P0-1 native adversarial callback stress methods: \*\*4\/4\*\*/);
   assert.match(r.summary, /Required same-UUID inode replacement case: \*\*executed\*\*/);
 });
 test('missing XML fails closed', () => {
@@ -318,4 +327,27 @@ test('P0-1 callbacks: fake method with same count cannot impersonate a required 
   assert.notEqual(r.status, 0);
   assert.match(r.stderr, /synthetic callback inventory mismatch/);
   assert.match(r.stderr, /wrongIntentBurnsAttemptAndCorrectedReplayIsDenied/);
+});
+
+test('P0-1 callback stress evidence must contain all four nominal tests', () => {
+  const r = run(baseline().filter(c =>
+    !(c.classname === stressClass && c.name === stressMethods[0])));
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /synthetic callback stress inventory mismatch/);
+});
+test('P0-1 callback stress evidence cannot mark any required test SKIPPED', () => {
+  const cases = baseline();
+  cases.find(c => c.classname === stressClass && c.name === stressMethods[1]).skipped = true;
+  const r = run(cases);
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /synthetic callback stress has SKIPPED tests/);
+});
+test('P0-1 callback stress evidence rejects a same-count forged test name', () => {
+  const cases = baseline();
+  cases.find(c => c.classname === stressClass && c.name === stressMethods[2]).name =
+    'fakeStressTestClaimsAuthorizationPassed';
+  const r = run(cases);
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /synthetic callback stress inventory mismatch/);
+  assert.match(r.stderr, /invalidatedForegroundAndDestroyedSessionsAlwaysRejectLateCallbacks/);
 });

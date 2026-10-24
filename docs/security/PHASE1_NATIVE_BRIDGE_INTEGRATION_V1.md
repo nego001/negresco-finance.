@@ -437,3 +437,27 @@ instrumentados; o auditor JUnit exige **6/6 nomes exatos sem SKIPPED**,
 além de todos os gates anteriores. A PR mantém-se isolada até obter a
 evidência completa do SHA exato. O roteiro de 17 IAs da PR #23 não
 antecipa estes controles.
+
+
+## P0-1 | Sequências adversariais determinísticas de callbacks falsos
+
+A classe `SyntheticCallbackAdversarialSequencesTest.kt` existe **somente em
+`androidTest`** e é uma etapa de estresse controlado, **não pentest real
+de banco e não QA de biometria física**. Ela exercita centenas de ciclos
+com duas intenções fictícias, tentativas de sucesso falsificado, alteração
+de intenção, repetição, ausência de tentativa, retorno após revogação,
+destruição e sinais aleatórios *determinísticos* de preflight (semente
+fixa `0x5EED`). Qualquer decisão diferente de `HOLD_*` falha o teste.
+
+A auditoria Android deve provar **4/4 métodos de estresse** por classe e
+nome exatos, sem `SKIPPED`, além dos **6/6 callbacks negativos**,
+**4/4 tentativas**, **3/3 preflight** e demais gates SEC-05. O teste
+deliberadamente não executa `BiometricPrompt`, não abre SQLCipher, não
+toca o banco de produto, não modifica a autorização e não atravessa a API
+Expo.
+
+Por ser um conjunto de casos adversariais determinísticos, não prova
+resistência geral a invasão, bugs em hardware, vazamentos, tentativas por
+um segundo processo, sincronização distribuída ou manipulação da UI.
+Esses riscos exigem modelo de ameaça, fuzzing mais amplo e testes físicos
+autorizados em etapas futuras.

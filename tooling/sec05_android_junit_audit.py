@@ -58,6 +58,17 @@ CALLBACK_SOURCE = (Path(__file__).resolve().parent.parent /
     'apps/mobile/modules/negresco-finance-security/android/src/androidTest/java/'
     'com/negresco/finance/security/SyntheticCallbackDenialFenceTest.kt')
 
+STRESS_CLASS = 'com.negresco.finance.security.SyntheticCallbackAdversarialSequencesTest'
+STRESS_REQUIRED_CASES = frozenset({
+    'hundredsOfForgedSuccessCallbacksNeverAuthorize',
+    'crossIntentInjectionConsumesAttemptBeforeCorrection',
+    'invalidatedForegroundAndDestroyedSessionsAlwaysRejectLateCallbacks',
+    'randomizedClaimsNeverProduceAReceiptAfterDeniedPreflight',
+})
+STRESS_SOURCE = (Path(__file__).resolve().parent.parent /
+    'apps/mobile/modules/negresco-finance-security/android/src/androidTest/java/'
+    'com/negresco/finance/security/SyntheticCallbackAdversarialSequencesTest.kt')
+
 # CI is unattended: genuine user consent must never be reported as PASS by
 # emulator/fixture evidence. Physical positive QA has its own human gate.
 PHYSICAL_ONLY_CASES = frozenset({
@@ -115,6 +126,16 @@ def expected_callback_methods():
     if len(names) != len(CALLBACK_REQUIRED_CASES) or set(names) != CALLBACK_REQUIRED_CASES:
         raise ValueError(
             'P0-1 synthetic callback source inventory mismatch: '
+            f'{sorted(names)}')
+    return set(names)
+
+
+def expected_stress_methods():
+    source = STRESS_SOURCE.read_text(encoding='utf-8')
+    names = re.findall(r'@Test\s+fun\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(', source)
+    if len(names) != len(STRESS_REQUIRED_CASES) or set(names) != STRESS_REQUIRED_CASES:
+        raise ValueError(
+            'P0-1 synthetic callback stress source inventory mismatch: '
             f'{sorted(names)}')
     return set(names)
 
@@ -222,6 +243,18 @@ def audit(report_dir: Path):
             f'count={len(callback_cases)}')
     if any(c.find('skipped') is not None for c in callback_cases):
         reasons.append('P0-1 synthetic callback has SKIPPED tests')
+    stress_expected = expected_stress_methods()
+    stress_cases = [c for c in cases if c.get('classname') == STRESS_CLASS]
+    stress_actual = {c.get('name') for c in stress_cases}
+    stress_missing = sorted(stress_expected - stress_actual)
+    stress_extra = sorted(stress_actual - stress_expected)
+    if (len(stress_cases) != len(stress_expected) or stress_missing or stress_extra):
+        reasons.append(
+            'P0-1 synthetic callback stress inventory mismatch: '
+            f'missing={stress_missing}, unexpected={stress_extra}, '
+            f'count={len(stress_cases)}')
+    if any(c.find('skipped') is not None for c in stress_cases):
+        reasons.append('P0-1 synthetic callback stress has SKIPPED tests')
     status = 'PASS' if not reasons else 'FAIL'
     summary = [
         '### SEC-05 Android JUnit evidence',
@@ -235,6 +268,7 @@ def audit(report_dir: Path):
         f'- P0-1 native preflight methods: **{len(preflight_cases)}/{len(preflight_expected)}** (zero skips required)',
         f'- P0-1 native synthetic operation attempt methods: **{len(attempt_cases)}/{len(attempt_expected)}** (zero skips required)',
         f'- P0-1 native untrusted callback deny methods: **{len(callback_cases)}/{len(callback_expected)}** (zero skips required)',
+        f'- P0-1 native adversarial callback stress methods: **{len(stress_cases)}/{len(stress_expected)}** (zero skips required)',
         f'- Physical biometric consent-only cases kept SKIPPED: **{physical_skipped_count}/{len(PHYSICAL_ONLY_CASES)}** (never a CI pass)',
         f'- Required same-UUID inode replacement case: **{("executed" if len(required) == 1 and required[0].find("skipped") is None else "missing/skipped")}**',
     ]
