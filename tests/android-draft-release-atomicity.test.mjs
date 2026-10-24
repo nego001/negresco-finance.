@@ -95,7 +95,7 @@ function run(t,mode='ok') {
     cwd:dir,encoding:'utf8',timeout:15000,
     env:{...process.env,PATH:dir+':'+process.env.PATH,
       GITHUB_SHA:'aabbccddeeff00112233445566778899aabbccdd',
-      FAKE_MODE:mode,FAKE_STATE_DIR:dir}
+      FAKE_MODE:mode,FAKE_STATE_DIR:dir,GH_REPO:'fixture/negresco-finance'}
   });
   const path = join(dir,'gh-commands.txt');
   const log = existsSync(path) ? readFileSync(path,'utf8')
