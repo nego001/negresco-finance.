@@ -80,3 +80,21 @@ test('Phase1 lock-file metadata inspector cannot read contents or mutate native 
   assert.doesNotMatch(probe, /\.readBytes\(|\.writeBytes\(|FileInputStream|FileOutputStream|DataStoreFactory|PreferenceDataStoreFactory|updateData|createNewFile|delete\(|renameTo\(|\.mkdir\(|\.mkdirs\(|SqlCipher|SecretKey|BiometricPrompt/);
   assert.doesNotMatch(module, /updateData|writeBytes|unlock|enableIfCurrent|disable\(|SecretKey|Cipher\.getInstance|net\.zetetic/);
 });
+
+
+test('P0-1 compiled native operation preflight is DENY-only and never exposed to JS', () => {
+  const policy = read(base + 'android/src/main/java/com/negresco/finance/security/NativeFinancialOperationPreflight.kt');
+  const qa = read(base + 'android/src/androidTest/java/com/negresco/finance/security/SyntheticFinancialOperationPreflightTest.kt');
+  const real = policy.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  assert.match(policy, /internal object NativeFinancialOperationPreflight/);
+  assert.match(policy, /HOLD_SESSION_REVOKED/);
+  assert.match(policy, /HOLD_STRONG_CRYPTO_NOT_PROVEN/);
+  assert.match(policy, /HOLD_ENCRYPTED_STORAGE_NOT_PROVISIONED/);
+  assert.match(policy, /HOLD_NATIVE_OWNER_AUTHORITY_NOT_IMPLEMENTED/);
+  assert.doesNotMatch(real, /\b(?:ALLOW|GRANT|AUTHORIZED|APPROVED|UNLOCKED)\b|SQLiteDatabase|SecretKey|BiometricPrompt|CryptoObject|Cipher|getKey\(/);
+  assert.doesNotMatch(module, /NativeFinancialOperationPreflight/);
+  assert.match(qa, /revokedLifecycleAlwaysDeniesRegardlessOfForgedSignals/);
+  assert.match(qa, /unavailableCryptoAndStorageDenyBeforeNativeAuthority/);
+  assert.match(qa, /forgedAllTrueSignalsStillCannotAuthorizeAnything/);
+  assert.match(qa, /\\.name\\.startsWith\\("HOLD_"\\)/);
+});

@@ -369,3 +369,11 @@ A revisão do ensaio `SyntheticKeystoreSqlcipherLifecycleBoundaryTest` adiciona 
 2. `revocationAfterSqlcipherReadCannotReportSuccess`: outro callback de teste força `onBackground()` **depois da leitura SQLCipher e antes do resultado**, exigindo `HOLD_REVOKED_AFTER_READ`, jamais sucesso por resultado atrasado.
 
 As verificações são determinísticas, usam apenas duas callbacks de teste e não demonstram exclusão contra todos os interleavings adversariais. O `fixturePermit` continua sendo um parâmetro arbitrário do teste, **não** autenticação biométrica real. O auditor JUnit exige que os **quatro** testes dessa classe estejam presentes e que nenhum deles seja `SKIPPED`. A integração nativa de produto permanece BLOQUEADA.
+
+## Issue #18 / P0-1: fronteira nativa de operação somente bloqueante
+
+O primeiro arquivo Kotlin de preparação **em `src/main`** é `NativeFinancialOperationPreflight.kt`. Ele apresenta motivos de bloqueio específicos para sessão revogada, ausência de prova de criptografia forte, cofre não provisionado e falta da autoridade nativa autenticada. **Não existe resultado `ALLOW`**, nem mesmo quando todas as observações de entrada são `true`: booleanos de diagnóstico são dados não confiáveis, não prova do Android.
+
+O código **não é invocado pelo Expo nem exportado para JavaScript**, não instancia banco ou chave, e não autoriza uma operação de teste. `SyntheticFinancialOperationPreflightTest.kt`, somente em `androidTest`, exercita entradas contraditórias e sinais falsificados em um emulador descartável. O contrato Node exige que o conjunto de respostas permaneça bloqueante e que nenhuma função do módulo exponha a política.
+
+**Gate real ainda bloqueado:** criar autorização baseada no próprio resultado de `BiometricPrompt(CryptoObject)` e operação do Keystore, definir semântica de sessão e inicialização/migração SQLCipher, sem aceitar booleanos ou retornos JS como equivalentes. Falta QA humano em aparelho físico e auditoria de segredos/backup/upgrade. Relacionado à [issue #18](https://github.com/nego001/negresco-finance./issues/18).
