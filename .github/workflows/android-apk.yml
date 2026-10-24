@@ -22,6 +22,7 @@ on:
       - 'tests/android-release-bundle-consistency.test.mjs'
       - 'tests/android-apk-ci-permissions.test.mjs'
       - 'tests/android-signing.test.mjs'
+      - 'tests/android-publish-artifact-reverification.test.mjs'
       - '.github/workflows/android-apk.yml'
 # Keep only the newest candidate compiling when multiple source commits arrive.
 concurrency:
@@ -270,9 +271,90 @@ jobs:
         run: |
           set -euo pipefail
           for file in Negresco-Finance-V3.1.3-preview.apk Negresco-Finance-V3.1.3-preview.zip SHA256-release.txt APK-SIGNATURE.txt RELEASE_NOTES.md; do
-            test -s "$file"
+            test -f "$file" && test ! -L "$file" && test -s "$file"
           done
           sha256sum -c SHA256-release.txt
+      - name: Reverify downloaded release certificate and ZIP identity
+        working-directory: release-payload
+        env:
+          NEGRESCO_EXPECTED_CERT_SHA256: ${{ vars.NEGRESCO_EXPECTED_CERT_SHA256 }}
+        run: |
+          set -euo pipefail
+          EXPECTED="$(printf '%s' "$NEGRESCO_EXPECTED_CERT_SHA256" | tr '[:upper:]' '[:lower:]')"
+          [[ "$EXPECTED" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::Release certificate pin is missing or malformed."; exit 1; }
+          test -d "${ANDROID_HOME:?Android SDK unavailable}"
+          BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+          test -x "$BUILD_TOOLS/apksigner"
+          "$BUILD_TOOLS/apksigner" verify --verbose --print-certs Negresco-Finance-V3.1.3-preview.apk > verified-apk-signer.txt
+          mapfile -t CERT_HASHES < <(sed -nE 's/.*certificate SHA-256 digest: ([0-9a-fA-F]{64}).*/\1/p' verified-apk-signer.txt | tr '[:upper:]' '[:lower:]')
+          mapfile -t REPORT_HASHES < <(sed -nE 's/.*certificate SHA-256 digest: ([0-9a-fA-F]{64}).*/\1/p' APK-SIGNATURE.txt | tr '[:upper:]' '[:lower:]')
+          [[ ${#CERT_HASHES[@]} -eq 1 && ${#REPORT_HASHES[@]} -eq 1 ]] || { echo "::error::Exactly one APK signing identity is required."; exit 1; }
+          [[ "${CERT_HASHES[0]}" == "$EXPECTED" && "${REPORT_HASHES[0]}" == "$EXPECTED" ]] || { echo "::error::Downloaded APK certificate does not match pinned release identity."; exit 1; }
+          if grep -Eqi 'CN[[:space:]]*=[[:space:]]*Android Debug' verified-apk-signer.txt APK-SIGNATURE.txt; then
+            echo "::error::Debug certificate is not a publishing identity."
+            exit 1
+          fi
+          python3 - <<'PY'
+          import hashlib
+          import re
+          import stat
+          import zipfile
+          from pathlib import Path
+
+          apk = 'Negresco-Finance-V3.1.3-preview.apk'
+          names = {apk, 'APK-SIGNATURE.txt', 'SHA256-original-apk.txt', 'LEIA-ME.txt'}
+          bounds = {apk: 1024**3, 'APK-SIGNATURE.txt': 1024**2,
+                    'SHA256-original-apk.txt': 512, 'LEIA-ME.txt': 1024**2}
+
+          def digest(path):
+              sha = hashlib.sha256()
+              with path.open('rb') as stream:
+                  for chunk in iter(lambda: stream.read(1024 * 1024), b''):
+                      sha.update(chunk)
+              return sha.hexdigest()
+
+          def zipped_digest(archive, name):
+              sha = hashlib.sha256()
+              with archive.open(name) as stream:
+                  for chunk in iter(lambda: stream.read(1024 * 1024), b''):
+                      sha.update(chunk)
+              return sha.hexdigest()
+
+          for name in (apk, 'Negresco-Finance-V3.1.3-preview.zip', 'APK-SIGNATURE.txt'):
+              path = Path(name)
+              if path.is_symlink() or not path.is_file() or not path.stat().st_size:
+                  raise SystemExit('BLOCK: missing or symlinked release artifact: ' + name)
+
+          original = digest(Path(apk))
+          with zipfile.ZipFile('Negresco-Finance-V3.1.3-preview.zip') as archive:
+              members = archive.infolist()
+              if len(members) != len(names) or {item.filename for item in members} != names:
+                  raise SystemExit('BLOCK: ZIP has missing, duplicated or unexpected members')
+              for member in members:
+                  kind = stat.S_IFMT((member.external_attr >> 16) & 0xffff) if member.create_system == 3 else 0
+                  if member.is_dir() or kind not in (0, stat.S_IFREG):
+                      raise SystemExit('BLOCK: ZIP contains a link or special file')
+                  if member.flag_bits & 1 or member.compress_type not in (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED):
+                      raise SystemExit('BLOCK: ZIP compression/encryption is unsupported')
+                  if not 0 < member.file_size <= bounds[member.filename] or not member.compress_size:
+                      raise SystemExit('BLOCK: ZIP member exceeds size limits')
+                  if member.file_size > 200 * member.compress_size:
+                      raise SystemExit('BLOCK: suspicious compression ratio')
+              if zipped_digest(archive, apk) != original:
+                  raise SystemExit('BLOCK: ZIP APK differs from signed standalone APK')
+              if zipped_digest(archive, 'APK-SIGNATURE.txt') != digest(Path('APK-SIGNATURE.txt')):
+                  raise SystemExit('BLOCK: ZIP signing report differs from standalone report')
+              with archive.open('SHA256-original-apk.txt') as stream:
+                  record = stream.read().decode('utf-8')
+              match = re.fullmatch(r'([a-fA-F0-9]{64})  android/app/build/outputs/apk/release/app-release\.apk\n?', record)
+              if not match or match.group(1).lower() != original:
+                  raise SystemExit('BLOCK: ZIP original APK checksum mismatch')
+              with archive.open('LEIA-ME.txt') as stream:
+                  if not stream.read(1):
+                      raise SystemExit('BLOCK: release readme is empty')
+          print('PASS: downloaded APK signing certificate and ZIP identity independently verified')
+          PY
+
       - name: Publish APK first, ZIP second in GitHub Releases
         working-directory: release-payload
         env:
