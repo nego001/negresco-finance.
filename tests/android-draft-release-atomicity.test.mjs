@@ -23,24 +23,50 @@ const files = [
 const fakeGh = String.raw`#!/usr/bin/env node
 const fs = require('node:fs');
 const path = require('node:path');
+const crypto = require('node:crypto');
 const args = process.argv.slice(2);
 const mode = process.env.FAKE_MODE || 'ok';
 const dir = process.env.FAKE_STATE_DIR;
 const state = path.join(dir, 'draft.json');
 const logs = path.join(dir, 'gh-commands.txt');
 fs.appendFileSync(logs, JSON.stringify(args) + '\n');
+if (args[0] === 'api') {
+  if (mode === 'tag_exists') {
+    process.stdout.write('HTTP/2.0 200 OK\n');
+    process.exit(0);
+  }
+  if (mode === 'tag_api_down') {
+    process.stderr.write('HTTP/2.0 503 Service Unavailable\n');
+    process.exit(1);
+  }
+  process.stdout.write('HTTP/2.0 404 Not Found\n');
+  process.exit(1);
+}
 if (args[0] !== 'release') process.exit(2);
 if (args[1] === 'view') {
   if (!args.includes('--json')) process.exit(mode === 'existing' || fs.existsSync(state) ? 0 : 1);
   if (!fs.existsSync(state)) process.exit(3);
   const files = ['Negresco-Finance-V3.1.3-preview.apk',
     'Negresco-Finance-V3.1.3-preview.zip','SHA256-release.txt','APK-SIGNATURE.txt'];
-  let assets = files.map(name => ({name,size:fs.statSync(name).size}));
+  let assets = files.map(name => ({
+    name, size:fs.statSync(name).size,
+    state:'uploaded',
+    digest:'sha256:' + crypto.createHash('sha256').update(fs.readFileSync(name)).digest('hex')
+  }));
+  if (mode === 'remote_digest') assets[0].digest = 'sha256:' + '0'.repeat(64);
+  if (mode === 'remote_no_digest') delete assets[0].digest;
+  if (mode === 'remote_state') assets[0].state = 'starter';
   if (mode === 'remote_missing') assets.pop();
   if (mode === 'remote_extra') assets.push({name:'unexpected.txt',size:12});
   if (mode === 'remote_size') assets[0].size++;
   if (mode === 'remote_duplicate') assets[3] = {...assets[0]};
-  process.stdout.write(JSON.stringify({isDraft:mode !== 'remote_public',assets}));
+  process.stdout.write(JSON.stringify({
+    isDraft:mode !== 'remote_public',
+    isPrerelease:mode !== 'not_prerelease',
+    targetCommitish: mode === 'wrong_target' ? 'b'.repeat(40) : process.env.GITHUB_SHA,
+    tagName:mode === 'wrong_tag' ? 'v-malicious' : 'v3.1.3-preview-' + process.env.GITHUB_SHA.slice(0,7),
+    assets
+  }));
   process.exit(0);
 }
 if (args[1] === 'create') {
@@ -68,8 +94,8 @@ function run(t,mode='ok') {
   const result = spawnSync('bash',['-e','-c',script],{
     cwd:dir,encoding:'utf8',timeout:15000,
     env:{...process.env,PATH:dir+':'+process.env.PATH,
-      GITHUB_SHA:'aabbccddeeff00112233445566778899',
-      FAKE_MODE:mode,FAKE_STATE_DIR:dir}
+      GITHUB_SHA:'aabbccddeeff00112233445566778899aabbccdd',
+      FAKE_MODE:mode,FAKE_STATE_DIR:dir,GH_REPO:'fixture/negresco-finance'}
   });
   const path = join(dir,'gh-commands.txt');
   const log = existsSync(path) ? readFileSync(path,'utf8')
@@ -93,11 +119,11 @@ test('successful staged upload is checked before publication',t=>{
   const {result,log,state}=run(t);
   assert.equal(result.status,0,result.stderr+result.stdout);
   assert.equal(state?.draft,false);
-  assert.deepEqual(log.map(x=>x[1]),['view','create','upload','view','edit']);
-  assert.ok(log[1].includes('--draft'));
-  assert.ok(log[1].includes('--prerelease'));
-  assert.ok(log[4].includes('--draft=false'));
-  assert.equal(log[2].filter(x=>files.includes(x)).length,files.length);
+  assert.deepEqual(log.map(x=>x[0] === 'api' ? 'api' : x[1]),['view','api','create','upload','view','edit']);
+  assert.ok(log[2].includes('--draft'));
+  assert.ok(log[2].includes('--prerelease'));
+  assert.ok(log[5].includes('--draft=false'));
+  assert.equal(log[3].filter(x=>files.includes(x)).length,files.length);
 });
 
 test('failed artifact upload leaves private draft without publishing',t=>{
@@ -112,16 +138,22 @@ test('existing release cannot be overwritten, edited or clobbered',t=>{
   const {result,log,state}=run(t,'existing');
   assert.notEqual(result.status,0);
   assert.equal(state,null);
-  assert.deepEqual(log.map(x=>x[1]),['view']);
+  assert.deepEqual(log.map(x=>x[0] === 'api' ? 'api' : x[1]),['view']);
   assert.match(result.stderr+result.stdout,/already exists/);
 });
 
 for (const [mode,why] of [
   ['remote_missing',/asset count differs/],
   ['remote_extra',/asset count differs/],
-  ['remote_duplicate',/duplicate or incomplete/],
-  ['remote_size',/duplicate or incomplete/],
-  ['remote_public',/not a draft/]
+  ['remote_duplicate',/duplicate or mismatched/],
+  ['remote_size',/duplicate or mismatched/],
+  ['remote_public',/draft release identity/],
+  ['remote_digest',/mismatched remote asset digest/],
+  ['remote_no_digest',/mismatched remote asset digest/],
+  ['remote_state',/mismatched remote asset digest/],
+  ['wrong_target',/draft release identity/],
+  ['wrong_tag',/draft release identity/],
+  ['not_prerelease',/draft release identity/]
 ]) {
   test('wrong remote assets or release visibility block publication: '+mode,t=>{
     const {result,log,state}=run(t,mode);
@@ -137,4 +169,20 @@ test('failed final visibility transition returns error, not success',t=>{
   assert.notEqual(result.status,0);
   assert.equal(state?.draft,true);
   assert.equal(log.at(-1)?.[1],'edit');
+});
+
+test('existing bare git tag cannot be silently rebound by release target',t=>{
+  const {result,log,state}=run(t,'tag_exists');
+  assert.notEqual(result.status,0);
+  assert.equal(state,null);
+  assert.deepEqual(log.map(x=>x[0] === 'api' ? 'api' : x[1]),['view','api']);
+  assert.match(result.stderr+result.stdout,/Git tag already exists/);
+});
+
+test('git ref lookup failure blocks rather than treating 503 as a missing tag',t=>{
+  const {result,log,state}=run(t,'tag_api_down');
+  assert.notEqual(result.status,0);
+  assert.equal(state,null);
+  assert.deepEqual(log.map(x=>x[0] === 'api' ? 'api' : x[1]),['view','api']);
+  assert.match(result.stderr+result.stdout,/Cannot prove git tag is absent/);
 });
