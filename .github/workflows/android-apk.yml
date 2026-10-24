@@ -26,6 +26,7 @@ on:
       - 'tests/android-draft-release-atomicity.test.mjs'
       - 'tests/android-release-provenance.test.mjs'
       - 'tests/android-explicit-release-tag.test.mjs'
+      - 'tests/android-immutable-release-policy.test.mjs'
       - '.github/workflows/android-apk.yml'
 # Keep only the newest candidate compiling when multiple source commits arrive.
 concurrency:
@@ -368,6 +369,29 @@ jobs:
           TAG="v3.1.3-preview-${GITHUB_SHA:0:7}"
           export RELEASE_TAG="$TAG"
           [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::Invalid GitHub commit SHA for release tag."; exit 1; }
+          # GitHub immutable releases lock published assets and their tags.
+          # This query requires repository Administration:read. Fail closed on
+          # HTTP 404 (disabled), 403 (insufficient token) and network errors.
+          IMMUTABILITY_JSON="$(mktemp)"
+          if ! gh api "repos/${GH_REPO}/immutable-releases" >"$IMMUTABILITY_JSON" 2>/dev/null; then
+            echo "::error::Cannot verify enabled GitHub immutable releases. Enable the setting and provide an authorized Administration:read check; no tag or release was created."
+            exit 1
+          fi
+          node - "$IMMUTABILITY_JSON" <<'NODE'
+          const fs = require("node:fs");
+          let policy;
+          try { policy = JSON.parse(fs.readFileSync(process.argv[2], "utf8")); }
+          catch {
+            console.error("BLOCK: GitHub release immutability response is invalid JSON");
+            process.exit(1);
+          }
+          if (!policy || policy.enabled !== true) {
+            console.error("BLOCK: immutable releases must be enabled before creating a release tag");
+            process.exit(1);
+          }
+          console.log("PASS: GitHub immutable releases are enabled");
+          NODE
+          rm -f "$IMMUTABILITY_JSON"
           # Fail closed unless remote Git ref resolves directly to the authorized commit.
           verify_exact_tag() {
             gh api "repos/${GH_REPO}/git/ref/tags/${TAG}" | node -e '
