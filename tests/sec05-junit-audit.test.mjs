@@ -21,6 +21,12 @@ const sliceMethods = [
   'revocationAfterSqlcipherReadCannotReportSuccess',
   'missingKeystoreAliasDoesNotRecreateOrEraseNativeCiphertext',
 ];
+const preflightClass = 'com.negresco.finance.security.SyntheticFinancialOperationPreflightTest';
+const preflightMethods = [
+  'revokedLifecycleAlwaysDeniesRegardlessOfForgedSignals',
+  'unavailableCryptoAndStorageDenyBeforeNativeAuthority',
+  'forgedAllTrueSignalsStillCannotAuthorizeAnything',
+];
 const permittedHardlinks = new Set([
   'hardlinkedJournalNewCannotRedirectWrite',
   'hardlinkedOwnerMarkerCannotAuthorizeWorkerWrite',
@@ -35,6 +41,7 @@ function baseline() {
     ...caseNames.map(name => ({classname: secClass, name, skipped: permittedHardlinks.has(name)})),
     {classname: bioClass, name: 'realStrongBiometricRequiresExplicitPhysicalDeviceConsent', skipped: true},
     ...sliceMethods.map(name => ({classname: sliceClass, name, skipped: false})),
+    ...preflightMethods.map(name => ({classname: preflightClass, name, skipped: false})),
   ];
 }
 
@@ -160,4 +167,32 @@ test('replacing lifecycle slice method with a fake at same count fails', () => {
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /native synthetic cipher slice inventory mismatch/);
   assert.match(result.stderr, /revocationBetweenPreflightAndKeystoreLookupMustHold/);
+});
+
+test('P0-1 preflight: all three instrumented methods appear in JUnit evidence', () => {
+  const r = run(baseline());
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.summary, /P0-1 native preflight methods: \\*\\*3\\/3\\*\\*/);
+});
+test('P0-1 preflight: a missing required testcase fails closed', () => {
+  const r = run(baseline().filter(c =>
+    !(c.classname === preflightClass && c.name === preflightMethods[0])));
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /P0-1 native preflight inventory mismatch/);
+});
+test('P0-1 preflight: a SKIPPED required testcase fails closed', () => {
+  const cs = baseline();
+  cs.find(c => c.classname === preflightClass && c.name === preflightMethods[1]).skipped = true;
+  const r = run(cs);
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /P0-1 native preflight has SKIPPED tests/);
+});
+test('P0-1 preflight: a forged method with the same count fails closed', () => {
+  const cs = baseline();
+  cs.find(c => c.classname === preflightClass && c.name === preflightMethods[2]).name =
+    'fakeNativeGrantPassed';
+  const r = run(cs);
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /P0-1 native preflight inventory mismatch/);
+  assert.match(r.stderr, /forgedAllTrueSignalsStillCannotAuthorizeAnything/);
 });

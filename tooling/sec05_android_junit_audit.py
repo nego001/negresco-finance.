@@ -22,6 +22,16 @@ SLICE_REQUIRED_CASES = frozenset({
     'revocationAfterSqlcipherReadCannotReportSuccess',
     'missingKeystoreAliasDoesNotRecreateOrEraseNativeCiphertext',
 })
+PREFLIGHT_CLASS = 'com.negresco.finance.security.SyntheticFinancialOperationPreflightTest'
+PREFLIGHT_REQUIRED_CASES = frozenset({
+    'revokedLifecycleAlwaysDeniesRegardlessOfForgedSignals',
+    'unavailableCryptoAndStorageDenyBeforeNativeAuthority',
+    'forgedAllTrueSignalsStillCannotAuthorizeAnything',
+})
+PREFLIGHT_SOURCE = (Path(__file__).resolve().parent.parent /
+    'apps/mobile/modules/negresco-finance-security/android/src/androidTest/java/'
+    'com/negresco/finance/security/SyntheticFinancialOperationPreflightTest.kt')
+
 # Whitelist the exact class and method. A similarly named testcase from
 # an unrelated class must not inherit SEC-05 permission to be SKIPPED.
 ALLOWED_SKIPS = {
@@ -43,6 +53,17 @@ def expected_sec05_methods():
         raise ValueError(
             f'SEC-05 source inventory must have {EXPECTED_SEC05_CASES} unique methods; '
             f'found {len(names)}')
+    return set(names)
+
+
+def expected_preflight_methods():
+    # Pin the source inventory AND the JUnit XML, not merely an arbitrary count.
+    source = PREFLIGHT_SOURCE.read_text(encoding='utf-8')
+    names = re.findall(r'@Test\\s+fun\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*\\(', source)
+    if len(names) != len(PREFLIGHT_REQUIRED_CASES) or set(names) != PREFLIGHT_REQUIRED_CASES:
+        raise ValueError(
+            f'P0-1 preflight source inventory mismatch: found={sorted(names)}; '
+            f'required={sorted(PREFLIGHT_REQUIRED_CASES)}')
     return set(names)
 
 
@@ -91,6 +112,19 @@ def audit(report_dir: Path):
             f'missing={missing_slice}, unexpected={extra_slice}, count={len(slice_cases)}')
     if any(c.find('skipped') is not None for c in slice_cases):
         reasons.append('native synthetic cipher slice has SKIPPED tests')
+    preflight_expected = expected_preflight_methods()
+    preflight_cases = [c for c in cases if c.get('classname') == PREFLIGHT_CLASS]
+    preflight_methods = {c.get('name') for c in preflight_cases}
+    missing_preflight = sorted(preflight_expected - preflight_methods)
+    extra_preflight = sorted(preflight_methods - preflight_expected)
+    if (len(preflight_cases) != len(preflight_expected)
+            or missing_preflight or extra_preflight):
+        reasons.append(
+            f'P0-1 native preflight inventory mismatch: '
+            f'missing={missing_preflight}, unexpected={extra_preflight}, '
+            f'count={len(preflight_cases)}')
+    if any(c.find('skipped') is not None for c in preflight_cases):
+        reasons.append('P0-1 native preflight has SKIPPED tests')
     status = 'PASS' if not reasons else 'FAIL'
     summary = [
         '### SEC-05 Android JUnit evidence',
@@ -100,6 +134,7 @@ def audit(report_dir: Path):
         f'- SEC-05 process-death cases present: **{len(sec05)}/{EXPECTED_SEC05_CASES}**',
         f'- SEC-05 source method inventory matches JUnit: **{not missing_methods and not unknown_methods}**',
         f'- Synthetic native cipher lifecycle methods: **{len(slice_cases)}/4** (zero skips required)',
+        f'- P0-1 native preflight methods: **{len(preflight_cases)}/{len(preflight_expected)}** (zero skips required)',
         f'- Required same-UUID inode replacement case: **{("executed" if len(required) == 1 and required[0].find("skipped") is None else "missing/skipped")}**',
     ]
     for case in skipped:
