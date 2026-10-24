@@ -242,3 +242,20 @@ test('malformed workflow SHA cannot create a tag or release',t=>{
   assert.equal(log.length,0);
   assert.match(result.stderr+result.stdout,/Invalid GitHub commit SHA/);
 });
+
+for (const [mode,expected] of [
+  ['immutable_disabled',/immutable releases must be enabled/],
+  ['immutable_missing',/Cannot verify enabled GitHub immutable releases/],
+  ['immutable_forbidden',/Cannot verify enabled GitHub immutable releases/],
+  ['immutable_api_down',/Cannot verify enabled GitHub immutable releases/],
+  ['immutable_bad_json',/invalid JSON/],
+  ['immutable_empty',/invalid JSON/]
+]) {
+  test('immutable GitHub release policy failure blocks tag and draft: '+mode,t=>{
+    const {result,log,state}=run(t,mode);
+    assert.notEqual(result.status,0);
+    assert.equal(state,null);
+    assert.deepEqual(log.map(x=>x[0]),['api']);
+    assert.match(result.stderr+result.stdout,expected);
+  });
+}
