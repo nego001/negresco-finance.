@@ -33,6 +33,14 @@ fs.appendFileSync(logs, JSON.stringify(args) + '\n');
 const tagFile = path.join(dir, 'tag.json');
 const readsFile = path.join(dir, 'tag-reads.txt');
 if (args[0] === 'api') {
+  if (args.some(x => x.endsWith('/immutable-releases'))) {
+    if (['immutable_missing','immutable_forbidden','immutable_api_down'].includes(mode))
+      process.exit(mode === 'immutable_missing' ? 44 : mode === 'immutable_forbidden' ? 43 : 50);
+    if (mode === 'immutable_bad_json') { process.stdout.write('not json'); process.exit(0); }
+    if (mode === 'immutable_empty') { process.stdout.write(''); process.exit(0); }
+    process.stdout.write(JSON.stringify({enabled:mode !== 'immutable_disabled',enforced_by_owner:false}));
+    process.exit(0);
+  }
   if (args.includes('--include')) {
     if (mode === 'tag_exists') {
       process.stdout.write('HTTP/2.0 200 OK\n');
@@ -142,11 +150,11 @@ test('successful staged upload is checked before publication',t=>{
   const {result,log,state}=run(t);
   assert.equal(result.status,0,result.stderr+result.stdout);
   assert.equal(state?.draft,false);
-  assert.deepEqual(log.map(x=>x[0] === 'api' ? 'api' : x[1]),['view','api','api','api','create','upload','view','api','edit']);
-  assert.ok(log[4].includes('--draft'));
-  assert.ok(log[4].includes('--prerelease'));
-  assert.ok(log[8].includes('--draft=false'));
-  assert.equal(log[5].filter(x=>files.includes(x)).length,files.length);
+  assert.deepEqual(log.map(x=>x[0] === 'api' ? 'api' : x[1]),['api','view','api','api','api','create','upload','view','api','edit']);
+  assert.ok(log[5].includes('--draft'));
+  assert.ok(log[5].includes('--prerelease'));
+  assert.ok(log[9].includes('--draft=false'));
+  assert.equal(log[6].filter(x=>files.includes(x)).length,files.length);
 });
 
 test('failed artifact upload leaves private draft without publishing',t=>{
@@ -161,7 +169,7 @@ test('existing release cannot be overwritten, edited or clobbered',t=>{
   const {result,log,state}=run(t,'existing');
   assert.notEqual(result.status,0);
   assert.equal(state,null);
-  assert.deepEqual(log.map(x=>x[0] === 'api' ? 'api' : x[1]),['view']);
+  assert.deepEqual(log.map(x=>x[0] === 'api' ? 'api' : x[1]),['api','view']);
   assert.match(result.stderr+result.stdout,/already exists/);
 });
 
@@ -198,7 +206,7 @@ test('existing bare git tag cannot be silently rebound by release target',t=>{
   const {result,log,state}=run(t,'tag_exists');
   assert.notEqual(result.status,0);
   assert.equal(state,null);
-  assert.deepEqual(log.map(x=>x[0] === 'api' ? 'api' : x[1]),['view','api']);
+  assert.deepEqual(log.map(x=>x[0] === 'api' ? 'api' : x[1]),['api','view','api']);
   assert.match(result.stderr+result.stdout,/Git tag already exists/);
 });
 
@@ -206,7 +214,7 @@ test('git ref lookup failure blocks rather than treating 503 as a missing tag',t
   const {result,log,state}=run(t,'tag_api_down');
   assert.notEqual(result.status,0);
   assert.equal(state,null);
-  assert.deepEqual(log.map(x=>x[0] === 'api' ? 'api' : x[1]),['view','api']);
+  assert.deepEqual(log.map(x=>x[0] === 'api' ? 'api' : x[1]),['api','view','api']);
   assert.match(result.stderr+result.stdout,/Cannot prove git tag is absent/);
 });
 
@@ -234,3 +242,20 @@ test('malformed workflow SHA cannot create a tag or release',t=>{
   assert.equal(log.length,0);
   assert.match(result.stderr+result.stdout,/Invalid GitHub commit SHA/);
 });
+
+for (const [mode,expected] of [
+  ['immutable_disabled',/immutable releases must be enabled/],
+  ['immutable_missing',/Cannot verify enabled GitHub immutable releases/],
+  ['immutable_forbidden',/Cannot verify enabled GitHub immutable releases/],
+  ['immutable_api_down',/Cannot verify enabled GitHub immutable releases/],
+  ['immutable_bad_json',/invalid JSON/],
+  ['immutable_empty',/invalid JSON/]
+]) {
+  test('immutable GitHub release policy failure blocks tag and draft: '+mode,t=>{
+    const {result,log,state}=run(t,mode);
+    assert.notEqual(result.status,0);
+    assert.equal(state,null);
+    assert.deepEqual(log.map(x=>x[0]),['api']);
+    assert.match(result.stderr+result.stdout,expected);
+  });
+}
