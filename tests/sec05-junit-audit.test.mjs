@@ -60,6 +60,13 @@ const cleanupMethods = [
   'retryCannotReportCleanUntilAllResiduesAreRemoved',
   'thrownRevocationAndDeletionCannotBeMisreportedAsPass',
 ];
+const orphanClass = 'com.negresco.finance.security.SyntheticDebugQaOrphanResidueGateTest';
+const orphanMethods = [
+  'noResidualKeysOrFoldersPermitsOnlyPreparingManualQa',
+  'survivingKeystoreAliasAfterProcessDeathBlocksNewQa',
+  'survivingSqlcipherCacheFolderAfterProcessDeathBlocksNewQa',
+  'unrelatedKeysDoNotMaskAnySyntheticQaResidue',
+];
 const permittedHardlinks = new Set([
   'hardlinkedJournalNewCannotRedirectWrite',
   'hardlinkedOwnerMarkerCannotAuthorizeWorkerWrite',
@@ -82,6 +89,7 @@ function baseline() {
     ...callbackMethods.map(name => ({classname: callbackClass, name, skipped: false})),
     ...stressMethods.map(name => ({classname: stressClass, name, skipped: false})),
     ...cleanupMethods.map(name => ({classname: cleanupClass, name, skipped: false})),
+    ...orphanMethods.map(name => ({classname: orphanClass, name, skipped: false})),
   ];
 }
 
@@ -127,6 +135,7 @@ test('26 SEC-05 cases with four expected hardlink skips pass and report missing 
   assert.match(r.summary, /P0-1 native untrusted callback deny methods: \*\*6\/6\*\*/);
   assert.match(r.summary, /P0-1 native adversarial callback stress methods: \*\*4\/4\*\*/);
   assert.match(r.summary, /P0-1 Debug cleanup fault-injection methods: \*\*4\/4\*\*/);
+  assert.match(r.summary, /P0-1 Debug orphan residue methods: \*\*4\/4\*\*/);
   assert.match(r.summary, /Required same-UUID inode replacement case: \*\*executed\*\*/);
 });
 test('missing XML fails closed', () => {
@@ -384,4 +393,27 @@ test('P0-1 Debug cleanup evidence rejects a fake same-count test name', () => {
   assert.notEqual(r.status, 0);
   assert.match(r.stderr, /Debug cleanup fault injection inventory mismatch/);
   assert.match(r.stderr, /retryCannotReportCleanUntilAllResiduesAreRemoved/);
+});
+
+test('P0-1 Debug orphan residue: missing nominal test blocks JUnit evidence', () => {
+  const r = run(baseline().filter(c =>
+    !(c.classname === orphanClass && c.name === orphanMethods[0])));
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /Debug orphan QA inventory mismatch/);
+});
+test('P0-1 Debug orphan residue: skipped nominal test blocks JUnit evidence', () => {
+  const cases = baseline();
+  cases.find(c => c.classname === orphanClass && c.name === orphanMethods[1]).skipped = true;
+  const r = run(cases);
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /Debug orphan QA has SKIPPED tests/);
+});
+test('P0-1 Debug orphan residue: forged name cannot impersonate a required case', () => {
+  const cases = baseline();
+  cases.find(c => c.classname === orphanClass && c.name === orphanMethods[2]).name =
+    'fakePhysicalBiometricsPassed';
+  const r = run(cases);
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /Debug orphan QA inventory mismatch/);
+  assert.match(r.stderr, /survivingSqlcipherCacheFolderAfterProcessDeathBlocksNewQa/);
 });

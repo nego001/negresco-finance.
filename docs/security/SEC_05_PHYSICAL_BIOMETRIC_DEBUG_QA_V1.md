@@ -111,3 +111,27 @@ A implementação ainda exige teste humano em dispositivo Android físico
 para comprovar `BiometricPrompt(CryptoObject)`, chamadas reais de
 `KeyStore.deleteEntry()` e limpeza de SQLCipher durante falhas de I/O.
 A CI por si só não fornece atestação de sensor biométrico físico.
+
+
+### Resíduos após morte inesperada do processo (DEBUG-only)
+
+A memória da Activity não sobrevive à morte do processo, mas um alias do
+AndroidKeyStore e os arquivos SQLCipher descartáveis podem permanecer. Antes
+de criar uma nova chave/banco de teste, a Activity agora **enumera os aliases
+e entradas no cache** e chama `SyntheticDebugQaOrphanResidueGate` na variante
+`src/debug`. A presença de qualquer nome com prefixo exclusivo
+`negresco_debug_sqlcipher_` ou `negresco_qa_sqlcipher_` devolve
+`HOLD_ORPHANED_DEBUG_QA_RESIDUE`, impedindo o começo da próxima sessão.
+Falha na enumeração do cache/KeyStore também bloqueia o ensaio.
+
+**Não há exclusão automática em massa baseada em prefixos.** Após falha
+ou crash, um operador precisa confirmar e resolver os resíduos do ambiente
+dedicado de QA antes de reexecutar. O guardião não exporta chaves, não
+altera dados reais e não participa do código `src/main`.
+
+Quatro testes Android negativos, `SyntheticDebugQaOrphanResidueGateTest`,
+fixam a aceitação de estado limpo e o bloqueio diante de alias, cache ou
+resíduos mistos. O auditor JUnit exige **4/4 métodos nominais executados**,
+além dos quatro cenários de falha de limpeza da etapa anterior. Esses
+testes não simulam biometria física, não exercem efetiva persistência
+após matar um processo nem provam limpeza de resíduos com o aparelho desligado.

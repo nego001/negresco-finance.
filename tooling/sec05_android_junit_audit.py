@@ -80,6 +80,17 @@ CLEANUP_SOURCE = (Path(__file__).resolve().parent.parent /
     'apps/mobile/modules/negresco-finance-security/android/src/androidTest/java/'
     'com/negresco/finance/security/SyntheticDebugQaCleanupLedgerTest.kt')
 
+ORPHAN_CLASS = 'com.negresco.finance.security.SyntheticDebugQaOrphanResidueGateTest'
+ORPHAN_REQUIRED_CASES = frozenset({
+    'noResidualKeysOrFoldersPermitsOnlyPreparingManualQa',
+    'survivingKeystoreAliasAfterProcessDeathBlocksNewQa',
+    'survivingSqlcipherCacheFolderAfterProcessDeathBlocksNewQa',
+    'unrelatedKeysDoNotMaskAnySyntheticQaResidue',
+})
+ORPHAN_SOURCE = (Path(__file__).resolve().parent.parent /
+    'apps/mobile/modules/negresco-finance-security/android/src/androidTest/java/'
+    'com/negresco/finance/security/SyntheticDebugQaOrphanResidueGateTest.kt')
+
 # CI is unattended: genuine user consent must never be reported as PASS by
 # emulator/fixture evidence. Physical positive QA has its own human gate.
 PHYSICAL_ONLY_CASES = frozenset({
@@ -157,6 +168,16 @@ def expected_cleanup_methods():
     if len(names) != len(CLEANUP_REQUIRED_CASES) or set(names) != CLEANUP_REQUIRED_CASES:
         raise ValueError(
             'P0-1 Debug cleanup fault injection source inventory mismatch: '
+            f'{sorted(names)}')
+    return set(names)
+
+
+def expected_orphan_methods():
+    source = ORPHAN_SOURCE.read_text(encoding='utf-8')
+    names = re.findall(r'@Test\s+fun\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(', source)
+    if len(names) != len(ORPHAN_REQUIRED_CASES) or set(names) != ORPHAN_REQUIRED_CASES:
+        raise ValueError(
+            'P0-1 Debug orphan QA source inventory mismatch: '
             f'{sorted(names)}')
     return set(names)
 
@@ -288,6 +309,18 @@ def audit(report_dir: Path):
             f'count={len(cleanup_cases)}')
     if any(c.find('skipped') is not None for c in cleanup_cases):
         reasons.append('P0-1 Debug cleanup fault injection has SKIPPED tests')
+    orphan_expected = expected_orphan_methods()
+    orphan_cases = [c for c in cases if c.get('classname') == ORPHAN_CLASS]
+    orphan_actual = {c.get('name') for c in orphan_cases}
+    orphan_missing = sorted(orphan_expected - orphan_actual)
+    orphan_extra = sorted(orphan_actual - orphan_expected)
+    if (len(orphan_cases) != len(orphan_expected) or orphan_missing or orphan_extra):
+        reasons.append(
+            'P0-1 Debug orphan QA inventory mismatch: '
+            f'missing={orphan_missing}, unexpected={orphan_extra}, '
+            f'count={len(orphan_cases)}')
+    if any(c.find('skipped') is not None for c in orphan_cases):
+        reasons.append('P0-1 Debug orphan QA has SKIPPED tests')
     status = 'PASS' if not reasons else 'FAIL'
     summary = [
         '### SEC-05 Android JUnit evidence',
@@ -303,6 +336,7 @@ def audit(report_dir: Path):
         f'- P0-1 native untrusted callback deny methods: **{len(callback_cases)}/{len(callback_expected)}** (zero skips required)',
         f'- P0-1 native adversarial callback stress methods: **{len(stress_cases)}/{len(stress_expected)}** (zero skips required)',
         f'- P0-1 Debug cleanup fault-injection methods: **{len(cleanup_cases)}/{len(cleanup_expected)}** (zero skips required)',
+        f'- P0-1 Debug orphan residue methods: **{len(orphan_cases)}/{len(orphan_expected)}** (zero skips required)',
         f'- Physical biometric consent-only cases kept SKIPPED: **{physical_skipped_count}/{len(PHYSICAL_ONLY_CASES)}** (never a CI pass)',
         f'- Required same-UUID inode replacement case: **{("executed" if len(required) == 1 and required[0].find("skipped") is None else "missing/skipped")}**',
     ]
