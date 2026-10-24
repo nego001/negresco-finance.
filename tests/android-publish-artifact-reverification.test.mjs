@@ -26,7 +26,7 @@ function fixture(t, overrides = {}) {
   const tools = join(sdk, 'build-tools', '35.0.0');
   mkdirSync(tools, {recursive:true});
   const signer = (overrides.signerHash ?? PIN);
-  const report = 'Signer #1 certificate SHA-256 digest: ' + PIN +
+  const report = 'Signer #1 certificate SHA-256 digest: ' + (overrides.reportHash ?? PIN) +
     '\nSigner #1 certificate DN: CN=Negresco Finance\n';
   let actualReport = 'Signer #1 certificate SHA-256 digest: ' + signer +
     '\nSigner #1 certificate DN: CN=' + (overrides.debug ? 'Android Debug' : 'Negresco Finance') + '\n';
@@ -97,6 +97,18 @@ test('publisher blocks the wrong APK signer even if report and ZIP checksums oth
   const result = runGate(fixture(t,{signerHash:'b'.repeat(64)}));
   assert.notEqual(result.status, 0);
   assert.match(result.stderr + result.stdout, /does not match pinned release identity/);
+});
+
+test('publisher blocks a falsified signing report even if the ZIP matches it', t => {
+  const result = runGate(fixture(t,{reportHash:'b'.repeat(64)}));
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr + result.stdout, /does not match pinned release identity/);
+});
+
+test('publisher fails closed when the pinned certificate is not configured', t => {
+  const result = runGate(fixture(t,{pin:''}));
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr + result.stdout, /Release certificate pin is missing or malformed/);
 });
 
 test('publisher blocks Debug signer and multisigner identity', t => {
