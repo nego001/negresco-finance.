@@ -37,3 +37,15 @@ test('genuine biometric positive is opt-in physical-only and never a CI pass', (
   assert.match(auditor, /realBiometricTwiceThenSyntheticSqlcipherReopensWithNoJsAccess/);
   assert.doesNotMatch(workflow, /negresco\.manual\.biometric\.sqlcipher=YES_PHYSICAL_CONSENT/);
 });
+
+
+test('unattended QA checks nonexported launch without prompts or encrypted DB seeding', () => {
+  const negative = read(base+'src/androidTest/java/com/negresco/finance/security/SyntheticBiometricSqlcipherQaIsolationTest.kt');
+  assert.match(negative, /debugSqlcipherActivityLaunchCannotProvisionKeyOrSyntheticDatabase/);
+  assert.match(negative, /ActivityScenario\.launch\(SyntheticBiometricSqlcipherManualQaActivity::class\.java\)/);
+  assert.match(negative, /assertFalse\("test-only activity must not be exported", info\.exported\)/);
+  assert.match(negative, /beforeKeys, aliases\(\)/);
+  assert.match(negative, /beforeFolders/);
+  assert.doesNotMatch(negative, /startManualQa\(|BiometricPrompt\.authenticate/);
+  assert.match(auditor, /ISOLATION_CASE = 'debugSqlcipherActivityLaunchCannotProvisionKeyOrSyntheticDatabase'/);
+});

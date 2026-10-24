@@ -15,6 +15,8 @@ SEC05_SOURCE = (Path(__file__).resolve().parent.parent /
     'apps/mobile/modules/negresco-finance-security/android/src/androidTest/java/'
     'com/negresco/finance/security/SyntheticJournalActualProcessDeathTest.kt')
 REQUIRED_CASE = 'ownerReplacedWithSameUuidAfterWitnessCannotCommitJournal'
+ISOLATION_CLASS = 'com.negresco.finance.security.SyntheticBiometricSqlcipherQaIsolationTest'
+ISOLATION_CASE = 'debugSqlcipherActivityLaunchCannotProvisionKeyOrSyntheticDatabase'
 SLICE_CLASS = 'com.negresco.finance.security.SyntheticKeystoreSqlcipherLifecycleBoundaryTest'
 SLICE_REQUIRED_CASES = frozenset({
     'foregroundRevocationDeniesProtectedFixtureReadBeforeKeyRelease',
@@ -67,6 +69,7 @@ def audit(report_dir: Path):
                   if (c.get('classname'), c.get('name')) not in ALLOWED_SKIPS]
     sec05 = [c for c in cases if c.get('classname') == SEC05_CLASS]
     required = [c for c in sec05 if c.get('name') == REQUIRED_CASE]
+    qa_isolation = [c for c in cases if c.get('classname') == ISOLATION_CLASS]
     slice_cases = [c for c in cases if c.get('classname') == SLICE_CLASS]
     slice_methods = {c.get('name') for c in slice_cases}
     missing_slice = sorted(SLICE_REQUIRED_CASES - slice_methods)
@@ -85,6 +88,8 @@ def audit(report_dir: Path):
         reasons.append(
             f'SEC-05 method inventory mismatch: missing={missing_methods}; '
             f'unexpected={unknown_methods}')
+    if len(qa_isolation) != 1 or qa_isolation[0].get('name') != ISOLATION_CASE or qa_isolation[0].find('skipped') is not None:
+        reasons.append('DEBUG SQLCipher QA isolation test missing, unexpected or SKIPPED')
     if len(required) != 1 or required[0].find('skipped') is not None:
         reasons.append(f'required SEC-05 test missing or skipped: {REQUIRED_CASE}')
     if len(slice_cases) != len(SLICE_REQUIRED_CASES) or missing_slice or extra_slice:
@@ -101,6 +106,7 @@ def audit(report_dir: Path):
         f'- Test cases: **{len(cases)}**; passed: **{len(cases)-len(errors)-len(skipped)}**; failed/errors: **{len(errors)}**; skipped: **{len(skipped)}**',
         f'- SEC-05 process-death cases present: **{len(sec05)}/{EXPECTED_SEC05_CASES}**',
         f'- SEC-05 source method inventory matches JUnit: **{not missing_methods and not unknown_methods}**',
+        f'- DEBUG SQLCipher biometric isolation case: **{("executed" if len(qa_isolation) == 1 and qa_isolation[0].get("name") == ISOLATION_CASE and qa_isolation[0].find("skipped") is None else "missing/skipped")}**',
         f'- Synthetic native cipher lifecycle methods: **{len(slice_cases)}/4** (zero skips required)',
         f'- Required same-UUID inode replacement case: **{("executed" if len(required) == 1 and required[0].find("skipped") is None else "missing/skipped")}**',
     ]

@@ -62,3 +62,7 @@ O fluxo manual exige **duas aprovações biométricas genuínas** (`BiometricPro
 `SyntheticBiometricSqlcipherManualQaOptInTest` fica normalmente **SKIPPED** na CI, sendo liberado somente com o runner argument exato `negresco.manual.biometric.sqlcipher=YES_PHYSICAL_CONSENT`, seleção explícita da classe e revisão humana de um dispositivo físico com biometria forte. O teste automatizado não simula nem contorna digitais. Na falha, cancelamento, background ou saída da tela, o ensaio tenta apagar alias, senha em RAM e arquivos de teste, sem prometer eliminação de cópias `String` na JVM. A versão atual é **candidata de engenharia até CI e QA físico**, não proteção implantada.
 
 Issue #18 permanece aberta; a interface normal do aplicativo, o armazenamento financeiro e a autoridade nativa seguem **BLOQUEADOS**. Não instalar nem substituir o aplicativo pessoal para executar esse QA.
+
+### Regressão automática de isolamento (novo teste Android sem digital)
+
+`SyntheticBiometricSqlcipherQaIsolationTest` abre a nova Activity **sem iniciar** o teste biométrico. Ela exige `android:exported=false`, identidade visual Debug, nenhum alias AndroidKeyStore novo e nenhum diretório de banco criado somente pela abertura/fechamento da tela. O auditor JUnit exige que este teste rode sem `SKIPPED`. Isso **não** substitui a autenticação positiva real: a prova de dois prompts continua opt-in físico e será apresentada como SKIPPED no emulador.

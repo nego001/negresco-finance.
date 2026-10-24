@@ -15,6 +15,8 @@ const secClass = 'com.negresco.finance.security.SyntheticJournalActualProcessDea
 const bioClass = 'com.negresco.finance.security.SyntheticBiometricManualQaOptInTest';
 const debugSqlcipherBiometric = 'com.negresco.finance.security.SyntheticBiometricSqlcipherManualQaOptInTest';
 const required = 'ownerReplacedWithSameUuidAfterWitnessCannotCommitJournal';
+const isolationClass = 'com.negresco.finance.security.SyntheticBiometricSqlcipherQaIsolationTest';
+const isolationCase = 'debugSqlcipherActivityLaunchCannotProvisionKeyOrSyntheticDatabase';
 const sliceClass = 'com.negresco.finance.security.SyntheticKeystoreSqlcipherLifecycleBoundaryTest';
 const sliceMethods = [
   'foregroundRevocationDeniesProtectedFixtureReadBeforeKeyRelease',
@@ -38,6 +40,7 @@ function baseline() {
     {classname: debugSqlcipherBiometric,
       name: 'realBiometricTwiceThenSyntheticSqlcipherReopensWithNoJsAccess', skipped: true},
     ...sliceMethods.map(name => ({classname: sliceClass, name, skipped: false})),
+    {classname: isolationClass, name: isolationCase, skipped: false},
   ];
 }
 
@@ -77,6 +80,7 @@ test('26 SEC-05 cases with four expected hardlink skips pass and report missing 
   assert.match(r.summary, /SEC-05 process-death cases present: \*\*26\/26\*\*/);
   assert.match(r.summary, /SEC-05 source method inventory matches JUnit: \*\*True\*\*/);
   assert.match(r.summary, /Synthetic native cipher lifecycle methods: \*\*4\/4\*\*/);
+  assert.match(r.summary, /DEBUG SQLCipher biometric isolation case: \*\*executed\*\*/);
   assert.match(r.summary, /skipped: \*\*6\*\*/);
   assert.match(r.summary, /Required same-UUID inode replacement case: \*\*executed\*\*/);
 });
@@ -163,4 +167,16 @@ test('replacing lifecycle slice method with a fake at same count fails', () => {
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /native synthetic cipher slice inventory mismatch/);
   assert.match(result.stderr, /revocationBetweenPreflightAndKeystoreLookupMustHold/);
+});
+
+
+test('missing or skipped debug biometric SQLCipher non-exported isolation testcase fails closed', () => {
+  const missing = run(baseline().filter(c => c.classname !== isolationClass));
+  assert.notEqual(missing.status, 0);
+  assert.match(missing.stderr, /DEBUG SQLCipher QA isolation test missing/);
+  const skippedCases = baseline();
+  skippedCases.find(c => c.classname === isolationClass).skipped = true;
+  const skipped = run(skippedCases);
+  assert.notEqual(skipped.status, 0);
+  assert.match(skipped.stderr, /DEBUG SQLCipher QA isolation test missing/);
 });
