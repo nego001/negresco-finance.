@@ -99,5 +99,6 @@ test('experiment generates baseline and override candidate without installation 
   assert.match(workflow,/npm audit --json --package-lock-only/);
   assert.match(workflow,/assess_postcss_patch_candidate\.cjs/);
   assert.match(workflow,/postcss-lab-unreviewed-comparison/);
-  assert.doesNotMatch(workflow,/npm audit fix|npm ci|expo prebuild|assembleRelease/);
+  const snapshotJob=workflow.slice(0,workflow.indexOf('  smoke-patched-expo:'));
+  assert.doesNotMatch(snapshotJob,/npm audit fix|npm ci|expo prebuild|assembleRelease/);
 });
