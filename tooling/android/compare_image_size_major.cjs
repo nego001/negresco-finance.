@@ -52,7 +52,16 @@ function compare(baseline,candidate,beforeAudit,afterAudit){
     block('major upgrade did not reduce advisory totals safely');
   const changed=[...new Set([...Object.keys(b),...Object.keys(c)])]
     .filter(key=>key&&JSON.stringify(b[key])!==JSON.stringify(c[key])).sort();
-  if(changed.length>80||changed.some(key=>!key.endsWith('/image-size')))
+  const safeQueueRemoval=(key)=>{
+    if(key!=='node_modules/queue'||!b[key]||c[key]!==undefined||
+       b['node_modules/image-size']?.dependencies?.queue!==b[key].version)
+      return false;
+    // The old queue may only be dropped if image-size was its sole owner.
+    // Otherwise the candidate has silently removed a required dependency.
+    return Object.entries(b).every(([name,entry])=>
+      name==='node_modules/image-size'||entry?.dependencies?.queue===undefined);
+  };
+  if(changed.length>80||changed.some(key=>!key.endsWith('/image-size')&&!safeQueueRemoval(key)))
     block('unexpected transitive dependency change beyond image-size: '+
       changed.slice(0,30).map(key=>key+':'+(b[key]?.version??'missing')+'->'+(c[key]?.version??'missing')).join(', '));
   return {
