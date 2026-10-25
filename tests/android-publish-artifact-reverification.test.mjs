@@ -8,7 +8,7 @@ import {createHash} from 'node:crypto';
 
 const workflow = readFileSync(new URL('../.github/workflows/android-apk.yml', import.meta.url), 'utf8');
 const start = workflow.indexOf('      - name: Reverify downloaded release certificate and ZIP identity\n');
-const end = workflow.indexOf('      - name: Stage private draft and publish only after complete verified upload\n', start);
+const end = workflow.indexOf('      - name: Independently audit downloaded compiled network XML\n', start);
 const job = workflow.slice(workflow.indexOf('  publish-test-prerelease:'));
 const block = workflow.slice(start, end);
 const PIN = 'a'.repeat(64);
