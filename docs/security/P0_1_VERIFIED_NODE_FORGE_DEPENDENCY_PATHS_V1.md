@@ -27,6 +27,13 @@ resolvidas, três caminhos:
 3. `@negresco/mobile → expo-updates →
    @expo/code-signing-certificates → node-forge`
 
+A auditoria monta também um índice reverso com **todas as relações
+`dependencies` declaradas** no lockfile, não apenas com os nomes
+conhecidos do Expo. Um novo caminho por um pacote desconhecido
+faz o teste falhar e exige nova revisão. Dependências apenas
+`peerDependencies` ou caminhos de execução Android não são
+cobertos por essa conclusão.
+
 Gera `NODE_FORGE_DEPENDENCY_PATHS.json` com caminhos,
 versões npm instaladas, especificações das dependências
 e hashes SHA-256 do lockfile, SBOM e ledger.
