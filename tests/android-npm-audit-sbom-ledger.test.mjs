@@ -145,8 +145,7 @@ test('forged approval, extra packages or removed vulnerabilities in downloaded l
 });
 test('symlinked and duplicated JSON audit reports cannot pass',t=>{
  const f=fixture(t),link=join(f.folder,'audit-link.json');symlinkSync(f.audit,link);
- assert.throws(()=>generate(readFileSync(f.lock),readFileSync(f.audit),readFileSync(f.feasibility),readFileSync(f.bom)),/^(?!BLOCK:).*/);
- // The offline generator accepts bytes, while capture enforces file safety.
+ // The parser can validate byte buffers; only file-backed capture enforces anti-symlink checks.
  assert.throws(()=>capture([f.lock,link,f.feasibility,f.bom],f.ledger),/missing, linked or oversized/);
  const altered=readFileSync(f.audit,'utf8').replace('"auditReportVersion":2','"auditReportVersion":2,"auditReportVersion":2');
  writeFileSync(f.audit,altered);
