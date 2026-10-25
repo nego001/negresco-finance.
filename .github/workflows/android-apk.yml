@@ -41,6 +41,7 @@ on:
       - 'tests/android-cleartext-network-policy.test.mjs'
       - 'tests/android-compiled-network-policy.test.mjs'
       - 'tooling/android/verify_compiled_network_policy.py'
+      - 'tests/android-publish-compiled-network-xml.test.mjs'
       - '.github/workflows/android-apk.yml'
 # Keep only the newest candidate compiling when multiple source commits arrive.
 concurrency:
@@ -543,6 +544,100 @@ jobs:
           print('PASS: downloaded APK signing certificate and ZIP identity independently verified')
           PY
 
+      - name: Independently audit downloaded compiled network XML
+        working-directory: release-payload
+        run: |
+          set -euo pipefail
+          test -d "${ANDROID_HOME:?Android SDK unavailable}"
+          BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+          test -x "$BUILD_TOOLS/aapt2"
+          python3 - "$BUILD_TOOLS/aapt2" Negresco-Finance-V3.1.3-preview.apk <<'PY'
+          import re, stat, subprocess, sys, zipfile
+          
+          tool, apk = sys.argv[1:]
+          def block(why):
+              raise SystemExit("BLOCK: privileged compiled network XML: " + why)
+          def dump(kind, file=None):
+              cmd = [tool, "dump", kind, apk]
+              if file: cmd += ["--file", file]
+              try:
+                  result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+              except (OSError, subprocess.TimeoutExpired):
+                  block("aapt2 unavailable")
+              if result.returncode or len(result.stdout) > 4 * 1024 * 1024:
+                  block("aapt2 failed or exceeded output bound")
+              return result.stdout.splitlines()
+          
+          manifest = dump("xmltree", "AndroidManifest.xml")
+          apps = [i for i, x in enumerate(manifest) if re.match(r"^\s*E: application(?:\s|$)", x)]
+          if len(apps) != 1: block("expected exactly one application")
+          attrs = []
+          for line in manifest[apps[0] + 1:]:
+              if re.match(r"^\s*E: ", line): break
+              if re.match(r"^\s*A: ", line): attrs.append(line)
+          policy = [x for x in attrs if re.search(r"\bnetworkSecurityConfig\(", x)]
+          if len(policy) != 1: block("missing or duplicate networkSecurityConfig")
+          ref = re.search(r"android:networkSecurityConfig\(0x[0-9a-fA-F]{8}\)=@(0x[0-9a-fA-F]{8})(?:\s|$)", policy[0])
+          if not ref: block("invalid networkSecurityConfig reference")
+          resource_id = ref.group(1).lower()
+          
+          resources = dump("resources")
+          heading = re.compile(r"^\s*resource\s+(0x[0-9a-fA-F]{8})\s+(?:[^\s:]+:)?(xml/[^\s]+)")
+          paths = []
+          for index, line in enumerate(resources):
+              header = heading.match(line)
+              if not header or header.group(1).lower() != resource_id: continue
+              if header.group(2) != "xml/negresco_network_security":
+                  block("policy resource name differs")
+              next_lines = []
+              for nxt in resources[index+1:]:
+                  if heading.match(nxt): break
+                  next_lines.append(nxt)
+              hits = set(re.findall(r"\bres/[a-zA-Z0-9_./-]+\.xml\b", "\n".join(next_lines)))
+              if len(hits) != 1: block("resource path missing or ambiguous")
+              paths.extend(hits)
+          if len(paths) != 1: block("policy resource ID missing or duplicated")
+          path = paths[0]
+          if not re.fullmatch(r"res/[a-zA-Z0-9_./-]+\.xml", path) or ".." in path.split("/"):
+              block("unsafe XML path")
+          try:
+              with zipfile.ZipFile(apk) as z:
+                  members = [m for m in z.infolist() if m.filename == path]
+                  if len(members) != 1: block("XML missing or duplicated in APK")
+                  m = members[0]
+                  mode = stat.S_IFMT((m.external_attr >> 16) & 0xffff) if m.create_system == 3 else 0
+                  if mode not in (0, stat.S_IFREG) or not 0 < m.file_size <= 65536:
+                      block("XML invalid, linked or oversized")
+          except (OSError, zipfile.BadZipFile):
+              block("invalid APK ZIP structure")
+          
+          tree = dump("xmltree", path)
+          elements, atts = [], []
+          for index, line in enumerate(tree):
+              e = re.match(r"^(\s*)E: ([a-zA-Z0-9_-]+)(?:\s|$)", line)
+              if e: elements.append((len(e.group(1)), e.group(2), index))
+              a = re.match(r"^\s*A: ([a-zA-Z0-9_-]+)(?:\(0x[0-9a-fA-F]{8}\))?=(.*)$", line)
+              if a: atts.append((a.group(1), a.group(2), index))
+          if [e[1] for e in elements] != ["network-security-config", "base-config", "trust-anchors", "certificates"]:
+              block("unexpected elements or exceptions")
+          if any(elements[i+1][0] <= elements[i][0] for i in range(3)):
+              block("invalid XML nesting")
+          if len(atts) != 2: block("expected only cleartext and certificate attributes")
+          clear = [a for a in atts if a[0] == "cleartextTrafficPermitted"]
+          cert = [a for a in atts if a[0] == "src"]
+          if len(clear) != 1 or not elements[1][2] < clear[0][2] < elements[2][2]:
+              block("cleartext attribute outside base-config")
+          if not (re.fullmatch(r"\(type 0x12\)0x0+", clear[0][1])
+                  or re.fullmatch(r'(?:false|"false"(?: \(Raw: "false"\))?)', clear[0][1])
+                  or re.fullmatch(r'\(type 0x03\)0x[0-9a-fA-F]+ \(Raw: "false"\)', clear[0][1])):
+              block("cleartextTrafficPermitted is not false")
+          if len(cert) != 1 or not elements[3][2] < cert[0][2]:
+              block("certificate source outside certificates element")
+          if not (re.fullmatch(r'(?:system|"system"(?:\s+\(Raw: "system"\))?)', cert[0][1])
+                  or re.fullmatch(r'\(type 0x03\)0x[0-9a-fA-F]+\s+\(Raw: "system"\)', cert[0][1])):
+              block("certificate authority other than system")
+          print("PASS: privileged downloaded APK compiled network policy forbids HTTP and user CAs")
+          PY
       - name: Stage private draft and publish only after complete verified upload
         working-directory: release-payload
         env:
