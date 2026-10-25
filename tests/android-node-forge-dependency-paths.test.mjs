@@ -100,6 +100,29 @@ test('unexpected extra graph route or silently removed Expo parent is blocked',t
  deny(fixture(t,p=>{delete p.packages[''].dependencies['expo-updates'];}),/missing expected root Expo direct/);
  deny(fixture(t,p=>{delete p.packages['node_modules/expo'].dependencies['@expo/cli'];}),/node-forge dependency routes changed/);
 });
+test('a new route through an unrelated npm dependency cannot be hidden by a hardcoded allowlist',t=>{
+  const f=fixture(t,p=>{
+    p.packages[''].dependencies['silent-plugin']='1.0.0';
+    p.packages['node_modules/silent-plugin']={
+      version:'1.0.0',
+      resolved:'https://registry.npmjs.org/silent-plugin/-/silent-plugin-1.0.0.tgz',
+      integrity,dependencies:{'node-forge':'^1.3.3'}
+    };
+  });
+  deny(f,/dependency routes changed/);
+});
+test('unrelated dependency without a node-forge link cannot invent a vulnerability path',t=>{
+  const f=fixture(t,p=>{
+    p.packages[''].dependencies['plain-plugin']='1.0.0';
+    p.packages['node_modules/plain-plugin']={
+      version:'1.0.0',
+      resolved:'https://registry.npmjs.org/plain-plugin/-/plain-plugin-1.0.0.tgz',
+      integrity,dependencies:{'nonexistent-optional-pkg':'^1.0.0'}
+    };
+  });
+  capture(...params(f));
+  verify(...params(f));
+});
 test('direct native-package replacement or fake safe forge version is rejected',t=>{
  deny(fixture(t,p=>{p.packages['node_modules/node-forge'].version='1.4.1';}),/root advisory version\/path mismatch/);
  deny(fixture(t,p=>{delete p.packages['node_modules/node-forge'];}),/root advisory version\/path mismatch/);
