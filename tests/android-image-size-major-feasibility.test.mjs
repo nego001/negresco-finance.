@@ -44,6 +44,24 @@ test('refuse any Expo/React/PostCSS/node-forge drift in isolated image-size expe
     assert.throws(()=>compare(lock(),c,audit(6),audit(5)),/unexpected Expo\/core\/postcss\/node-forge/);
   }
 });
+test('allow removing queue only when old image-size was its sole dependent',()=>{
+  const base=lock(),candidate=lock(true);
+  base.packages['node_modules/image-size'].dependencies={queue:'6.0.2'};
+  base.packages['node_modules/queue']=fakeEntry('6.0.2');
+  const report=compare(base,candidate,audit(6),audit(5));
+  assert.deepEqual(report.changedPackages,[
+    {path:'node_modules/image-size',from:'1.2.1',to:'2.0.3'},
+    {path:'node_modules/queue',from:'6.0.2',to:null}
+  ]);
+});
+test('refuse deleting queue when some other package also requires it',()=>{
+  const base=lock(),candidate=lock(true);
+  base.packages['node_modules/image-size'].dependencies={queue:'6.0.2'};
+  base.packages['node_modules/expo'].dependencies={queue:'6.0.2'};
+  candidate.packages['node_modules/expo'].dependencies={queue:'6.0.2'};
+  base.packages['node_modules/queue']=fakeEntry('6.0.2');
+  assert.throws(()=>compare(base,candidate,audit(6),audit(5)),/unexpected transitive dependency change/);
+});
 test('refuse extra package replacements beyond image-size itself',()=>{
   const c=lock(true);c.packages['node_modules/other']=fakeEntry('2.0.3');
   assert.throws(()=>compare(lock(),c,audit(6),audit(5)),/unexpected transitive dependency change/);
