@@ -43,7 +43,7 @@ function node(type,name,ids,attrs=[]){
     buf.writeUInt32LE(x.type==='string'?ids.get(x.value):N,off+8);
     buf.writeUInt16LE(8,off+12);
     buf.writeUInt8(x.type==='bool'?0x12:0x03,off+15);
-    buf.writeUInt32LE(x.type==='bool'?(x.value?1:0):ids.get(x.value),off+16);
+    buf.writeUInt32LE(x.type==='bool'?(x.value?0xffffffff:0):ids.get(x.value),off+16);
   });
   return buf;
 }
