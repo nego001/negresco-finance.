@@ -4,6 +4,7 @@ on:
     branches:
       - lab/p01-image-size-major-feasibility-v1
       - lab/p01-postcss-image-size-combined-apk-v1
+      - lab/p01-combined-apk-dependency-provenance-v1
 permissions:
   contents: read
 concurrency:
@@ -261,6 +262,10 @@ jobs:
           python3 ../../tooling/android/verify_compiled_preview_ota.py "$APK"
           python3 ../../tooling/android/verify_packaged_expo_config.py "$APK"
           sha256sum "$APK" > combined-patch-apk.sha256
+          node ../../tooling/android/verify_combined_apk_provenance.cjs capture \
+            "$APK" image-size-review/image-size-candidate-lock.json \
+            image-size-review/IMAGE_SIZE_MAJOR_FEASIBILITY.json \
+            COMBINED_APK_PROVENANCE.json "$GITHUB_SHA"
           echo "PASS (LAB): combined patches in temporary debug-signed APK; not a stable release"
       - name: Upload APK as short-lived unreviewed artifact
         uses: actions/upload-artifact@v4
@@ -269,6 +274,8 @@ jobs:
           path: |
             apps/mobile/android/app/build/outputs/apk/release/app-release.apk
             apps/mobile/combined-patch-apk.sha256
+            apps/mobile/COMBINED_APK_PROVENANCE.json
+            apps/mobile/image-size-review/image-size-candidate-lock.json
             apps/mobile/image-size-review/IMAGE_SIZE_MAJOR_FEASIBILITY.json
           if-no-files-found: error
           retention-days: 3
@@ -311,6 +318,14 @@ jobs:
               raise SystemExit('BLOCK: downloaded combined APK bytes altered')
           print('PASS (LAB): independent downloaded combined APK checksum')
           PY
+      - name: Verify downloaded APK-to-lockfile provenance and source identity
+        run: |
+          set -euo pipefail
+          node tooling/android/verify_combined_apk_provenance.cjs verify \
+            combined-apk/android/app/build/outputs/apk/release/app-release.apk \
+            combined-apk/image-size-review/image-size-candidate-lock.json \
+            combined-apk/image-size-review/IMAGE_SIZE_MAJOR_FEASIBILITY.json \
+            combined-apk/COMBINED_APK_PROVENANCE.json "$GITHUB_SHA"
       - name: Reaudit compiled preview runtime, signature and Expo app config
         run: |
           set -euo pipefail
