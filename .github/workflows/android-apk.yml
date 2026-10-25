@@ -41,6 +41,8 @@ on:
       - 'tests/android-cleartext-network-policy.test.mjs'
       - 'tests/android-compiled-network-policy.test.mjs'
       - 'tooling/android/verify_compiled_network_policy.py'
+      - 'tooling/android/verify_compiled_backup_policy.py'
+      - 'tests/android-compiled-backup-policy.test.mjs'
       - 'tests/android-publish-compiled-network-xml.test.mjs'
       - '.github/workflows/android-apk.yml'
 # Keep only the newest candidate compiling when multiple source commits arrive.
@@ -205,6 +207,7 @@ jobs:
           "$BUILD_TOOLS/aapt" dump permissions "$APK" | grep -F 'android.permission.USE_BIOMETRIC'
           test -x "$BUILD_TOOLS/aapt2"
           python3 ../../tooling/android/verify_compiled_network_policy.py "$APK" "$BUILD_TOOLS/aapt2"
+          python3 ../../tooling/android/verify_compiled_backup_policy.py "$APK" "$BUILD_TOOLS/aapt2"
           # Resource packaging can remap XML paths, so check the compiled
           # AndroidManifest resource IDs instead of guessing res/xml filenames.
           "$BUILD_TOOLS/aapt" dump xmltree "$APK" AndroidManifest.xml > verified-apk-backup-manifest.txt
