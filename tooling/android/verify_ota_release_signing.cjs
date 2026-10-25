@@ -32,8 +32,15 @@ function verify(projectFile, now=new Date()){
   }
   if(updates.enabled!==true)
     block('updates.enabled must explicitly be true or false');
-  if(typeof updates.url!=='string'||!/^https:\/\//.test(updates.url))
-    block('enabled OTA requires a trusted HTTPS endpoint');
+  // Stable binaries must not consume the preview channel, even when updates
+  // are signed. The endpoint is pinned to this application's Expo project.
+  const endpoint='https://u.expo.dev/a506611f-a159-4341-bed7-28dcbd47bf95';
+  if(updates.url!==endpoint)
+    block('enabled stable OTA requires the pinned HTTPS project endpoint');
+  const headers=updates.requestHeaders;
+  if(!headers||typeof headers!=='object'||Array.isArray(headers)||
+     Object.keys(headers).length!==1||headers['expo-channel-name']!=='production')
+    block('enabled stable OTA requires only the production update channel');
   if(typeof updates.codeSigningCertificate!=='string'||
      !updates.codeSigningCertificate.trim())
     block('enabled OTA must declare codeSigningCertificate');
