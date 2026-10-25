@@ -151,10 +151,10 @@ test('compiled runtime guard rejects duplicate table definitions',t=>{
   rejects(trial(t,{resources:resources+'\n'+dup}),/duplicated compiled OTA runtime resource/);
 });
 test('compiled runtime guard rejects missing runtime meta-data',t=>{
-  rejects(trial(t,{omitRuntime:true}),/exactly one compiled application/);
+  rejects(trial(t,{omitRuntime:true}),/typed binary application OTA runtime reference/);
 });
 test('compiled runtime guard rejects literal AndroidManifest runtime instead of a resource',t=>{
-  rejects(trial(t,{literalRuntime:true}),/typed resource reference/);
+  rejects(trial(t,{literalRuntime:true}),/typed binary application OTA runtime reference/);
 });
 test('compiled runtime guard rejects duplicated runtime metadata',t=>{
   rejects(trial(t,{duplicateRuntime:true}),/duplicate application metadata/);
