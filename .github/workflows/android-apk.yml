@@ -63,6 +63,8 @@ on:
       - 'tests/android-ota-runtime-override-firewall.test.mjs'
       - 'tooling/android/verify_packaged_expo_config.py'
       - 'tests/android-downloaded-expo-config-consistency.test.mjs'
+      - 'tooling/android/verify_stable_npm_lock.cjs'
+      - 'tests/android-stable-npm-lock-gate.test.mjs'
       - 'tests/android-publish-compiled-network-xml.test.mjs'
       - '.github/workflows/android-apk.yml'
 # Keep only the newest candidate compiling when multiple source commits arrive.
@@ -99,8 +101,18 @@ jobs:
       - name: Validate P0 repository contracts
         working-directory: .
         run: npm test
+      - name: Require reviewed npm lockfile before any stable Android candidate
+        if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.publish_release || inputs.stable_signing) }}
+        run: |
+          set -euo pipefail
+          # Fail before installing dependencies or exposing signing secrets.
+          node ../../tooling/android/verify_stable_npm_lock.cjs package.json package-lock.json
       - name: Install JS dependencies
+        if: ${{ !(github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.publish_release || inputs.stable_signing)) }}
         run: npm install --no-audit --no-fund
+      - name: Install reviewed stable JS dependencies without resolving changes
+        if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.publish_release || inputs.stable_signing) }}
+        run: npm ci --no-audit --no-fund
       - name: Validate TypeScript
         run: npx tsc --noEmit
       - name: Audit production app OTA runtime override boundary
