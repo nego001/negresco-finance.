@@ -110,6 +110,8 @@ jobs:
           EOF
           grep -E '^(org.gradle.jvmargs|org.gradle.parallel|org.gradle.workers.max|kotlin.compiler.execution.strategy)=' "$PROPS"
       - name: Inspect native Expo Updates configuration
+        env:
+          NEGRESCO_STABLE_REQUESTED: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.publish_release || inputs.stable_signing) && 'true' || 'false' }}
         run: |
           set -euo pipefail
           MANIFEST="android/app/src/main/AndroidManifest.xml"
@@ -162,7 +164,21 @@ jobs:
               const e=JSON.parse(s);
               const u=e.updates||{};
               console.log(JSON.stringify({runtimeVersion:e.runtimeVersion,updates:{enabled:u.enabled,url:u.url,requestHeaders:u.requestHeaders},projectId:e.extra?.eas?.projectId},null,2));
-              if(u.url!=="https://u.expo.dev/a506611f-a159-4341-bed7-28dcbd47bf95"||u.requestHeaders?.["expo-channel-name"]!=="preview")process.exit(1);
+              const stable=process.env.NEGRESCO_STABLE_REQUESTED==="true";
+              const endpoint="https://u.expo.dev/a506611f-a159-4341-bed7-28dcbd47bf95";
+              // Lab APKs stay isolated on preview. Stable OTA must use production.
+              // Stable embedded-only mode does not contact an update server.
+              if(stable && u.enabled===false){
+                console.log("Embedded-only stable candidate: remote OTA channel not used");
+              }else{
+                const channel=stable?"production":"preview";
+                if(u.enabled!==true||u.url!==endpoint||
+                   !u.requestHeaders||Object.keys(u.requestHeaders).length!==1||
+                   u.requestHeaders["expo-channel-name"]!==channel){
+                  console.error("BLOCK: Expo update endpoint/channel does not match build environment");
+                  process.exit(1);
+                }
+              }
             });
           '
       - name: Require signed Expo OTA or embedded-only code for stable release
