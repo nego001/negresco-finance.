@@ -91,7 +91,9 @@ def verify_compiled_policy(tree: str) -> None:
             elements.append((len(el.group(1)), el.group(2)))
         at = re.match(r"^(\s*)A: ([a-zA-Z0-9_-]+)(?:\(0x[0-9a-fA-F]{8}\))?=(.*)$", line)
         if at:
-            attrs.append((len(at.group(1)), at.group(2), at.group(3).strip()))
+            # Do not trim attacker-controlled attributes: "false ", " false"
+            # and similar ambiguous strings must fail the exact allowlist.
+            attrs.append((len(at.group(1)), at.group(2), at.group(3)))
     expected = [
         "network-security-config", "base-config", "trust-anchors", "certificates"
     ]
