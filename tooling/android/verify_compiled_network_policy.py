@@ -85,19 +85,18 @@ def verify_compiled_policy(tree: str) -> None:
     lines = tree.splitlines()
     elements = []
     attrs = []
-    for line in lines:
+    for index, line in enumerate(lines):
         el = re.match(r"^(\s*)E: ([a-zA-Z0-9_-]+)(?:\s|$)", line)
         if el:
-            elements.append((len(el.group(1)), el.group(2)))
+            elements.append((len(el.group(1)), el.group(2), index))
         at = re.match(r"^(\s*)A: ([a-zA-Z0-9_-]+)(?:\(0x[0-9a-fA-F]{8}\))?=(.*)$", line)
         if at:
-            # Do not trim attacker-controlled attributes: "false ", " false"
-            # and similar ambiguous strings must fail the exact allowlist.
-            attrs.append((len(at.group(1)), at.group(2), at.group(3)))
+            # Preserve raw value. "false " must never normalize to "false".
+            attrs.append((len(at.group(1)), at.group(2), at.group(3), index))
     expected = [
         "network-security-config", "base-config", "trust-anchors", "certificates"
     ]
-    if [tag for _, tag in elements] != expected:
+    if [tag for _, tag, _ in elements] != expected:
         reject("unexpected XML elements, domain overrides or missing trust anchors")
     if any(elements[i + 1][0] <= elements[i][0] for i in range(3)):
         reject("unexpected XML nesting in network policy")
@@ -105,33 +104,33 @@ def verify_compiled_policy(tree: str) -> None:
         reject("compiled network policy must contain exactly two attributes")
     clear = [x for x in attrs if x[1] == "cleartextTrafficPermitted"]
     source = [x for x in attrs if x[1] == "src"]
-    # Network Security Configuration XML uses an unnamespaced attribute.
-    # AAPT2 can emit bare false, quoted "false", or a typed Boolean.
-    # No truthy/falsy coercion is allowed: only exact false spellings.
-    # Accept ONLY an explicit false literal or typed Boolean zero.
     if len(clear) != 1:
         reject("cleartextTrafficPermitted must occur exactly once")
     clear_value = clear[0][2]
+    # AAPT2 may emit bare false, quoted "false", or a typed Boolean.
+    # No truthy/falsy coercion is allowed: only exact false spellings.
     safe_boolean = re.fullmatch(r"\(type 0x12\)0x0+", clear_value)
     safe_literal = re.fullmatch(r'(?:false|"false"(?: \(Raw: "false"\))?)', clear_value)
     safe_typed_literal = re.fullmatch(
         r'\(type 0x03\)0x[0-9a-fA-F]+ \(Raw: "false"\)', clear_value
     )
     if not (safe_boolean or safe_literal or safe_typed_literal):
-        # Bounded, escaped diagnostic of a policy value, not application data.
         reject("cleartextTrafficPermitted must be explicitly false; "
                "observed " + repr(clear_value[:160]))
-    # Attributes of base-config share the indentation of its child
-    # trust-anchors element in aapt2 XML tree output.
-    if clear[0][0] != elements[2][0]:
+
+    # AAPT2 formats attribute indentation differently across SDK versions.
+    # Enforce owning element through XML tree *position*: attributes are
+    # emitted immediately after their element and before its first child.
+    # This also rejects deceptive attributes placed on the root or child.
+    if not elements[1][2] < clear[0][3] < elements[2][2]:
         reject("cleartext attribute not nested under base-config")
     if len(source) != 1:
         reject("network policy must use one trusted certificate source")
-    if source[0][0] <= elements[3][0]:
+    if not elements[3][2] < source[0][3]:
         reject("certificate source must belong to certificates element")
     value = source[0][2]
-    # AAPT2 may preserve the original string in (Raw: "..."), or quote
-    # the resolved literal directly; never accept user or @raw anchors.
+    # AAPT2 may preserve the original string as a raw token or typed
+    # string. Reject user or debug certificates and all other forms.
     if not (re.fullmatch(r'(?:system|"system"(?:\s+\(Raw: "system"\))?)', value)
             or re.fullmatch(r'\(type 0x03\)0x[0-9a-fA-F]+\s+\(Raw: "system"\)', value)):
         reject("certificate source must be system only")
