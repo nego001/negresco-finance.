@@ -88,10 +88,10 @@ def manifest_resource_id(raw: str) -> str:
         e = RE_ELEMENT.match(line)
         if e:
             depth = len(e.group(1))
-            if stack and stack[-1] == ("meta-data", depth):
-                finish_node()
-                node_name = node_value = None
             while stack and stack[-1][1] >= depth:
+                if [v[0] for v in stack] == ["manifest", "application", "meta-data"]:
+                    finish_node()
+                    node_name = node_value = None
                 stack.pop()
             parent = [s[0] for s in stack]
             tag = e.group(2)
