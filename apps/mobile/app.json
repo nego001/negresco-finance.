@@ -19,7 +19,8 @@
         }
       ],
       "./plugins/withNegrescoNoDataExtraction",
-      "./plugins/withNegrescoNetworkPolicy"
+      "./plugins/withNegrescoNetworkPolicy",
+      "./plugins/withNegrescoOtaRuntimeLock"
     ],
     "runtimeVersion": {
       "policy": "appVersion"
