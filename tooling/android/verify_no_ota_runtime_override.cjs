@@ -8,7 +8,7 @@ const path=require('node:path');
 
 const SCRIPT_EXT=/\.(?:js|jsx|mjs|cjs|ts|tsx|kt|java)$/i;
 const BLOCKED=[
-  ['JavaScript expo-updates module import', /\b(?:from\s*['"]expo-updates(?:\/[^'"]*)?['"]|(?:import|require)\s*\(\s*['"]expo-updates(?:\/[^'"]*)?['"]\s*\))/],
+  ['JavaScript expo-updates module import', /(?:['"]expo-updates(?:\/[^'"]*)?['"]|['"]expo['"]\s*\+\s*['"]-updates['"])/],
   ['native Expo Updates package reference', /expo[.]modules[.]updates/],
   ['native Expo Updates controller access', /\b(?:UpdatesController|UpdatesConfiguration|EXUpdatesAppController)\b/],
   ['OTA runtime URL/header override API', /\b(?:setUpdateURLAndRequestHeadersOverride|setUpdateURLOverride|setRequestHeadersOverride|setExtraParamAsync|setUpdateRequestHeaders)\b/],
