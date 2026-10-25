@@ -1197,8 +1197,7 @@ jobs:
         working-directory: release-payload
         run: |
           set -euo pipefail
-          # Inline workflow-owned verifier. No checkout, no artifact-supplied
-          # source code: re-inspect the exact downloaded candidate ZIP bytes.
+          # Inline workflow-owned verifier. No checkout or artifact-supplied scripts.
           test -d "${ANDROID_HOME:?Android SDK unavailable}"
           BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
           test -x "$BUILD_TOOLS/aapt2"
@@ -1225,6 +1224,7 @@ jobs:
           MAX_APK = 1024 * 1024 * 1024
           MAX_TABLE = 48 * 1024 * 1024
           ANDROID = "http://schemas.android.com/apk/res/android"
+          PREFIX = "expo.modules.updates."
           NO_INDEX = 0xFFFFFFFF
           MAX_XML = 2 * 1024 * 1024
           MAX_STRINGS = 65536
