@@ -954,6 +954,9 @@ jobs:
           ENABLED = PREFIX + "ENABLED"
           CERT = PREFIX + "CODE_SIGNING_CERTIFICATE"
           META = PREFIX + "CODE_SIGNING_METADATA"
+          UPDATE_URL = PREFIX + "EXPO_UPDATE_URL"
+          REQUEST_HEADERS = PREFIX + "UPDATES_CONFIGURATION_REQUEST_HEADERS_KEY"
+          PINNED_ENDPOINT = "https://u.expo.dev/a506611f-a159-4341-bed7-28dcbd47bf95"
           NIL = 0xffffffff
           MAX_XML = 2 * 1024 * 1024
 
@@ -1123,6 +1126,19 @@ jobs:
                   return
               if enabled != (0x12,True) or keys != {CERT,META}:
                   block("unsigned or ambiguous enabled Expo Updates in release APK")
+              # Independent trust policy: production-signed APKs must not fetch
+              # code from a preview channel or a substituted Expo project URL.
+              if data.get(UPDATE_URL) != (0x03, PINNED_ENDPOINT):
+                  block("signed OTA APK has an unexpected compiled update endpoint")
+              routing = data.get(REQUEST_HEADERS)
+              if not routing or routing[0] != 0x03 or not isinstance(routing[1],str):
+                  block("signed OTA routing headers must be literal JSON")
+              try:
+                  headers = json.loads(routing[1])
+              except (TypeError, ValueError):
+                  block("malformed signed OTA channel JSON")
+              if headers != {"expo-channel-name":"production"}:
+                  block("signed OTA APK must use only the production channel")
               algorithm = data[META]
               if algorithm[0] != 0x03 or not isinstance(algorithm[1],str):
                   block("code signing metadata must be literal JSON")
