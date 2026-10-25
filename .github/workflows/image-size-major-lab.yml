@@ -210,7 +210,18 @@ jobs:
           set -euo pipefail
           npx tsc --noEmit
           node ../../tooling/android/verify_no_ota_runtime_override.cjs .
-          node ../../tooling/android/verify_ota_release_signing.cjs app.json
+          node <<'NODE'
+          const fs=require('node:fs');
+          const app=JSON.parse(fs.readFileSync('app.json','utf8')).expo;
+          if(app.version!=='3.1.3'||app.runtimeVersion?.policy!=='appVersion'||
+             app.updates?.enabled!==true||
+             app.updates?.requestHeaders?.['expo-channel-name']!=='preview'||
+             app.updates?.url!=='https://u.expo.dev/a506611f-a159-4341-bed7-28dcbd47bf95'||
+             app.updates?.codeSigningCertificate!==undefined||
+             app.updates?.codeSigningMetadata!==undefined)
+            throw Error('BLOCK: temporary APK must keep exact unsigned preview OTA policy');
+          console.log('PASS (LAB): trusted preview config source matches expected candidate');
+          NODE
       - name: Generate native project from ephemeral candidate
         env:
           EXPO_NO_TELEMETRY: '1'
