@@ -35,19 +35,80 @@ const goodResources=[
   '    resource 0x7f120046 string/app_name',
   '      () "Negresco Finance"'
 ].join('\n');
+function binaryManifest(options={}){
+  const uri='http://schemas.android.com/apk/res/android';
+  const meta='expo.modules.updates.EXPO_RUNTIME_VERSION';
+  const names=['manifest','application','meta-data',uri,'name','value',meta,'3.1.3'];
+  const ids=new Map(names.map((v,i)=>[v,i]));
+  const n8=value=>value<128?Buffer.from([value]):Buffer.from([(value>>8)|0x80,value&255]);
+  const encoded=names.map(s=>{
+    const b=Buffer.from(s,'utf8');
+    return Buffer.concat([n8(s.length),n8(b.length),b,Buffer.from([0])]);
+  });
+  const base=28+names.length*4,pool=Buffer.alloc(base);
+  pool.writeUInt16LE(1,0);pool.writeUInt16LE(28,2);
+  pool.writeUInt32LE(base+encoded.reduce((n,b)=>n+b.length,0),4);
+  pool.writeUInt32LE(names.length,8);pool.writeUInt32LE(0x100,16);
+  pool.writeUInt32LE(base,20);
+  let offset=0;
+  encoded.forEach((b,i)=>{pool.writeUInt32LE(offset,28+i*4);offset+=b.length;});
+  const chunks=[Buffer.concat([pool,...encoded])];
+  const NO=0xffffffff;
+  const begin=(tag,attrs=[])=>{
+    const b=Buffer.alloc(36+20*attrs.length);
+    b.writeUInt16LE(0x0102,0);b.writeUInt16LE(16,2);b.writeUInt32LE(b.length,4);
+    b.writeUInt32LE(NO,12);b.writeUInt32LE(NO,16);
+    b.writeUInt32LE(ids.get(tag),20);b.writeUInt16LE(20,24);
+    b.writeUInt16LE(20,26);b.writeUInt16LE(attrs.length,28);
+    attrs.forEach((a,i)=>{
+      const p=36+20*i;b.writeUInt32LE(ids.get(uri),p);
+      b.writeUInt32LE(ids.get(a.key),p+4);
+      const str=a.type===3;
+      b.writeUInt32LE(str?ids.get(a.value):NO,p+8);
+      b.writeUInt16LE(8,p+12);b.writeUInt8(a.type,p+15);
+      b.writeUInt32LE(str?ids.get(a.value):a.value,p+16);
+    });
+    chunks.push(b);
+  };
+  const end=tag=>{
+    const b=Buffer.alloc(24);
+    b.writeUInt16LE(0x0103,0);b.writeUInt16LE(16,2);b.writeUInt32LE(24,4);
+    b.writeUInt32LE(NO,12);b.writeUInt32LE(NO,16);
+    b.writeUInt32LE(ids.get(tag),20);chunks.push(b);
+  };
+  begin('manifest');begin('application');
+  if(!options.omitRuntime){
+    const fields=[
+      {key:'name',type:3,value:meta},
+      options.literalRuntime?{key:'value',type:3,value:'3.1.3'}:
+        {key:'value',type:1,value:parseInt(options.manifestRef??'0x7f120045',16)}
+    ];
+    begin('meta-data',fields);end('meta-data');
+    if(options.duplicateRuntime){begin('meta-data',fields);end('meta-data');}
+  }
+  end('application');end('manifest');
+  const data=Buffer.concat(chunks),header=Buffer.alloc(8);
+  header.writeUInt16LE(3,0);header.writeUInt16LE(8,2);
+  header.writeUInt32LE(data.length+8,4);
+  return Buffer.concat([header,data]);
+}
+
+
 function fixture(t,changes={}){
   const temp=mkdtempSync(join(tmpdir(),'negresco-privileged-runtime-'));
   t.after(()=>rmSync(temp,{recursive:true,force:true}));
   const bin=join(temp,'signed.apk'),aapt=join(temp,'aapt2');
+  const manifestFile=join(temp,'compiled-manifest.xml');
+  writeFileSync(manifestFile,binaryManifest(changes));
   const zipCode=[
     'import sys,zipfile,warnings',
     'warnings.filterwarnings("ignore",category=UserWarning)',
     'with zipfile.ZipFile(sys.argv[1],"w") as archive:',
-    ' archive.writestr("AndroidManifest.xml",b"ABCDEFGH")',
+    ' archive.write(sys.argv[2],"AndroidManifest.xml")',
     ' archive.writestr("resources.arsc",b"ABCDEFGH")',
-    ' if sys.argv[2]=="duplicate": archive.writestr("resources.arsc",b"ABCDEFGH")'
+    ' if sys.argv[3]=="duplicate": archive.writestr("resources.arsc",b"ABCDEFGH")'
   ].join('\n');
-  const prep=spawnSync('python3',['-c',zipCode,bin,changes.duplicate?'duplicate':'no'],{encoding:'utf8'});
+  const prep=spawnSync('python3',['-c',zipCode,bin,manifestFile,changes.duplicate?'duplicate':'no'],{encoding:'utf8'});
   assert.equal(prep.status,0,prep.stderr);
   writeFileSync(aapt,[
     '#!/usr/bin/env python3',
@@ -94,12 +155,12 @@ test('privileged auditor blocks a different runtime in APK resources',t=>{
     /exactly one default nonlocalized value/);
 });
 test('privileged auditor blocks altered manifest ID',t=>{
-  denied(fixture(t,{manifest:goodManifest.replace('@'+RID,'@0x7f120055')}),
+  denied(fixture(t,{manifestRef:'0x7f120055'}),
     /resource ID disagree/);
 });
 test('privileged auditor blocks missing runtime metadata in manifest',t=>{
-  denied(fixture(t,{manifest:goodManifest.replaceAll(KEY,'expo.modules.updates.WRONG')}),
-    /exactly one compiled application OTA runtime reference/);
+  denied(fixture(t,{omitRuntime:true}),
+    /typed binary application OTA runtime reference/);
 });
 test('privileged auditor blocks duplicate resources.arsc in downloaded artifact',t=>{
   denied(fixture(t,{duplicate:true}),/resources.arsc must be unique/);
