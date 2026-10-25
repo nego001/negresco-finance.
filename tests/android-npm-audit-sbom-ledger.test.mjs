@@ -23,7 +23,7 @@ const records=[
  ['node_modules/image-size','image-size','2.0.3']
 ];
 const nodeEntry=(name,via,effects,isDirect=false)=>({
- name,severity:'high',isDirect,via,effects,range:'*',
+ name,severity:'high',isDirect,via:structuredClone(via),effects:structuredClone(effects),range:'*',
  nodes:[records.find(r=>r[1]===name)[0]],fixAvailable:false
 });
 const rootAdvisory={
