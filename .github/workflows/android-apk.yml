@@ -44,6 +44,8 @@ on:
       - 'tooling/android/verify_compiled_backup_policy.py'
       - 'tests/android-compiled-backup-policy.test.mjs'
       - 'tests/android-publish-compiled-backup-xml.test.mjs'
+      - 'tooling/android/verify_ota_release_signing.cjs'
+      - 'tests/android-ota-release-signing.test.mjs'
       - 'tests/android-publish-compiled-network-xml.test.mjs'
       - '.github/workflows/android-apk.yml'
 # Keep only the newest candidate compiling when multiple source commits arrive.
@@ -158,6 +160,13 @@ jobs:
               if(u.url!=="https://u.expo.dev/a506611f-a159-4341-bed7-28dcbd47bf95"||u.requestHeaders?.["expo-channel-name"]!=="preview")process.exit(1);
             });
           '
+      - name: Require signed Expo OTA or embedded-only code for stable release
+        if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.publish_release || inputs.stable_signing) }}
+        run: |
+          set -euo pipefail
+          # Preview test APKs keep existing OTA settings; a stable binary may
+          # not load unsigned remote JavaScript after passing APK audits.
+          node ../../tooling/android/verify_ota_release_signing.cjs app.json
       - name: Reject release publication with Debug signing or wrong trigger
         if: ${{ inputs.publish_release && (!inputs.stable_signing || github.event_name != 'workflow_dispatch' || github.ref != 'refs/heads/main') }}
         run: |
