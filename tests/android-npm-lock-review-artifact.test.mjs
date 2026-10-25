@@ -33,6 +33,17 @@ test('review candidates run offline stable lock verification before upload',()=>
   assert.match(workflow,/if-no-files-found: error/);
   assert.match(workflow,/retention-days: 7/);
 });
+test('registry advisory capture preserves vulnerabilities without treating them as approval',()=>{
+  assert.match(workflow,/npm audit --json --package-lock-only/);
+  assert.match(workflow,/LOCK_AUDIT\.json/);
+  assert.match(workflow,/report\.error\|\|!report\.metadata/);
+  assert.match(workflow,/advisoryReportSha256:/);
+  assert.match(workflow,/advisoryCounts:/);
+  assert.match(workflow,/advisoryReviewed:false/);
+  assert.match(workflow,/apps\/mobile\/LOCK_AUDIT\.json/);
+  assert.ok(workflow.indexOf('Capture registry advisories')<
+    workflow.indexOf('Generate provenance and digest for manual review'));
+});
 test('review metadata records source SHA, source ref, toolchain and cryptographic digest',()=>{
   for(const item of ['UNREVIEWED CANDIDATE','sourceCommit:process.env.GITHUB_SHA','sourceRef:process.env.GITHUB_REF','packageSha256:','lockSha256:','lockedPackageCount:','reviewed:false'])
     assert.ok(workflow.includes(item),item);
