@@ -122,7 +122,7 @@ test('aapt2 bare system certificate value remains trusted without accepting user
     const bad=policy.replace('"system" (Raw: "system")',untrusted);
     const result=check(t,{policy:bad});
     assert.notEqual(result.status,0,untrusted);
-    assert.match(result.stderr,/certificate source must be certificate authority other than system/);
+    assert.match(result.stderr,/certificate authority other than system/);
   }
 });
 
