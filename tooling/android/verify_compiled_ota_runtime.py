@@ -20,6 +20,7 @@ MAX_DUMP = 32 * 1024 * 1024
 MAX_APK = 1024 * 1024 * 1024
 MAX_TABLE = 48 * 1024 * 1024
 ANDROID = "http://schemas.android.com/apk/res/android"
+PREFIX = "expo.modules.updates."
 NO_INDEX = 0xFFFFFFFF
 MAX_XML = 2 * 1024 * 1024
 MAX_STRINGS = 65536
