@@ -39,6 +39,66 @@ function purl(name,version){
   const pieces=name.startsWith('@')?name.split('/').map(encodeURIComponent):[encodeURIComponent(name)];
   return 'pkg:npm/'+pieces.join('/')+'@'+encodeURIComponent(version);
 }
+const GRAPH_SECTIONS=['dependencies','optionalDependencies','devDependencies','peerDependencies'];
+function resolveDependency(lock,from,name){
+  if(!/^(?:@[a-zA-Z0-9_.-]+\/)?[a-zA-Z0-9_.-]+$/.test(name))
+    block('invalid graph dependency name: '+name);
+  let parent=from;
+  while(parent){
+    const candidate=parent+'/node_modules/'+name;
+    if(Object.hasOwn(lock.packages,candidate))return candidate;
+    const split=parent.lastIndexOf('/node_modules/');
+    if(split<0)break;
+    parent=parent.slice(0,split);
+  }
+  const top='node_modules/'+name;
+  return Object.hasOwn(lock.packages,top)?top:null;
+}
+function dependencyGraph(lock){
+  const locations=Object.keys(lock.packages).sort();
+  const dependencies=[];
+  const missingPeers=[];
+  let resolvedEdges=0;
+  const kinds={dependencies:0,optionalDependencies:0,devDependencies:0,peerDependencies:0};
+  for(const location of locations){
+    const entry=lock.packages[location];
+    if(!entry||typeof entry!=='object'||Array.isArray(entry))
+      block('invalid graph package at '+location);
+    const targets=new Set();
+    for(const section of GRAPH_SECTIONS){
+      const declared=entry[section];
+      if(declared===undefined)continue;
+      if(!declared||typeof declared!=='object'||Array.isArray(declared))
+        block('invalid '+section+' map at '+location);
+      for(const [name,range] of Object.entries(declared).sort((a,b)=>a[0].localeCompare(b[0]))){
+        if(typeof range!=='string'||!range.trim())block('invalid '+section+' range '+name);
+        const locationOfTarget=resolveDependency(lock,location,name);
+        if(!locationOfTarget){
+          if(section!=='peerDependencies')
+            block('unresolved non-peer '+section+' dependency '+name+' from '+(location||'root'));
+          const meta=entry.peerDependenciesMeta?.[name];
+          if(meta!==undefined&&(!meta||typeof meta!=='object'||Array.isArray(meta)||
+             (meta.optional!==undefined&&typeof meta.optional!=='boolean')))
+            block('invalid peerDependenciesMeta for '+name);
+          missingPeers.push({
+            from:location||'root',name,declared:range,
+            optional:meta?.optional===true
+          });
+          continue;
+        }
+        targets.add('npm-lock:'+locationOfTarget);
+        kinds[section]++;
+        resolvedEdges++;
+        if(resolvedEdges>50000)block('too many installed graph edges');
+      }
+    }
+    dependencies.push({ref:location?'npm-lock:'+location:'npm-lock:root',
+      dependsOn:[...targets].sort()});
+  }
+  if(missingPeers.length>1000)block('too many missing npm peer requirements');
+  return {dependencies,missingPeers,kinds,resolvedEdges,
+    distinctEdges:dependencies.reduce((n,x)=>n+x.dependsOn.length,0)};
+}
 function sbom(lockBytes){
   const lock=parseLock(lockBytes);
   const paths=Object.keys(lock.packages).filter(key=>key!=='').sort();
@@ -75,19 +135,26 @@ function sbom(lockBytes){
       properties
     };
   });
+  const graph=dependencyGraph(lock);
   return {
     bomFormat:'CycloneDX',specVersion:'1.6',version:1,
     metadata:{
-      component:{type:'application',name:'@negresco/mobile',
+      component:{type:'application','bom-ref':'npm-lock:root',name:'@negresco/mobile',
         version:'3.1.3',purl:purl('@negresco/mobile','3.1.3')},
       properties:[
         {name:'negresco:scope',value:'unreviewed-npm-build-graph-not-apk-runtime'},
         {name:'negresco:release-approved',value:'false'},
         {name:'negresco:source-lock-sha256',
-         value:crypto.createHash('sha256').update(lockBytes).digest('hex')}
+         value:crypto.createHash('sha256').update(lockBytes).digest('hex')},
+        {name:'negresco:resolved-graph-requirements',value:String(graph.resolvedEdges)},
+        {name:'negresco:distinct-graph-edges',value:String(graph.distinctEdges)},
+        {name:'negresco:unresolved-peer-count',value:String(graph.missingPeers.length)},
+        {name:'negresco:unresolved-peers-json',value:JSON.stringify(graph.missingPeers)},
+        {name:'negresco:graph-edge-kinds',value:JSON.stringify(graph.kinds)}
       ]
     },
-    components
+    components,
+    dependencies:graph.dependencies
   };
 }
 function serialized(lockfile){return Buffer.from(JSON.stringify(sbom(read(lockfile)),null,2)+'\n');}
@@ -114,4 +181,4 @@ function main(args){
   catch(e){console.error(e.message);return 1;}
 }
 if(require.main===module)process.exitCode=main(process.argv.slice(2));
-module.exports={sbom,serialized,capture,verify,extractNpmName,purl};
+module.exports={sbom,serialized,capture,verify,extractNpmName,purl,resolveDependency,dependencyGraph};
