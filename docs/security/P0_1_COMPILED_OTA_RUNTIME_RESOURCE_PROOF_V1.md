@@ -20,10 +20,12 @@ o AAPT2 do Android SDK e a versao declarada pelo `app.json`.
 
 - Verifica que o ZIP do APK inclui exatamente um
   `AndroidManifest.xml` e um `resources.arsc` regulares e limitados.
-- Usa `aapt2 dump xmltree --file AndroidManifest.xml` para localizar
-  a entrada `expo.modules.updates.EXPO_RUNTIME_VERSION` de
-  `application`, exigindo uma referencia a ID compilado de recurso
-  (nao uma string literal).
+- Interpreta diretamente os bytes Android Binary XML (AXML) de
+  `AndroidManifest.xml` do APK, com limites de tamanho, strings e
+  atributos tipados. Localiza a meta-data
+  `expo.modules.updates.EXPO_RUNTIME_VERSION` de `application` e
+  exige uma referencia de recurso compilada TYPE_REFERENCE (0x01),
+  nao uma string literal nem o texto variavel do AAPT2.
 - Usa `aapt2 dump resources` no **mesmo APK** para encontrar esse
   ID, exigir o recurso `string/expo_runtime_version`, e comprovar
   a existencia de **exatamente uma configuracao default** com
