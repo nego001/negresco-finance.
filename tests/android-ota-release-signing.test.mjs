@@ -59,7 +59,7 @@ test('offline mode must reject contradictory OTA signing fields',t=>
   denied(t,{enabled:false,codeSigningCertificate:'./certs/certificate.pem'},
     /contradictory code-signing settings/));
 for(const [label,updates,expected] of [
-  ['missing explicit OTA configuration',undefined,/must be explicit/],
+  ['missing explicit OTA configuration',null,/must be explicit/],
   ['updates.enabled missing',{url:defaultUpdate.url},/must explicitly be true or false/],
   ['updates.enabled malformed',{...defaultUpdate,enabled:'false'},/must explicitly be true or false/],
   ['non HTTPS update URL',{...defaultUpdate,url:'http://u.expo.dev/a'},/trusted HTTPS endpoint/],
