@@ -48,6 +48,8 @@ on:
       - 'tests/android-ota-release-signing.test.mjs'
       - 'tooling/android/verify_generated_ota_manifest.py'
       - 'tests/android-generated-ota-manifest.test.mjs'
+      - 'tooling/android/verify_compiled_ota_manifest.py'
+      - 'tests/android-compiled-ota-manifest.test.mjs'
       - 'tests/android-publish-compiled-network-xml.test.mjs'
       - '.github/workflows/android-apk.yml'
 # Keep only the newest candidate compiling when multiple source commits arrive.
@@ -273,6 +275,18 @@ jobs:
             echo "::notice::Debug-signed APK, for testing only. Preserve app data before changing signing identities."
           fi
           sha256sum "$APK" | tee android-apk.sha256
+      - name: Parse compiled OTA metadata in laboratory APK
+        run: |
+          set -euo pipefail
+          # Parser smoke-check on a real compiled APK. This is NOT an OTA-signing approval.
+          python3 ../../tooling/android/verify_compiled_ota_manifest.py --parse-only android/app/build/outputs/apk/release/app-release.apk
+      - name: Verify compiled OTA policy for stable APK
+        if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.publish_release || inputs.stable_signing) }}
+        run: |
+          set -euo pipefail
+          # Read the exact APK that passed signing/backup/network checks.
+          # Require embedded-only mode or matching signed code metadata.
+          python3 ../../tooling/android/verify_compiled_ota_manifest.py --verify-stable android/app/build/outputs/apk/release/app-release.apk app.json
       - name: Upload standalone APK
         uses: actions/upload-artifact@v4
         with:
