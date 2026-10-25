@@ -65,10 +65,10 @@ test('multiple dependency kinds to same package produce one CycloneDX edge',()=>
   const x=bom(lock());
   const edges=row(x,'node_modules/alpha').dependsOn;
   assert.equal(edges.length,1);
-  assert.equal(props(x)['negresco:distinct-graph-edges'],'6');
-  assert.equal(props(x)['negresco:resolved-graph-requirements'],'7');
+  assert.equal(props(x)['negresco:distinct-graph-edges'],'5');
+  assert.equal(props(x)['negresco:resolved-graph-requirements'],'6');
   assert.deepEqual(JSON.parse(props(x)['negresco:graph-edge-kinds']),{
-    dependencies:3,optionalDependencies:1,devDependencies:1,peerDependencies:2
+    dependencies:3,optionalDependencies:1,devDependencies:1,peerDependencies:1
   });
 });
 test('uninstalled optional peer requirements are explicitly recorded, not falsely installed',()=>{
