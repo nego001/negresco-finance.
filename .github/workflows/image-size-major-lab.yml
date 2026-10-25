@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - lab/p01-image-size-major-feasibility-v1
+      - lab/p01-postcss-image-size-combined-apk-v1
 permissions:
   contents: read
 concurrency:
@@ -137,3 +138,179 @@ jobs:
           test -s android/app/src/main/AndroidManifest.xml
           python3 ../../tooling/android/verify_generated_ota_runtime.py app.json android/app/src/main/AndroidManifest.xml android/app/src/main/res/values/strings.xml android/app/src/main/res
           echo "PASS (LAB ONLY): image-size 2.0.3 npm ci + TS + Expo prebuild"
+
+  assemble-combined-lab-apk:
+    name: Assemble temporary PostCSS and image-size APK
+    needs: smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - name: Checkout trusted laboratory code without persisted credentials
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Select Node 22.16.0
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+          registry-url: https://registry.npmjs.org
+      - name: Select Java 17 for Android
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Download the candidate from the same GitHub Actions run
+        uses: actions/download-artifact@v4
+        with:
+          name: image-size-major-unreviewed-comparison
+          path: apps/mobile/image-size-review
+      - name: Verify exact candidate identity and stage ephemeral npm files
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs=require('node:fs'),crypto=require('node:crypto');
+          const dir='image-size-review/';
+          const data=JSON.parse(fs.readFileSync(dir+'IMAGE_SIZE_MAJOR_FEASIBILITY.json','utf8'));
+          const original=fs.readFileSync('package.json');
+          const source=fs.readFileSync(dir+'source-package.json');
+          const lock=fs.readFileSync(dir+'image-size-candidate-lock.json');
+          const hash=b=>crypto.createHash('sha256').update(b).digest('hex');
+          if(!original.equals(source)||data.label!=='UNREVIEWED IMAGE-SIZE MAJOR EXPERIMENT - DO NOT PUBLISH'||
+             data.reviewed!==false||data.expoUnchanged!==true||data.patchedImageSize!=='2.0.3'||
+             data.sourceDigests.candidateLock!==hash(lock)||data.changedPackages.length!==2||
+             data.changedPackages[0].path!=='node_modules/image-size'||
+             data.changedPackages[0].from!=='1.2.1'||
+             data.changedPackages[0].to!=='2.0.3'||
+             data.changedPackages[1].path!=='node_modules/queue'||
+             data.changedPackages[1].from!=='6.0.2'||
+             data.changedPackages[1].to!==null||
+             data.candidateAdvisories.total!==5||
+             data.candidateAdvisories.high!==5)
+            throw Error('BLOCK: source, checksum, exact graph diff or advisory evidence changed');
+          const pkg=JSON.parse(original);
+          const parsed=JSON.parse(lock);
+          if(pkg.overrides!==undefined||pkg.dependencies?.['image-size']||
+             parsed.lockfileVersion!==3||parsed.name!=='@negresco/mobile'||
+             parsed.version!=='3.1.3')
+            throw Error('BLOCK: candidate identity/production manifest changed');
+          pkg.overrides={postcss:'8.5.23','image-size':'2.0.3'};
+          fs.writeFileSync('package.json',JSON.stringify(pkg,null,2)+'\n');
+          fs.writeFileSync('package-lock.json',lock,{flag:'wx'});
+          console.log('PASS (LAB): exact combined-patch lock verified '+hash(lock));
+          NODE
+      - name: Install exact combined patch candidate with npm ci
+        run: npm ci --no-audit --no-fund
+      - name: Typecheck and verify preview OTA boundary
+        run: |
+          set -euo pipefail
+          npx tsc --noEmit
+          node ../../tooling/android/verify_no_ota_runtime_override.cjs .
+          node ../../tooling/android/verify_ota_release_signing.cjs app.json
+      - name: Generate native project from ephemeral candidate
+        env:
+          EXPO_NO_TELEMETRY: '1'
+        run: npx expo prebuild --platform android --non-interactive --no-install
+      - name: Tune memory and verify generated preview OTA version
+        run: |
+          set -euo pipefail
+          PROPS=android/gradle.properties
+          test -s "$PROPS"
+          sed -i '/^org.gradle.jvmargs=/d; /^org.gradle.parallel=/d; /^org.gradle.workers.max=/d; /^kotlin.compiler.execution.strategy=/d' "$PROPS"
+          cat >> "$PROPS" <<'EOF'
+          org.gradle.jvmargs=-Xmx3g -XX:MaxMetaspaceSize=1536m -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8
+          org.gradle.parallel=false
+          org.gradle.workers.max=2
+          kotlin.compiler.execution.strategy=in-process
+          EOF
+          python3 ../../tooling/android/verify_generated_ota_runtime.py app.json android/app/src/main/AndroidManifest.xml android/app/src/main/res/values/strings.xml android/app/src/main/res
+      - name: Build release variant signed with Android Debug key only
+        run: |
+          set -euo pipefail
+          test ! -e android/app/negresco-ci-release.jks
+          chmod +x android/gradlew
+          (cd android && ./gradlew assembleRelease --no-daemon)
+      - name: Verify compiled combined-patch APK and its content
+        run: |
+          set -euo pipefail
+          APK=android/app/build/outputs/apk/release/app-release.apk
+          test -s "$APK"
+          unzip -t "$APK" >/dev/null
+          TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+          test -x "$TOOLS/apksigner"
+          test -x "$TOOLS/aapt2"
+          "$TOOLS/apksigner" verify --verbose "$APK"
+          python3 ../../tooling/android/verify_release_apk_surface.py "$APK"
+          python3 ../../tooling/android/verify_compiled_ota_manifest.py --parse-only "$APK"
+          python3 ../../tooling/android/verify_compiled_ota_runtime.py "$APK" "$TOOLS/aapt2" 3.1.3
+          python3 ../../tooling/android/verify_compiled_preview_ota.py "$APK"
+          python3 ../../tooling/android/verify_packaged_expo_config.py "$APK"
+          sha256sum "$APK" > combined-patch-apk.sha256
+          echo "PASS (LAB): combined patches in temporary debug-signed APK; not a stable release"
+      - name: Upload APK as short-lived unreviewed artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: combined-patch-debug-apk-unreviewed
+          path: |
+            apps/mobile/android/app/build/outputs/apk/release/app-release.apk
+            apps/mobile/combined-patch-apk.sha256
+            apps/mobile/image-size-review/IMAGE_SIZE_MAJOR_FEASIBILITY.json
+          if-no-files-found: error
+          retention-days: 3
+
+  reverify-downloaded-combined-apk:
+    name: Independently reverify exact downloaded combined-patch APK
+    needs: assemble-combined-lab-apk
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout trusted verifier code without persisted credentials
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Download APK from the same workflow run
+        uses: actions/download-artifact@v4
+        with:
+          name: combined-patch-debug-apk-unreviewed
+          path: combined-apk
+      - name: Require exact checksum and immutable canonical APK path
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          import hashlib
+          import re
+          from pathlib import Path
+          root=Path('combined-apk')
+          apk=root/'android/app/build/outputs/apk/release/app-release.apk'
+          checksum=root/'combined-patch-apk.sha256'
+          for file in (apk,checksum):
+              if file.is_symlink() or not file.is_file() or not 0<file.stat().st_size<1024*1024*1024:
+                  raise SystemExit('BLOCK: missing, linked or oversized downloaded APK/manifest')
+          pattern=rb'([0-9a-f]{64})  android/app/build/outputs/apk/release/app-release\.apk\n'
+          match=re.fullmatch(pattern,checksum.read_bytes())
+          if not match:
+              raise SystemExit('BLOCK: noncanonical APK checksum or filename')
+          if hashlib.sha256(apk.read_bytes()).hexdigest().encode()!=match.group(1):
+              raise SystemExit('BLOCK: downloaded combined APK bytes altered')
+          print('PASS (LAB): independent downloaded combined APK checksum')
+          PY
+      - name: Reaudit compiled preview runtime, signature and Expo app config
+        run: |
+          set -euo pipefail
+          APK=combined-apk/android/app/build/outputs/apk/release/app-release.apk
+          TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+          test -x "$TOOLS/apksigner"
+          test -x "$TOOLS/aapt2"
+          "$TOOLS/apksigner" verify --verbose "$APK"
+          python3 tooling/android/verify_release_apk_surface.py "$APK"
+          python3 tooling/android/verify_compiled_ota_manifest.py --parse-only "$APK"
+          python3 tooling/android/verify_compiled_ota_runtime.py "$APK" "$TOOLS/aapt2" 3.1.3
+          python3 tooling/android/verify_compiled_preview_ota.py "$APK"
+          python3 tooling/android/verify_packaged_expo_config.py "$APK"
+          echo "PASS (LAB): independent combined APK checks, not OTA production approval"
