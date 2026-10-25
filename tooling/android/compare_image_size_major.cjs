@@ -53,7 +53,8 @@ function compare(baseline,candidate,beforeAudit,afterAudit){
   const changed=[...new Set([...Object.keys(b),...Object.keys(c)])]
     .filter(key=>key&&JSON.stringify(b[key])!==JSON.stringify(c[key])).sort();
   if(changed.length>80||changed.some(key=>!key.endsWith('/image-size')))
-    block('unexpected transitive dependency change beyond image-size');
+    block('unexpected transitive dependency change beyond image-size: '+
+      changed.slice(0,30).map(key=>key+':'+(b[key]?.version??'missing')+'->'+(c[key]?.version??'missing')).join(', '));
   return {
     label:'UNREVIEWED IMAGE-SIZE MAJOR EXPERIMENT - DO NOT PUBLISH',
     reviewed:false,expoUnchanged:true,
