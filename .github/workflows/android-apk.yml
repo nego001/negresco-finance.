@@ -65,6 +65,8 @@ on:
       - 'tests/android-downloaded-expo-config-consistency.test.mjs'
       - 'tooling/android/verify_stable_npm_lock.cjs'
       - 'tests/android-stable-npm-lock-gate.test.mjs'
+      - 'tooling/android/verify_stable_npm_audit.cjs'
+      - 'tests/android-stable-npm-advisory-gate.test.mjs'
       - 'tests/android-publish-compiled-network-xml.test.mjs'
       - '.github/workflows/android-apk.yml'
 # Keep only the newest candidate compiling when multiple source commits arrive.
@@ -110,6 +112,23 @@ jobs:
       - name: Install JS dependencies
         if: ${{ !(github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.publish_release || inputs.stable_signing)) }}
         run: npm install --no-audit --no-fund
+      - name: Reject known npm vulnerabilities before stable dependency installation
+        if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.publish_release || inputs.stable_signing) }}
+        run: |
+          set -euo pipefail
+          # The registry query uses the reviewed package-lock.json.
+          # npm audit exits nonzero for advisories; inspect its JSON and
+          # reject errors, incomplete results and known vulnerabilities.
+          set +e
+          npm audit --json --package-lock-only \
+            --registry=https://registry.npmjs.org/ > /tmp/negresco-stable-npm-audit.json
+          AUDIT_STATUS=$?
+          set -e
+          node ../../tooling/android/verify_stable_npm_audit.cjs /tmp/negresco-stable-npm-audit.json
+          if [ "$AUDIT_STATUS" -ne 0 ]; then
+            echo "::error::Registry npm audit did not complete cleanly"
+            exit 1
+          fi
       - name: Install reviewed stable JS dependencies without resolving changes
         if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.publish_release || inputs.stable_signing) }}
         run: npm ci --no-audit --no-fund
