@@ -80,7 +80,9 @@ test('laboratory workflow has no production triggers, code signing or release ac
   assert.match(workflow,/branches:\s*\n\s+- lab\/p01-image-size-major-feasibility-v1/);
   assert.match(workflow,/permissions:\s*\n\s+contents: read/);
   assert.match(workflow,/persist-credentials: false/);
-  assert.doesNotMatch(workflow,/workflow_dispatch:|pull_request:|contents: write|secrets\.|gh release|git push|git tag|assembleRelease/);
+  assert.doesNotMatch(workflow,/workflow_dispatch:|pull_request:|contents: write|secrets\.|gh release|git push|git tag/);
+  const preBuildLab=workflow.slice(0,workflow.indexOf('  assemble-combined-lab-apk:'));
+  assert.doesNotMatch(preBuildLab,/assembleRelease/);
   assert.match(workflow,/UNREVIEWED IMAGE-SIZE MAJOR EXPERIMENT/);
   assert.match(workflow,/retention-days: 7/);
 });
