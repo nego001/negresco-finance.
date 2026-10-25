@@ -5,6 +5,7 @@ on:
       - lab/p01-image-size-major-feasibility-v1
       - lab/p01-postcss-image-size-combined-apk-v1
       - lab/p01-combined-apk-dependency-provenance-v1
+      - lab/p01-downloaded-apk-npm-sbom-v1
 permissions:
   contents: read
 concurrency:
@@ -262,6 +263,9 @@ jobs:
           python3 ../../tooling/android/verify_compiled_preview_ota.py "$APK"
           python3 ../../tooling/android/verify_packaged_expo_config.py "$APK"
           sha256sum "$APK" > combined-patch-apk.sha256
+          node ../../tooling/android/npm_lock_cyclonedx_sbom.cjs capture \
+            image-size-review/image-size-candidate-lock.json \
+            NPM_BUILD_GRAPH_CYCLONEDX.json
           node ../../tooling/android/verify_combined_apk_provenance.cjs capture \
             "$APK" image-size-review/image-size-candidate-lock.json \
             image-size-review/IMAGE_SIZE_MAJOR_FEASIBILITY.json \
@@ -275,6 +279,7 @@ jobs:
             apps/mobile/android/app/build/outputs/apk/release/app-release.apk
             apps/mobile/combined-patch-apk.sha256
             apps/mobile/COMBINED_APK_PROVENANCE.json
+            apps/mobile/NPM_BUILD_GRAPH_CYCLONEDX.json
             apps/mobile/image-size-review/image-size-candidate-lock.json
             apps/mobile/image-size-review/IMAGE_SIZE_MAJOR_FEASIBILITY.json
           if-no-files-found: error
@@ -326,6 +331,12 @@ jobs:
             combined-apk/image-size-review/image-size-candidate-lock.json \
             combined-apk/image-size-review/IMAGE_SIZE_MAJOR_FEASIBILITY.json \
             combined-apk/COMBINED_APK_PROVENANCE.json "$GITHUB_SHA"
+      - name: Independently rederive full npm dependency inventory from downloaded lock
+        run: |
+          set -euo pipefail
+          node tooling/android/npm_lock_cyclonedx_sbom.cjs verify \
+            combined-apk/image-size-review/image-size-candidate-lock.json \
+            combined-apk/NPM_BUILD_GRAPH_CYCLONEDX.json
       - name: Reaudit compiled preview runtime, signature and Expo app config
         run: |
           set -euo pipefail
