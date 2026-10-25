@@ -91,7 +91,45 @@ test('optional candidate smoke job installs only the tested lock in a read-only 
   assert.match(job,/npx tsc --noEmit/);
   assert.match(job,/expo prebuild --platform android --non-interactive --no-install/);
   assert.match(job,/app\.updates\?\.requestHeaders\?\.\['expo-channel-name'\]/);
-  assert.doesNotMatch(job,/contents: write|secrets\.|gh release|git push|gradlew|assembleRelease|apk-signer/);
+  assert.doesNotMatch(job,/contents: write|secrets\.|gh release|git push|git tag/);
+});
+test('isolated patched APK build uses same candidate, debug signing and complete compiled preview checks',()=>{
+  assert.match(workflow,/branches:\s*\n\s+- lab\/p01-postcss-patch-feasibility-v1\s*\n\s+- lab\/p01-postcss-patched-apk-v1/);
+  const build=workflow.slice(workflow.indexOf('      - name: Set Gradle memory for Expo SDK 54 test APK'),workflow.indexOf('  verify-downloaded-patched-apk:'));
+  assert.match(build,/org\.gradle\.jvmargs=-Xmx3g/);
+  assert.match(build,/test ! -e android\/app\/negresco-ci-release\.jks/);
+  assert.match(build,/\.\/gradlew assembleRelease --no-daemon/);
+  assert.match(build,/apksigner" verify --verbose/);
+  assert.match(build,/verify_release_apk_surface\.py/);
+  assert.match(build,/verify_compiled_ota_runtime\.py/);
+  assert.match(build,/verify_compiled_preview_ota\.py/);
+  assert.match(build,/verify_packaged_expo_config\.py/);
+  assert.match(build,/postcss-patched-apk\.sha256/);
+  assert.match(build,/postcss-lab-debug-signed-apk-unreviewed/);
+  assert.match(build,/retention-days: 3/);
+  assert.doesNotMatch(build,/contents: write|secrets\.|gh release|git push|git tag/);
+});
+test('separate downloaded APK verification never executes untrusted artifact content',()=>{
+  const verifier=workflow.slice(workflow.indexOf('  verify-downloaded-patched-apk:'));
+  assert.match(verifier,/needs: smoke-patched-expo/);
+  assert.match(verifier,/permissions:\s*\n\s+contents: read/);
+  assert.match(verifier,/persist-credentials: false/);
+  assert.match(verifier,/actions\/download-artifact@v4/);
+  assert.match(verifier,/postcss-lab-debug-signed-apk-unreviewed/);
+  assert.match(verifier,/re\.fullmatch\(rb'\(\[0-9a-f\]\{64\}\)/);
+  assert.match(verifier,/hashlib\.sha256\(apk\.read_bytes\(\)\)/);
+  assert.match(verifier,/verify_compiled_ota_runtime\.py/);
+  assert.match(verifier,/verify_compiled_preview_ota\.py/);
+  assert.match(verifier,/verify_packaged_expo_config\.py/);
+  assert.doesNotMatch(verifier,/contents: write|secrets\.|gh release|git push|git tag|npm ci|npm install|assembleRelease/);
+});
+test('candidate manifest remains only on ephemeral CI runner, not production app config',()=>{
+  const pkg=JSON.parse(readFileSync(resolve('apps/mobile/package.json'),'utf8'));
+  const app=JSON.parse(readFileSync(resolve('apps/mobile/app.json'),'utf8'));
+  assert.equal(pkg.overrides,undefined);
+  assert.equal(app.expo.updates.requestHeaders['expo-channel-name'],'preview');
+  assert.equal(app.expo.runtimeVersion.policy,'appVersion');
+  assert.match(workflow,/fs\.writeFileSync\('package-lock\.json',lockBytes,\{flag:'wx'\}\)/);
 });
 test('experiment generates baseline and override candidate without installation scripts',()=>{
   assert.match(workflow,/npm install --package-lock-only --ignore-scripts --no-audit --no-fund/);
