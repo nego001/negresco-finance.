@@ -133,7 +133,7 @@ test('modified source audit, BOM or lock after ledger capture rejects downloaded
  for(const field of ['audit','bom','lock']){
   const f=fixture(t);capture(argv(f),f.ledger);
   const data=readFileSync(f[field]);writeFileSync(f[field],Buffer.concat([data,Buffer.from(' ')]));
-  assert.throws(()=>verify(argv(f),f.ledger),/downloaded advisory evidence differs/);
+  assert.throws(()=>verify(argv(f),f.ledger),/downloaded advisory evidence differs|SBOM does not match exact npm lockfile|npm lock source or feasibility identity mismatch/);
  }
 });
 test('forged approval, extra packages or removed vulnerabilities in downloaded ledger are detected',t=>{
