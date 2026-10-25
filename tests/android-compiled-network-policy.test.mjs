@@ -70,6 +70,39 @@ test('compiled network XML linked by APK resource ID enforces HTTPS/system CA',t
   assert.match(result.stdout,/PASS: packaged network security XML forbids cleartext/);
 });
 
+test('AAPT2 SDK formatting can align attributes with owning nodes without weakening XML semantics',t=>{
+  for(const altered of [
+    policy.replace('    A: cleartextTrafficPermitted','  A: cleartextTrafficPermitted'),
+    policy.replace('        A: src','      A: src'),
+    policy.replace('    A: cleartextTrafficPermitted','  A: cleartextTrafficPermitted')
+          .replace('        A: src','      A: src')
+  ]) {
+    const result=check(t,{policy:altered});
+    assert.equal(result.status,0,result.stderr+result.stdout);
+  }
+});
+
+for(const [scenario,xml,expected] of [
+  ['cleartext flag moved to root before base-config',
+    policy.replace('    A: cleartextTrafficPermitted(0x01010600)=(type 0x12)0x0\n','')
+      .replace('  E: base-config','  A: cleartextTrafficPermitted(0x01010600)=(type 0x12)0x0\n  E: base-config'),
+    /cleartext attribute not nested under base-config/],
+  ['cleartext flag moved to trust-anchors child',
+    policy.replace('    A: cleartextTrafficPermitted(0x01010600)=(type 0x12)0x0\n','')
+      .replace('    E: trust-anchors (line=4)','    E: trust-anchors (line=4)\n      A: cleartextTrafficPermitted(0x01010600)=(type 0x12)0x0'),
+    /cleartext attribute not nested under base-config/],
+  ['certificate source set on parent trust anchors',
+    policy.replace('        A: src(0x01010700)="system" (Raw: "system")\n','')
+      .replace('      E: certificates (line=5)','      A: src(0x01010700)="system" (Raw: "system")\n      E: certificates (line=5)'),
+    /certificate source must belong to certificates element/]
+]){
+  test('compiled policy rejects wrong attribute owner: '+scenario,t=>{
+    const result=check(t,{policy:xml});
+    assert.notEqual(result.status,0,scenario);
+    assert.match(result.stderr+result.stdout,expected);
+  });
+}
+
 test('aapt2 bare system certificate value remains trusted without accepting user anchors',t=>{
   for(const trusted of ['system','"system"']) {
     const safe=policy.replace('"system" (Raw: "system")',trusted);
