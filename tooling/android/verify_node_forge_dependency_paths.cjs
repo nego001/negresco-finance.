@@ -58,36 +58,46 @@ function make(lockBytes,bomBytes,ledgerBytes){
   const root=lock.packages[''];
   if(!plain(root.dependencies)||!root.dependencies.expo||!root.dependencies['expo-updates'])
     block('missing expected root Expo direct dependency chain');
-  const paths=[],visited=new Set();
-  function walk(current,steps,seen){
-    if(steps.length>16)block('unbounded npm dependency path');
-    if(current===TARGET){
-      paths.push({entry:steps[0]?.dependency,
-        nodes:steps.map(e=>({location:e.to,version:lock.packages[e.to].version})),
-        edges:steps});
-      if(paths.length>32)block('too many node-forge roots to review');
-      return;
-    }
-    const node=lock.packages[current];
-    if(!plain(node)||!plain(node.dependencies))return;
-    for(const name of Object.keys(node.dependencies).sort()){
-      const destination=resolve(lock,current,name);
+  // Build reverse adjacency from ALL declared npm dependency edges, not just
+  // hardcoded Expo packages. A new indirect path must trigger review.
+  const parents=new Map();
+  const guarded=new Set(['expo','expo-updates','@expo/cli',
+    '@expo/code-signing-certificates','node-forge']);
+  for(const [location,entry] of Object.entries(lock.packages)){
+    if(!plain(entry))block('invalid npm lock package '+location);
+    if(entry.dependencies===undefined)continue;
+    if(!plain(entry.dependencies))block('invalid npm dependency map '+location);
+    for(const [name,declared] of Object.entries(entry.dependencies)){
+      if(typeof declared!=='string'||!declared)block('invalid npm requirement '+name);
+      const destination=resolve(lock,location,name);
       if(!destination){
-        if(['expo','expo-updates','@expo/cli','@expo/code-signing-certificates','node-forge'].includes(name))
-          block('missing protected dependency '+name+' required by '+current);
+        if(guarded.has(name))block('missing protected dependency '+name+' required by '+location);
         continue;
       }
-      if(seen.has(destination))continue;
-      if(destination===TARGET||name==='expo'||name==='expo-updates'||
-         name==='@expo/cli'||name==='@expo/code-signing-certificates'){
-        if(!plain(lock.packages[destination])||typeof lock.packages[destination].version!=='string')
-          block('malformed locked dependency '+destination);
-        walk(destination,[...steps,{from:current,to:destination,dependency:name,
-          declared:node.dependencies[name]}],new Set([...seen,destination]));
-      }
+      const child=lock.packages[destination];
+      if(!plain(child)||typeof child.version!=='string')
+        block('malformed locked dependency '+destination);
+      if(!parents.has(destination))parents.set(destination,[]);
+      parents.get(destination).push({from:location,to:destination,dependency:name,declared});
     }
   }
-  walk('',[],new Set(['']));
+  const paths=[];
+  function traceParents(current,edges,seen){
+    if(edges.length>24)block('unbounded npm dependency path');
+    if(current===''){
+      paths.push({entry:edges[0]?.dependency,
+        nodes:edges.map(e=>({location:e.to,version:lock.packages[e.to].version})),
+        edges});
+      if(paths.length>32)block('too many node-forge routes to review');
+      return;
+    }
+    for(const edge of (parents.get(current)||[]).sort((a,b)=>
+      (a.from+'>'+a.dependency).localeCompare(b.from+'>'+b.dependency))){
+      if(seen.has(edge.from))continue;
+      traceParents(edge.from,[edge,...edges],new Set([...seen,edge.from]));
+    }
+  }
+  traceParents(TARGET,[],new Set([TARGET]));
   paths.sort((a,b)=>JSON.stringify(a.edges).localeCompare(JSON.stringify(b.edges)));
   const expectedRoutes=[
     'expo>@expo/cli>@expo/code-signing-certificates>node-forge',
