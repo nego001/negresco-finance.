@@ -40,8 +40,18 @@ recebe um push:
    `POSTCSS_PATCH_FEASIBILITY.json` com hashes e
    `reviewed:false`, por sete dias.
 
-**Não executa `npm ci`, Android prebuild, assinatura,
-instaladores nativos, publicação ou merge.**
+O job `compare-review-only` **não instala pacotes**. Um segundo
+job independente `smoke-patched-expo`, após a comparação, baixa o
+artefato da mesma execução, confere o SHA-256 do candidato,
+instala com `npm ci` em runner efêmero **sem secrets**, executa
+`npx tsc --noEmit` e `npx expo prebuild --platform android`
+para verificar geração do projeto nativo. Não cria ou assina APK,
+não roda Gradle, não publica releases nem faz merge.
+
+O primeiro ensaio do run `40213164947` confirmou PostCSS
+`8.4.49 -> 8.5.23` com **apenas um pacote do lockfile alterado**,
+e avisos npm de **8 (7 high + 1 moderate) para 6 (6 high)**.
+Esse resultado precede o smoke com `npm ci` e não o substitui.
 
 ## Interpretação
 
