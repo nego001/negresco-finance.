@@ -1,0 +1,109 @@
+name: Mobile npm lockfile review candidate (lab only)
+on:
+  push:
+    branches:
+      - lab/p01-npm-lock-review-artifact-v1
+permissions:
+  contents: read
+concurrency:
+  group: mobile-npm-lock-review-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  candidate-lockfile:
+    name: Generate untrusted npm lock for human review
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - name: Check out isolated laboratory branch
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Use fixed Node.js toolchain for candidate generation
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+          registry-url: https://registry.npmjs.org
+      - name: Confirm npm and package input without running dependency scripts
+        run: |
+          set -euo pipefail
+          node --version
+          npm --version
+          test ! -e package-lock.json
+          test -s package.json
+          sha256sum package.json > /tmp/mobile-package.sha256
+      - name: Generate review-only npm lockfile without installing dependencies
+        run: |
+          set -euo pipefail
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund \
+            --lockfile-version=3 --registry=https://registry.npmjs.org/
+          sha256sum -c /tmp/mobile-package.sha256
+          git diff --exit-code -- package.json
+      - name: Fail closed on unpinned or inconsistent candidate dependencies
+        run: |
+          set -euo pipefail
+          node ../../tooling/android/verify_stable_npm_lock.cjs package.json package-lock.json
+      - name: Capture registry advisories for the unreviewed graph
+        run: |
+          set -euo pipefail
+          # npm exits nonzero for disclosed vulnerabilities. Preserve the
+          # report for review; never infer that a green job means safe deps.
+          npm audit --json --package-lock-only \
+            --registry=https://registry.npmjs.org/ > LOCK_AUDIT.json || true
+          node <<'NODE'
+          const fs=require('node:fs');
+          const report=JSON.parse(fs.readFileSync('LOCK_AUDIT.json','utf8'));
+          if(report.error||!report.metadata||!report.metadata.vulnerabilities){
+            throw new Error('BLOCK: registry audit unavailable or incomplete');
+          }
+          const counts=report.metadata.vulnerabilities;
+          for(const level of ['info','low','moderate','high','critical','total']){
+            if(!Number.isSafeInteger(counts[level])||counts[level]<0)
+              throw new Error('BLOCK: malformed registry advisory count: '+level);
+          }
+          console.log('UNREVIEWED advisory totals:',JSON.stringify(counts));
+          NODE
+      - name: Generate provenance and digest for manual review
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs=require('node:fs');
+          const crypto=require('node:crypto');
+          const cp=require('node:child_process');
+          const manifest=fs.readFileSync('package.json');
+          const lock=fs.readFileSync('package-lock.json');
+          const audit=fs.readFileSync('LOCK_AUDIT.json');
+          const advisories=JSON.parse(audit).metadata.vulnerabilities;
+          const metadata={
+            status:'UNREVIEWED CANDIDATE - NOT APPROVED FOR STABLE RELEASE',
+            sourceCommit:process.env.GITHUB_SHA,
+            sourceRef:process.env.GITHUB_REF,
+            node:process.version,
+            npm:cp.execFileSync('npm',['--version'],{encoding:'utf8'}).trim(),
+            packageSha256:crypto.createHash('sha256').update(manifest).digest('hex'),
+            lockSha256:crypto.createHash('sha256').update(lock).digest('hex'),
+            lockedPackageCount:Object.keys(JSON.parse(lock).packages).length-1,
+            advisoryReportSha256:crypto.createHash('sha256').update(audit).digest('hex'),
+            advisoryCounts:advisories,
+            advisoryReviewed:false,
+            registry:'https://registry.npmjs.org/',
+            generationMode:'npm install --package-lock-only --ignore-scripts',
+            reviewed:false
+          };
+          fs.writeFileSync('LOCK_REVIEW_MANIFEST.json',JSON.stringify(metadata,null,2)+'\n');
+          console.log('REVIEW ONLY: '+metadata.lockedPackageCount+' packages; SHA256 '+metadata.lockSha256);
+          NODE
+      - name: Upload candidate for separate review only
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-npm-lock-unreviewed-candidate
+          path: |
+            apps/mobile/package-lock.json
+            apps/mobile/LOCK_REVIEW_MANIFEST.json
+            apps/mobile/LOCK_AUDIT.json
+          if-no-files-found: error
+          retention-days: 7
