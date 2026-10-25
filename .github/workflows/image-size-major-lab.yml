@@ -7,6 +7,7 @@ on:
       - lab/p01-combined-apk-dependency-provenance-v1
       - lab/p01-downloaded-apk-npm-sbom-v1
       - lab/p01-downloaded-sbom-advisory-ledger-v1
+      - lab/p01-verified-node-forge-dependency-paths-v1
 permissions:
   contents: read
 concurrency:
@@ -273,6 +274,11 @@ jobs:
             image-size-review/IMAGE_SIZE_MAJOR_FEASIBILITY.json \
             NPM_BUILD_GRAPH_CYCLONEDX.json \
             NPM_ADVISORY_LEDGER.json
+          node ../../tooling/android/verify_node_forge_dependency_paths.cjs capture \
+            image-size-review/image-size-candidate-lock.json \
+            NPM_BUILD_GRAPH_CYCLONEDX.json \
+            NPM_ADVISORY_LEDGER.json \
+            NODE_FORGE_DEPENDENCY_PATHS.json
           node ../../tooling/android/verify_combined_apk_provenance.cjs capture \
             "$APK" image-size-review/image-size-candidate-lock.json \
             image-size-review/IMAGE_SIZE_MAJOR_FEASIBILITY.json \
@@ -288,6 +294,7 @@ jobs:
             apps/mobile/COMBINED_APK_PROVENANCE.json
             apps/mobile/NPM_BUILD_GRAPH_CYCLONEDX.json
             apps/mobile/NPM_ADVISORY_LEDGER.json
+            apps/mobile/NODE_FORGE_DEPENDENCY_PATHS.json
             apps/mobile/image-size-review/image-size-candidate-audit.json
             apps/mobile/image-size-review/image-size-candidate-lock.json
             apps/mobile/image-size-review/IMAGE_SIZE_MAJOR_FEASIBILITY.json
@@ -355,6 +362,14 @@ jobs:
             combined-apk/image-size-review/IMAGE_SIZE_MAJOR_FEASIBILITY.json \
             combined-apk/NPM_BUILD_GRAPH_CYCLONEDX.json \
             combined-apk/NPM_ADVISORY_LEDGER.json
+      - name: Reverify unsuppressed node-forge npm dependency paths in downloaded APK evidence
+        run: |
+          set -euo pipefail
+          node tooling/android/verify_node_forge_dependency_paths.cjs verify \
+            combined-apk/image-size-review/image-size-candidate-lock.json \
+            combined-apk/NPM_BUILD_GRAPH_CYCLONEDX.json \
+            combined-apk/NPM_ADVISORY_LEDGER.json \
+            combined-apk/NODE_FORGE_DEPENDENCY_PATHS.json
       - name: Reaudit compiled preview runtime, signature and Expo app config
         run: |
           set -euo pipefail
