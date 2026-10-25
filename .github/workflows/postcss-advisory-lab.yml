@@ -1,0 +1,151 @@
+name: PostCSS advisory patch feasibility (lab only)
+on:
+  push:
+    branches:
+      - lab/p01-postcss-patch-feasibility-v1
+permissions:
+  contents: read
+concurrency:
+  group: postcss-advisory-lab-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  compare-review-only:
+    name: Evaluate isolated PostCSS override, never promote
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - name: Checkout disposable security laboratory
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Use fixed Node toolchain
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+          registry-url: https://registry.npmjs.org
+      - name: Generate unmodified baseline lock and advisories
+        run: |
+          set -euo pipefail
+          test ! -e package-lock.json
+          mkdir -p advisory-lab
+          cp package.json advisory-lab/baseline-package.json
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund \
+            --lockfile-version=3 --registry=https://registry.npmjs.org/
+          cp package-lock.json advisory-lab/baseline-lock.json
+          npm audit --json --package-lock-only \
+            --registry=https://registry.npmjs.org/ > advisory-lab/baseline-audit.json || true
+      - name: Build patched PostCSS candidate without installing code
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs=require('node:fs');
+          const p=JSON.parse(fs.readFileSync('package.json','utf8'));
+          if(p.overrides!==undefined||p.dependencies?.postcss||p.devDependencies?.postcss)
+            throw new Error('BLOCK: cannot experiment over existing PostCSS constraints');
+          p.overrides={postcss:'8.5.23'};
+          fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n');
+          NODE
+          rm -f package-lock.json
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund \
+            --lockfile-version=3 --registry=https://registry.npmjs.org/
+          cp package-lock.json advisory-lab/postcss-candidate-lock.json
+          npm audit --json --package-lock-only \
+            --registry=https://registry.npmjs.org/ > advisory-lab/postcss-candidate-audit.json || true
+      - name: Compare both dependency graphs and security advisories
+        run: |
+          set -euo pipefail
+          node ../../tooling/android/assess_postcss_patch_candidate.cjs \
+            advisory-lab/baseline-lock.json advisory-lab/postcss-candidate-lock.json \
+            advisory-lab/baseline-audit.json advisory-lab/postcss-candidate-audit.json \
+            advisory-lab/POSTCSS_PATCH_FEASIBILITY.json
+      - name: Upload unreviewed research, not an installable release
+        uses: actions/upload-artifact@v4
+        with:
+          name: postcss-lab-unreviewed-comparison
+          path: |
+            apps/mobile/advisory-lab/baseline-package.json
+            apps/mobile/advisory-lab/baseline-lock.json
+            apps/mobile/advisory-lab/postcss-candidate-lock.json
+            apps/mobile/advisory-lab/baseline-audit.json
+            apps/mobile/advisory-lab/postcss-candidate-audit.json
+            apps/mobile/advisory-lab/POSTCSS_PATCH_FEASIBILITY.json
+          if-no-files-found: error
+          retention-days: 7
+  smoke-patched-expo:
+    name: Smoke Expo SDK 54 on candidate (no APK or release)
+    needs: compare-review-only
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - name: Checkout disposable source without push privileges
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Set pinned Node for isolated smoke test
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+          registry-url: https://registry.npmjs.org
+      - name: Download unreviewed comparison from the same workflow run
+        uses: actions/download-artifact@v4
+        with:
+          name: postcss-lab-unreviewed-comparison
+          path: apps/mobile/advisory-review
+      - name: Verify comparison identity and stage transient manifest
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs=require('node:fs'),crypto=require('node:crypto');
+          const root='advisory-review/';
+          const report=JSON.parse(fs.readFileSync(root+'POSTCSS_PATCH_FEASIBILITY.json','utf8'));
+          if(report.label!=='UNREVIEWED EXPERIMENT - NEVER PUBLISH'||
+             report.reviewed!==false||report.expoUnchanged!==true||
+             report.afterPostcss.some(x=>x.version!=='8.5.23'))
+            throw new Error('BLOCK: unreviewed candidate policy mismatch');
+          const lockBytes=fs.readFileSync(root+'postcss-candidate-lock.json');
+          const hash=crypto.createHash('sha256').update(lockBytes).digest('hex');
+          if(hash!==report.sourceDigests.candidateLockSha256)
+            throw new Error('BLOCK: downloaded lock bytes differ from comparison');
+          const pkg=JSON.parse(fs.readFileSync('package.json','utf8'));
+          if(pkg.overrides!==undefined||pkg.dependencies?.postcss)
+            throw new Error('BLOCK: candidate may not replace source overrides');
+          pkg.overrides={postcss:'8.5.23'};
+          fs.writeFileSync('package.json',JSON.stringify(pkg,null,2)+'\n');
+          fs.writeFileSync('package-lock.json',lockBytes,{flag:'wx'});
+          NODE
+      - name: Run locked npm install in disposable runner
+        run: npm ci --no-audit --no-fund
+      - name: Typecheck React Native code against candidate
+        run: npx tsc --noEmit
+      - name: Generate Expo SDK 54 Android native project with candidate
+        env:
+          EXPO_NO_TELEMETRY: '1'
+        run: |
+          set -euo pipefail
+          npx expo prebuild --platform android --non-interactive --no-install
+          test -s android/app/src/main/AndroidManifest.xml
+          test -s android/app/src/main/res/values/strings.xml
+      - name: Verify laboratory preview config after prebuild
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs=require('node:fs');
+          const pkg=JSON.parse(fs.readFileSync('package.json','utf8'));
+          const app=JSON.parse(fs.readFileSync('app.json','utf8')).expo;
+          if(pkg.overrides?.postcss!=='8.5.23'||app.version!=='3.1.3'||
+             app.runtimeVersion?.policy!=='appVersion'||
+             app.updates?.requestHeaders?.['expo-channel-name']!=='preview'||
+             app.updates?.codeSigningCertificate!==undefined)
+            throw new Error('BLOCK: candidate changed preview OTA policy');
+          console.log('PASS (LAB ONLY): TS + Expo prebuild with isolated PostCSS patch');
+          NODE
