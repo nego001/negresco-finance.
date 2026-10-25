@@ -4,6 +4,7 @@ on:
     branches:
       - lab/p01-image-size-major-feasibility-v1
       - lab/p01-postcss-image-size-combined-apk-v1
+      - lab/p01-combined-apk-dependency-provenance-v1
 permissions:
   contents: read
 concurrency:
