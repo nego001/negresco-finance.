@@ -27,7 +27,11 @@ O workflow `.github/workflows/mobile-npm-lock-review.yml` tem gatilho
 6. Produz `LOCK_REVIEW_MANIFEST.json` com SHA-256 do lockfile,
    SHA-256 do manifesto, commit/ref de origem, versões Node/npm,
    quantidade de dependências e status `reviewed:false`;
-7. Consulta os advisories do registry npm sobre o lock proposto e incorpora\n   `LOCK_AUDIT.json` com totais `info/low/moderate/high/critical`\n   e hash próprio. Alertas não deixam o candidato automaticamente aprovado;\n   falha no serviço de auditoria é bloqueante.\n8. Publica apenas um **artefato temporário de Actions** de 7 dias
+7. Consulta os advisories do registry npm sobre o lock proposto e incorpora
+   `LOCK_AUDIT.json` com totais `info/low/moderate/high/critical`
+   e hash próprio. Alertas não deixam o candidato automaticamente aprovado;
+   falha no serviço de auditoria é bloqueante.
+8. Publica apenas um **artefato temporário de Actions** de 7 dias
    (`mobile-npm-lock-unreviewed-candidate`) para auditoria.
 
 `tests/android-npm-lock-review-artifact.test.mjs` verifica
@@ -36,7 +40,12 @@ envio de tag, release ou alteração automática da `main`.
 
 ## Limites e próximos critérios
 
-O artefato gerado é **CANDIDATO NÃO REVISADO**, mesmo que o relatório\n`LOCK_AUDIT.json` registre zero vulnerabilidades conhecidas. O advisory\nfeed é limitado pelo momento de consulta, pela cobertura das bases e\npelas informações dos pacotes. O risco residual exige revisão humana.\n\nO artefato gerado é **CANDIDATO NÃO REVISADO**. Os testes e o fato de
+O artefato gerado é **CANDIDATO NÃO REVISADO**, mesmo que o relatório
+`LOCK_AUDIT.json` registre zero vulnerabilidades conhecidas. O advisory
+feed é limitado pelo momento de consulta, pela cobertura das bases e
+pelas informações dos pacotes. O risco residual exige revisão humana.
+
+O artefato gerado é **CANDIDATO NÃO REVISADO**. Os testes e o fato de
 o npm gerar integridades criptográficas não garantem que pacotes
 não sejam maliciosos, que não tenham vulnerabilidades ou que as
 licenças e a árvore transitiva sejam aceitáveis. A geração também
