@@ -70,10 +70,26 @@ test('compiled network XML linked by APK resource ID enforces HTTPS/system CA',t
   assert.match(result.stdout,/PASS: packaged network security XML forbids cleartext/);
 });
 
+test('aapt2 bare system certificate value remains trusted without accepting user anchors',t=>{
+  for(const trusted of ['system','"system"']) {
+    const safe=policy.replace('"system" (Raw: "system")',trusted);
+    const result=check(t,{policy:safe});
+    assert.equal(result.status,0,trusted+'\n'+result.stderr);
+  }
+  for(const untrusted of ['user','"user"','system (Raw: "user")','system user']) {
+    const bad=policy.replace('"system" (Raw: "system")',untrusted);
+    const result=check(t,{policy:bad});
+    assert.notEqual(result.status,0,untrusted);
+    assert.match(result.stderr,/certificate source must be system only/);
+  }
+});
+
+
 test('aapt2 may preserve an unnamespaced false attribute as a string without weakening policy',t=>{
   for(const safeValue of [
     '"false" (Raw: "false")',
     '"false"',
+    'false',
     '(type 0x03)0x00000005 (Raw: "false")'
   ]){
     const variant=policy.replace('(type 0x12)0x0',safeValue);
@@ -91,7 +107,9 @@ for(const unsafeValue of [
   '(type 0x12)0x1',
   '(type 0x12)0xffffffff',
   '(type 0x10)0x0',
-  'false',
+  'FALSE',
+  'false ',
+  ' false',
   '"false" (Raw: "false") unexpected'
 ]){
   test('compiled network policy rejects unsafe/unrecognized HTTP value: '+unsafeValue,t=>{
