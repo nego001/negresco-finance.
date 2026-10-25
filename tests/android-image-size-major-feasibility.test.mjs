@@ -80,7 +80,9 @@ test('laboratory workflow has no production triggers, code signing or release ac
   assert.match(workflow,/branches:\s*\n\s+- lab\/p01-image-size-major-feasibility-v1/);
   assert.match(workflow,/permissions:\s*\n\s+contents: read/);
   assert.match(workflow,/persist-credentials: false/);
-  assert.doesNotMatch(workflow,/workflow_dispatch:|pull_request:|contents: write|secrets\.|gh release|git push|git tag|assembleRelease/);
+  assert.doesNotMatch(workflow,/workflow_dispatch:|pull_request:|contents: write|secrets\.|gh release|git push|git tag/);
+  const preBuildLab=workflow.slice(0,workflow.indexOf('  assemble-combined-lab-apk:'));
+  assert.doesNotMatch(preBuildLab,/assembleRelease/);
   assert.match(workflow,/UNREVIEWED IMAGE-SIZE MAJOR EXPERIMENT/);
   assert.match(workflow,/retention-days: 7/);
 });
@@ -94,4 +96,52 @@ test('candidate uses exact temporary overrides and sha-verified npm ci',()=>{
   assert.match(workflow,/npx tsc --noEmit/);
   assert.match(workflow,/expo prebuild --platform android --non-interactive --no-install/);
   assert.match(workflow,/verify_generated_ota_runtime\.py/);
+});
+
+test('combined-patch APK workflow is isolated to laboratory branches and cannot publish',()=>{
+  assert.match(workflow,/branches:\s*\n\s+- lab\/p01-image-size-major-feasibility-v1\s*\n\s+- lab\/p01-postcss-image-size-combined-apk-v1/);
+  assert.match(workflow,/  assemble-combined-lab-apk:/);
+  assert.match(workflow,/needs: smoke/);
+  assert.match(workflow,/  reverify-downloaded-combined-apk:/);
+  assert.match(workflow,/needs: assemble-combined-lab-apk/);
+  assert.doesNotMatch(workflow,/workflow_dispatch:|contents: write|secrets\.|gh release|git push|git tag/);
+});
+test('combined-patch APK uses exact graph changes and checksum before npm ci',()=>{
+  const start=workflow.indexOf('  assemble-combined-lab-apk:');
+  const end=workflow.indexOf('  reverify-downloaded-combined-apk:');
+  assert.ok(start>0&&end>start);
+  const job=workflow.slice(start,end);
+  assert.match(job,/permissions:\s*\n\s+contents: read/);
+  assert.match(job,/persist-credentials: false/);
+  assert.match(job,/postcss:'8\.5\.23','image-size':'2\.0\.3'/);
+  assert.match(job,/data\.sourceDigests\.candidateLock!==hash\(lock\)/);
+  assert.match(job,/changedPackages\.length!==2/);
+  assert.match(job,/node_modules\/queue/);
+  assert.match(job,/npm ci --no-audit --no-fund/);
+  assert.match(job,/npx tsc --noEmit/);
+  assert.match(job,/expo prebuild --platform android --non-interactive --no-install/);
+  assert.match(job,/test ! -e android\/app\/negresco-ci-release\.jks/);
+  assert.match(job,/\.\/gradlew assembleRelease --no-daemon/);
+  assert.match(job,/verify_compiled_ota_runtime\.py/);
+  assert.match(job,/verify_compiled_preview_ota\.py/);
+  assert.match(job,/verify_packaged_expo_config\.py/);
+  assert.match(job,/combined-patch-debug-apk-unreviewed/);
+  assert.match(job,/retention-days: 3/);
+});
+test('independent downloaded combined-patch APK check validates SHA and native binary',()=>{
+  const i=workflow.indexOf('  reverify-downloaded-combined-apk:');
+  assert.ok(i>0);
+  const verify=workflow.slice(i);
+  assert.match(verify,/permissions:\s*\n\s+contents: read/);
+  assert.match(verify,/persist-credentials: false/);
+  assert.match(verify,/actions\/download-artifact@v4/);
+  assert.match(verify,/name: combined-patch-debug-apk-unreviewed/);
+  assert.match(verify,/re\.fullmatch\(pattern,checksum\.read_bytes\(\)\)/);
+  assert.match(verify,/hashlib\.sha256\(apk\.read_bytes\(\)\)/);
+  assert.match(verify,/apksigner" verify --verbose/);
+  assert.match(verify,/verify_release_apk_surface\.py/);
+  assert.match(verify,/verify_compiled_ota_runtime\.py/);
+  assert.match(verify,/verify_compiled_preview_ota\.py/);
+  assert.match(verify,/verify_packaged_expo_config\.py/);
+  assert.doesNotMatch(verify,/npm install|npm ci|gradlew|contents: write|secrets\.|gh release/);
 });
