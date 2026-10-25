@@ -10,7 +10,8 @@ const ANDROID='http://schemas.android.com/apk/res/android';
 const PREFIX='expo.modules.updates.';
 const PEM='-----BEGIN CERTIFICATE-----\nYQ==\n-----END CERTIFICATE-----\n';
 const UPDATE={
-  enabled:true,url:'https://u.expo.dev/example',
+  enabled:true,url:'https://u.expo.dev/a506611f-a159-4341-bed7-28dcbd47bf95',
+  requestHeaders:{'expo-channel-name':'production'},
   codeSigningCertificate:'./certs/certificate.pem',
   codeSigningMetadata:{alg:'rsa-v1_5-sha256',keyid:'main'}
 };
@@ -18,7 +19,9 @@ const N=0xffffffff;
 const valid=[
   {name:PREFIX+'ENABLED',type:'bool',value:true},
   {name:PREFIX+'CODE_SIGNING_CERTIFICATE',type:'string',value:PEM},
-  {name:PREFIX+'CODE_SIGNING_METADATA',type:'string',value:JSON.stringify(UPDATE.codeSigningMetadata)}
+  {name:PREFIX+'CODE_SIGNING_METADATA',type:'string',value:JSON.stringify(UPDATE.codeSigningMetadata)},
+  {name:PREFIX+'EXPO_UPDATE_URL',type:'string',value:UPDATE.url},
+  {name:PREFIX+'UPDATES_CONFIGURATION_REQUEST_HEADERS_KEY',type:'string',value:JSON.stringify(UPDATE.requestHeaders)}
 ];
 
 function len8(value){return value<128?Buffer.from([value]):Buffer.from([(value>>8)|0x80,value&255]);}
@@ -202,4 +205,23 @@ test('native APK workflow orders compiled OTA inspection before uploads and only
   assert.match(build,/github\.event_name == 'workflow_dispatch' && github\.ref == 'refs\/heads\/main' && \(inputs\.publish_release \|\| inputs\.stable_signing\)/);
   assert.match(w,/tooling\/android\/verify_compiled_ota_manifest\.py/);
   assert.match(w,/tests\/android-compiled-ota-manifest\.test\.mjs/);
+});
+
+test('compiled OTA security rejects preview channel in stable signed binary',t=>{
+  const records=valid.map(x=>x.name.endsWith('UPDATES_CONFIGURATION_REQUEST_HEADERS_KEY')?
+    {...x,value:JSON.stringify({'expo-channel-name':'preview'})}:x);
+  deny(fixture(t,{records}),/channel must be production only/);
+});
+test('compiled OTA security rejects alternate project update endpoint',t=>{
+  const records=valid.map(x=>x.name.endsWith('EXPO_UPDATE_URL')?
+    {...x,value:'https://u.expo.dev/another-project'}:x);
+  deny(fixture(t,{records}),/URL differs from trusted production endpoint/);
+});
+test('compiled OTA security rejects missing channel metadata',t=>{
+  deny(fixture(t,{records:valid.filter(x=>!x.name.endsWith('UPDATES_CONFIGURATION_REQUEST_HEADERS_KEY'))}),
+    /channel must be a literal JSON string/);
+});
+test('compiled OTA security rejects source config still pointing at preview',t=>{
+  deny(fixture(t,{updates:{...UPDATE,requestHeaders:{'expo-channel-name':'preview'}}}),
+    /source URL\/channel must be pinned/);
 });
