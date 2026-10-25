@@ -90,7 +90,7 @@ test('compiled runtime guard rejects duplicate table definitions',t=>{
   rejects(trial(t,{resources:resources+'\n'+dup}),/duplicated compiled OTA runtime resource/);
 });
 test('compiled runtime guard rejects missing runtime meta-data',t=>{
-  rejects(trial(t,{manifest:manifest.replace('EXPO_RUNTIME_VERSION','MISSING_RUNTIME')}),/exactly one compiled application/);
+  rejects(trial(t,{manifest:manifest.replaceAll('EXPO_RUNTIME_VERSION','MISSING_RUNTIME')}),/exactly one compiled application/);
 });
 test('compiled runtime guard rejects literal AndroidManifest runtime instead of a resource',t=>{
   rejects(trial(t,{manifest:manifest.replace('@'+rid+' (Raw: "@string/expo_runtime_version")','"3.1.3"')}),/typed resource reference/);
