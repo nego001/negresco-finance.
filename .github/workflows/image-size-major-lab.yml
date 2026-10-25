@@ -8,6 +8,7 @@ on:
       - lab/p01-downloaded-apk-npm-sbom-v1
       - lab/p01-downloaded-sbom-advisory-ledger-v1
       - lab/p01-verified-node-forge-dependency-paths-v1
+      - lab/p01-cyclonedx-full-dependency-edges-v1
 permissions:
   contents: read
 concurrency:
