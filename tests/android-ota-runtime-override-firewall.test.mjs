@@ -46,7 +46,9 @@ test('ban static and dynamic expo-updates JS imports in the application',t=>{
     "import {setExtraParamAsync} from 'expo-updates';",
     "const Update = require('expo-updates');",
     'const Update = await import("expo-updates");',
-    "import {something} from 'expo-updates/build/Updates';"
+    "import {something} from 'expo-updates/build/Updates';",
+    "import 'expo-updates';",
+    "const Updates = require('expo' + '-updates');"
   ])fails(candidate(t,'guardiao/injected.ts',statement+'\n'),/JavaScript expo-updates module import/);
 });
 test('block native OTA module lookup and Kotlin update controller access',t=>{
