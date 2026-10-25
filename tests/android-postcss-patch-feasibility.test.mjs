@@ -77,6 +77,22 @@ test('isolated experiment has no permission to publish or modify the repository'
   assert.doesNotMatch(workflow,/workflow_dispatch:|pull_request:|contents: write|secrets\.|gh release|git push|git tag/);
   assert.match(workflow,/retention-days: 7/);
 });
+test('optional candidate smoke job installs only the tested lock in a read-only runner',()=>{
+  const n=workflow.indexOf('  smoke-patched-expo:');
+  assert.ok(n>0);
+  const job=workflow.slice(n);
+  assert.match(job,/needs: compare-review-only/);
+  assert.match(job,/permissions:\s*\n\s+contents: read/);
+  assert.match(job,/persist-credentials: false/);
+  assert.match(job,/actions\/download-artifact@v4/);
+  assert.match(job,/postcss-lab-unreviewed-comparison/);
+  assert.match(job,/candidateLockSha256/);
+  assert.match(job,/npm ci --no-audit --no-fund/);
+  assert.match(job,/npx tsc --noEmit/);
+  assert.match(job,/expo prebuild --platform android --non-interactive --no-install/);
+  assert.match(job,/app\.updates\?\.requestHeaders\?\.\['expo-channel-name'\]/);
+  assert.doesNotMatch(job,/contents: write|secrets\.|gh release|git push|gradlew|assembleRelease|apk-signer/);
+});
 test('experiment generates baseline and override candidate without installation scripts',()=>{
   assert.match(workflow,/npm install --package-lock-only --ignore-scripts --no-audit --no-fund/);
   assert.match(workflow,/p\.overrides=\{postcss:'8\.5\.23'\}/);
