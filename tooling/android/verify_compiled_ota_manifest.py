@@ -157,7 +157,7 @@ def parsed_manifest(raw: bytes) -> dict[str, tuple[int, object]]:
                     if raw_index != NO_INDEX and string(raw_index) != value:
                         block("raw/typed compiled string mismatch")
                 elif data_type == 0x12:
-                    if data not in (0, 1):
+                    if data not in (0, 1, 0xffffffff):
                         block("malformed compiled boolean")
                     value = bool(data)
                 else:
