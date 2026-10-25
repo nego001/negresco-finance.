@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - lab/p01-postcss-patch-feasibility-v1
+      - lab/p01-postcss-patched-apk-v1
 permissions:
   contents: read
 concurrency:
@@ -77,10 +78,10 @@ jobs:
           if-no-files-found: error
           retention-days: 7
   smoke-patched-expo:
-    name: Smoke Expo SDK 54 on candidate (no APK or release)
+    name: Smoke and assemble debug-signed test APK (no release)
     needs: compare-review-only
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 60
     permissions:
       contents: read
     defaults:
@@ -96,6 +97,11 @@ jobs:
         with:
           node-version: '22.16.0'
           registry-url: https://registry.npmjs.org
+      - name: Install pinned Android Java toolchain
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
       - name: Download unreviewed comparison from the same workflow run
         uses: actions/download-artifact@v4
         with:
@@ -149,3 +155,105 @@ jobs:
             throw new Error('BLOCK: candidate changed preview OTA policy');
           console.log('PASS (LAB ONLY): TS + Expo prebuild with isolated PostCSS patch');
           NODE
+
+      - name: Set Gradle memory for Expo SDK 54 test APK
+        run: |
+          set -euo pipefail
+          PROPS=android/gradle.properties
+          test -f "$PROPS"
+          sed -i '/^org.gradle.jvmargs=/d; /^org.gradle.parallel=/d; /^org.gradle.workers.max=/d; /^kotlin.compiler.execution.strategy=/d' "$PROPS"
+          cat >> "$PROPS" <<'EOF'
+          org.gradle.jvmargs=-Xmx3g -XX:MaxMetaspaceSize=1536m -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8
+          org.gradle.parallel=false
+          org.gradle.workers.max=2
+          kotlin.compiler.execution.strategy=in-process
+          EOF
+          python3 ../../tooling/android/verify_generated_ota_runtime.py app.json android/app/src/main/AndroidManifest.xml android/app/src/main/res/values/strings.xml android/app/src/main/res
+      - name: Build release variant under Android Debug certificate only
+        run: |
+          set -euo pipefail
+          test ! -e android/app/negresco-ci-release.jks
+          test -d "$ANDROID_HOME"
+          chmod +x android/gradlew
+          (cd android && ./gradlew assembleRelease --no-daemon)
+      - name: Validate APK and pin its SHA-256
+        run: |
+          set -euo pipefail
+          APK=android/app/build/outputs/apk/release/app-release.apk
+          test -s "$APK"
+          unzip -t "$APK" >/dev/null
+          TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+          test -x "$TOOLS/apksigner"
+          test -x "$TOOLS/aapt2"
+          "$TOOLS/apksigner" verify --verbose "$APK"
+          python3 ../../tooling/android/verify_release_apk_surface.py "$APK"
+          python3 ../../tooling/android/verify_compiled_ota_manifest.py --parse-only "$APK"
+          python3 ../../tooling/android/verify_compiled_ota_runtime.py "$APK" "$TOOLS/aapt2" 3.1.3
+          python3 ../../tooling/android/verify_compiled_preview_ota.py "$APK"
+          python3 ../../tooling/android/verify_packaged_expo_config.py "$APK"
+          sha256sum "$APK" > postcss-patched-apk.sha256
+          echo "PASS (LAB ONLY): Debug-signed APK verified, NEVER production OTA"
+      - name: Upload APK as short-lived unreviewed laboratory evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: postcss-lab-debug-signed-apk-unreviewed
+          path: |
+            apps/mobile/android/app/build/outputs/apk/release/app-release.apk
+            apps/mobile/postcss-patched-apk.sha256
+            apps/mobile/advisory-review/POSTCSS_PATCH_FEASIBILITY.json
+          if-no-files-found: error
+          retention-days: 3
+
+  verify-downloaded-patched-apk:
+    name: Reverify downloaded PostCSS APK without publication
+    needs: smoke-patched-expo
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout trusted verifier code without persistent credentials
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Download APK from same execution
+        uses: actions/download-artifact@v4
+        with:
+          name: postcss-lab-debug-signed-apk-unreviewed
+          path: candidate-apk
+      - name: Verify hardcoded APK location and original checksum
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          import hashlib
+          import re
+          from pathlib import Path
+          root=Path('candidate-apk')
+          apk=root/'android/app/build/outputs/apk/release/app-release.apk'
+          manifest=root/'postcss-patched-apk.sha256'
+          for path in (apk,manifest):
+              if path.is_symlink() or not path.is_file() or not 0<path.stat().st_size<1024*1024*1024:
+                  raise SystemExit('BLOCK: missing, linked or oversized downloaded APK/manifest')
+          expected=re.fullmatch(rb'([0-9a-f]{64})  android/app/build/outputs/apk/release/app-release\.apk\n',manifest.read_bytes())
+          if expected is None:
+              raise SystemExit('BLOCK: noncanonical SHA-256 filename or format')
+          digest=hashlib.sha256(apk.read_bytes()).hexdigest().encode()
+          if digest!=expected.group(1):
+              raise SystemExit('BLOCK: actual APK bytes differ from signed-out producer checksum')
+          print('PASS (LAB ONLY): downloaded candidate SHA-256 reverified')
+          PY
+      - name: Inspect downloaded APK signature and both OTA configurations
+        run: |
+          set -euo pipefail
+          APK=candidate-apk/android/app/build/outputs/apk/release/app-release.apk
+          test -d "$ANDROID_HOME"
+          TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+          test -x "$TOOLS/apksigner"
+          test -x "$TOOLS/aapt2"
+          "$TOOLS/apksigner" verify --verbose "$APK"
+          python3 tooling/android/verify_release_apk_surface.py "$APK"
+          python3 tooling/android/verify_compiled_ota_manifest.py --parse-only "$APK"
+          python3 tooling/android/verify_compiled_ota_runtime.py "$APK" "$TOOLS/aapt2" 3.1.3
+          python3 tooling/android/verify_compiled_preview_ota.py "$APK"
+          python3 tooling/android/verify_packaged_expo_config.py "$APK"
+          echo "PASS (LAB ONLY): downloaded compiled APK OTA policy reverified"
