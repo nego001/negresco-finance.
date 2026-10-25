@@ -50,6 +50,7 @@ on:
       - 'tests/android-generated-ota-manifest.test.mjs'
       - 'tooling/android/verify_compiled_ota_manifest.py'
       - 'tests/android-compiled-ota-manifest.test.mjs'
+      - 'tests/android-publish-compiled-ota-policy.test.mjs'
       - 'tests/android-publish-compiled-network-xml.test.mjs'
       - '.github/workflows/android-apk.yml'
 # Keep only the newest candidate compiling when multiple source commits arrive.
@@ -908,6 +909,237 @@ jobs:
           
           if __name__ == "__main__":
               raise SystemExit(main([sys.argv[0], sys.argv[2], sys.argv[1]]))
+          PY
+      - name: Independently audit downloaded compiled OTA policy
+        working-directory: release-payload
+        env:
+          NEGRESCO_OTA_CERT_DER_SHA256: ${{ vars.NEGRESCO_OTA_CERT_DER_SHA256 }}
+          NEGRESCO_OTA_KEYID: ${{ vars.NEGRESCO_OTA_KEYID }}
+        run: |
+          set -euo pipefail
+          # Independently inspect the final downloaded APK using workflow-owned
+          # Python code. Never checkout the repo or run artifact-supplied scripts.
+          python3 - Negresco-Finance-V3.1.3-preview.apk <<'PY'
+          import hashlib
+          import json
+          import os
+          import re
+          import ssl
+          import stat
+          import struct
+          import sys
+          import zipfile
+          from pathlib import Path
+
+          # Trusted verifier is embedded in this privileged workflow. Never checkout
+          # untrusted source or execute scripts supplied by the downloaded artifact.
+          ANDROID = "http://schemas.android.com/apk/res/android"
+          PREFIX = "expo.modules.updates."
+          ENABLED = PREFIX + "ENABLED"
+          CERT = PREFIX + "CODE_SIGNING_CERTIFICATE"
+          META = PREFIX + "CODE_SIGNING_METADATA"
+          NIL = 0xffffffff
+          MAX_XML = 2 * 1024 * 1024
+
+          def block(message):
+              raise SystemExit("BLOCK: privileged compiled OTA policy: " + message)
+
+          def word(b, at):
+              if at < 0 or at + 4 > len(b): block("truncated binary XML word")
+              return struct.unpack_from("<I", b, at)[0]
+
+          def half(b, at):
+              if at < 0 or at + 2 > len(b): block("truncated binary XML short")
+              return struct.unpack_from("<H", b, at)[0]
+
+          def length(b, p, e, wide):
+              if wide:
+                  value = half(b, p)
+                  p += 2
+                  if value & 0x8000:
+                      if p + 2 > e: block("truncated long UTF-16 string")
+                      return ((value & 0x7fff) << 16) | half(b, p), p + 2
+                  return value, p
+              if p >= e: block("truncated UTF-8 string")
+              value = b[p]
+              p += 1
+              if value & 0x80:
+                  if p >= e: block("truncated long UTF-8 string")
+                  return ((value & 0x7f) << 8) | b[p], p + 1
+              return value, p
+
+          def pool(b, p, end, header):
+              if header < 28: block("invalid string pool")
+              count, styles, flags = word(b, p+8), word(b, p+12), word(b, p+16)
+              base = word(b, p+20)
+              if count > 65536 or styles > 65536 or flags & ~0x107:
+                  block("string pool is too large or malformed")
+              if header + 4*(count+styles) > end-p or base < header + 4*(count+styles):
+                  block("string table offsets are outside pool")
+              values = []
+              for i in range(count):
+                  pos = p + base + word(b, p+header+4*i)
+                  if pos >= end: block("out-of-range string pool entry")
+                  if flags & 0x100:
+                      char_count, pos = length(b, pos, end, False)
+                      size, pos = length(b, pos, end, False)
+                      if size > MAX_XML or pos+size+1 > end or b[pos+size] != 0:
+                          block("malformed UTF-8 pool entry")
+                      value = b[pos:pos+size].decode("utf-8")
+                      if len(value.encode("utf-16le"))//2 != char_count:
+                          block("inconsistent UTF-8 string length")
+                  else:
+                      size, pos = length(b, pos, end, True)
+                      if size > MAX_XML//2 or pos+2*size+2 > end or b[pos+2*size:pos+2*size+2] != b"\x00\x00":
+                          block("malformed UTF-16 pool entry")
+                      value = b[pos:pos+2*size].decode("utf-16le")
+                  values.append(value)
+              return values
+
+          def compiled_metadata(apk):
+              target = Path(apk)
+              if target.is_symlink() or not target.is_file() or target.stat().st_size == 0:
+                  block("release APK missing, empty or symlinked")
+              try:
+                  with zipfile.ZipFile(target) as archive:
+                      items = [item for item in archive.infolist() if item.filename == "AndroidManifest.xml"]
+                      if len(items) != 1: block("APK compiled manifest is absent or duplicated")
+                      item = items[0]
+                      kind = stat.S_IFMT((item.external_attr >> 16) & 65535) if item.create_system == 3 else 0
+                      if item.flag_bits & 1 or kind not in (0, stat.S_IFREG) or not 8 <= item.file_size <= MAX_XML:
+                          block("APK compiled manifest has unsafe ZIP attributes")
+                      with archive.open(item) as f:
+                          xml = f.read(MAX_XML+1)
+                      if len(xml) != item.file_size: block("APK manifest size mismatch")
+              except (OSError, zipfile.BadZipFile, RuntimeError):
+                  block("unreadable release APK ZIP")
+
+              if half(xml,0) != 3 or half(xml,2) != 8 or word(xml,4) != len(xml):
+                  block("APK manifest is not complete Android binary XML")
+              values = None
+              stack = []
+              application_count = root_count = 0
+              seen = {}
+              offset = 8
+
+              def value(index):
+                  if index == NIL: return None
+                  if values is None or index >= len(values): block("invalid binary string index")
+                  return values[index]
+
+              while offset < len(xml):
+                  if offset+8 > len(xml): block("trailing binary XML")
+                  chunk, header = half(xml,offset), half(xml,offset+2)
+                  end = offset + word(xml,offset+4)
+                  if header < 8 or end < offset+header or end > len(xml):
+                      block("binary XML chunk is malformed")
+                  if chunk == 0x0001:
+                      if values is not None or stack: block("duplicate or late string pool")
+                      values = pool(xml,offset,end,header)
+                  elif chunk in (0x0180,0x0100,0x0101):
+                      if values is None or header < (8 if chunk == 0x0180 else 16):
+                          block("invalid resource/namespace header")
+                  elif chunk == 0x0102:
+                      if values is None or header < 16 or end-offset < 36:
+                          block("invalid start element")
+                      element, namespace = value(word(xml,offset+20)), value(word(xml,offset+16))
+                      if namespace is not None or not element: block("invalid XML element name")
+                      astart, asize, acount = half(xml,offset+24),half(xml,offset+26),half(xml,offset+28)
+                      apos = offset+16+astart
+                      if astart < 20 or asize != 20 or acount > 2048 or apos+acount*asize > end:
+                          block("binary XML attributes out of bounds")
+                      attrs = {}
+                      for i in range(acount):
+                          pos = apos + i*asize
+                          key = (value(word(xml,pos)),value(word(xml,pos+4)))
+                          raw, typ, data = word(xml,pos+8),xml[pos+15],word(xml,pos+16)
+                          if not key[1] or key in attrs or half(xml,pos+12) != 8:
+                              block("duplicate or malformed XML attribute")
+                          if typ == 0x03:
+                              val = value(data)
+                              if raw != NIL and value(raw) != val: block("raw and typed string differ")
+                          elif typ == 0x12:
+                              if data not in (0,1,0xffffffff): block("malformed boolean attribute")
+                              val = data != 0
+                          else:
+                              val = data
+                          attrs[key] = (typ,val)
+                      if not stack:
+                          root_count += 1
+                          if element != "manifest": block("unexpected compiled XML root")
+                      if stack == ["manifest"] and element == "application":
+                          application_count += 1
+                      if stack == ["manifest","application"] and element == "meta-data":
+                          named = attrs.get((ANDROID,"name"))
+                          if named is None or named[0] != 0x03 or not isinstance(named[1],str):
+                              block("malformed application meta-data name")
+                          key = named[1]
+                          if key in seen: block("duplicate application metadata")
+                          attr = attrs.get((ANDROID,"value"))
+                          if key.startswith(PREFIX) and (attr is None or (ANDROID,"resource") in attrs):
+                              block("Expo OTA metadata must use literal value")
+                          if attr is not None:
+                              seen[key] = attr
+                      stack.append(element)
+                  elif chunk == 0x0103:
+                      if header < 16 or end-offset < 24 or not stack:
+                          block("invalid binary XML end element")
+                      if stack.pop() != value(word(xml,offset+20)):
+                          block("unbalanced binary XML elements")
+                  elif chunk == 0x0104:
+                      if header < 16: block("invalid binary CDATA")
+                  else:
+                      block("unrecognized binary XML chunk")
+                  offset = end
+              if values is None or stack or root_count != 1 or application_count != 1:
+                  block("expected exactly one closed application")
+              return seen
+
+          def inspect(apk):
+              data = compiled_metadata(apk)
+              keys = {key for key in data if key.startswith(PREFIX+"CODE_SIGNING_")}
+              if not keys.issubset({CERT,META}):
+                  block("unexpected compiled code signing metadata")
+              enabled = data.get(ENABLED)
+              if enabled == (0x12,False):
+                  if keys: block("embedded-only APK retains code signing metadata")
+                  print("PASS: privileged downloaded APK embeds updates.ENABLED=false")
+                  return
+              if enabled != (0x12,True) or keys != {CERT,META}:
+                  block("unsigned or ambiguous enabled Expo Updates in release APK")
+              algorithm = data[META]
+              if algorithm[0] != 0x03 or not isinstance(algorithm[1],str):
+                  block("code signing metadata must be literal JSON")
+              try: info = json.loads(algorithm[1])
+              except ValueError: block("invalid signing metadata JSON")
+              expected_keyid = os.environ.get("NEGRESCO_OTA_KEYID","")
+              if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}",expected_keyid):
+                  block("trusted OTA keyid pin missing or invalid")
+              if (not isinstance(info,dict) or set(info) != {"alg","keyid"}
+                      or info["alg"] != "rsa-v1_5-sha256" or info["keyid"] != expected_keyid):
+                  block("APK OTA signing algorithm/keyid does not match trusted release policy")
+              expected_cert = os.environ.get("NEGRESCO_OTA_CERT_DER_SHA256","").lower()
+              if not re.fullmatch(r"[0-9a-f]{64}",expected_cert):
+                  block("trusted OTA certificate fingerprint missing or invalid")
+              cert = data[CERT]
+              if cert[0] != 0x03 or not isinstance(cert[1],str):
+                  block("OTA certificate must be compiled literal PEM")
+              pem = cert[1]
+              if not re.fullmatch(r"-----BEGIN CERTIFICATE-----\r?\n(?:[A-Za-z0-9+/=]+\r?\n)+-----END CERTIFICATE-----\r?\n?",pem):
+                  block("APK certificate must be exactly one PEM certificate")
+              try: der = ssl.PEM_cert_to_DER_cert(pem)
+              except ValueError: block("invalid PEM certificate encoding")
+              if hashlib.sha256(der).hexdigest() != expected_cert:
+                  block("APK OTA public certificate differs from independently pinned certificate")
+              print("PASS: privileged downloaded APK OTA certificate DER SHA256 and signing keyid match trusted policy")
+
+          if len(sys.argv) != 2:
+              block("expected one downloaded APK path")
+          try:
+              inspect(sys.argv[1])
+          except (OSError, UnicodeError, ValueError, struct.error, zipfile.LargeZipFile) as ex:
+              block(str(ex))
+
           PY
       - name: Stage private draft and publish only after complete verified upload
         working-directory: release-payload
