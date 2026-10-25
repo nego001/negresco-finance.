@@ -6,6 +6,7 @@ on:
       - lab/p01-postcss-image-size-combined-apk-v1
       - lab/p01-combined-apk-dependency-provenance-v1
       - lab/p01-downloaded-apk-npm-sbom-v1
+      - lab/p01-downloaded-sbom-advisory-ledger-v1
 permissions:
   contents: read
 concurrency:
@@ -266,6 +267,12 @@ jobs:
           node ../../tooling/android/npm_lock_cyclonedx_sbom.cjs capture \
             image-size-review/image-size-candidate-lock.json \
             NPM_BUILD_GRAPH_CYCLONEDX.json
+          node ../../tooling/android/npm_audit_sbom_ledger.cjs capture \
+            image-size-review/image-size-candidate-lock.json \
+            image-size-review/image-size-candidate-audit.json \
+            image-size-review/IMAGE_SIZE_MAJOR_FEASIBILITY.json \
+            NPM_BUILD_GRAPH_CYCLONEDX.json \
+            NPM_ADVISORY_LEDGER.json
           node ../../tooling/android/verify_combined_apk_provenance.cjs capture \
             "$APK" image-size-review/image-size-candidate-lock.json \
             image-size-review/IMAGE_SIZE_MAJOR_FEASIBILITY.json \
@@ -280,6 +287,8 @@ jobs:
             apps/mobile/combined-patch-apk.sha256
             apps/mobile/COMBINED_APK_PROVENANCE.json
             apps/mobile/NPM_BUILD_GRAPH_CYCLONEDX.json
+            apps/mobile/NPM_ADVISORY_LEDGER.json
+            apps/mobile/image-size-review/image-size-candidate-audit.json
             apps/mobile/image-size-review/image-size-candidate-lock.json
             apps/mobile/image-size-review/IMAGE_SIZE_MAJOR_FEASIBILITY.json
           if-no-files-found: error
@@ -337,6 +346,15 @@ jobs:
           node tooling/android/npm_lock_cyclonedx_sbom.cjs verify \
             combined-apk/image-size-review/image-size-candidate-lock.json \
             combined-apk/NPM_BUILD_GRAPH_CYCLONEDX.json
+      - name: Verify unsuppressed npm advisories against downloaded SBOM and audit
+        run: |
+          set -euo pipefail
+          node tooling/android/npm_audit_sbom_ledger.cjs verify \
+            combined-apk/image-size-review/image-size-candidate-lock.json \
+            combined-apk/image-size-review/image-size-candidate-audit.json \
+            combined-apk/image-size-review/IMAGE_SIZE_MAJOR_FEASIBILITY.json \
+            combined-apk/NPM_BUILD_GRAPH_CYCLONEDX.json \
+            combined-apk/NPM_ADVISORY_LEDGER.json
       - name: Reaudit compiled preview runtime, signature and Expo app config
         run: |
           set -euo pipefail
