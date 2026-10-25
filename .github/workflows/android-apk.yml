@@ -51,6 +51,8 @@ on:
       - 'tooling/android/verify_compiled_ota_manifest.py'
       - 'tests/android-compiled-ota-manifest.test.mjs'
       - 'tests/android-publish-compiled-ota-policy.test.mjs'
+      - 'tooling/android/verify_generated_ota_runtime.py'
+      - 'tests/android-ota-runtime-string-lock.test.mjs'
       - 'tests/android-publish-compiled-network-xml.test.mjs'
       - '.github/workflows/android-apk.yml'
 # Keep only the newest candidate compiling when multiple source commits arrive.
@@ -109,6 +111,12 @@ jobs:
           kotlin.compiler.execution.strategy=in-process
           EOF
           grep -E '^(org.gradle.jvmargs|org.gradle.parallel|org.gradle.workers.max|kotlin.compiler.execution.strategy)=' "$PROPS"
+      - name: Verify non-translatable Expo OTA runtime resource
+        run: |
+          set -euo pipefail
+          # Native Android resources are selected by locale. Pin the OTA
+          # compatibility version and prohibit translated overrides.
+          python3 ../../tooling/android/verify_generated_ota_runtime.py app.json android/app/src/main/AndroidManifest.xml android/app/src/main/res/values/strings.xml android/app/src/main/res
       - name: Inspect native Expo Updates configuration
         env:
           NEGRESCO_STABLE_REQUESTED: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.publish_release || inputs.stable_signing) && 'true' || 'false' }}
