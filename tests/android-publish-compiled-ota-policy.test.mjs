@@ -126,7 +126,9 @@ function signed(t){
   const records=[
     {name:PREFIX+'ENABLED',type:'bool',value:true},
     {name:PREFIX+'CODE_SIGNING_CERTIFICATE',type:'str',value:certificate},
-    {name:PREFIX+'CODE_SIGNING_METADATA',type:'str',value:JSON.stringify({alg:'rsa-v1_5-sha256',keyid})}
+    {name:PREFIX+'CODE_SIGNING_METADATA',type:'str',value:JSON.stringify({alg:'rsa-v1_5-sha256',keyid})},
+    {name:PREFIX+'EXPO_UPDATE_URL',type:'str',value:'https://u.expo.dev/a506611f-a159-4341-bed7-28dcbd47bf95'},
+    {name:PREFIX+'UPDATES_CONFIGURATION_REQUEST_HEADERS_KEY',type:'str',value:JSON.stringify({'expo-channel-name':'production'})}
   ];
   return {records,env:{NEGRESCO_OTA_CERT_DER_SHA256:sha,NEGRESCO_OTA_KEYID:keyid}};
 }
@@ -202,4 +204,28 @@ test('privileged workflow runs OTA audit only after independent network/backup a
   assert.match(step,/vars\.NEGRESCO_OTA_CERT_DER_SHA256/);
   assert.match(step,/vars\.NEGRESCO_OTA_KEYID/);
   assert.match(workflow,/tests\/android-publish-compiled-ota-policy\.test\.mjs/);
+});
+
+test('privileged downloadable APK rejects preview channel in signed stable binary',t=>{
+  const x=signed(t);
+  const records=x.records.map(r=>r.name.endsWith('UPDATES_CONFIGURATION_REQUEST_HEADERS_KEY')?
+    {...r,value:JSON.stringify({'expo-channel-name':'preview'})}:r);
+  blocked(make(t,records),x.env,/must use only the production channel/);
+});
+test('privileged downloadable APK rejects wrong compiled OTA endpoint',t=>{
+  const x=signed(t);
+  const records=x.records.map(r=>r.name.endsWith('EXPO_UPDATE_URL')?
+    {...r,value:'https://u.expo.dev/other-project'}:r);
+  blocked(make(t,records),x.env,/unexpected compiled update endpoint/);
+});
+test('privileged downloadable APK rejects absent channel metadata in signed APK',t=>{
+  const x=signed(t);
+  blocked(make(t,x.records.filter(r=>!r.name.endsWith('UPDATES_CONFIGURATION_REQUEST_HEADERS_KEY'))),
+    x.env,/routing headers must be literal JSON/);
+});
+test('privileged downloadable APK rejects extra OTA headers',t=>{
+  const x=signed(t);
+  const records=x.records.map(r=>r.name.endsWith('UPDATES_CONFIGURATION_REQUEST_HEADERS_KEY')?
+    {...r,value:JSON.stringify({'expo-channel-name':'production',debug:'true'})}:r);
+  blocked(make(t,records),x.env,/must use only the production channel/);
 });
