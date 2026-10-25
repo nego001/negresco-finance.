@@ -46,6 +46,8 @@ on:
       - 'tests/android-publish-compiled-backup-xml.test.mjs'
       - 'tooling/android/verify_ota_release_signing.cjs'
       - 'tests/android-ota-release-signing.test.mjs'
+      - 'tooling/android/verify_generated_ota_manifest.py'
+      - 'tests/android-generated-ota-manifest.test.mjs'
       - 'tests/android-publish-compiled-network-xml.test.mjs'
       - '.github/workflows/android-apk.yml'
 # Keep only the newest candidate compiling when multiple source commits arrive.
@@ -167,6 +169,13 @@ jobs:
           # Preview test APKs keep existing OTA settings; a stable binary may
           # not load unsigned remote JavaScript after passing APK audits.
           node ../../tooling/android/verify_ota_release_signing.cjs app.json
+      - name: Verify generated Android OTA manifest before stable signing
+        if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.publish_release || inputs.stable_signing) }}
+        run: |
+          set -euo pipefail
+          # Independently prove that Expo prebuild embedded the intended
+          # code-signing certificate and metadata (or disabled OTA).
+          python3 ../../tooling/android/verify_generated_ota_manifest.py app.json android/app/src/main/AndroidManifest.xml
       - name: Reject release publication with Debug signing or wrong trigger
         if: ${{ inputs.publish_release && (!inputs.stable_signing || github.event_name != 'workflow_dispatch' || github.ref != 'refs/heads/main') }}
         run: |
