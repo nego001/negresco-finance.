@@ -104,14 +104,14 @@ def verify_compiled_policy(tree: str) -> None:
     clear = [x for x in attrs if x[1] == "cleartextTrafficPermitted"]
     source = [x for x in attrs if x[1] == "src"]
     # Network Security Configuration XML uses an unnamespaced attribute.
-    # AAPT2 can leave it as the literal string "false" instead of compiling
-    # it to Android's typed Boolean (type 0x12).
+    # AAPT2 can emit bare false, quoted "false", or a typed Boolean.
+    # No truthy/falsy coercion is allowed: only exact false spellings.
     # Accept ONLY an explicit false literal or typed Boolean zero.
     if len(clear) != 1:
         reject("cleartextTrafficPermitted must occur exactly once")
     clear_value = clear[0][2]
     safe_boolean = re.fullmatch(r"\(type 0x12\)0x0+", clear_value)
-    safe_literal = re.fullmatch(r'"false"(?: \(Raw: "false"\))?', clear_value)
+    safe_literal = re.fullmatch(r'(?:false|"false"(?: \(Raw: "false"\))?)', clear_value)
     safe_typed_literal = re.fullmatch(
         r'\(type 0x03\)0x[0-9a-fA-F]+ \(Raw: "false"\)', clear_value
     )
@@ -130,9 +130,8 @@ def verify_compiled_policy(tree: str) -> None:
     value = source[0][2]
     # AAPT2 may preserve the original string in (Raw: "..."), or quote
     # the resolved literal directly; never accept user or @raw anchors.
-    if not (re.fullmatch(r'"system"(?:\s+\(Raw: "system"\))?', value)
-            or re.fullmatch(r'\(type 0x03\)0x[0-9a-fA-F]+\s+\(Raw: "system"\)', value)
-            or re.fullmatch(r'"system"', value)):
+    if not (re.fullmatch(r'(?:system|"system"(?:\s+\(Raw: "system"\))?)', value)
+            or re.fullmatch(r'\(type 0x03\)0x[0-9a-fA-F]+\s+\(Raw: "system"\)', value)):
         reject("certificate source must be system only")
 
 
