@@ -76,3 +76,76 @@ jobs:
             apps/mobile/advisory-lab/POSTCSS_PATCH_FEASIBILITY.json
           if-no-files-found: error
           retention-days: 7
+  smoke-patched-expo:
+    name: Smoke Expo SDK 54 on candidate (no APK or release)
+    needs: compare-review-only
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - name: Checkout disposable source without push privileges
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Set pinned Node for isolated smoke test
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+          registry-url: https://registry.npmjs.org
+      - name: Download unreviewed comparison from the same workflow run
+        uses: actions/download-artifact@v4
+        with:
+          name: postcss-lab-unreviewed-comparison
+          path: apps/mobile/advisory-review
+      - name: Verify comparison identity and stage transient manifest
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs=require('node:fs'),crypto=require('node:crypto');
+          const root='advisory-review/';
+          const report=JSON.parse(fs.readFileSync(root+'POSTCSS_PATCH_FEASIBILITY.json','utf8'));
+          if(report.label!=='UNREVIEWED EXPERIMENT - NEVER PUBLISH'||
+             report.reviewed!==false||report.expoUnchanged!==true||
+             report.afterPostcss.some(x=>x.version!=='8.5.23'))
+            throw new Error('BLOCK: unreviewed candidate policy mismatch');
+          const lockBytes=fs.readFileSync(root+'postcss-candidate-lock.json');
+          const hash=crypto.createHash('sha256').update(lockBytes).digest('hex');
+          if(hash!==report.sourceDigests.candidateLockSha256)
+            throw new Error('BLOCK: downloaded lock bytes differ from comparison');
+          const pkg=JSON.parse(fs.readFileSync('package.json','utf8'));
+          if(pkg.overrides!==undefined||pkg.dependencies?.postcss)
+            throw new Error('BLOCK: candidate may not replace source overrides');
+          pkg.overrides={postcss:'8.5.23'};
+          fs.writeFileSync('package.json',JSON.stringify(pkg,null,2)+'\n');
+          fs.writeFileSync('package-lock.json',lockBytes,{flag:'wx'});
+          NODE
+      - name: Run locked npm install in disposable runner
+        run: npm ci --no-audit --no-fund
+      - name: Typecheck React Native code against candidate
+        run: npx tsc --noEmit
+      - name: Generate Expo SDK 54 Android native project with candidate
+        env:
+          EXPO_NO_TELEMETRY: '1'
+        run: |
+          set -euo pipefail
+          npx expo prebuild --platform android --non-interactive --no-install
+          test -s android/app/src/main/AndroidManifest.xml
+          test -s android/app/src/main/res/values/strings.xml
+      - name: Verify laboratory preview config after prebuild
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs=require('node:fs');
+          const pkg=JSON.parse(fs.readFileSync('package.json','utf8'));
+          const app=JSON.parse(fs.readFileSync('app.json','utf8')).expo;
+          if(pkg.overrides?.postcss!=='8.5.23'||app.version!=='3.1.3'||
+             app.runtimeVersion?.policy!=='appVersion'||
+             app.updates?.requestHeaders?.['expo-channel-name']!=='preview'||
+             app.updates?.codeSigningCertificate!==undefined)
+            throw new Error('BLOCK: candidate changed preview OTA policy');
+          console.log('PASS (LAB ONLY): TS + Expo prebuild with isolated PostCSS patch');
+          NODE
