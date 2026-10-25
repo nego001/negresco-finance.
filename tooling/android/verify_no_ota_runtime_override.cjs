@@ -12,7 +12,7 @@ const BLOCKED=[
   ['native Expo Updates package reference', /expo[.]modules[.]updates/],
   ['native Expo Updates controller access', /\b(?:UpdatesController|UpdatesConfiguration|EXUpdatesAppController)\b/],
   ['OTA runtime URL/header override API', /\b(?:setUpdateURLAndRequestHeadersOverride|setUpdateURLOverride|setRequestHeadersOverride|setExtraParamAsync|setUpdateRequestHeaders)\b/],
-  ['dynamic update metadata override', /(?:\bUpdates\b|expoUpdates)\s*(?:\?\.)?\s*\.\s*(?:set|override|configure)[A-Za-z_]*\s*\(/]
+  ['dynamic update metadata override', /(?:\bUpdates\b|expoUpdates)\s*(?:\?\.|\.)\s*(?:set|override|configure)[A-Za-z_]*\s*\(/]
 ];
 const IGNORE_DIR=new Set(['node_modules','.git','.expo','.gradle','build','dist','coverage']);
 const MAX_FILES=10000;
