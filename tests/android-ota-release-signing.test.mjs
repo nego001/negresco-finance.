@@ -10,6 +10,7 @@ const require=createRequire(import.meta.url);
 const {verify}=require('../tooling/android/verify_ota_release_signing.cjs');
 const defaultUpdate={
   enabled:true,url:'https://u.expo.dev/a506611f-a159-4341-bed7-28dcbd47bf95',
+  requestHeaders:{'expo-channel-name':'production'},
   codeSigningCertificate:'./certs/certificate.pem',
   codeSigningMetadata:{alg:'rsa-v1_5-sha256',keyid:'main'}
 };
@@ -41,7 +42,7 @@ test('current preview OTA config is unsigned, and stable release is blocked',()=
   assert.equal(config.expo.updates.codeSigningCertificate,undefined);
   assert.equal(config.expo.updates.codeSigningMetadata,undefined);
   assert.throws(()=>verify(new URL('../apps/mobile/app.json',import.meta.url).pathname),
-    /enabled OTA must declare codeSigningCertificate/);
+    /production update channel/);
 });
 test('embedded-only build may be released without OTA signing key',t=>{
   const f=fixture(t,{enabled:false,url:defaultUpdate.url});
@@ -62,7 +63,13 @@ for(const [label,updates,expected] of [
   ['missing explicit OTA configuration',null,/must be explicit/],
   ['updates.enabled missing',{url:defaultUpdate.url},/must explicitly be true or false/],
   ['updates.enabled malformed',{...defaultUpdate,enabled:'false'},/must explicitly be true or false/],
-  ['non HTTPS update URL',{...defaultUpdate,url:'http://u.expo.dev/a'},/trusted HTTPS endpoint/],
+  ['non HTTPS update URL',{...defaultUpdate,url:'http://u.expo.dev/a'},/pinned HTTPS project endpoint/],
+  ['preview channel is forbidden for stable OTA',{...defaultUpdate,requestHeaders:{'expo-channel-name':'preview'}},/production update channel/],
+  ['alternate channel forbidden',{...defaultUpdate,requestHeaders:{'expo-channel-name':'staging'}},/production update channel/],
+  ['channel header missing',{...defaultUpdate,requestHeaders:undefined},/production update channel/],
+  ['extra ambiguous header',{...defaultUpdate,requestHeaders:{'expo-channel-name':'production',authorization:'suspicious'}},/production update channel/],
+  ['channel header wrong type',{...defaultUpdate,requestHeaders:{'expo-channel-name':['production']}},/production update channel/],
+  ['other HTTPS update project',{...defaultUpdate,url:'https://u.expo.dev/11111111-1111-1111-1111-111111111111'},/pinned HTTPS project endpoint/],
   ['certificate path missing',{...defaultUpdate,codeSigningCertificate:undefined},/codeSigningCertificate/],
   ['certificate empty path',{...defaultUpdate,codeSigningCertificate:''},/codeSigningCertificate/],
   ['missing signature metadata',{...defaultUpdate,codeSigningMetadata:undefined},/signature metadata/],

@@ -110,6 +110,8 @@ jobs:
           EOF
           grep -E '^(org.gradle.jvmargs|org.gradle.parallel|org.gradle.workers.max|kotlin.compiler.execution.strategy)=' "$PROPS"
       - name: Inspect native Expo Updates configuration
+        env:
+          NEGRESCO_STABLE_REQUESTED: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.publish_release || inputs.stable_signing) && 'true' || 'false' }}
         run: |
           set -euo pipefail
           MANIFEST="android/app/src/main/AndroidManifest.xml"
@@ -162,7 +164,21 @@ jobs:
               const e=JSON.parse(s);
               const u=e.updates||{};
               console.log(JSON.stringify({runtimeVersion:e.runtimeVersion,updates:{enabled:u.enabled,url:u.url,requestHeaders:u.requestHeaders},projectId:e.extra?.eas?.projectId},null,2));
-              if(u.url!=="https://u.expo.dev/a506611f-a159-4341-bed7-28dcbd47bf95"||u.requestHeaders?.["expo-channel-name"]!=="preview")process.exit(1);
+              const stable=process.env.NEGRESCO_STABLE_REQUESTED==="true";
+              const endpoint="https://u.expo.dev/a506611f-a159-4341-bed7-28dcbd47bf95";
+              // Lab APKs stay isolated on preview. Stable OTA must use production.
+              // Stable embedded-only mode does not contact an update server.
+              if(stable && u.enabled===false){
+                console.log("Embedded-only stable candidate: remote OTA channel not used");
+              }else{
+                const channel=stable?"production":"preview";
+                if(u.enabled!==true||u.url!==endpoint||
+                   !u.requestHeaders||Object.keys(u.requestHeaders).length!==1||
+                   u.requestHeaders["expo-channel-name"]!==channel){
+                  console.error("BLOCK: Expo update endpoint/channel does not match build environment");
+                  process.exit(1);
+                }
+              }
             });
           '
       - name: Require signed Expo OTA or embedded-only code for stable release
@@ -938,6 +954,9 @@ jobs:
           ENABLED = PREFIX + "ENABLED"
           CERT = PREFIX + "CODE_SIGNING_CERTIFICATE"
           META = PREFIX + "CODE_SIGNING_METADATA"
+          UPDATE_URL = PREFIX + "EXPO_UPDATE_URL"
+          REQUEST_HEADERS = PREFIX + "UPDATES_CONFIGURATION_REQUEST_HEADERS_KEY"
+          PINNED_ENDPOINT = "https://u.expo.dev/a506611f-a159-4341-bed7-28dcbd47bf95"
           NIL = 0xffffffff
           MAX_XML = 2 * 1024 * 1024
 
@@ -1107,6 +1126,19 @@ jobs:
                   return
               if enabled != (0x12,True) or keys != {CERT,META}:
                   block("unsigned or ambiguous enabled Expo Updates in release APK")
+              # Independent trust policy: production-signed APKs must not fetch
+              # code from a preview channel or a substituted Expo project URL.
+              if data.get(UPDATE_URL) != (0x03, PINNED_ENDPOINT):
+                  block("signed OTA APK has an unexpected compiled update endpoint")
+              routing = data.get(REQUEST_HEADERS)
+              if not routing or routing[0] != 0x03 or not isinstance(routing[1],str):
+                  block("signed OTA routing headers must be literal JSON")
+              try:
+                  headers = json.loads(routing[1])
+              except (TypeError, ValueError):
+                  block("malformed signed OTA channel JSON")
+              if headers != {"expo-channel-name":"production"}:
+                  block("signed OTA APK must use only the production channel")
               algorithm = data[META]
               if algorithm[0] != 0x03 or not isinstance(algorithm[1],str):
                   block("code signing metadata must be literal JSON")

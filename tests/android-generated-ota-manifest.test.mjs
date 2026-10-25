@@ -9,7 +9,8 @@ const verifier=resolve('tooling/android/verify_generated_ota_manifest.py');
 const pem='-----BEGIN CERTIFICATE-----\nYQ==\n-----END CERTIFICATE-----\n';
 const appUpdates={
   enabled:true,
-  url:'https://u.expo.dev/example',
+  url:'https://u.expo.dev/a506611f-a159-4341-bed7-28dcbd47bf95',
+  requestHeaders:{'expo-channel-name':'production'},
   codeSigningCertificate:'./certs/certificate.pem',
   codeSigningMetadata:{alg:'rsa-v1_5-sha256',keyid:'main'}
 };
@@ -29,7 +30,9 @@ function manifest(items=[]){
 }
 function normalSignedTags(){
   return [tag('ENABLED','true'),tag('CODE_SIGNING_CERTIFICATE',pem),
-    tag('CODE_SIGNING_METADATA',JSON.stringify(appUpdates.codeSigningMetadata))];
+    tag('CODE_SIGNING_METADATA',JSON.stringify(appUpdates.codeSigningMetadata)),
+    tag('EXPO_UPDATE_URL',appUpdates.url),
+    tag('UPDATES_CONFIGURATION_REQUEST_HEADERS_KEY',JSON.stringify(appUpdates.requestHeaders))];
 }
 function fixture(t,updates=appUpdates,tags=normalSignedTags()){
   const root=mkdtempSync(join(tmpdir(),'negresco-ota-native-'));
@@ -131,4 +134,18 @@ test('Android workflow verifies generated OTA policy after source gate and befor
   assert.match(build,/github\.event_name == 'workflow_dispatch' && github\.ref == 'refs\/heads\/main' && \(inputs\.publish_release \|\| inputs\.stable_signing\)/);
   assert.match(workflow,/tests\/android-generated-ota-manifest\.test\.mjs/);
   assert.match(workflow,/tooling\/android\/verify_generated_ota_manifest\.py/);
+});
+
+test('native manifest rejects a preview channel masquerading as stable release',t=>{
+  const tags=normalSignedTags();
+  tags[4]=tag('UPDATES_CONFIGURATION_REQUEST_HEADERS_KEY',JSON.stringify({'expo-channel-name':'preview'}));
+  deny(fixture(t,appUpdates,tags),/request channel must be production/);
+});
+test('native manifest rejects a substituted OTA server URL',t=>{
+  const tags=normalSignedTags();
+  tags[3]=tag('EXPO_UPDATE_URL','https://u.expo.dev/other-project');
+  deny(fixture(t,appUpdates,tags),/endpoint differs from pinned production URL/);
+});
+test('native manifest rejects source config still pointing to preview',t=>{
+  deny(fixture(t,{...appUpdates,requestHeaders:{'expo-channel-name':'preview'}}),/source endpoint\/channel/);
 });

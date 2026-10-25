@@ -14,6 +14,9 @@ PREFIX = "expo.modules.updates."
 CERT = PREFIX + "CODE_SIGNING_CERTIFICATE"
 METADATA = PREFIX + "CODE_SIGNING_METADATA"
 ENABLED = PREFIX + "ENABLED"
+UPDATE_URL = PREFIX + "EXPO_UPDATE_URL"
+REQUEST_HEADERS = PREFIX + "UPDATES_CONFIGURATION_REQUEST_HEADERS_KEY"
+PINNED_ENDPOINT = "https://u.expo.dev/a506611f-a159-4341-bed7-28dcbd47bf95"
 
 
 def reject(message):
@@ -95,6 +98,19 @@ def check(app_json_path, manifest_path):
         reject("native Expo updates must be explicitly enabled")
     if signing_names != {CERT, METADATA}:
         reject("signed OTA certificate and metadata not both embedded")
+    # Source configuration and Expo-generated native routing must agree.
+    # A stable signed binary must never receive experimental preview updates.
+    expected_headers = {"expo-channel-name": "production"}
+    if config.get("url") != PINNED_ENDPOINT or config.get("requestHeaders") != expected_headers:
+        reject("stable OTA source endpoint/channel must be production and pinned")
+    if metadata.get(UPDATE_URL) != PINNED_ENDPOINT:
+        reject("generated Android OTA endpoint differs from pinned production URL")
+    try:
+        headers = json.loads(metadata.get(REQUEST_HEADERS, ""))
+    except (ValueError, TypeError):
+        reject("generated Android OTA request headers are not valid JSON")
+    if headers != expected_headers:
+        reject("generated Android OTA request channel must be production only")
     expected_cert = certificate_bytes(config, app_json)
     if metadata[CERT] != expected_cert:
         reject("native embedded certificate differs from checked-in certificate")

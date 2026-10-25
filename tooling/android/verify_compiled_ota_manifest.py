@@ -20,6 +20,9 @@ PREFIX = "expo.modules.updates."
 ENABLED = PREFIX + "ENABLED"
 CERT = PREFIX + "CODE_SIGNING_CERTIFICATE"
 META = PREFIX + "CODE_SIGNING_METADATA"
+UPDATE_URL = PREFIX + "EXPO_UPDATE_URL"
+REQUEST_HEADERS = PREFIX + "UPDATES_CONFIGURATION_REQUEST_HEADERS_KEY"
+PINNED_ENDPOINT = "https://u.expo.dev/a506611f-a159-4341-bed7-28dcbd47bf95"
 NO_INDEX = 0xFFFFFFFF
 MAX_XML = 2 * 1024 * 1024
 MAX_STRINGS = 65536
@@ -265,6 +268,20 @@ def verify_stable(metadata: dict[str, tuple[int, object]], config_path: Path) ->
         block("compiled APK does not explicitly enable signed OTA")
     if signing_keys != {CERT, META}:
         block("compiled certificate or signature metadata is missing")
+    trusted_headers = {"expo-channel-name": "production"}
+    if updates.get("url") != PINNED_ENDPOINT or updates.get("requestHeaders") != trusted_headers:
+        block("stable OTA source URL/channel must be pinned to production")
+    if metadata.get(UPDATE_URL) != (0x03, PINNED_ENDPOINT):
+        block("compiled OTA URL differs from trusted production endpoint")
+    raw_headers = metadata.get(REQUEST_HEADERS)
+    if not raw_headers or raw_headers[0] != 0x03 or not isinstance(raw_headers[1], str):
+        block("compiled OTA channel must be a literal JSON string")
+    try:
+        channel_headers = json.loads(raw_headers[1])
+    except (ValueError, TypeError):
+        block("compiled OTA channel headers are not valid JSON")
+    if channel_headers != trusted_headers:
+        block("compiled OTA channel must be production only")
     if metadata[CERT] != (0x03, expected_cert(updates, config_path)):
         block("compiled APK public certificate differs from source certificate")
     meta = updates.get("codeSigningMetadata")
