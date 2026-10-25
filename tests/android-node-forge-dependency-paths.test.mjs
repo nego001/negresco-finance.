@@ -117,7 +117,8 @@ test('unrelated dependency without a node-forge link cannot invent a vulnerabili
     p.packages['node_modules/plain-plugin']={
       version:'1.0.0',
       resolved:'https://registry.npmjs.org/plain-plugin/-/plain-plugin-1.0.0.tgz',
-      integrity,dependencies:{'nonexistent-optional-pkg':'^1.0.0'}
+      integrity,peerDependencies:{'nonexistent-optional-pkg':'^1.0.0'},
+      peerDependenciesMeta:{'nonexistent-optional-pkg':{optional:true}}
     };
   });
   capture(...params(f));
@@ -125,7 +126,8 @@ test('unrelated dependency without a node-forge link cannot invent a vulnerabili
 });
 test('direct native-package replacement or fake safe forge version is rejected',t=>{
  deny(fixture(t,p=>{p.packages['node_modules/node-forge'].version='1.4.1';}),/root advisory version\/path mismatch/);
- deny(fixture(t,p=>{delete p.packages['node_modules/node-forge'];}),/root advisory version\/path mismatch/);
+ assert.throws(()=>fixture(t,p=>{delete p.packages['node_modules/node-forge'];}),
+   /unresolved non-peer dependencies dependency node-forge/);
 });
 test('Downloaded evidence fails after tampering report, SBOM, or npm lock',t=>{
  for(const file of ['output','sbomFile','ledgerFile','lockfile']){
