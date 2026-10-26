@@ -71,6 +71,34 @@ test('accept Gradle coordinates without a requested version but require concrete
   deny(fixture(t,{report:bad}),/concrete Maven component version/);
 });
 
+test('Gradle module substitutions use selected Maven identity instead of requested alias',t=>{
+  const substitution=graph.replace('com.facebook.react:react-android:0.81.5',
+    'com.facebook.react:react-native:+ -> com.facebook.react:react-android:0.81.4 (*)');
+  const parsed=parseReport(substitution);
+  assert.equal(parsed.components.length,6);
+  assert.ok(parsed.components.some(c=>c.coordinate==='com.facebook.react:react-android:0.81.4'));
+  assert.ok(!parsed.components.some(c=>c.name==='react-native'));
+  const f=fixture(t,{report:substitution});
+  capture(f.report,f.apk,commit,f.inventory);
+  verify(f.report,f.apk,commit,f.inventory);
+  assert.equal(JSON.parse(readFileSync(f.inventory)).components.find(c=>
+    c.group==='com.facebook.react').name,'react-android');
+});
+test('Gradle substituted module must resolve to concrete, well-formed coordinates',t=>{
+  for(const resolved of [
+    'com.facebook.react:react-android:+',
+    'com.facebook.react:react-android:latest',
+    'com.facebook.react:react-android:0.81.4:evil',
+    'com.facebook.react:react-android',
+    'not-a-maven-coordinate',
+    'com.facebook.react:react-android:1..2'
+  ]){
+    const report=graph.replace('com.facebook.react:react-android:0.81.5',
+      'com.facebook.react:react-native:+ -> '+resolved+' (*)');
+    deny(fixture(t,{report}),/concrete Maven component version|unparsed Gradle classpath edge/);
+  }
+});
+
 test('capture and verify raw native graph bound to exact APK and source commit',t=>{
   const f=fixture(t);
   capture(f.report,f.apk,commit,f.inventory);

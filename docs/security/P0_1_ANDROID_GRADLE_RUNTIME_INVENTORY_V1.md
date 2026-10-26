@@ -51,6 +51,13 @@ versão de origem; **a versão selecionada à direita continua obrigatória
 e deve ser concreta**. Um teste de regressão cobre a captura e a
 rejeição de seletores como `latest`.
 
+O run `40269541437` revelou também substituição de **módulo e versão**:
+`com.facebook.react:react-native:+ -> com.facebook.react:react-android:0.81.4 (*)`.
+O inventário agora interpreta a coordenada final escolhida pelo Gradle,
+não registra o apelido solicitado como componente instalado e continua
+bloqueando coordenadas inválidas ou versões resolvidas não concretas.
+Testes de regressão cobrem substituições legítimas e falsificadas.
+
 ## Conferência após download
 
 No artifact temporário (3 dias), os arquivos aparecem junto

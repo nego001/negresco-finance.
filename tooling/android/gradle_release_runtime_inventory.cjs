@@ -68,14 +68,32 @@ function parseReport(input){
       edges++;
       continue;
     }
-    const versionSwap=raw.match(/^([A-Za-z0-9_.-]+):([A-Za-z0-9_.-]+):(.+?)\s+->\s+(\S+)$/);
-    // Gradle can print group:artifact -> resolvedVersion without a requested version.
-    const unversionedSwap=raw.match(/^([A-Za-z0-9_.-]+):([A-Za-z0-9_.-]+)\s+->\s+(\S+)$/);
-    const versionDirect=raw.match(/^([A-Za-z0-9_.-]+):([A-Za-z0-9_.-]+):(\S+)$/);
-    const parsed=versionSwap||unversionedSwap||versionDirect;
-    if(!parsed){unparsed++;block('unparsed Gradle classpath edge: '+target);}
-    const group=parsed[1],name=parsed[2];
-    const version=versionSwap?versionSwap[4]:parsed[3];
+    // Gradle prints both version selection (group:name:1 -> 2) and module
+    // substitution (group:old:+ -> group:new:2). Inventory must record the
+    // *selected* module, never the requested alias.
+    const sides=raw.split(/\s+->\s+/);
+    if(sides.length>2){unparsed++;block('unparsed Gradle classpath edge: '+target);}
+    const full=/^([A-Za-z0-9_.-]+):([A-Za-z0-9_.-]+):([^\s:]+)$/;
+    const noVersion=/^([A-Za-z0-9_.-]+):([A-Za-z0-9_.-]+)$/;
+    const requested=sides[0].match(full)||sides[0].match(noVersion);
+    if(!requested){unparsed++;block('unparsed Gradle classpath edge: '+target);}
+    let group,name,version;
+    if(sides.length===1){
+      if(!sides[0].match(full)){unparsed++;block('unparsed Gradle classpath edge: '+target);}
+      [group,name,version]=requested.slice(1);
+    } else {
+      const chosenModule=sides[1].match(full);
+      if(chosenModule){
+        [group,name,version]=chosenModule.slice(1);
+      } else {
+        // Version-only right-hand side retains the requested module identity.
+        if(!/^\S+$/.test(sides[1])||sides[1].includes(':')){
+          unparsed++;block('unparsed Gradle classpath edge: '+target);
+        }
+        [group,name]=requested.slice(1,3);
+        version=sides[1];
+      }
+    }
     if(!/^[0-9]+(?:\.[0-9A-Za-z_-]+)*(?:[-+._][0-9A-Za-z_-]+)*$/.test(version)||
        version.includes('..')||version.includes('+')||
        version==='undefined')
