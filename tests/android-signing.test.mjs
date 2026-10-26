@@ -54,7 +54,9 @@ test('keystore is never created if credentials are incomplete',()=>{
 });
 test('candidate workflow denies stable signing without importing private credentials',()=>{
  const workflow=readFileSync(new URL('../.github/workflows/android-apk.yml',import.meta.url),'utf8');
- assert.match(workflow,/stable_signing/);
+ const trigger=workflow.slice(workflow.indexOf('on:\n'),workflow.indexOf('concurrency:'));
+ assert.match(trigger,/workflow_dispatch:\s*\n\s*push:/);
+ assert.doesNotMatch(trigger,/stable_signing:|inputs:/);
  assert.match(workflow,/Fail closed on unreviewed stable signing/);
  assert.match(workflow,/NEGRESCO_USE_STABLE_SIGNING: 'false'/);
  assert.doesNotMatch(workflow,/configure-release-signing\.cjs|secrets\.|NEGRESCO_RELEASE_KEYSTORE_B64|NEGRESCO_EXPECTED_CERT_SHA256/);

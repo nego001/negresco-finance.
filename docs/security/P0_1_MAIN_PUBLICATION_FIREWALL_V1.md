@@ -64,3 +64,14 @@ da proteção de build, da barreira anterior ao npm e do workflow OTA sem
 acessar chaves, baixar dependências ou publicar qualquer atualização. Esses
 testes não simulam o serviço `workflow_dispatch` do GitHub integralmente:
 para isso, seria necessária execução manual independente no branch.
+
+## Remoção da opção manual de assinatura estável
+
+O próprio formulário de `workflow_dispatch` agora **não possui o campo
+`stable_signing`**: o comando manual pode acionar somente um build de
+testes com identidade Debug. A verificação no início do workflow e a
+segunda barreira no script de build permanecem para falhar se alguém
+reintroduzir um parâmetro de assinatura de produção sem revisar a
+política. Portanto, não há mais ação manual `stable_signing=true`
+disponível **nesta revisão do workflow**. Isto só se torna a configuração
+operacional da `main` após revisão e integração da PR.

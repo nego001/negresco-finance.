@@ -1,12 +1,6 @@
 name: Android APK (V3.1 candidate)
 on:
   workflow_dispatch:
-    inputs:
-      stable_signing:
-        description: 'BLOCKED until P0 security review: stable signing is disabled'
-        required: true
-        default: false
-        type: boolean
   push:
     paths:
       - 'apps/mobile/**'

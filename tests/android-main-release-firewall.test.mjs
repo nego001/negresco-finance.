@@ -37,8 +37,10 @@ test('actual signing check accepts Debug certificate only',()=>{
   assert.match(step,/grep -q 'CN=Android Debug'/);
   assert.doesNotMatch(step,/NEGRESCO_USE_STABLE_SIGNING|NEGRESCO_EXPECTED_CERT_SHA256/);
 });
-test('candidate build defaults to debug signing without enabling stable release',()=>{
-  assert.match(workflow,/stable_signing:[\s\S]*?default: false/);
+test('manual GitHub workflow exposes no stable-signing choice',()=>{
+  const trigger=workflow.slice(workflow.indexOf('on:\n'),workflow.indexOf('concurrency:'));
+  assert.match(trigger,/workflow_dispatch:\s*\n\s*push:/);
+  assert.doesNotMatch(trigger,/stable_signing:|inputs:|release_key|keystore|publish_release/);
   assert.match(workflow,/NEGRESCO_USE_STABLE_SIGNING: 'false'/);
   assert.match(workflow,/Debug certificate/);
   assert.doesNotMatch(workflow,/publish_release:|permissions:\s*\n\s*contents: write/);
