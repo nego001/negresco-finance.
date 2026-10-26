@@ -30,3 +30,12 @@ permissões write somente no job publicador explicitamente autorizado.
 
 As **cinco entradas HIGH** transitivas de `node-forge` ainda
 impedem aprovação. A issue #83 acompanha o patch upstream.
+
+## Defesa em profundidade: nenhuma credencial de produção
+
+O workflow candidato não referencia mais variáveis ou secrets de assinatura
+estável: apenas `NEGRESCO_USE_STABLE_SIGNING: 'false'`. Uma segunda barreira
+aborta `stable_signing=true` antes do Gradle, mesmo se a verificação inicial
+for removida. A checagem do APK exige assinatura Android Debug e não contém
+ramo que aceite certificado estável. Os textos do pacote falam somente em
+artifact temporário, sem GitHub Releases.
