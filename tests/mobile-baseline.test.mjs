@@ -42,12 +42,13 @@ test('V3.1 uses a separate OTA runtime from builds with older native modules',()
  assert.equal(config.updates.requestHeaders['expo-channel-name'],'preview');
 });
 
-test('Android distribution artifact survives a GitHub Releases permission denial',()=>{
+test('Android candidate remains downloadable only as temporary Actions artifact',()=>{
  const workflow=readFileSync(new URL('../.github/workflows/android-apk.yml',import.meta.url),'utf8');
  assert.match(workflow,/Preserve full release bundle as Actions artifact/);
  assert.match(workflow,/negresco-finance-v31-distribution/);
  assert.match(workflow,/apps\/mobile\/APK-SIGNATURE\.txt/);
  assert.match(workflow,/apps\/mobile\/Negresco-Finance-V3\.1-candidate\.apk/);
  assert.match(workflow,/cancel-in-progress: true/);
- assert.ok(workflow.indexOf('Preserve full release bundle as Actions artifact')<workflow.indexOf('Publish APK first, ZIP second in GitHub Releases'));
+ assert.match(workflow,/permissions:\s*\n\s*contents: read/);
+ assert.doesNotMatch(workflow,/Publish APK first, ZIP second in GitHub Releases|gh release/);
 });
