@@ -69,10 +69,13 @@ function parseReport(input){
       continue;
     }
     const versionSwap=raw.match(/^([A-Za-z0-9_.-]+):([A-Za-z0-9_.-]+):(.+?)\s+->\s+(\S+)$/);
+    // Gradle can print group:artifact -> resolvedVersion without a requested version.
+    const unversionedSwap=raw.match(/^([A-Za-z0-9_.-]+):([A-Za-z0-9_.-]+)\s+->\s+(\S+)$/);
     const versionDirect=raw.match(/^([A-Za-z0-9_.-]+):([A-Za-z0-9_.-]+):(\S+)$/);
-    const parsed=versionSwap||versionDirect;
+    const parsed=versionSwap||unversionedSwap||versionDirect;
     if(!parsed){unparsed++;block('unparsed Gradle classpath edge: '+target);}
-    const group=parsed[1],name=parsed[2],version=versionSwap?versionSwap[4]:parsed[3];
+    const group=parsed[1],name=parsed[2];
+    const version=versionSwap?versionSwap[4]:parsed[3];
     if(!/^[0-9]+(?:\.[0-9A-Za-z_-]+)*(?:[-+._][0-9A-Za-z_-]+)*$/.test(version)||
        version.includes('..')||version.includes('+')||
        version==='undefined')

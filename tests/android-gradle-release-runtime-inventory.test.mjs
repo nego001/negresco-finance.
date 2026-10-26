@@ -58,6 +58,19 @@ test('parse Gradle releaseRuntimeClasspath, versions, projects, and constraints'
     group:'androidx.core',name:'core',version:'1.15.0',coordinate:'androidx.core:core:1.15.0'
   });
 });
+test('accept Gradle coordinates without a requested version but require concrete selected version',t=>{
+  const missingRequested=graph.replace('com.facebook.react:react-android:0.81.5',
+    'com.facebook.react:react-android -> 0.81.4');
+  const parsed=parseReport(missingRequested);
+  assert.ok(parsed.components.some(c=>c.coordinate==='com.facebook.react:react-android:0.81.4'));
+  assert.equal(parsed.components.length,6);
+  const f=fixture(t,{report:missingRequested});
+  capture(f.report,f.apk,commit,f.inventory);
+  verify(f.report,f.apk,commit,f.inventory);
+  const bad=missingRequested.replace('react-android -> 0.81.4','react-android -> latest');
+  deny(fixture(t,{report:bad}),/concrete Maven component version/);
+});
+
 test('capture and verify raw native graph bound to exact APK and source commit',t=>{
   const f=fixture(t);
   capture(f.report,f.apk,commit,f.inventory);

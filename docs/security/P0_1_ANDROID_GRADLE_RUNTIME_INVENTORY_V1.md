@@ -44,6 +44,13 @@ OSC, NUL e outras sequências não permitidas continuam bloqueados.
 Isso evita rejeição de relatório legítimo colorido sem abrir espaço
 para normalização arbitrária de evidência.
 
+Outra execução real (`40268362626`) revelou coordenadas Gradle válidas no
+formato `com.facebook.react:react-android -> 0.81.4`, sem versão
+solicitada à esquerda. O parser aceita esse formato sem inventar uma
+versão de origem; **a versão selecionada à direita continua obrigatória
+e deve ser concreta**. Um teste de regressão cobre a captura e a
+rejeição de seletores como `latest`.
+
 ## Conferência após download
 
 No artifact temporário (3 dias), os arquivos aparecem junto
