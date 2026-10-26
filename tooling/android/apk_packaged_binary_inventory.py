@@ -22,7 +22,7 @@ MAX_SELECTED = 2 * 1024 * 1024 * 1024
 SHA = re.compile(r"[0-9a-f]{64}\Z")
 COMMIT = re.compile(r"[0-9a-f]{40}\Z")
 LIB = re.compile(r"lib/(armeabi-v7a|arm64-v8a|x86|x86_64)/[A-Za-z0-9_.+-]+\.so\Z")
-DEX = re.compile(r"classes(?:[2-9][0-9]*)?\.dex\Z")
+DEX = re.compile(r"classes(?:[2-9]|[1-9][0-9]+)?\.dex\Z")
 
 
 def block(reason: str) -> None:

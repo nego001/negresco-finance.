@@ -65,6 +65,22 @@ test('hashes packaged DEX and .so for each ABI, excluding assets; independent re
   assert.equal(obj.apkSha256,hash(readFileSync(f.apk)));
   assert.equal(verify(f).status,0);
 });
+test('accepts multidex filenames classes10.dex and classes100.dex but blocks noncanonical names',t=>{
+  const withMultidex=[...basic,
+    {path:'classes10.dex',value:'tenth dex'},
+    {path:'classes100.dex',value:'hundredth dex'}];
+  const f=fixture(t,{files:withMultidex});
+  const r=capture(f);
+  assert.equal(r.status,0,r.stderr);
+  const record=JSON.parse(readFileSync(f.inventory,'utf8'));
+  assert.equal(record.packagedDexCount,4);
+  assert.ok(record.packagedBinaries.some(x=>x.path==='classes10.dex'));
+  assert.ok(record.packagedBinaries.some(x=>x.path==='classes100.dex'));
+  assert.equal(verify(f).status,0);
+  for(const bad of ['classes01.dex','classes1.dex','classes0.dex'])
+    denied(fixture(t,{files:[...basic,{path:bad,value:'invalid dex'}]}),
+      /unrecognized packaged DEX\/ELF location/);
+});
 test('rejects tampering to downloaded APK, Gradle inventory, binary hash evidence or commit',t=>{
   for(const attack of ['apk','gradle','inventory','commit']){
     const f=fixture(t);

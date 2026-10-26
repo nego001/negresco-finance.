@@ -26,6 +26,11 @@ nativo em locais inesperados, DEX ou .so ausentes, tamanhos além dos
 limites, hashes alterados, inventário Gradle incoerente e commit incorreto.
 Testes sintéticos cobrem essas condições.
 
+A expressão de nomes DEX contempla `classes.dex`, `classes2.dex` até
+`classes9.dex` e também `classes10.dex`/`classes100.dex` para APKs multidex
+maiores. Nomes não canônicos como `classes01.dex` são rejeitados.
+
+
 ## Limitações mantidas
 
 Uma lista de arquivos .so e DEX **não identifica automaticamente os AARs,
