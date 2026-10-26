@@ -1,23 +1,20 @@
 name: Android APK (V3.1 candidate)
 on:
   workflow_dispatch:
-    inputs:
-      stable_signing:
-        description: 'Sign with the configured private release keystore (requires secrets and certificate fingerprint)'
-        required: true
-        default: false
-        type: boolean
   push:
     paths:
       - 'apps/mobile/**'
       - 'tests/mobile-baseline.test.mjs'
+      - 'tests/android-signing.test.mjs'
+      - 'tests/android-main-release-firewall.test.mjs'
       - '.github/workflows/android-apk.yml'
+      - '.github/workflows/ota-preview.yml'
 # Keep only the newest candidate compiling when multiple source commits arrive.
 concurrency:
   group: android-candidate-${{ github.ref }}
   cancel-in-progress: true
 permissions:
-  contents: write
+  contents: read
 jobs:
   build-test-apk:
     runs-on: ubuntu-latest
@@ -46,10 +43,17 @@ jobs:
       - name: Validate P0 repository contracts
         working-directory: .
         run: npm test
+      - name: Fail closed on unreviewed stable signing
+        if: ${{ inputs.stable_signing }}
+        run: |
+          echo "::error::Stable signing blocked until a reviewed npm lock, clean security audit, signed OTA policy and independent release approval are integrated into main."
+          exit 1
       - name: Install JS dependencies
         run: npm install --no-audit --no-fund
       - name: Validate TypeScript
         run: npx tsc --noEmit
+      - name: Disable remote Expo OTA in disposable QA APK only
+        run: node ../../tooling/android/force_embedded_only_qa.cjs app.json
       - name: Generate native Android project
         run: npx expo prebuild --platform android --non-interactive --no-install
       # Expo SDK 54 includes Kotlin/KSP-heavy modules (expo-updates, expo-modules-core).
@@ -79,6 +83,16 @@ jobs:
           fi
           echo "=== Expo Updates Android manifest entries ==="
           grep -n -A 4 -B 2 -E 'expo.modules.updates|expo-channel-name|EXPO_UPDATE' "$MANIFEST" || true
+          python3 - "$MANIFEST" <<'PY'
+          import sys, xml.etree.ElementTree as ET
+          root = ET.parse(sys.argv[1]).getroot()
+          android = "{http://schemas.android.com/apk/res/android}"
+          entries = [node.get(android+"value") for node in root.iter("meta-data")
+                     if node.get(android+"name") == "expo.modules.updates.ENABLED"]
+          if entries != ["false"]:
+              raise SystemExit("BLOCK (P0): Android manifest does not explicitly disable OTA")
+          print("PASS (P0): native AndroidManifest explicitly disables OTA")
+          PY
           echo "=== OTA references in Android resources ==="
           grep -R -n -E 'u.expo.dev|expo-channel-name|preview|0.2.0' android/app/src/main/res | head -80 || true
           echo "=== Expo resolved configuration ==="
@@ -87,35 +101,28 @@ jobs:
               const e=JSON.parse(s);
               const u=e.updates||{};
               console.log(JSON.stringify({runtimeVersion:e.runtimeVersion,updates:{enabled:u.enabled,url:u.url,requestHeaders:u.requestHeaders},projectId:e.extra?.eas?.projectId},null,2));
-              if(u.url!=="https://u.expo.dev/a506611f-a159-4341-bed7-28dcbd47bf95"||u.requestHeaders?.["expo-channel-name"]!=="preview")process.exit(1);
+              if(u.enabled!==false||u.checkAutomatically!=="NEVER"||u.useEmbeddedUpdate!==true||u.url!=="https://u.expo.dev/a506611f-a159-4341-bed7-28dcbd47bf95"||u.requestHeaders?.["expo-channel-name"]!=="preview")process.exit(1);
             });
           '
-      - name: Build standalone test APK
+      - name: Build standalone test APK (Debug certificate only)
         env:
-          NEGRESCO_USE_STABLE_SIGNING: ${{ inputs.stable_signing && 'true' || 'false' }}
-          NEGRESCO_RELEASE_KEYSTORE_B64: ${{ inputs.stable_signing && secrets.NEGRESCO_RELEASE_KEYSTORE_B64 || '' }}
-          NEGRESCO_RELEASE_STORE_PASSWORD: ${{ inputs.stable_signing && secrets.NEGRESCO_RELEASE_STORE_PASSWORD || '' }}
-          NEGRESCO_RELEASE_KEY_ALIAS: ${{ inputs.stable_signing && secrets.NEGRESCO_RELEASE_KEY_ALIAS || '' }}
-          NEGRESCO_RELEASE_KEY_PASSWORD: ${{ inputs.stable_signing && secrets.NEGRESCO_RELEASE_KEY_PASSWORD || '' }}
+          NEGRESCO_USE_STABLE_SIGNING: 'false'
+          NEGRESCO_STABLE_REQUESTED: ${{ inputs.stable_signing && 'true' || 'false' }}
         run: |
           set -euo pipefail
-          if [[ "$NEGRESCO_USE_STABLE_SIGNING" == "true" ]]; then
-            export NEGRESCO_SIGNING_STORE_FILE="$PWD/android/app/negresco-ci-release.jks"
-            node ../../tooling/android/configure-release-signing.cjs
-            echo "Opt-in signing enabled. The final certificate is verified in the next step."
-          else
-            echo "::notice::This APK uses the Android Debug certificate. It is a TEST candidate, not a stable release."
+          # Independent backstop if the earlier pre-install block is removed.
+          if [[ "${NEGRESCO_STABLE_REQUESTED:-}" != "false" ]]; then
+            echo "::error::Stable signing is disabled in this workflow."
+            exit 1
           fi
+          echo "::notice::Debug certificate only; test candidate, not stable."
           chmod +x android/gradlew
           cd android
           ./gradlew assembleRelease --no-daemon
       - name: Delete ephemeral signing material
         if: always()
         run: rm -f android/app/negresco-ci-release.jks
-      - name: Verify APK structure and signature
-        env:
-          NEGRESCO_USE_STABLE_SIGNING: ${{ inputs.stable_signing && 'true' || 'false' }}
-          NEGRESCO_EXPECTED_CERT_SHA256: ${{ vars.NEGRESCO_EXPECTED_CERT_SHA256 }}
+      - name: Verify APK structure and Debug signature only
         run: |
           set -euo pipefail
           APK="android/app/build/outputs/apk/release/app-release.apk"
@@ -126,21 +133,23 @@ jobs:
           "$BUILD_TOOLS/aapt" dump badging "$APK" | grep -F "versionCode='33' versionName='3.1.2'"
           "$BUILD_TOOLS/aapt" dump permissions "$APK" | grep -F 'android.permission.USE_BIOMETRIC'
           "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK" | tee APK-SIGNATURE.txt
+          python3 - "$BUILD_TOOLS/aapt" "$APK" <<'PY'
+          import subprocess, sys
+          tree = subprocess.check_output([sys.argv[1], "dump", "xmltree",
+                                          sys.argv[2], "AndroidManifest.xml"], text=True)
+          marker = 'expo.modules.updates.ENABLED'
+          position = tree.find(marker)
+          if position < 0:
+              raise SystemExit("BLOCK (P0): compiled APK lacks Expo Updates enabled metadata")
+          section = tree[position:position+600]
+          if not any('android:value' in line and '(type 0x12)0x0' in line for line in section.splitlines()[:8]):
+              raise SystemExit("BLOCK (P0): compiled APK does not disable OTA")
+          print("PASS (P0): compiled APK Expo Updates ENABLED=false")
+          PY
           CERT_HASH="$(sed -nE 's/.*certificate SHA-256 digest: ([0-9a-fA-F]{64}).*/\1/p' APK-SIGNATURE.txt | head -n 1 | tr '[:upper:]' '[:lower:]')"
           [[ "$CERT_HASH" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::Could not identify APK signing certificate SHA-256."; exit 1; }
-          if [[ "$NEGRESCO_USE_STABLE_SIGNING" == "true" ]]; then
-            EXPECTED="$(printf '%s' "$NEGRESCO_EXPECTED_CERT_SHA256" | tr '[:upper:]' '[:lower:]')"
-            [[ "$EXPECTED" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::Configure repository Actions variable NEGRESCO_EXPECTED_CERT_SHA256 first."; exit 1; }
-            [[ "$CERT_HASH" == "$EXPECTED" ]] || { echo "::error::Certificate does not match pinned release fingerprint."; exit 1; }
-            if grep -q 'CN=Android Debug' APK-SIGNATURE.txt; then
-              echo "::error::Debug certificate cannot be used as a stable release identity."
-              exit 1
-            fi
-            echo "Signature identity verified against the pinned release certificate."
-          else
-            grep -q 'CN=Android Debug' APK-SIGNATURE.txt || { echo "::error::Unexpected test signing identity."; exit 1; }
-            echo "::notice::Debug-signed APK, for testing only. Preserve app data before changing signing identities."
-          fi
+          grep -q 'CN=Android Debug' APK-SIGNATURE.txt || { echo "::error::Only Debug identity allowed in test workflow."; exit 1; }
+          echo "::notice::Debug-signed APK only. Preserve app data when changing signing certificates."
           sha256sum "$APK" | tee android-apk.sha256
       - name: Upload standalone APK
         uses: actions/upload-artifact@v4
@@ -163,12 +172,12 @@ jobs:
           cat > release-package/LEIA-ME.txt <<'EOF'
           NEGRESCO FINANCE - V3.1 (CANDIDATO DE TESTES)
           Android package: com.negresco.finance
-          Instalacao: extraia o APK ou baixe o APK separado no GitHub Releases.
+          Instalacao: extraia o APK de um artifact temporario do GitHub Actions.
           Estado: interface inicial experimental; sem operacoes bancarias reais.
           Integridade: confira o SHA256 publicado nos detalhes da versao.
           Identidade de assinatura: compare APK-SIGNATURE.txt entre versoes.
           Com stable_signing=false, assinatura Android Debug. Teste apenas.
-          Com stable_signing=true, certificado estavel exige credenciais e hash esperados.
+          Com stable_signing=true, esta automacao bloqueia antes da instalacao de dependencias.
           Trocar de certificado pode impedir atualizacao e exigir migracao de dados.
           Atualizacao sobre APK anterior nao e garantida sem compatibilidade de assinatura e versionCode.
           EOF
@@ -202,11 +211,11 @@ jobs:
           - Bloqueio biometrico e protecao de capturas nao criptografam dados nem impedem fotografia externa da tela.
           - PDFs compartilhados ficam sujeitos as protecoes do aplicativo de destino.
           - A instalacao de uma nova versao nativa e necessaria para novas dependencias.
-          - Por padrao, APKs ainda sao assinados com certificado Android Debug. Assinatura permanente e opcional e exige credenciais + fingerprint configurados.
+          - Somente assinatura Android Debug de testes e permitida nesta automacao. Assinatura estavel exige outro processo revisado.
           - Assinatura verificada nao comprova atualizacao possivel sobre qualquer instalacao antiga. Compare certificados e versionCode.
           - Nunca desinstale uma versao existente sem antes decidir como preservar os dados locais.
           EOF
-      # Always upload a complete candidate independently of GitHub Releases write access.
+      # Lab-only Actions artifact. GitHub Releases publishing is intentionally disabled on this branch.
       - name: Preserve full release bundle as Actions artifact
         uses: actions/upload-artifact@v4
         with:
@@ -219,22 +228,3 @@ jobs:
             apps/mobile/RELEASE_NOTES.md
           if-no-files-found: error
           retention-days: 14
-
-      - name: Publish APK first, ZIP second in GitHub Releases
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-        run: |
-          set -euo pipefail
-          TAG="v3.1-candidate-${GITHUB_SHA:0:7}"
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release edit "$TAG" --title "Negresco Finance V3.1 - Candidato de testes" --notes-file RELEASE_NOTES.md --prerelease --latest=false
-          else
-            gh release create "$TAG" --target "${GITHUB_SHA}" --title "Negresco Finance V3.1 - Candidato de testes" --notes-file RELEASE_NOTES.md --prerelease --latest=false
-          fi
-          # A 403 is a GitHub repository permissions issue, not an Android build failure.
-          # Leave the complete ZIP/APK available as an Actions artifact when this step fails.
-          if ! gh release upload "$TAG" Negresco-Finance-V3.1-candidate.apk Negresco-Finance-V3.1-candidate.zip SHA256-release.txt APK-SIGNATURE.txt --clobber; then
-            echo "::error::GitHub Releases upload failed. The APK is preserved in the Actions distribution artifact. Confirm GitHub Actions workflow permissions for this repository."
-            exit 1
-          fi

@@ -1,52 +1,22 @@
-name: Publish OTA Preview (manual, native compatibility required)
+name: OTA Preview (P0 security hold - publishing disabled)
 on:
   workflow_dispatch:
     inputs:
       message:
-        description: "Descricao da atualizacao OTA revisada"
-        required: true
+        description: "Review-only reason; does not publish an OTA update"
+        required: false
         type: string
 permissions:
   contents: read
 concurrency:
-  group: ota-preview-${{ github.ref }}
+  group: ota-preview-blocked-${{ github.ref }}
   cancel-in-progress: false
 jobs:
-  publish:
+  block-unreviewed-ota:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: apps/mobile
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - name: Check Expo authentication secret
-        env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      - name: Block preview OTA until security approval
         run: |
-          if [ -z "$EXPO_TOKEN" ]; then
-            echo "::error::Configure EXPO_TOKEN in GitHub Actions secrets; do not commit credentials."
-            exit 1
-          fi
-      - name: Install dependencies
-        run: npm install --no-audit --no-fund
-      - name: Validate TypeScript
-        run: npx tsc --noEmit
-      - name: Validate project and runtime configuration
-        run: |
-          node --input-type=module -e '
-            import fs from "node:fs";
-            const e=JSON.parse(fs.readFileSync("app.json","utf8")).expo;
-            if(e.extra?.eas?.projectId!=="a506611f-a159-4341-bed7-28dcbd47bf95") throw Error("Unexpected Expo project");
-            if(e.updates?.url!=="https://u.expo.dev/a506611f-a159-4341-bed7-28dcbd47bf95") throw Error("Unexpected OTA endpoint");
-            if(e.runtimeVersion?.policy!=="appVersion") throw Error("Unexpected runtime policy");
-            if(e.updates?.requestHeaders?.["expo-channel-name"]!=="preview") throw Error("Not a preview build");
-          '
-      - name: Publish OTA to preview branch
-        env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-          CI: "1"
-          OTA_MESSAGE: ${{ github.event.inputs.message || github.sha }}
-        run: npx --yes eas-cli update --branch preview --platform android --message "$OTA_MESSAGE" --non-interactive
+          echo "::error::P0 security hold: Expo OTA publishing is disabled pending reviewed dependency audit, signing policy, release provenance and human approval."
+          exit 1

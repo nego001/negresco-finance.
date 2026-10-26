@@ -52,12 +52,14 @@ test('strict base64 decoding rejects malformed or incomplete keystores',()=>{
 test('keystore is never created if credentials are incomplete',()=>{
  assert.throws(()=>configureFromEnvironment({},'/tmp/never-write'),/missing/);
 });
-test('workflow requires explicit manual opt in and checks the certificate fingerprint',()=>{
+test('candidate workflow denies stable signing without importing private credentials',()=>{
  const workflow=readFileSync(new URL('../.github/workflows/android-apk.yml',import.meta.url),'utf8');
- assert.match(workflow,/stable_signing/);
- assert.match(workflow,/configure-release-signing\.cjs/);
- assert.match(workflow,/NEGRESCO_RELEASE_KEYSTORE_B64/);
- assert.match(workflow,/NEGRESCO_EXPECTED_CERT_SHA256/);
- assert.match(workflow,/CN=Android Debug/);
+ const trigger=workflow.slice(workflow.indexOf('on:\n'),workflow.indexOf('concurrency:'));
+ assert.match(trigger,/workflow_dispatch:\s*\n\s*push:/);
+ assert.doesNotMatch(trigger,/stable_signing:|inputs:/);
+ assert.match(workflow,/Fail closed on unreviewed stable signing/);
+ assert.match(workflow,/NEGRESCO_USE_STABLE_SIGNING: 'false'/);
+ assert.doesNotMatch(workflow,/configure-release-signing\.cjs|secrets\.|NEGRESCO_RELEASE_KEYSTORE_B64|NEGRESCO_EXPECTED_CERT_SHA256/);
+ assert.match(workflow,/grep -q 'CN=Android Debug'/);
  assert.match(workflow,/apksigner/);
 });
