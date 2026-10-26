@@ -105,9 +105,20 @@ test('reject wrong or duplicated configuration heading',t=>{
   deny(fixture(t,{report:graph.replace('releaseRuntimeClasspath -','debugRuntimeClasspath -')}),/missing or duplicate/);
   deny(fixture(t,{report:graph+'\nreleaseRuntimeClasspath - Unexpected duplicate.\n'}),/missing or duplicate/);
 });
-test('reject binary and ANSI report escapes',t=>{
-  deny(fixture(t,{report:graph+'\x1b[31m'}),/unsafe ANSI\/binary/);
-  deny(fixture(t,{report:graph+'\0'}),/unsafe ANSI\/binary/);
+test('accept SGR color styling but hash the original Gradle report bytes',t=>{
+  const colored=graph.replace('releaseRuntimeClasspath -',
+    '\x1b[1;34mreleaseRuntimeClasspath -\x1b[0m');
+  const f=fixture(t,{report:colored});
+  assert.equal(parseReport(colored).components.length,6);
+  capture(f.report,f.apk,commit,f.inventory);
+  verify(f.report,f.apk,commit,f.inventory);
+  const snapshot=JSON.parse(readFileSync(f.inventory,'utf8'));
+  assert.equal(snapshot.gradleReportSha256,
+    createHash('sha256').update(Buffer.from(colored)).digest('hex'));
+});
+test('reject unsafe terminal escapes and binary Gradle report bytes',t=>{
+  for(const unsafe of ['\x1b[2J','\x1b]0;malicious\x07','\x00','\x1b[0G'])
+    deny(fixture(t,{report:graph+unsafe}),/unsafe ANSI\/binary/);
 });
 test('reject Gradle report without native dependencies',t=>{
   const empty='releaseRuntimeClasspath - configuration\nNo dependencies\nBUILD SUCCESSFUL\n';
