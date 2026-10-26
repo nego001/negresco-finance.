@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       stable_signing:
-        description: 'Sign with the configured private release keystore (requires secrets and certificate fingerprint)'
+        description: 'BLOCKED until P0 security review: stable signing is disabled'
         required: true
         default: false
         type: boolean
@@ -17,7 +17,7 @@ concurrency:
   group: android-candidate-${{ github.ref }}
   cancel-in-progress: true
 permissions:
-  contents: write
+  contents: read
 jobs:
   build-test-apk:
     runs-on: ubuntu-latest
@@ -46,6 +46,11 @@ jobs:
       - name: Validate P0 repository contracts
         working-directory: .
         run: npm test
+      - name: Fail closed on unreviewed stable signing
+        if: ${{ inputs.stable_signing }}
+        run: |
+          echo "::error::Stable signing blocked until a reviewed npm lock, clean security audit, signed OTA policy and independent release approval are integrated into main."
+          exit 1
       - name: Install JS dependencies
         run: npm install --no-audit --no-fund
       - name: Validate TypeScript
@@ -206,7 +211,7 @@ jobs:
           - Assinatura verificada nao comprova atualizacao possivel sobre qualquer instalacao antiga. Compare certificados e versionCode.
           - Nunca desinstale uma versao existente sem antes decidir como preservar os dados locais.
           EOF
-      # Always upload a complete candidate independently of GitHub Releases write access.
+      # Lab-only Actions artifact. GitHub Releases publishing is intentionally disabled on this branch.
       - name: Preserve full release bundle as Actions artifact
         uses: actions/upload-artifact@v4
         with:
@@ -219,22 +224,3 @@ jobs:
             apps/mobile/RELEASE_NOTES.md
           if-no-files-found: error
           retention-days: 14
-
-      - name: Publish APK first, ZIP second in GitHub Releases
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-        run: |
-          set -euo pipefail
-          TAG="v3.1-candidate-${GITHUB_SHA:0:7}"
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release edit "$TAG" --title "Negresco Finance V3.1 - Candidato de testes" --notes-file RELEASE_NOTES.md --prerelease --latest=false
-          else
-            gh release create "$TAG" --target "${GITHUB_SHA}" --title "Negresco Finance V3.1 - Candidato de testes" --notes-file RELEASE_NOTES.md --prerelease --latest=false
-          fi
-          # A 403 is a GitHub repository permissions issue, not an Android build failure.
-          # Leave the complete ZIP/APK available as an Actions artifact when this step fails.
-          if ! gh release upload "$TAG" Negresco-Finance-V3.1-candidate.apk Negresco-Finance-V3.1-candidate.zip SHA256-release.txt APK-SIGNATURE.txt --clobber; then
-            echo "::error::GitHub Releases upload failed. The APK is preserved in the Actions distribution artifact. Confirm GitHub Actions workflow permissions for this repository."
-            exit 1
-          fi
