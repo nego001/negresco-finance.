@@ -5,7 +5,7 @@ import {mkdtempSync,mkdirSync,writeFileSync,readFileSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join,resolve} from 'node:path';
 const require=createRequire(import.meta.url);
-const {collect,produce}=require('../tooling/android/metro_source_name_inventory.cjs');
+const {collect,produce,verify}=require('../tooling/android/metro_source_name_inventory.cjs');
 const head='c'.repeat(40),h='a'.repeat(64);
 function fixture(t) {
  const dir=mkdtempSync(join(tmpdir(),'negresco-metro-'));t.after(()=>rmSync(dir,{recursive:true,force:true}));
@@ -57,4 +57,39 @@ test('CI must export source maps without uploading raw source maps',()=>{
  const upload=s.slice(s.indexOf('      - name: Upload APK as short-lived unreviewed artifact'),
    s.indexOf('  reverify-downloaded-combined-apk:'));
  assert.doesNotMatch(upload,/\.js\.map|\.hbc\.map|source-map\.json/);
+});
+
+test('independent downloaded report verifier binds exact APK, lock, Hermes and refuses tampering',t=>{
+ const f=fixture(t);writeMap(f.maps,['../src/App.tsx','../node_modules/node-forge/lib/rsa.js']);
+ const apk=join(f.maps,'app-release.apk');writeFileSync(apk,Buffer.from('separate synthetic APK fixture'));
+ const hash=require('node:crypto').createHash('sha256');
+ hash.update(readFileSync(apk));const apkSha=hash.digest('hex');
+ const originalHermes=JSON.parse(readFileSync(f.hermes,'utf8'));
+ originalHermes.apkSha256=apkSha;writeFileSync(f.hermes,JSON.stringify(originalHermes));
+ const report=join(f.maps,'METRO_JS_SOURCE_NAME_INVENTORY.json');
+ const original=produce(f.maps,f.lock,f.hermes,head);
+ writeFileSync(report,JSON.stringify(original));
+ assert.equal(verify(apk,f.lock,f.hermes,head,report),true);
+ const mutate=(fn,pattern)=>{
+  const d=structuredClone(original);fn(d);writeFileSync(report,JSON.stringify(d));
+  assert.throws(()=>verify(apk,f.lock,f.hermes,head,report),pattern);
+ };
+ mutate(d=>{d.approvedForProduction=true},/bound to exact/);
+ mutate(d=>{d.sourceCommit='f'.repeat(40)},/bound to exact/);
+ mutate(d=>{d.observedExport.sourceCount=-1},/unsafe source map summary/);
+ mutate(d=>{d.observedExport.observedModuleSourceCounts.nodeForge=99999},/unsafe source map summary/);
+ mutate(d=>{d.leakedSourceContent='secret'},/unexpected fields/);
+ mutate(d=>{d.apkSha256='0'.repeat(64)},/bound to exact/);
+ writeFileSync(report,JSON.stringify(original));writeFileSync(apk,'tampered bytes');
+ assert.throws(()=>verify(apk,f.lock,f.hermes,head,report),/Hermes provenance/);
+});
+
+test('the separate verifier runs after independent Hermes APK verification',()=>{
+ const s=readFileSync(resolve('.github/workflows/image-size-major-lab.yml'),'utf8');
+ const a=s.indexOf('      - name: Reverify downloaded APK Hermes JS payload and native provenance');
+ const b=s.indexOf('      - name: Revalidate Metro summary against downloaded APK and npm graph');
+ const c=s.indexOf('      - name: Reaudit compiled preview runtime');
+ assert.ok(a>=0&&b>a&&c>b);
+ assert.match(s.slice(b,c),/metro_source_name_inventory\.cjs verify/);
+ assert.match(s.slice(b,c),/combined-apk\/METRO_JS_SOURCE_NAME_INVENTORY\.json/);
 });

@@ -36,3 +36,19 @@ inesperadas/ausentes falham. Os relatórios não incluem caminhos brutos.
 Testes verificam diffs de origem, ausência de mapas e alteração de
 vínculo com o APK. Os mapas brutos ficam apenas no runner e **não**
 integram o artifact público de três dias.
+
+## Reauditoria do relatório baixado
+
+Um job separado, **depois** de verificar o APK e Hermes diretamente
+dos bytes recebidos, executa `metro_source_name_inventory.cjs verify`.
+Ele valida os hashes e vínculos do relatório Metro com o **APK baixado**,
+Hermes, lockfile e commit; também verifica o formato dos campos, a
+proibição explícita de produção e a inexistência de campos adicionais
+(como `sourcesContent`). Os testes simulam alterações nos metadados,
+contagens e APK.
+
+**Limitação irredutível:** como os mapas brutos ficam privados no job de
+origem, o verificador independente **não consegue recalcular as
+contagens de fontes**. Ele apenas valida estrutura e identidade do
+relatório transferido. A conclusão de alcance JavaScript permanece
+intencionalmente inconclusiva.

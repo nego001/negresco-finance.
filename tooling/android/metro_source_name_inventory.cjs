@@ -84,10 +84,62 @@ function produce(dir,lockfile,hermesfile,commit){
     productionReleaseAllowed:false}
  };
 }
+
+function sameKeys(value,expected,label){
+ if(!value||Array.isArray(value)||typeof value!=='object'||
+    Object.keys(value).sort().join('|')!==expected.slice().sort().join('|'))
+   fail('unexpected fields in '+label);
+}
+function verify(apkfile,lockfile,hermesfile,commit,out){
+ if(!SHA.test(commit))fail('invalid Git commit SHA');
+ const apkBytes=read(apkfile,1024*1024*1024),lockBytes=read(lockfile);
+ const hermesBytes=read(hermesfile,2*1024*1024);
+ const lock=json(lockfile),hermes=json(hermesfile),evidence=json(out);
+ const vulnerable=lock.packages?.['node_modules/node-forge'];
+ if(lock.lockfileVersion!==3||vulnerable?.version!=='1.4.0'||
+    !lock.packages?.['node_modules/@expo/code-signing-certificates'])
+   fail('npm lock graph changed');
+ if(hermes.schemaVersion!==1||hermes.approvedForProduction!==false||
+    hermes.sourceCommit!==commit||hermes.apkSha256!==digest(apkBytes)||
+    !HASH.test(String(hermes.jsPayload?.sha256))||
+    hermes.jsPayload.kind!=='hermes-bytecode'|| 
+    !HASH.test(String(hermes.nativeBinaryInventorySha256)))
+   fail('invalid independently verified Hermes provenance');
+ sameKeys(evidence,['schemaVersion','approvedForProduction','method','conclusion',
+   'sourceCommit','apkSha256','packagedHermesSha256','packagedHermesEvidenceSha256',
+   'npmLockSha256','observedExport','advisory'],'report');
+ sameKeys(evidence.observedExport,['mapCount','sourceCount','sourceNameSha256',
+   'mapSetSha256','observedModuleSourceCounts'],'source name inventory');
+ sameKeys(evidence.observedExport.observedModuleSourceCounts,Object.keys(markers),'package counts');
+ sameKeys(evidence.advisory,['id','nodeForgeLockedVersion','productionReleaseAllowed'],'advisory');
+ if(evidence.schemaVersion!==1||evidence.approvedForProduction!==false||
+    evidence.method!=='SEPARATE_EXPO_EXPORT_SOURCE_MAP_NOT_PACKAGED_HERMES_MODULE_PROOF'||
+    evidence.conclusion!=='Source-name comparison only; cannot prove native JS reachability or close GHSA-86w9-cpqp-85rv'||
+    evidence.sourceCommit!==commit||evidence.apkSha256!==digest(apkBytes)||
+    evidence.packagedHermesSha256!==hermes.jsPayload.sha256||
+    evidence.packagedHermesEvidenceSha256!==digest(hermesBytes)||
+    evidence.npmLockSha256!==digest(lockBytes)||
+    evidence.advisory.id!=='GHSA-86w9-cpqp-85rv'||
+    evidence.advisory.nodeForgeLockedVersion!=='1.4.0'||
+    evidence.advisory.productionReleaseAllowed!==false)
+   fail('downloaded report is not bound to exact APK, Hermes, lock and commit');
+ const s=evidence.observedExport;
+ if(!Number.isSafeInteger(s.mapCount)||s.mapCount<1||s.mapCount>40||
+    !Number.isSafeInteger(s.sourceCount)||s.sourceCount<2||s.sourceCount>2000000||
+    !HASH.test(String(s.sourceNameSha256))||!HASH.test(String(s.mapSetSha256))||
+    !Object.values(s.observedModuleSourceCounts).every(x=>Number.isSafeInteger(x)&&x>=0&&x<=s.sourceCount))
+   fail('invalid or unsafe source map summary');
+ console.log('PASS (LAB): downloaded Metro summary structure, advisory block and APK/Hermes/lock checksums match');
+ console.log('LIMIT: raw source maps were deliberately excluded; observed module counts cannot be independently rederived');
+ return true;
+}
+
 function main(args){
- if(args.length!==6||args[0]!=='capture')fail('Usage: capture MAP-DIR LOCK HERMES-EVIDENCE SOURCE-COMMIT OUT');
- const [mode,dir,lock,hermes,commit,out]=args;
- const value=produce(dir,lock,hermes,commit);
+ if(args.length!==6||!['capture','verify'].includes(args[0]))
+   fail('Usage: capture MAP-DIR LOCK HERMES-EVIDENCE SOURCE-COMMIT OUT | verify APK LOCK HERMES-EVIDENCE SOURCE-COMMIT REPORT');
+ const [mode,first,lock,hermes,commit,out]=args;
+ if(mode==='verify'){verify(first,lock,hermes,commit,out);return;}
+ const value=produce(first,lock,hermes,commit);
  if(fs.existsSync(out))fail('refusing to overwrite source map evidence');
  fs.writeFileSync(out,JSON.stringify(value,null,2)+'\n',{flag:'wx'});
  console.log('PASS (LAB): companion Metro source-map names inventoried; NOT packaged Hermes reachability');
@@ -95,4 +147,4 @@ function main(args){
   console.log('OBSERVED '+k+': '+v);
 }
 if(require.main===module){try{main(process.argv.slice(2));}catch(e){console.error(e.message);process.exitCode=1;}}
-module.exports={collect,produce};
+module.exports={collect,produce,verify};

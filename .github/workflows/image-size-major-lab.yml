@@ -440,6 +440,14 @@ jobs:
             combined-apk/android/app/build/outputs/apk/release/app-release.apk \
             combined-apk/APK_PACKAGED_BINARY_INVENTORY.json \
             "$GITHUB_SHA" combined-apk/APK_HERMES_BUNDLE_INVENTORY.json
+      - name: Revalidate Metro summary against downloaded APK and npm graph
+        run: |
+          set -euo pipefail
+          node tooling/android/metro_source_name_inventory.cjs verify \
+            combined-apk/android/app/build/outputs/apk/release/app-release.apk \
+            combined-apk/image-size-review/image-size-candidate-lock.json \
+            combined-apk/APK_HERMES_BUNDLE_INVENTORY.json \
+            "$GITHUB_SHA" combined-apk/METRO_JS_SOURCE_NAME_INVENTORY.json
       - name: Reaudit compiled preview runtime, signature and Expo app config
         run: |
           set -euo pipefail
