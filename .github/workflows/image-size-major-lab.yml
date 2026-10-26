@@ -11,6 +11,7 @@ on:
       - lab/p01-cyclonedx-full-dependency-edges-v1
       - lab/p01-android-gradle-runtime-inventory-v1
       - lab/p01-apk-packaged-binary-inventory-v1
+      - lab/p01-apk-hermes-bundle-inventory-v1
 permissions:
   contents: read
 concurrency:
@@ -270,6 +271,13 @@ jobs:
             android/app/build/outputs/apk/release/app-release.apk \
             ANDROID_RELEASE_RUNTIME_INVENTORY.json \
             "$GITHUB_SHA" APK_PACKAGED_BINARY_INVENTORY.json
+      - name: Hash exact Hermes JS bytecode inside verified APK
+        run: |
+          set -euo pipefail
+          python3 ../../tooling/android/apk_hermes_bundle_inventory.py capture \
+            android/app/build/outputs/apk/release/app-release.apk \
+            APK_PACKAGED_BINARY_INVENTORY.json \
+            "$GITHUB_SHA" APK_HERMES_BUNDLE_INVENTORY.json
       - name: Verify compiled combined-patch APK and its content
         run: |
           set -euo pipefail
@@ -319,6 +327,7 @@ jobs:
             apps/mobile/ANDROID_RELEASE_RUNTIME_DEPENDENCIES.txt
             apps/mobile/ANDROID_RELEASE_RUNTIME_INVENTORY.json
             apps/mobile/APK_PACKAGED_BINARY_INVENTORY.json
+            apps/mobile/APK_HERMES_BUNDLE_INVENTORY.json
             apps/mobile/image-size-review/image-size-candidate-audit.json
             apps/mobile/image-size-review/image-size-candidate-lock.json
             apps/mobile/image-size-review/IMAGE_SIZE_MAJOR_FEASIBILITY.json
@@ -408,6 +417,13 @@ jobs:
             combined-apk/android/app/build/outputs/apk/release/app-release.apk \
             combined-apk/ANDROID_RELEASE_RUNTIME_INVENTORY.json \
             "$GITHUB_SHA" combined-apk/APK_PACKAGED_BINARY_INVENTORY.json
+      - name: Reverify downloaded APK Hermes JS payload and native provenance
+        run: |
+          set -euo pipefail
+          python3 tooling/android/apk_hermes_bundle_inventory.py verify \
+            combined-apk/android/app/build/outputs/apk/release/app-release.apk \
+            combined-apk/APK_PACKAGED_BINARY_INVENTORY.json \
+            "$GITHUB_SHA" combined-apk/APK_HERMES_BUNDLE_INVENTORY.json
       - name: Reaudit compiled preview runtime, signature and Expo app config
         run: |
           set -euo pipefail
