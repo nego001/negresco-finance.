@@ -11,6 +11,8 @@ on:
     paths:
       - 'apps/mobile/**'
       - 'tests/mobile-baseline.test.mjs'
+      - 'tests/android-signing.test.mjs'
+      - 'tests/android-main-release-firewall.test.mjs'
       - '.github/workflows/android-apk.yml'
 # Keep only the newest candidate compiling when multiple source commits arrive.
 concurrency:
