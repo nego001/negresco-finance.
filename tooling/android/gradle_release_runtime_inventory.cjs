@@ -22,9 +22,18 @@ function safeBytes(file,max){
 }
 const sha256=b=>crypto.createHash('sha256').update(b).digest('hex');
 function parseReport(input){
-  if(typeof input!=='string'||input.length<30||input.includes('\0')||/\x1b/.test(input))
+  if(typeof input!=='string'||input.length<30)
     block('empty or unsafe ANSI/binary Gradle report');
-  const lines=input.replace(/\r\n/g,'\n').split('\n');
+  // Gradle and plugins can colorize stdout even with --console=plain.
+  // Allow only ANSI Select Graphic Rendition (SGR) styling, never cursor
+  // movement, OSC payloads, or arbitrary control bytes. Keep the *original*
+  // raw report unchanged and bound to the APK by its SHA-256.
+  const sgr=input.match(/\x1b\[[0-9;]*m/g)||[];
+  if(sgr.length>10000)block('excessive Gradle terminal styling');
+  const plain=input.replace(/\x1b\[[0-9;]*m/g,'');
+  if(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(plain))
+    block('empty or unsafe ANSI/binary Gradle report');
+  const lines=plain.replace(/\r\n/g,'\n').split('\n');
   const matches=lines.filter(line=>line.startsWith(CONFIG+' - '));
   if(matches.length!==1)block('missing or duplicate releaseRuntimeClasspath heading');
   const heading=lines.indexOf(matches[0]);
