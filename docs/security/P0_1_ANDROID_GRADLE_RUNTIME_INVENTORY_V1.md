@@ -36,6 +36,14 @@ irregulares e versões não concretas bloqueiam a etapa.
 A entrada é local, limitada em tamanho, sem links simbólicos
 e o JSON é gerado sem timestamp aleatório.
 
+**Correção após execução real:** mesmo com `--console=plain`, o Gradle
+ou plugins podem emitir estilos ANSI SGR. O parser ignora apenas
+sequências de cor/estilo SGR durante a extração do grafo, sem alterar
+os bytes do relatório bruto usados no SHA-256. Controles de cursor,
+OSC, NUL e outras sequências não permitidas continuam bloqueados.
+Isso evita rejeição de relatório legítimo colorido sem abrir espaço
+para normalização arbitrária de evidência.
+
 ## Conferência após download
 
 No artifact temporário (3 dias), os arquivos aparecem junto
