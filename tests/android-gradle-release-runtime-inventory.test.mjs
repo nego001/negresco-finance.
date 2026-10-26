@@ -49,9 +49,9 @@ function deny(f,re){
 test('parse Gradle releaseRuntimeClasspath, versions, projects, and constraints',()=>{
   const p=parseReport(graph);
   assert.equal(p.configuration,'releaseRuntimeClasspath');
-  assert.equal(p.components.length,5);
+  assert.equal(p.components.length,6);
   assert.deepEqual(p.localProjects,[':expo',':react-native-screens']);
-  assert.equal(p.selectionEdgeCount,8);
+  assert.equal(p.selectionEdgeCount,9);
   assert.equal(p.constraintEdgeCount,1);
   assert.equal(p.parseErrors,0);
   assert.deepEqual(p.components.find(x=>x.name==='core'),{
@@ -68,7 +68,7 @@ test('capture and verify raw native graph bound to exact APK and source commit',
   assert.match(d.scope,/NOT APK CONTAINED COMPONENTS/);
   assert.equal(d.apkSha256,createHash('sha256').update(readFileSync(f.apk)).digest('hex'));
   assert.equal(d.gradleReportSha256,createHash('sha256').update(readFileSync(f.report)).digest('hex'));
-  assert.equal(d.components.length,5);
+  assert.equal(d.components.length,6);
 });
 test('captured native graph is deterministic with no timestamps/random values',t=>{
   const f=fixture(t);
