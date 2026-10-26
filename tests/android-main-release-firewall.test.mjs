@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {spawnSync} from 'node:child_process';
+import {createRequire} from 'node:module';
 const workflow=readFileSync(resolve('.github/workflows/android-apk.yml'),'utf8');
 test('main candidate Android build cannot publish GitHub Release automatically',()=>{
   assert.match(workflow,/permissions:\s*\n\s+contents: read/);
@@ -114,4 +115,42 @@ test('OTA preview shell exits nonzero before any update, even in manual workflow
   assert.equal(r.status,1);
   assert.match(r.stdout,/P0 security hold/);
   assert.doesNotMatch(snippet,/EXPO_TOKEN|npm install|eas-cli/);
+});
+
+const require = createRequire(import.meta.url);
+const {forceEmbeddedOnly} = require('../tooling/android/force_embedded_only_qa.cjs');
+const sourceExpoConfig=JSON.parse(readFileSync(resolve('apps/mobile/app.json'),'utf8'));
+test('only disposable QA APK gets embedded code and OTA is disabled before prebuild',()=>{
+  const source=sourceExpoConfig;
+  const result=forceEmbeddedOnly(source);
+  assert.equal(source.expo.updates.enabled,true,'original app.json remains unchanged');
+  assert.equal(result.expo.updates.enabled,false);
+  assert.equal(result.expo.updates.checkAutomatically,'NEVER');
+  assert.equal(result.expo.updates.useEmbeddedUpdate,true);
+  assert.equal(result.expo.updates.url,source.expo.updates.url);
+  assert.equal(result.expo.android.package,source.expo.android.package);
+  assert.notStrictEqual(result,source);
+});
+test('malformed, changed or already-disabled OTA source policy aborts safely',()=>{
+  for(const update of [
+    x=>{x.expo.updates.enabled=false;},
+    x=>{x.expo.updates.url='https://host.invalid';},
+    x=>{x.expo.updates.requestHeaders['expo-channel-name']='stable';},
+    x=>{x.expo.extra.eas.projectId='unexpected';},
+    x=>{delete x.expo.runtimeVersion;}
+  ]){
+    const sample=structuredClone(sourceExpoConfig);
+    update(sample);
+    assert.throws(()=>forceEmbeddedOnly(sample),/BLOCK:/);
+  }
+});
+test('workflow mutates only the throwaway Expo config before prebuild and audits both manifests',()=>{
+  const i=workflow.indexOf('      - name: Disable remote Expo OTA in disposable QA APK only');
+  const j=workflow.indexOf('      - name: Generate native Android project');
+  assert.ok(i>0&&j>i);
+  assert.match(workflow.slice(i,j),/force_embedded_only_qa\.cjs app\.json/);
+  assert.match(workflow,/u\.enabled!==false/);
+  assert.match(workflow,/native AndroidManifest explicitly disables OTA/);
+  assert.match(workflow,/compiled APK Expo Updates ENABLED=false/);
+  assert.match(workflow,/aapt" "\$APK"/);
 });

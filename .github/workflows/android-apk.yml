@@ -52,6 +52,8 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Validate TypeScript
         run: npx tsc --noEmit
+      - name: Disable remote Expo OTA in disposable QA APK only
+        run: node ../../tooling/android/force_embedded_only_qa.cjs app.json
       - name: Generate native Android project
         run: npx expo prebuild --platform android --non-interactive --no-install
       # Expo SDK 54 includes Kotlin/KSP-heavy modules (expo-updates, expo-modules-core).
@@ -81,6 +83,16 @@ jobs:
           fi
           echo "=== Expo Updates Android manifest entries ==="
           grep -n -A 4 -B 2 -E 'expo.modules.updates|expo-channel-name|EXPO_UPDATE' "$MANIFEST" || true
+          python3 - "$MANIFEST" <<'PY'
+          import sys, xml.etree.ElementTree as ET
+          root = ET.parse(sys.argv[1]).getroot()
+          android = "{http://schemas.android.com/apk/res/android}"
+          entries = [node.get(android+"value") for node in root.iter("meta-data")
+                     if node.get(android+"name") == "expo.modules.updates.ENABLED"]
+          if entries != ["false"]:
+              raise SystemExit("BLOCK (P0): Android manifest does not explicitly disable OTA")
+          print("PASS (P0): native AndroidManifest explicitly disables OTA")
+          PY
           echo "=== OTA references in Android resources ==="
           grep -R -n -E 'u.expo.dev|expo-channel-name|preview|0.2.0' android/app/src/main/res | head -80 || true
           echo "=== Expo resolved configuration ==="
@@ -89,7 +101,7 @@ jobs:
               const e=JSON.parse(s);
               const u=e.updates||{};
               console.log(JSON.stringify({runtimeVersion:e.runtimeVersion,updates:{enabled:u.enabled,url:u.url,requestHeaders:u.requestHeaders},projectId:e.extra?.eas?.projectId},null,2));
-              if(u.url!=="https://u.expo.dev/a506611f-a159-4341-bed7-28dcbd47bf95"||u.requestHeaders?.["expo-channel-name"]!=="preview")process.exit(1);
+              if(u.enabled!==false||u.checkAutomatically!=="NEVER"||u.useEmbeddedUpdate!==true||u.url!=="https://u.expo.dev/a506611f-a159-4341-bed7-28dcbd47bf95"||u.requestHeaders?.["expo-channel-name"]!=="preview")process.exit(1);
             });
           '
       - name: Build standalone test APK (Debug certificate only)
@@ -121,6 +133,19 @@ jobs:
           "$BUILD_TOOLS/aapt" dump badging "$APK" | grep -F "versionCode='33' versionName='3.1.2'"
           "$BUILD_TOOLS/aapt" dump permissions "$APK" | grep -F 'android.permission.USE_BIOMETRIC'
           "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK" | tee APK-SIGNATURE.txt
+          python3 - "$BUILD_TOOLS/aapt" "$APK" <<'PY'
+          import re, subprocess, sys
+          tree = subprocess.check_output([sys.argv[1], "dump", "xmltree",
+                                          sys.argv[2], "AndroidManifest.xml"], text=True)
+          marker = 'expo.modules.updates.ENABLED'
+          position = tree.find(marker)
+          if position < 0:
+              raise SystemExit("BLOCK (P0): compiled APK lacks Expo Updates enabled metadata")
+          section = tree[position:position+600]
+          if not re.search(r'android:value[^\\n]*\\(type 0x12\\)0x0', section):
+              raise SystemExit("BLOCK (P0): compiled APK does not disable OTA")
+          print("PASS (P0): compiled APK Expo Updates ENABLED=false")
+          PY
           CERT_HASH="$(sed -nE 's/.*certificate SHA-256 digest: ([0-9a-fA-F]{64}).*/\1/p' APK-SIGNATURE.txt | head -n 1 | tr '[:upper:]' '[:lower:]')"
           [[ "$CERT_HASH" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::Could not identify APK signing certificate SHA-256."; exit 1; }
           grep -q 'CN=Android Debug' APK-SIGNATURE.txt || { echo "::error::Only Debug identity allowed in test workflow."; exit 1; }

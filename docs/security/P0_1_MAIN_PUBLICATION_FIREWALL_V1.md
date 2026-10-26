@@ -75,3 +75,23 @@ reintroduzir um parâmetro de assinatura de produção sem revisar a
 política. Portanto, não há mais ação manual `stable_signing=true`
 disponível **nesta revisão do workflow**. Isto só se torna a configuração
 operacional da `main` após revisão e integração da PR.
+
+## Falha adicional detectada: bloqueio de publicação não bloqueia recebimento de OTA
+
+A configuração rastreada em `apps/mobile/app.json` estava com
+`updates.enabled: true` e `checkAutomatically: ON_LOAD`: um APK
+Debug já instalado poderia obter uma atualização antiga ou enviada fora
+do GitHub Actions, mesmo com o workflow publicador desativado.
+
+No **candidato de laboratório desta PR**, `force_embedded_only_qa.cjs`
+modifica apenas a cópia de `app.json` no runner, antes de `expo prebuild`.
+Exige o projeto, canal e runtime originais conhecidos, depois impõe
+`updates.enabled=false`, `checkAutomatically=NEVER` e
+`useEmbeddedUpdate=true`. O workflow verifica tanto o
+`AndroidManifest.xml` de origem quanto o metadata compilado do APK.
+As configurações de desenvolvimento versionadas permanecem intactas.
+
+**Limites:** não desativa OTA em instalações antigas nem bloqueia
+publicações via outras credenciais ou infraestrutura da Expo; nova
+instalação do APK de laboratório é necessária. Nenhuma atualização
+antiga é excluída e não há migração automática de dados.
