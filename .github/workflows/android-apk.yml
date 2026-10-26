@@ -134,7 +134,7 @@ jobs:
           "$BUILD_TOOLS/aapt" dump permissions "$APK" | grep -F 'android.permission.USE_BIOMETRIC'
           "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK" | tee APK-SIGNATURE.txt
           python3 - "$BUILD_TOOLS/aapt" "$APK" <<'PY'
-          import re, subprocess, sys
+          import subprocess, sys
           tree = subprocess.check_output([sys.argv[1], "dump", "xmltree",
                                           sys.argv[2], "AndroidManifest.xml"], text=True)
           marker = 'expo.modules.updates.ENABLED'
@@ -142,7 +142,7 @@ jobs:
           if position < 0:
               raise SystemExit("BLOCK (P0): compiled APK lacks Expo Updates enabled metadata")
           section = tree[position:position+600]
-          if not re.search(r'android:value[^\\n]*\\(type 0x12\\)0x0', section):
+          if not any('android:value' in line and '(type 0x12)0x0' in line for line in section.splitlines()[:8]):
               raise SystemExit("BLOCK (P0): compiled APK does not disable OTA")
           print("PASS (P0): compiled APK Expo Updates ENABLED=false")
           PY
