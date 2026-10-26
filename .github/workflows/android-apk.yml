@@ -14,6 +14,7 @@ on:
       - 'tests/android-signing.test.mjs'
       - 'tests/android-main-release-firewall.test.mjs'
       - '.github/workflows/android-apk.yml'
+      - '.github/workflows/ota-preview.yml'
 # Keep only the newest candidate compiling when multiple source commits arrive.
 concurrency:
   group: android-candidate-${{ github.ref }}

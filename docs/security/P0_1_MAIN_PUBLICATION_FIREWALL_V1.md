@@ -39,3 +39,18 @@ aborta `stable_signing=true` antes do Gradle, mesmo se a verificação inicial
 for removida. A checagem do APK exige assinatura Android Debug e não contém
 ramo que aceite certificado estável. Os textos do pacote falam somente em
 artifact temporário, sem GitHub Releases.
+
+## Bloqueio temporário de publicação OTA Preview
+
+Outra rota encontrada: `.github/workflows/ota-preview.yml` tinha despacho manual
+que instalava pacotes npm sem audit e utilizava `EXPO_TOKEN` para enviar
+JavaScript remoto ao canal `preview`. Isso não publicava um APK, mas
+**podia distribuir código** aos dispositivos inscritos nesse canal.
+
+A PR propõe substituir esse job por uma resposta fail-closed, sem checkout,
+sem pacote npm, sem `EXPO_TOKEN` e sem `eas-cli update`. É possível
+acionar manualmente o workflow, mas ele **falha sem publicar**. Uma alteração
+futura nesse arquivo dispara também a verificação do APK candidato.
+Essa mudança **não remove atualizações OTA já publicadas**. Uma retomada
+requer dependências revisadas, política de atualização assinada, rastreio de
+versão e aprovação humana explícita.

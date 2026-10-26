@@ -42,3 +42,16 @@ test('candidate build defaults to debug signing without enabling stable release'
   assert.match(workflow,/Debug certificate/);
   assert.doesNotMatch(workflow,/publish_release:|permissions:\s*\n\s*contents: write/);
 });
+
+const otaPreview=readFileSync(resolve('.github/workflows/ota-preview.yml'),'utf8');
+test('manual preview OTA must fail closed before credentials or unreviewed tooling',()=>{
+  assert.match(otaPreview,/workflow_dispatch:/);
+  assert.match(otaPreview,/permissions:\s*\n\s*contents: read/);
+  assert.match(otaPreview,/Block preview OTA until security approval[\s\S]*?exit 1/);
+  assert.doesNotMatch(otaPreview,/secrets\.|EXPO_TOKEN|eas-cli|eas update|expo export|npm install|npm ci|npx|contents: write/);
+});
+test('OTA policy modifications trigger candidate security checks',()=>{
+  assert.match(workflow,/\.github\/workflows\/ota-preview\.yml/);
+  assert.match(workflow,/tests\/android-main-release-firewall\.test\.mjs/);
+  assert.doesNotMatch(otaPreview,/actions\/checkout|upload-artifact/);
+});
