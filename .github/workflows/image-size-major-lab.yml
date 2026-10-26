@@ -9,6 +9,7 @@ on:
       - lab/p01-downloaded-sbom-advisory-ledger-v1
       - lab/p01-verified-node-forge-dependency-paths-v1
       - lab/p01-cyclonedx-full-dependency-edges-v1
+      - lab/p01-android-gradle-runtime-inventory-v1
 permissions:
   contents: read
 concurrency:
@@ -250,6 +251,17 @@ jobs:
           test ! -e android/app/negresco-ci-release.jks
           chmod +x android/gradlew
           (cd android && ./gradlew assembleRelease --no-daemon)
+      - name: Capture resolved native Android releaseRuntimeClasspath next to APK
+        run: |
+          set -euo pipefail
+          test -s android/app/build/outputs/apk/release/app-release.apk
+          (cd android && ./gradlew :app:dependencies \
+            --configuration releaseRuntimeClasspath \
+            --console=plain --no-daemon) > ANDROID_RELEASE_RUNTIME_DEPENDENCIES.txt
+          node ../../tooling/android/gradle_release_runtime_inventory.cjs capture \
+            ANDROID_RELEASE_RUNTIME_DEPENDENCIES.txt \
+            android/app/build/outputs/apk/release/app-release.apk \
+            "$GITHUB_SHA" ANDROID_RELEASE_RUNTIME_INVENTORY.json
       - name: Verify compiled combined-patch APK and its content
         run: |
           set -euo pipefail
@@ -296,6 +308,8 @@ jobs:
             apps/mobile/NPM_BUILD_GRAPH_CYCLONEDX.json
             apps/mobile/NPM_ADVISORY_LEDGER.json
             apps/mobile/NODE_FORGE_DEPENDENCY_PATHS.json
+            apps/mobile/ANDROID_RELEASE_RUNTIME_DEPENDENCIES.txt
+            apps/mobile/ANDROID_RELEASE_RUNTIME_INVENTORY.json
             apps/mobile/image-size-review/image-size-candidate-audit.json
             apps/mobile/image-size-review/image-size-candidate-lock.json
             apps/mobile/image-size-review/IMAGE_SIZE_MAJOR_FEASIBILITY.json
@@ -371,6 +385,13 @@ jobs:
             combined-apk/NPM_BUILD_GRAPH_CYCLONEDX.json \
             combined-apk/NPM_ADVISORY_LEDGER.json \
             combined-apk/NODE_FORGE_DEPENDENCY_PATHS.json
+      - name: Re-derive native Gradle inventory from downloaded raw graph and APK
+        run: |
+          set -euo pipefail
+          node tooling/android/gradle_release_runtime_inventory.cjs verify \
+            combined-apk/ANDROID_RELEASE_RUNTIME_DEPENDENCIES.txt \
+            combined-apk/android/app/build/outputs/apk/release/app-release.apk \
+            "$GITHUB_SHA" combined-apk/ANDROID_RELEASE_RUNTIME_INVENTORY.json
       - name: Reaudit compiled preview runtime, signature and Expo app config
         run: |
           set -euo pipefail
