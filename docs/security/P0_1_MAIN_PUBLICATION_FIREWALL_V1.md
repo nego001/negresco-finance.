@@ -54,3 +54,13 @@ futura nesse arquivo dispara também a verificação do APK candidato.
 Essa mudança **não remove atualizações OTA já publicadas**. Uma retomada
 requer dependências revisadas, política de atualização assinada, rastreio de
 versão e aprovação humana explícita.
+
+## Teste negativo executável sem segredos
+
+O gate interno de compilação agora permite **somente o valor literal `false`**;
+`true`, letras maiúsculas, valor vazio e ausência de entrada falham
+antes de chamar Gradle. Os contratos de CI executam os **mesmos trechos Bash**
+da proteção de build, da barreira anterior ao npm e do workflow OTA sem
+acessar chaves, baixar dependências ou publicar qualquer atualização. Esses
+testes não simulam o serviço `workflow_dispatch` do GitHub integralmente:
+para isso, seria necessária execução manual independente no branch.

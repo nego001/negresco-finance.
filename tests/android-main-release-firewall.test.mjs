@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {resolve} from 'node:path';
+import {spawnSync} from 'node:child_process';
 const workflow=readFileSync(resolve('.github/workflows/android-apk.yml'),'utf8');
 test('main candidate Android build cannot publish GitHub Release automatically',()=>{
   assert.match(workflow,/permissions:\s*\n\s+contents: read/);
@@ -54,4 +55,61 @@ test('OTA policy modifications trigger candidate security checks',()=>{
   assert.match(workflow,/\.github\/workflows\/ota-preview\.yml/);
   assert.match(workflow,/tests\/android-main-release-firewall\.test\.mjs/);
   assert.doesNotMatch(otaPreview,/actions\/checkout|upload-artifact/);
+});
+
+function executableRunBlock(yaml, startStep, endStep, stopAt) {
+  const start=yaml.indexOf('      - name: '+startStep);
+  const end=yaml.indexOf('      - name: '+endStep,start+1);
+  assert.ok(start>=0&&end>start,'expected adjacent workflow steps');
+  const part=yaml.slice(start,end);
+  const mark='        run: |\n';
+  const pos=part.indexOf(mark);
+  assert.ok(pos>=0,'expected Bash block');
+  let script=part.slice(pos+mark.length);
+  if(stopAt){
+    const stop=script.indexOf(stopAt);
+    assert.ok(stop>0,'script termination marker missing');
+    script=script.slice(0,stop);
+  }
+  return script.split('\n').map(line=>line.startsWith('          ')?line.slice(10):line).join('\n');
+}
+function bashSnippet(script, input) {
+  const env={...process.env};
+  if(input===null)delete env.NEGRESCO_STABLE_REQUESTED;
+  else env.NEGRESCO_STABLE_REQUESTED=input;
+  return spawnSync('bash',['-c',script],{env,encoding:'utf8',timeout:10000});
+}
+test('actual pre-build shell guard denies stable signing without invoking Gradle or secrets',()=>{
+  const script=executableRunBlock(workflow,
+    'Build standalone test APK (Debug certificate only)',
+    'Delete ephemeral signing material',
+    '          chmod +x android/gradlew');
+  assert.doesNotMatch(script,/gradlew|secrets\.|NEGRESCO_RELEASE_KEY/);
+  for(const value of ['true','TRUE','1','yes','',null]){
+    const result=bashSnippet(script,value);
+    assert.equal(result.status,1,'input '+String(value)+' must fail closed: '+result.stderr);
+    assert.match(result.stdout,/Stable signing is disabled/);
+  }
+  const allowed=bashSnippet(script,'false');
+  assert.equal(allowed.status,0,allowed.stderr);
+  assert.match(allowed.stdout,/Debug certificate only/);
+});
+test('actual early manual-release step exits before dependency installation',()=>{
+  const first=executableRunBlock(workflow,
+    'Fail closed on unreviewed stable signing',
+    'Install JS dependencies');
+  const result=bashSnippet(first,'true');
+  assert.equal(result.status,1);
+  assert.match(result.stdout,/Stable signing blocked/);
+  assert.doesNotMatch(first,/npm install|gradlew|secrets\.|configure-release-signing/);
+});
+test('OTA preview shell exits nonzero before any update, even in manual workflow',()=>{
+  const mark='      - name: Block preview OTA until security approval';
+  const i=otaPreview.indexOf(mark);
+  assert.ok(i>=0);
+  const snippet=otaPreview.slice(i).split('\n').filter(x=>x.startsWith('          ')).map(x=>x.slice(10)).join('\n');
+  const r=bashSnippet(snippet,'false');
+  assert.equal(r.status,1);
+  assert.match(r.stdout,/P0 security hold/);
+  assert.doesNotMatch(snippet,/EXPO_TOKEN|npm install|eas-cli/);
 });

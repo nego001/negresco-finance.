@@ -105,7 +105,7 @@ jobs:
         run: |
           set -euo pipefail
           # Independent backstop if the earlier pre-install block is removed.
-          if [[ "$NEGRESCO_STABLE_REQUESTED" == "true" ]]; then
+          if [[ "${NEGRESCO_STABLE_REQUESTED:-}" != "false" ]]; then
             echo "::error::Stable signing is disabled in this workflow."
             exit 1
           fi
