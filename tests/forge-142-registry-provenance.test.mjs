@@ -58,8 +58,8 @@ test('new or withdrawn advisory triggers failure, not suppression',t=>{
 test('provenance lab requires two checks and never publishes APK',()=>{
  const s=readFileSync('.github/workflows/forge-142-provenance-lab.yml','utf8');
  assert.match(s,/lab\/p01-forge-142-provenance-v1/);
- assert.match(s,/forge_141_registry_provenance\.cjs capture/);
- assert.match(s,/forge_141_registry_provenance\.cjs verify/);
+ assert.match(s,/forge_142_registry_provenance\.cjs capture/);
+ assert.match(s,/forge_142_registry_provenance\.cjs verify/);
  assert.match(s,/npm ci --ignore-scripts/);
  assert.equal((s.match(/lib\/pem\.js/g)||[]).length,2);
  assert.equal((s.match(/Verify harmless Buffer PEM parsing compatibility/g)||[]).length,2);
