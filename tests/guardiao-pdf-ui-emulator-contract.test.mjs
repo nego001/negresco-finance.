@@ -31,7 +31,8 @@ test('UI runner requires real Guardião flow and system chooser, never fakes a p
   assert.match(script,/synthetic 47-digit boleto was not populated in the EditText/);
   assert.match(script,/wait_visible\("Verificação inconclusiva ou inválida", retries=14, scroll=True\)/);
   assert.match(script,/STAGE \(LAB\): synthetic analysis result visible/);
-  assert.ok(script.indexOf('analysis result did not appear after tapping Analyze')<script.indexOf('pdf_button = wait_visible'), 'analysis result must precede PDF button');
+  const resultGate=script.indexOf('wait_visible("Verificação inconclusiva ou inválida"');
+  assert.ok(resultGate>=0&&resultGate<script.indexOf('pdf_button = wait_visible'), 'real analysis output must precede PDF button');
   assert.match(script,/raise RuntimeError\("PDF share chooser not observed/);
 });
 test('privacy evidence is synthetic, metadata-only and production is forbidden',()=>{
