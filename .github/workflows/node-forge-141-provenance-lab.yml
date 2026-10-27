@@ -1,0 +1,94 @@
+name: Forge 1.4.1 npm provenance lab (no APK)
+on:
+  push:
+    branches:
+      - lab/p01-node-forge-141-provenance-v1
+permissions:
+  contents: read
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+          registry-url: https://registry.npmjs.org
+      - name: Generate experimental lock without changing tracked manifest
+        run: |
+          set -euo pipefail
+          test ! -e package-lock.json
+          node <<'NODE'
+          const fs=require('node:fs'),p=JSON.parse(fs.readFileSync('package.json'));
+          if(p.name!=='@negresco/mobile'||p.version!=='3.1.3'||p.overrides!==undefined)
+            throw Error('BLOCK unexpected original mobile manifest');
+          p.overrides={postcss:'8.5.23','image-size':'2.0.3','node-forge':'1.4.1'};
+          fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n');
+          NODE
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund --lockfile-version=3
+      - name: Install npm without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Audit candidate, never suppress advisories
+        run: npm audit --json --package-lock-only > forge-audit.json
+      - name: Verify official tag RSA file against installed npm file
+        run: |
+          node ../../tooling/android/node_forge_141_provenance.cjs capture \
+            package.json package-lock.json node_modules forge-audit.json \
+            "$GITHUB_SHA" FORGE141_PROVENANCE.json
+      - name: Upload only npm lock, manifest and aggregated findings
+        uses: actions/upload-artifact@v4
+        with:
+          name: forge141-unreviewed
+          path: |
+            apps/mobile/package.json
+            apps/mobile/package-lock.json
+            apps/mobile/FORGE141_PROVENANCE.json
+          if-no-files-found: error
+          retention-days: 3
+  verify:
+    needs: capture
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+          registry-url: https://registry.npmjs.org
+      - uses: actions/download-artifact@v4
+        with:
+          name: forge141-unreviewed
+          path: apps/mobile/forge-review
+      - name: Independently validate temporary manifest
+        run: |
+          set -euo pipefail
+          test ! -e package-lock.json
+          node <<'NODE'
+          const fs=require('node:fs');
+          const p=JSON.parse(fs.readFileSync('package.json'));
+          if(p.name!=='@negresco/mobile'||p.version!=='3.1.3'||p.overrides!==undefined)
+            throw Error('BLOCK production manifest drift');
+          p.overrides={postcss:'8.5.23','image-size':'2.0.3','node-forge':'1.4.1'};
+          if(JSON.stringify(p)!==JSON.stringify(JSON.parse(fs.readFileSync('forge-review/package.json'))))
+            throw Error('BLOCK downloaded candidate changed');
+          fs.copyFileSync('forge-review/package.json','package.json');
+          fs.copyFileSync('forge-review/package-lock.json','package-lock.json',fs.constants.COPYFILE_EXCL);
+          NODE
+      - name: Independent npm ci without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Independently require zero audit findings
+        run: npm audit --json --package-lock-only > forge-audit.json
+      - name: Independently rehash installed RSA and verify report
+        run: |
+          node ../../tooling/android/node_forge_141_provenance.cjs verify \
+            package.json package-lock.json node_modules forge-audit.json \
+            "$GITHUB_SHA" forge-review/FORGE141_PROVENANCE.json
