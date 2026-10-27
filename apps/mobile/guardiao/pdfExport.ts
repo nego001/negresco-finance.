@@ -11,28 +11,38 @@ export type PdfExportPorts={
   sharingAvailable:()=>Promise<boolean>;
   share:(uri:string)=>Promise<unknown>;
   isCurrent:()=>boolean;
+  // Called for a generated file only if native sharing was never invoked.
+  discardUnsharedFile?:(uri:string)=>Promise<boolean>;
 };
 
 export async function exportPdfWithLifecycleGuard(ports:PdfExportPorts):Promise<PdfExportOutcome>{
-  // Treat a throwing, unknown or stale lifecycle check as authorization denied.
   const authorized=():boolean=>{
     try{return ports.isCurrent()===true;}catch{return false;}
   };
   if(!authorized())return 'cancelled';
+  let createdUri:string|null=null;
+  let nativeShareStarted=false;
   try{
     const pdf=await ports.print(ports.html);
+    createdUri=typeof pdf?.uri==='string'?pdf.uri:null;
     if(!authorized())return 'cancelled';
-    // A local PDF is required. Reject remote or otherwise unexpected output URIs.
-    if(!pdf||typeof pdf.uri!=='string'||!pdf.uri.startsWith('file://')||
-       !/\.pdf(?:[?#]|$)/i.test(pdf.uri))return 'failed';
+    if(!createdUri||!createdUri.startsWith('file://')||
+       !/\.pdf(?:[?#]|$)/i.test(createdUri))return 'failed';
     const available=await ports.sharingAvailable();
     if(!authorized())return 'cancelled';
     if(!available)return 'unavailable';
-    // No await between this final guard and entry into the native share API.
     if(!authorized())return 'cancelled';
-    await ports.share(pdf.uri);
+    // After this point the native chooser may still be using the file.
+    nativeShareStarted=true;
+    await ports.share(createdUri);
     return authorized()?'shared':'cancelled';
   }catch{
     return authorized()?'failed':'cancelled';
+  }finally{
+    // Explicitly never delete while a native chooser may be reading the file.
+    // The optional callback itself must validate ownership and cache path.
+    if(!nativeShareStarted&&createdUri&&ports.discardUnsharedFile){
+      try{await ports.discardUnsharedFile(createdUri);}catch{/* best-effort only */}
+    }
   }
 }

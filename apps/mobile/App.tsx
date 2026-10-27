@@ -6,6 +6,8 @@ import * as SecureStore from 'expo-secure-store';
 import { buildEvidenceReview, type EvidenceReviewState } from './guardiao/evidence';
 import { createLocalReport, renderReportHtml } from './guardiao/report';
 import {exportPdfWithLifecycleGuard} from './guardiao/pdfExport';
+import {discardUnsharedPrintPdf} from './guardiao/pdfCache';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { Icon, IconName } from './components/Icon';
@@ -162,13 +164,15 @@ export default function App() {
       print:content=>Print.printToFileAsync({html:content}),
       sharingAvailable:()=>Sharing.isAvailableAsync(),
       share:uri=>Sharing.shareAsync(uri,{mimeType:'application/pdf',dialogTitle:'Compartilhar relatório do Guardião'}),
+      discardUnsharedFile:uri=>discardUnsharedPrintPdf(uri,FileSystem.cacheDirectory,
+        fileUri=>FileSystem.deleteAsync(fileUri,{idempotent:true})),
       isCurrent:()=>reportRequestId.current===requestId&&AppState.currentState==='active'&&
         (lockStatusRef.current==='off'||lockStatusRef.current==='unlocked')
     });
     if(reportRequestId.current!==requestId||AppState.currentState!=='active'||
        (lockStatusRef.current!=='off'&&lockStatusRef.current!=='unlocked'))return;
-    if(outcome==='shared')setReportExportStatus('PDF gerado. Escolha onde salvar ou compartilhar.');
-    else if(outcome==='unavailable')setReportExportStatus('PDF gerado no armazenamento temporário, mas o compartilhamento não está disponível.');
+    if(outcome==='shared')setReportExportStatus('Seletor de compartilhamento encerrado. Confira o arquivo no destino escolhido.');
+    else if(outcome==='unavailable')setReportExportStatus('Compartilhamento de PDF indisponível neste dispositivo.');
     else if(outcome==='failed')setReportExportStatus('Não foi possível gerar ou compartilhar o PDF.');
     else setReportExportStatus('');
   };
