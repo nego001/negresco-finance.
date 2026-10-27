@@ -13,6 +13,7 @@ on:
       - lab/p01-apk-packaged-binary-inventory-v1
       - lab/p01-apk-hermes-bundle-inventory-v1
       - lab/p01-metro-js-module-inventory-v1
+      - lab/p01-gradle-packager-js-map-inventory-v1
 permissions:
   contents: read
 concurrency:
@@ -285,6 +286,15 @@ jobs:
             android/app/build/outputs/apk/release/app-release.apk \
             APK_PACKAGED_BINARY_INVENTORY.json \
             "$GITHUB_SHA" APK_HERMES_BUNDLE_INVENTORY.json
+      - name: Inventory Gradle-generated Metro packager map without exporting source names
+        run: |
+          set -euo pipefail
+          node ../../tooling/android/gradle_packager_source_inventory.cjs capture \
+            android/app/build/intermediates/sourcemaps/react/release/index.android.bundle.packager.map \
+            android/app/build/outputs/apk/release/app-release.apk \
+            image-size-review/image-size-candidate-lock.json \
+            APK_HERMES_BUNDLE_INVENTORY.json \
+            "$GITHUB_SHA" GRADLE_PACKAGER_SOURCE_INVENTORY.json
       - name: Inventory companion Metro source names bound to real APK hash
         run: |
           set -euo pipefail
@@ -344,6 +354,7 @@ jobs:
             apps/mobile/APK_PACKAGED_BINARY_INVENTORY.json
             apps/mobile/APK_HERMES_BUNDLE_INVENTORY.json
             apps/mobile/METRO_JS_SOURCE_NAME_INVENTORY.json
+            apps/mobile/GRADLE_PACKAGER_SOURCE_INVENTORY.json
             apps/mobile/image-size-review/image-size-candidate-audit.json
             apps/mobile/image-size-review/image-size-candidate-lock.json
             apps/mobile/image-size-review/IMAGE_SIZE_MAJOR_FEASIBILITY.json
@@ -440,6 +451,14 @@ jobs:
             combined-apk/android/app/build/outputs/apk/release/app-release.apk \
             combined-apk/APK_PACKAGED_BINARY_INVENTORY.json \
             "$GITHUB_SHA" combined-apk/APK_HERMES_BUNDLE_INVENTORY.json
+      - name: Independently validate Gradle-packager source summary against downloaded APK
+        run: |
+          set -euo pipefail
+          node tooling/android/gradle_packager_source_inventory.cjs verify \
+            combined-apk/android/app/build/outputs/apk/release/app-release.apk \
+            combined-apk/image-size-review/image-size-candidate-lock.json \
+            combined-apk/APK_HERMES_BUNDLE_INVENTORY.json \
+            "$GITHUB_SHA" combined-apk/GRADLE_PACKAGER_SOURCE_INVENTORY.json
       - name: Revalidate Metro summary against downloaded APK and npm graph
         run: |
           set -euo pipefail
