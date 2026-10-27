@@ -60,6 +60,9 @@ function Notice({title,body}:{title:string;body:string}) {
 export default function App() {
   const [page,setPage]=useState<Page>('Início');
   const localLock=useLocalAppLock();
+  // Read the latest lock state from async PDF continuations, not a stale closure.
+  const lockStatusRef=useRef(localLock.status);
+  lockStatusRef.current=localLock.status;
   const [keystoreProbeBusy,setKeystoreProbeBusy]=useState(false);
   const [keystoreProbeResult,setKeystoreProbeResult]=useState<KeystoreProbeResult|null>(null);
   const keystoreProbeEpoch=useRef(0);
@@ -159,9 +162,11 @@ export default function App() {
       print:content=>Print.printToFileAsync({html:content}),
       sharingAvailable:()=>Sharing.isAvailableAsync(),
       share:uri=>Sharing.shareAsync(uri,{mimeType:'application/pdf',dialogTitle:'Compartilhar relatório do Guardião'}),
-      isCurrent:()=>reportRequestId.current===requestId&&AppState.currentState==='active'
+      isCurrent:()=>reportRequestId.current===requestId&&AppState.currentState==='active'&&
+        (lockStatusRef.current==='off'||lockStatusRef.current==='unlocked')
     });
-    if(reportRequestId.current!==requestId||AppState.currentState!=='active')return;
+    if(reportRequestId.current!==requestId||AppState.currentState!=='active'||
+       (lockStatusRef.current!=='off'&&lockStatusRef.current!=='unlocked'))return;
     if(outcome==='shared')setReportExportStatus('PDF gerado. Escolha onde salvar ou compartilhar.');
     else if(outcome==='unavailable')setReportExportStatus('PDF gerado no armazenamento temporário, mas o compartilhamento não está disponível.');
     else if(outcome==='failed')setReportExportStatus('Não foi possível gerar ou compartilhar o PDF.');
