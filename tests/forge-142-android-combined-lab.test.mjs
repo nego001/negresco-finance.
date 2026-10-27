@@ -55,9 +55,9 @@ test('new or withdrawn advisory triggers failure, not suppression',t=>{
  const f=fixture(t);writeFileSync(f.audit,JSON.stringify({metadata:{vulnerabilities:{total:1,high:1,critical:0}},vulnerabilities:{'node-forge':{severity:'high'}}}));
  assert.throws(()=>make(...f.args.slice(0,9)),/advisory/);
 });
-test('provenance lab requires two checks and never publishes APK',()=>{
+test('Android integration requires double origin, compiled protections and no production publish',()=>{
  const s=readFileSync('.github/workflows/forge-142-android-minimum-permissions.yml','utf8');
- assert.match(s,/lab\/p01-forge-142-provenance-v1/);
+ assert.match(s,/lab\/p01-forge-142-android-minimum-permissions-v1/);
  assert.match(s,/forge_142_registry_provenance\.cjs capture/);
  assert.match(s,/forge_142_registry_provenance\.cjs verify/);
  assert.match(s,/npm ci --ignore-scripts/);
