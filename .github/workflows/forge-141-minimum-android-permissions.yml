@@ -38,6 +38,31 @@ jobs:
         run: npm audit --json --package-lock-only > forge141-apk-lab/audit.json
       - name: Install exact candidate packages for Android build
         run: npm ci --no-audit --no-fund
+      - name: Diagnose exact npm graph without weakening provenance gate
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs=require('node:fs'),crypto=require('node:crypto');
+          const raw=fs.readFileSync('package-lock.json');
+          const lock=JSON.parse(raw),pk=lock.packages||{};
+          const names=[
+            'node_modules/node-forge',
+            'node_modules/expo',
+            'node_modules/expo/node_modules/@expo/cli',
+            'node_modules/@expo/code-signing-certificates',
+            'node_modules/expo-updates'
+          ];
+          const graph=Object.fromEntries(names.map(n=>[n,{
+            version:pk[n]?.version||null,
+            nodeForgeDependency:pk[n]?.dependencies?.['node-forge']||null
+          }]));
+          console.log('LAB-CANDIDATE-GRAPH '+JSON.stringify({
+            sourceCommit:process.env.GITHUB_SHA,
+            lockSha256:crypto.createHash('sha256').update(raw).digest('hex'),
+            packageCount:Object.keys(pk).length,
+            graph
+          }));
+          NODE
       - name: Verify node-forge tarball and immutable upstream source
         run: |
           set -euo pipefail
