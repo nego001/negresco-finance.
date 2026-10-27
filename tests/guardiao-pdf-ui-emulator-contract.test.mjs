@@ -35,6 +35,15 @@ test('UI runner requires real Guardião flow and system chooser, never fakes a p
   assert.ok(resultGate>=0&&resultGate<script.indexOf('pdf_button = wait_visible'), 'real analysis output must precede PDF button');
   assert.match(script,/raise RuntimeError\("PDF share chooser not observed/);
 });
+test('Android UI automation taps enabled clickable ancestor and never blind screen edges',()=>{
+  assert.match(script,/nearest_click = props/);
+  assert.match(script,/props\["_tap_bounds"\] = \(nearest_click or props\)/);
+  assert.match(script,/refusing touch outside safe app viewport/);
+  assert.match(script,/stage_summary\("after Analyze tap"\)/);
+  assert.match(script,/stage_summary\("analysis result missing, no PDF test attempted"\)/);
+  assert.match(script,/Fixed boolean allowlist only/);
+  assert.doesNotMatch(script,/print\(raw\)|write_text\(raw/);
+});
 test('privacy evidence is synthetic, metadata-only and production is forbidden',()=>{
   assert.match(script,/"syntheticInput": True/);
   assert.match(script,/"stableReleaseAllowed": False/);
