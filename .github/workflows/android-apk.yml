@@ -300,6 +300,7 @@ jobs:
           test -x "$BUILD_TOOLS/aapt2"
           python3 ../../tooling/android/verify_compiled_network_policy.py "$APK" "$BUILD_TOOLS/aapt2"
           python3 ../../tooling/android/verify_compiled_backup_policy.py "$APK" "$BUILD_TOOLS/aapt2"
+          python3 ../../tooling/android/verify_compiled_minimum_permissions.py "$APK"
           # Resource packaging can remap XML paths, so check the compiled
           # AndroidManifest resource IDs instead of guessing res/xml filenames.
           "$BUILD_TOOLS/aapt" dump xmltree "$APK" AndroidManifest.xml > verified-apk-backup-manifest.txt
@@ -506,6 +507,23 @@ jobs:
           test -x "$BUILD_TOOLS/aapt2"
           test -x "$BUILD_TOOLS/apksigner"
           APK="android/app/build/outputs/apk/release/app-release.apk"
+          # Defense in depth on the downloaded artifact: inspect compiled
+          # permission declarations independently of the original build runner.
+          test -x "$BUILD_TOOLS/aapt"
+          PERMISSIONS="$("$BUILD_TOOLS/aapt" dump permissions "$APK")"
+          for DENIED in android.permission.SYSTEM_ALERT_WINDOW android.permission.WRITE_EXTERNAL_STORAGE; do
+            if printf '%s\n' "$PERMISSIONS" | grep -Fq "$DENIED"; then
+              echo "::error::BLOCK: downloaded APK declares forbidden Android permission $DENIED"
+              exit 1
+            fi
+          done
+          for REQUIRED in android.permission.INTERNET android.permission.USE_BIOMETRIC; do
+            if ! printf '%s\n' "$PERMISSIONS" | grep -Fq "$REQUIRED"; then
+              echo "::error::BLOCK: downloaded APK lost essential permission $REQUIRED"
+              exit 1
+            fi
+          done
+          echo 'PASS (LAB): downloaded APK permission declarations preserve least privilege'
           "$BUILD_TOOLS/apksigner" verify --verbose "$APK" >/dev/null
           # The trusted auditor is workflow-owned inline code, never downloaded.
           python3 - "$APK" "$BUILD_TOOLS/aapt2" 3.1.3 <<'PY'
