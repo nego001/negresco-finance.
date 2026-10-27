@@ -511,7 +511,7 @@ jobs:
           # permission declarations independently of the original build runner.
           test -x "$BUILD_TOOLS/aapt"
           PERMISSIONS="$("$BUILD_TOOLS/aapt" dump permissions "$APK")"
-          for DENIED in android.permission.SYSTEM_ALERT_WINDOW android.permission.WRITE_EXTERNAL_STORAGE; do
+          for DENIED in android.permission.SYSTEM_ALERT_WINDOW android.permission.WRITE_EXTERNAL_STORAGE android.permission.READ_EXTERNAL_STORAGE android.permission.READ_MEDIA_IMAGES; do
             if printf '%s\n' "$PERMISSIONS" | grep -Fq "$DENIED"; then
               echo "::error::BLOCK: downloaded APK declares forbidden Android permission $DENIED"
               exit 1
