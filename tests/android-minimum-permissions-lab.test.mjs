@@ -14,6 +14,9 @@ test('permission removal is exclusively in this independent lab',()=>{
  assert.deepEqual(app.android.blockedPermissions,block);
  assert.match(workflow,/lab\/p01-android-minimum-permissions-v1/);
  assert.equal((workflow.match(/verify_compiled_minimum_permissions\.py/g)||[]).length,2);
+ // Freeze the original Forge candidate only in temporary manifests, never in source.
+ assert.equal((workflow.match(/'node-forge':'1\.4\.1'/g)||[]).length,2);
+ assert.equal(JSON.parse(readFileSync('apps/mobile/package.json','utf8')).overrides,undefined);
  assert.match(workflow,/forge-141-android-minimum-permissions-unreviewed/);
  assert.match(workflow,/CN=Android Debug/);
  assert.doesNotMatch(workflow,/contents: write|gh release|eas update|expo publish/);
