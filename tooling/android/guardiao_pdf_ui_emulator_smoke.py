@@ -96,6 +96,31 @@ def scroll_backward() -> None:
         str(w//2), str(int(h*0.77)), "320")
     time.sleep(0.4)
 
+def scroll_forward_precise() -> None:
+    # A 49%-height fling can entirely skip the short PDF button on Android 9.
+    # Use a small touch gesture and independently inspect after every step.
+    w, h = screen_size()
+    adb("shell", "input", "swipe", str(w//2), str(int(h*0.69)),
+        str(w//2), str(int(h*0.49)), "280")
+    time.sleep(0.35)
+
+def wait_export_button() -> dict[str, str]:
+    for step in range(48):
+        node = lookup("Gerar e compartilhar relatório PDF", enabled=True)
+        if node is not None:
+            match = BOUNDS.fullmatch(node.get("bounds", ""))
+            if match:
+                x1, y1, x2, y2 = map(int, match.groups())
+                _, h = screen_size()
+                if int(h*.17) < (y1+y2)//2 < int(h*.79):
+                    print("STAGE (LAB): PDF action button really visible at bounded viewport", flush=True)
+                    return node
+        if step in (0,12,24,36):
+            stage_summary("searching PDF button with small-step scrolling")
+        scroll_forward_precise()
+    stage_summary("PDF button not observed after bounded small-step scrolling")
+    raise RuntimeError("PDF button not visible after 48 small scroll steps")
+
 def wait_visible(needle: str, retries: int = 25, *, scroll: bool = False,
                  enabled: bool = False) -> dict[str, str]:
     for i in range(retries):
@@ -121,7 +146,10 @@ def stage_summary(label: str) -> dict[str, bool]:
     # Fixed boolean allowlist only. Never print EditText values or raw XML.
     allow = ("Analisar estrutura", "Preparando histórico seguro",
              "Verificação inconclusiva ou inválida", "Estrutura consistente",
-             "Gerar e compartilhar relatório PDF", "Limpar dados da análise atual")
+             "Gerar e compartilhar relatório PDF", "Limpar dados da análise atual",
+             "Gerando PDF local...", "Não foi possível gerar ou compartilhar o PDF.",
+             "Compartilhamento de PDF indisponível neste dispositivo.",
+             "Seletor de compartilhamento encerrado.")
     nodes = xml_nodes()
     visible = {k: any(k.lower() in (n.get("text","")+" "+n.get("content-desc","")).lower()
                        for n in nodes) for k in allow}
@@ -212,9 +240,10 @@ def run_smoke() -> None:
     if not observed:
         raise RuntimeError("analysis result was never observed; do not export PDF")
     print("STAGE (LAB): synthetic analysis result visible, next checking PDF export button")
-    pdf_button = wait_visible("Gerar e compartilhar relatório PDF", retries=35, scroll=True)
-    tap_node(pdf_button)
-    for _ in range(55):
+    pdf_button = wait_export_button()
+    tap_node(pdf_button, prefer_label=True)
+    print("STAGE (LAB): one bounded PDF export tap dispatched", flush=True)
+    for attempt in range(55):
         if chooser_present():
             REPORT.write_text(json.dumps({
                 "schemaVersion": 1,
@@ -225,7 +254,14 @@ def run_smoke() -> None:
             }, sort_keys=True, indent=2) + "\n", encoding="utf8")
             print(f"PASS (LAB): real Android API {api} opened system PDF share chooser from Guardião")
             return
+        if attempt in (1,5,12,24,40):
+            state = stage_summary("PDF chooser pending")
+            if state["Não foi possível gerar ou compartilhar o PDF."]:
+                raise RuntimeError("Guardião reported native PDF generation/sharing failure")
+            if state["Compartilhamento de PDF indisponível neste dispositivo."]:
+                raise RuntimeError("Guardião reported Android PDF sharing unavailable")
         time.sleep(1)
+    stage_summary("PDF chooser timeout; no app status is treated as success")
     raise RuntimeError("PDF share chooser not observed after synthetic user action")
 
 if __name__ == "__main__":
