@@ -28,7 +28,8 @@ test('UI runner requires real Guardião flow and system chooser, never fakes a p
     assert.ok(script.includes(s),'missing mandatory UI stage: '+s);
   assert.match(script,/FIXTURE = "0" \* 47/);
   assert.match(script,/if api not in \(26, 28\)/);
-  assert.match(script,/analysis result did not appear after tapping Analyze/);
+  assert.match(script,/synthetic 47-digit boleto was not populated in the EditText/);
+  assert.match(script,/wait_visible\("Verificação inconclusiva ou inválida", retries=14, scroll=True\)/);
   assert.match(script,/STAGE \(LAB\): synthetic analysis result visible/);
   assert.ok(script.indexOf('analysis result did not appear after tapping Analyze')<script.indexOf('pdf_button = wait_visible'), 'analysis result must precede PDF button');
   assert.match(script,/raise RuntimeError\("PDF share chooser not observed/);
