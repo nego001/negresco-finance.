@@ -47,7 +47,7 @@ test('Android UI automation taps enabled clickable ancestor and never blind scre
 test('privacy evidence is synthetic, metadata-only and production is forbidden',()=>{
   assert.match(script,/"syntheticInput": True/);
   assert.match(script,/"stableReleaseAllowed": False/);
-  assert.match(script,/No raw UI content is printed/);
+  assert.match(script,/Never print or upload raw UI hierarchy/);
   assert.match(workflow,/retention-days: 2/);
   assert.doesNotMatch(workflow,/adb shell screencap|adb logcat|capture-screen|upload.*\.pdf/m);
 });
