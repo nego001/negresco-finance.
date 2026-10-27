@@ -70,7 +70,7 @@ test('Android integration requires double origin, compiled protections and no pr
  assert.equal((s.match(/'node-forge':'1\.4\.2'/g)||[]).length,2);
  assert.equal((s.match(/synthetic PEM Buffer decoded/g)||[]).length,2);
  const e=JSON.parse(readFileSync('apps/mobile/app.json','utf8')).expo;
- assert.deepEqual(e.android.blockedPermissions,['android.permission.SYSTEM_ALERT_WINDOW','android.permission.WRITE_EXTERNAL_STORAGE']);
+ assert.deepEqual(e.android.blockedPermissions,['android.permission.SYSTEM_ALERT_WINDOW','android.permission.WRITE_EXTERNAL_STORAGE','android.permission.READ_EXTERNAL_STORAGE','android.permission.READ_MEDIA_IMAGES']);
  assert.equal(JSON.parse(readFileSync('apps/mobile/package.json','utf8')).overrides,undefined);
  assert.match(s,/CN=Android Debug/);
  assert.match(s,/forge-142-android-minimum-permissions-unreviewed/);
