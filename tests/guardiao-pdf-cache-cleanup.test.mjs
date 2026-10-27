@@ -128,5 +128,5 @@ test('mobile integration uses direct Expo SDK 54 filesystem dependency and idemp
   assert.match(app,/discardUnsharedFile:uri=>discardUnsharedPrintPdf\(uri,FileSystem\.cacheDirectory/);
   assert.match(app,/fileUri=>FileSystem\.deleteAsync\(fileUri,\{idempotent:true\}\)/);
   assert.deepEqual(JSON.parse(readFileSync('apps/mobile/app.json','utf8')).expo.android.blockedPermissions,
-    ['android.permission.SYSTEM_ALERT_WINDOW','android.permission.WRITE_EXTERNAL_STORAGE']);
+    ['android.permission.SYSTEM_ALERT_WINDOW','android.permission.WRITE_EXTERNAL_STORAGE','android.permission.READ_EXTERNAL_STORAGE','android.permission.READ_MEDIA_IMAGES']);
 });

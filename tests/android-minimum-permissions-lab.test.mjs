@@ -9,7 +9,7 @@ import {spawnSync} from 'node:child_process';
 const app=JSON.parse(readFileSync('apps/mobile/app.json','utf8')).expo;
 const workflow=readFileSync('.github/workflows/forge-141-minimum-android-permissions.yml','utf8');
 const script='tooling/android/verify_compiled_minimum_permissions.py';
-const block=['android.permission.SYSTEM_ALERT_WINDOW','android.permission.WRITE_EXTERNAL_STORAGE'];
+const block=['android.permission.SYSTEM_ALERT_WINDOW','android.permission.WRITE_EXTERNAL_STORAGE','android.permission.READ_EXTERNAL_STORAGE','android.permission.READ_MEDIA_IMAGES'];
 test('permission removal is exclusively in this independent lab',()=>{
  assert.deepEqual(app.android.blockedPermissions,block);
  assert.match(workflow,/lab\/p01-android-minimum-permissions-v1/);
