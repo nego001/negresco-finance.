@@ -130,15 +130,13 @@ def run_smoke() -> None:
     tap_node(input_node)
     adb("shell", "input", "text", FIXTURE)
     adb("shell", "input", "keyevent", "4")  # Hide keyboard.
-    # Do not mistake a tap on a covered/old view for an actual analysis.
-    # A malformed synthetic boleto must still produce an explicit result.
-    for attempt in range(3):
-        tap_node(wait_visible("Analisar estrutura", retries=12, enabled=True, scroll=True))
-        time.sleep(1.1)
-        if lookup("Verificação inconclusiva ou inválida") or lookup("Estrutura consistente"):
-            break
-        if attempt == 2:
-            raise RuntimeError("analysis result did not appear after tapping Analyze")
+    # The actual EditText value is required; a tap on the label alone proves nothing.
+    populated = wait_visible("Linha digitável do boleto", retries=10)
+    if populated.get("text", "") != FIXTURE:
+        raise RuntimeError("synthetic 47-digit boleto was not populated in the EditText")
+    tap_node(wait_visible("Analisar estrutura", retries=12, enabled=True, scroll=True))
+    # Inspect the observed result, not just that Android accepted a tap.
+    wait_visible("Verificação inconclusiva ou inválida", retries=14, scroll=True)
     print("STAGE (LAB): synthetic analysis result visible, next checking PDF export button")
     pdf_button = wait_visible("Gerar e compartilhar relatório PDF", retries=35, scroll=True)
     tap_node(pdf_button)
