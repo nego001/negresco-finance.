@@ -19,6 +19,8 @@ ANDROID = "http://schemas.android.com/apk/res/android"
 FORBIDDEN = frozenset({
     "android.permission.SYSTEM_ALERT_WINDOW",
     "android.permission.WRITE_EXTERNAL_STORAGE",
+    "android.permission.READ_EXTERNAL_STORAGE",
+    "android.permission.READ_MEDIA_IMAGES",
 })
 REQUIRED = frozenset({
     "android.permission.INTERNET",
@@ -180,7 +182,7 @@ def inspect(apk: Path) -> None:
     if denied: block("forbidden compiled Android permissions: " + ", ".join(denied))
     if not REQUIRED.issubset(found):
         block("required permissions unexpectedly lost")
-    print("PASS (LAB): compiled APK excludes overlay and legacy write permissions; essential permissions preserved")
+    print("PASS (LAB): compiled APK excludes overlay/external storage/media read/write; essential permissions preserved")
 
 if __name__ == "__main__":
     try:
