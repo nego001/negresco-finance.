@@ -32,7 +32,7 @@ test('UI runner requires real Guardião flow and system chooser, never fakes a p
   assert.match(script,/wait_visible\("Verificação inconclusiva ou inválida", retries=5, scroll=False\)/);
   assert.match(script,/STAGE \(LAB\): synthetic analysis result visible/);
   const resultGate=script.indexOf('wait_visible("Verificação inconclusiva ou inválida"');
-  assert.ok(resultGate>=0&&resultGate<script.indexOf('pdf_button = wait_visible'), 'real analysis output must precede PDF button');
+  assert.ok(resultGate>=0&&resultGate<script.indexOf('pdf_button = wait_export_button()'), 'real analysis output must precede PDF button');
   assert.match(script,/raise RuntimeError\("PDF share chooser not observed/);
 });
 test('Android UI automation taps enabled clickable ancestor and never blind screen edges',()=>{
