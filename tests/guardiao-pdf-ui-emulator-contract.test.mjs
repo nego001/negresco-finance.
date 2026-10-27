@@ -29,7 +29,7 @@ test('UI runner requires real Guardião flow and system chooser, never fakes a p
   assert.match(script,/FIXTURE = "0" \* 47/);
   assert.match(script,/if api not in \(26, 28\)/);
   assert.match(script,/synthetic 47-digit boleto was not populated in the EditText/);
-  assert.match(script,/wait_visible\("Verificação inconclusiva ou inválida", retries=14, scroll=True\)/);
+  assert.match(script,/wait_visible\("Verificação inconclusiva ou inválida", retries=5, scroll=False\)/);
   assert.match(script,/STAGE \(LAB\): synthetic analysis result visible/);
   const resultGate=script.indexOf('wait_visible("Verificação inconclusiva ou inválida"');
   assert.ok(resultGate>=0&&resultGate<script.indexOf('pdf_button = wait_visible'), 'real analysis output must precede PDF button');
@@ -46,6 +46,15 @@ test('Android UI automation taps enabled clickable ancestor and never blind scre
   assert.match(script,/for _ in range\(7\):\s*\n\s+scroll_backward\(\)/);
   assert.match(script,/Fixed boolean allowlist only/);
   assert.doesNotMatch(script,/print\(raw\)|write_text\(raw/);
+});
+test('previously observed invalid boleto analysis must not be scrolled out and invalidated',()=>{
+  assert.match(script,/def stage_summary\(label: str\) -> dict\[str, bool\]:/);
+  assert.match(script,/return visible/);
+  assert.match(script,/observed = first\["Verificação inconclusiva ou inválida"\]/);
+  assert.match(script,/observed = retry\["Verificação inconclusiva ou inválida"\]/);
+  assert.match(script,/if not observed:[\s\S]*wait_visible\("Verificação inconclusiva ou inválida", retries=6, scroll=False\)/);
+  assert.doesNotMatch(script,/wait_visible\("Verificação inconclusiva ou inválida", retries=14, scroll=True\)/);
+  assert.match(script,/analysis result was never observed; do not export PDF/);
 });
 test('privacy evidence is synthetic, metadata-only and production is forbidden',()=>{
   assert.match(script,/"syntheticInput": True/);
