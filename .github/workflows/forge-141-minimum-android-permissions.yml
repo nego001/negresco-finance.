@@ -31,13 +31,16 @@ jobs:
           test ! -e package-lock.json
           mkdir -p forge141-apk-lab
           cp package.json forge141-apk-lab/source-package.json
-          node -e "const fs=require('fs'),p=require('./package.json');if(p.overrides||p.dependencies?.['node-forge']||p.name!=='@negresco/mobile')throw Error('BLOCK: altered source');p.overrides={postcss:'8.5.23','image-size':'2.0.3'};fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n')"
+          node -e "const fs=require('fs'),p=require('./package.json');if(p.overrides||p.dependencies?.['node-forge']||p.name!=='@negresco/mobile')throw Error('BLOCK: altered source');p.overrides={postcss:'8.5.23','image-size':'2.0.3','node-forge':'1.4.1'};fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n')"
           npm install --package-lock-only --ignore-scripts --no-audit --no-fund --lockfile-version=3
           cp package-lock.json forge141-apk-lab/candidate-lock.json
       - name: Block any current npm audit advisory
         run: npm audit --json --package-lock-only > forge141-apk-lab/audit.json
       - name: Install exact candidate packages for Android build
         run: npm ci --no-audit --no-fund
+      # Deliberately pin only the disposable lab's transitive Forge to the
+      # previously attested 1.4.1; this does NOT modify the source manifest,
+      # production dependencies or the separate 1.4.2 security review.
       - name: Diagnose exact npm graph without weakening provenance gate
         run: |
           set -euo pipefail
@@ -166,7 +169,7 @@ jobs:
         run: |
           set -euo pipefail
           test ! -e package-lock.json
-          node -e "const fs=require('fs'),b=fs.readFileSync('package.json');if(!b.equals(fs.readFileSync('forge141-review/forge141-apk-lab/source-package.json')))throw Error('BLOCK: source mismatch');const p=JSON.parse(b);if(p.overrides||p.dependencies?.['node-forge'])throw Error('BLOCK: unexpected candidate');p.overrides={postcss:'8.5.23','image-size':'2.0.3'};fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n');fs.copyFileSync('forge141-review/forge141-apk-lab/candidate-lock.json','package-lock.json',fs.constants.COPYFILE_EXCL)"
+          node -e "const fs=require('fs'),b=fs.readFileSync('package.json');if(!b.equals(fs.readFileSync('forge141-review/forge141-apk-lab/source-package.json')))throw Error('BLOCK: source mismatch');const p=JSON.parse(b);if(p.overrides||p.dependencies?.['node-forge'])throw Error('BLOCK: unexpected candidate');p.overrides={postcss:'8.5.23','image-size':'2.0.3','node-forge':'1.4.1'};fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n');fs.copyFileSync('forge141-review/forge141-apk-lab/candidate-lock.json','package-lock.json',fs.constants.COPYFILE_EXCL)"
           npm ci --ignore-scripts --no-audit --no-fund
       - name: Rerun unsuppressed npm audit
         run: npm audit --json --package-lock-only > forge141-review/fresh-audit.json
