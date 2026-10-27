@@ -57,11 +57,20 @@ def lookup(needle: str, *, enabled: bool = False) -> dict[str, str] | None:
             return n
     return None
 
-def tap_node(node: dict[str, str]) -> None:
-    m = BOUNDS.fullmatch(node.get("_tap_bounds", node.get("bounds", "")))
-    if m is None:
-        raise RuntimeError("missing Android clickable bounds")
-    x1, y1, x2, y2 = map(int, m.groups())
+def tap_node(node: dict[str, str], *, prefer_label: bool = False) -> None:
+    label = BOUNDS.fullmatch(node.get("bounds", ""))
+    ancestor = BOUNDS.fullmatch(node.get("_tap_bounds", ""))
+    if label is None:
+        raise RuntimeError("missing Android label bounds")
+    xa, ya, xb, yb = map(int, label.groups())
+    area = max(0, xb-xa) * max(0, yb-ya)
+    click = ancestor or label
+    cx1, cy1, cx2, cy2 = map(int, click.groups())
+    click_area = max(0,cx2-cx1)*max(0,cy2-cy1)
+    # ScrollView-sized "clickable" ancestors cannot be assumed to be buttons.
+    if prefer_label or area <= 0 or click_area > 4 * area:
+        click = label
+    x1, y1, x2, y2 = map(int, click.groups())
     w, h = screen_size()
     x, y = (x1+x2)//2, (y1+y2)//2
     if not (0 < x < w and int(h*.13) < y < int(h*.88)):
@@ -80,6 +89,12 @@ def scroll_forward() -> None:
     adb("shell", "input", "swipe", str(w//2), str(int(h*0.77)),
         str(w//2), str(int(h*0.28)), "320")
     time.sleep(0.55)
+
+def scroll_backward() -> None:
+    w, h = screen_size()
+    adb("shell", "input", "swipe", str(w//2), str(int(h*0.28)),
+        str(w//2), str(int(h*0.77)), "320")
+    time.sleep(0.4)
 
 def wait_visible(needle: str, retries: int = 25, *, scroll: bool = False,
                  enabled: bool = False) -> dict[str, str]:
@@ -168,13 +183,23 @@ def run_smoke() -> None:
         raise RuntimeError("synthetic 47-digit boleto was not populated in the EditText")
     stage_summary("synthetic field entered")
     tap_node(wait_visible("Analisar estrutura", retries=12, enabled=True, scroll=True))
-    stage_summary("after Analyze tap")
-    # Inspect the observed result, not just that Android accepted a tap.
+    stage_summary("after first Analyze tap")
+    # A missed synthetic tap is allowed one safe, explicit second attempt
+    # after returning to the form. Never press arbitrary other controls.
     try:
         wait_visible("Verificação inconclusiva ou inválida", retries=14, scroll=True)
     except RuntimeError:
-        stage_summary("analysis result missing, no PDF test attempted")
-        raise
+        stage_summary("first Analyze tap did not show result")
+        for _ in range(7):
+            scroll_backward()
+        button = wait_visible("Analisar estrutura", retries=12, enabled=True, scroll=True)
+        tap_node(button, prefer_label=True)
+        stage_summary("after text-center retry")
+        try:
+            wait_visible("Verificação inconclusiva ou inválida", retries=14, scroll=True)
+        except RuntimeError:
+            stage_summary("analysis result missing after two bounded taps, no PDF attempted")
+            raise
     print("STAGE (LAB): synthetic analysis result visible, next checking PDF export button")
     pdf_button = wait_visible("Gerar e compartilhar relatório PDF", retries=35, scroll=True)
     tap_node(pdf_button)
