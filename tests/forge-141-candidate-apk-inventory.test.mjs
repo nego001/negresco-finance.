@@ -53,8 +53,8 @@ test('workflow retains independent APK audit and no production publishing',()=>{
  assert.match(wf,/verify_compiled_preview_ota\.py/g);
  // Both the build runner and the independent artifact runner must inspect the
  // EXACT compiled APK, not just the source Expo or Android XML configuration.
- assert.equal((wf.match(/verify_compiled_network_policy\\.py/g)||[]).length,2);
- assert.equal((wf.match(/verify_compiled_backup_policy\\.py/g)||[]).length,2);
- assert.match(wf,/test -x "\\$TOOLS\\/aapt2"/);
+ assert.equal((wf.match(/verify_compiled_network_policy\.py/g)||[]).length,2);
+ assert.equal((wf.match(/verify_compiled_backup_policy\.py/g)||[]).length,2);
+ assert.match(wf,/test -x "\$TOOLS\/aapt2"/);
  assert.doesNotMatch(wf,/contents: write|gh release|eas update|expo publish/);
 });
