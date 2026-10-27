@@ -117,7 +117,7 @@ def wait_visible(needle: str, retries: int = 25, *, scroll: bool = False,
         time.sleep(0.65)
     raise RuntimeError("required UI element unavailable: " + needle)
 
-def stage_summary(label: str) -> None:
+def stage_summary(label: str) -> dict[str, bool]:
     # Fixed boolean allowlist only. Never print EditText values or raw XML.
     allow = ("Analisar estrutura", "Preparando histórico seguro",
              "Verificação inconclusiva ou inválida", "Estrutura consistente",
@@ -126,6 +126,7 @@ def stage_summary(label: str) -> None:
     visible = {k: any(k.lower() in (n.get("text","")+" "+n.get("content-desc","")).lower()
                        for n in nodes) for k in allow}
     print("STAGE (LAB): "+label+" | "+json.dumps(visible, sort_keys=True), flush=True)
+    return visible
 
 def chooser_present() -> bool:
     # In Android 8/9 the system resolver is exposed as ChooserActivity or ResolverActivity.
@@ -183,23 +184,33 @@ def run_smoke() -> None:
         raise RuntimeError("synthetic 47-digit boleto was not populated in the EditText")
     stage_summary("synthetic field entered")
     tap_node(wait_visible("Analisar estrutura", retries=12, enabled=True, scroll=True))
-    stage_summary("after first Analyze tap")
-    # A missed synthetic tap is allowed one safe, explicit second attempt
-    # after returning to the form. Never press arbitrary other controls.
-    try:
-        wait_visible("Verificação inconclusiva ou inválida", retries=14, scroll=True)
-    except RuntimeError:
-        stage_summary("first Analyze tap did not show result")
+    first = stage_summary("after first Analyze tap")
+    # The UI evidence may be visible for only one snapshot. Preserve it and
+    # NEVER scroll the result away then incorrectly report it as absent.
+    observed = first["Verificação inconclusiva ou inválida"]
+    if not observed:
+        try:
+            wait_visible("Verificação inconclusiva ou inválida", retries=5, scroll=False)
+            observed = True
+        except RuntimeError:
+            stage_summary("first Analyze tap did not show result")
+    if not observed:
+        # Exactly one bounded retry, never press unknown controls.
         for _ in range(7):
             scroll_backward()
         button = wait_visible("Analisar estrutura", retries=12, enabled=True, scroll=True)
         tap_node(button, prefer_label=True)
-        stage_summary("after text-center retry")
-        try:
-            wait_visible("Verificação inconclusiva ou inválida", retries=14, scroll=True)
-        except RuntimeError:
-            stage_summary("analysis result missing after two bounded taps, no PDF attempted")
-            raise
+        retry = stage_summary("after text-center retry")
+        observed = retry["Verificação inconclusiva ou inválida"]
+        if not observed:
+            try:
+                wait_visible("Verificação inconclusiva ou inválida", retries=6, scroll=False)
+                observed = True
+            except RuntimeError:
+                stage_summary("analysis result missing after two bounded taps, no PDF attempted")
+                raise
+    if not observed:
+        raise RuntimeError("analysis result was never observed; do not export PDF")
     print("STAGE (LAB): synthetic analysis result visible, next checking PDF export button")
     pdf_button = wait_visible("Gerar e compartilhar relatório PDF", retries=35, scroll=True)
     tap_node(pdf_button)
