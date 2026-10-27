@@ -103,7 +103,11 @@ def chooser_present() -> bool:
 def run_smoke() -> None:
     if not APK.is_file() or APK.is_symlink() or APK.stat().st_size < 25_000_000:
         raise RuntimeError("missing or unsafe audited test APK")
-    digest = hashlib.file_digest(APK.open("rb"), "sha256").hexdigest()
+    hasher = hashlib.sha256()
+    with APK.open("rb") as file:
+        for block in iter(lambda: file.read(1024 * 1024), b""):
+            hasher.update(block)
+    digest = hasher.hexdigest()
     if digest != EXPECTED_SHA:
         raise RuntimeError("APK is not the audited four-permission-free binary")
     api = int(adb("shell", "getprop", "ro.build.version.sdk").strip())
