@@ -5,6 +5,7 @@ import {loadHistory,createHistoryWriteQueue} from './guardiao/history';
 import * as SecureStore from 'expo-secure-store';
 import { buildEvidenceReview, type EvidenceReviewState } from './guardiao/evidence';
 import { createLocalReport, renderReportHtml } from './guardiao/report';
+import {exportPdfWithLifecycleGuard} from './guardiao/pdfExport';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { Icon, IconName } from './components/Icon';
@@ -140,22 +141,31 @@ export default function App() {
   const reportRequestId=useRef(0);
   const [historyQuery,setHistoryQuery]=useState('');
   const clearCurrentAnalysis=useCallback(()=>{cnpjRequestId.current++;reportRequestId.current++;setBoletoLine('');setBoletoResult(null);setCnpj('');setCnpjResult(null);setCnpjLoading(false);setReportExportStatus('');setHistoryQuery('');},[]);
+  useEffect(()=>{
+    // A biometric lock transition invalidates any in-flight PDF before sharing.
+    if(localLock.status!=='off'&&localLock.status!=='unlocked'){
+      reportRequestId.current++;
+      setReportExportStatus('');
+    }
+  },[localLock.status]);
   const exportLocalPdf=async()=>{
-    if(!boletoResult)return;
+    if(!boletoResult||AppState.currentState!=='active'||
+       (localLock.status!=='off'&&localLock.status!=='unlocked'))return;
     const requestId=++reportRequestId.current;
     setReportExportStatus('Gerando PDF local...');
-    try{
-      const html=renderReportHtml(createLocalReport(boletoResult,new Date().toLocaleString('pt-BR'),cnpjResult));
-      const pdf=await Print.printToFileAsync({html});
-      if(await Sharing.isAvailableAsync()){
-        await Sharing.shareAsync(pdf.uri,{mimeType:'application/pdf',dialogTitle:'Compartilhar relatório do Guardião'});
-        if(reportRequestId.current===requestId)setReportExportStatus('PDF gerado. Escolha onde salvar ou compartilhar.');
-      }else if(reportRequestId.current===requestId){
-        setReportExportStatus('PDF gerado no armazenamento temporário, mas o compartilhamento não está disponível.');
-      }
-    }catch{
-      if(reportRequestId.current===requestId)setReportExportStatus('Não foi possível gerar ou compartilhar o PDF.');
-    }
+    const html=renderReportHtml(createLocalReport(boletoResult,new Date().toLocaleString('pt-BR'),cnpjResult));
+    const outcome=await exportPdfWithLifecycleGuard({
+      html,
+      print:content=>Print.printToFileAsync({html:content}),
+      sharingAvailable:()=>Sharing.isAvailableAsync(),
+      share:uri=>Sharing.shareAsync(uri,{mimeType:'application/pdf',dialogTitle:'Compartilhar relatório do Guardião'}),
+      isCurrent:()=>reportRequestId.current===requestId&&AppState.currentState==='active'
+    });
+    if(reportRequestId.current!==requestId||AppState.currentState!=='active')return;
+    if(outcome==='shared')setReportExportStatus('PDF gerado. Escolha onde salvar ou compartilhar.');
+    else if(outcome==='unavailable')setReportExportStatus('PDF gerado no armazenamento temporário, mas o compartilhamento não está disponível.');
+    else if(outcome==='failed')setReportExportStatus('Não foi possível gerar ou compartilhar o PDF.');
+    else setReportExportStatus('');
   };
   const [guardiaoHistory,setGuardiaoHistory]=useState<{id:string;date:string;kind:string;valid:boolean;digits:number}[]>([]);
   const [historyLoaded,setHistoryLoaded]=useState(false);
@@ -265,7 +275,7 @@ export default function App() {
         <View style={s.formPanel}><Text style={s.formTitle}>Verificar linha digitável</Text><Text style={s.formHelp}>Cole os números de um boleto bancário (47 dígitos) ou de arrecadação (48 dígitos). Não cole dados em sites desconhecidos.</Text>
           <Text style={s.inputLabel}>LINHA DIGITÁVEL</Text>
           <TextInput accessibilityLabel="Linha digitável do boleto" style={s.input} value={boletoLine} onChangeText={v=>{cnpjRequestId.current++;reportRequestId.current++;setBoletoLine(v);setBoletoResult(null);setCnpj('');setCnpjResult(null);setCnpjLoading(false);setReportExportStatus('');}} placeholder="Digite ou cole os números" placeholderTextColor="#8195AE" keyboardType="number-pad" multiline maxLength={80}/>
-          <TouchableOpacity accessibilityRole="button" disabled={!historyLoaded} onPress={()=>{const result=inspectBoleto(boletoLine);setBoletoResult(result);setReportExportStatus('');const id=String(Date.now())+'-'+String(++historySequence.current);setGuardiaoHistory(h=>[{id,date:new Date().toLocaleString('pt-BR'),kind:result.kind,valid:result.valid,digits:result.digits},...h].slice(0,12));}} style={[s.actionButton,{backgroundColor:historyLoaded?blue:'#233951'}]}><Text style={s.actionText}>{historyLoaded?'Analisar estrutura':'Preparando histórico seguro...'}</Text></TouchableOpacity>
+          <TouchableOpacity accessibilityRole="button" disabled={!historyLoaded} onPress={()=>{reportRequestId.current++;const result=inspectBoleto(boletoLine);setBoletoResult(result);setReportExportStatus('');const id=String(Date.now())+'-'+String(++historySequence.current);setGuardiaoHistory(h=>[{id,date:new Date().toLocaleString('pt-BR'),kind:result.kind,valid:result.valid,digits:result.digits},...h].slice(0,12));}} style={[s.actionButton,{backgroundColor:historyLoaded?blue:'#233951'}]}><Text style={s.actionText}>{historyLoaded?'Analisar estrutura':'Preparando histórico seguro...'}</Text></TouchableOpacity>
         </View>
         {(!!boletoLine||!!cnpj||!!cnpjResult||!!boletoResult)&&<TouchableOpacity accessibilityRole="button" accessibilityLabel="Limpar campos e resultados da análise atual" onPress={clearCurrentAnalysis} style={[s.actionButton,{marginBottom:15,backgroundColor:'#223A59'}]}><Text style={s.actionText}>Limpar dados da análise atual</Text></TouchableOpacity>}
         {boletoResult&&<View style={s.visualFeature}><Text style={s.visualFeatureTitle}>{boletoResult.valid?'Estrutura consistente':'Verificação inconclusiva ou inválida'}</Text><Text style={s.visualFeatureBody}>{boletoResult.explanation}</Text><Text style={[s.visualFeatureBody,{color:'#E3C38C'}]}>Mesmo uma linha digitável válida pode pertencer a uma cobrança fraudulenta. Não pague sem confirmar o beneficiário no banco.</Text><View style={s.visualSteps}><View style={s.visualStep}><Text style={s.visualStepText}>{boletoResult.kind}</Text></View><View style={s.visualStep}><Text style={s.visualStepText}>{boletoResult.digits} DÍGITOS</Text></View></View></View>}
@@ -299,7 +309,7 @@ export default function App() {
         {!!reportExportStatus&&<Text style={[s.visualFeatureBody,{marginBottom:12}]}>{reportExportStatus}</Text>}
         <View style={s.visualFeature}><Text style={s.visualFeatureTitle}>Histórico protegido</Text><Text style={s.visualFeatureBody}>Somente tipo, quantidade de dígitos e resultado estrutural. A linha digitável completa não é armazenada no histórico. Os registros ficam salvos no armazenamento seguro quando disponível.</Text><TextInput accessibilityLabel="Pesquisar histórico" style={s.input} value={historyQuery} onChangeText={setHistoryQuery} placeholder="Pesquisar data, tipo ou resultado" placeholderTextColor="#8195AE"/>{guardiaoHistory.length===0?<Text style={s.visualFeatureBody}>Nenhuma verificação salva.</Text>:guardiaoHistory.filter(item=>(item.date+' '+item.kind+' '+(item.valid?'confere':'não confere')).toLowerCase().includes(historyQuery.toLowerCase())).map(item=><View key={item.id} style={[s.rowBetween,{paddingTop:12}]}><Text style={{color:C.muted,fontSize:11,flex:1}}>{item.date} · {item.kind}</Text><Text style={{color:C.white,fontSize:11,fontWeight:'800'}}>{item.valid?'Dígitos conferem':'Não confere'}</Text></View>)}{guardiaoHistory.length>0&&<TouchableOpacity accessibilityRole="button" onPress={()=>{skipNextHistorySave.current=true;setGuardiaoHistory([]);historyQueue.current.clear().catch(()=>setHistoryStorageError('Falha ao apagar histórico seguro.'));}} style={[s.actionButton,{marginTop:14,backgroundColor:'#223A59'}]}><Text style={s.actionText}>Limpar histórico</Text></TouchableOpacity>}</View>
         {!!historyStorageError&&<Text style={s.visualFeatureBody}>{historyStorageError}</Text>}
-        <View style={s.visualFeature}><Text style={s.visualFeatureTitle}>Consultar CNPJ</Text><Text style={s.visualFeatureBody}>Consulta opcional via BrasilAPI, serviço de terceiros. Ao tocar em Consultar cadastro, o CNPJ será enviado ao provedor. Cadastro ativo não garante boleto legítimo.</Text><TextInput accessibilityLabel="CNPJ" style={s.input} value={cnpj} onChangeText={v=>{cnpjRequestId.current++;setCnpj(v);setCnpjResult(null);setCnpjLoading(false);setReportExportStatus('');}} placeholder="Digite o CNPJ" placeholderTextColor="#8195AE" keyboardType="number-pad" maxLength={18}/><TouchableOpacity accessibilityRole="button" disabled={cnpjLoading} onPress={async()=>{const requestId=++cnpjRequestId.current;setCnpjLoading(true);try{const result=await consultCnpj(cnpj);if(cnpjRequestId.current===requestId)setCnpjResult(result);}finally{if(cnpjRequestId.current===requestId)setCnpjLoading(false);}}} style={[s.actionButton,{backgroundColor:blue}]}><Text style={s.actionText}>{cnpjLoading?'Consultando...':'Consultar cadastro'}</Text></TouchableOpacity>{cnpjResult&&<Text style={s.visualFeatureBody}>{cnpjResult.status==='found'?'Empresa: '+cnpjResult.legalName+' | Situação: '+(cnpjResult.registration||'não informada'):cnpjResult.message||'Consulta indisponível'}{cnpjResult.source?' | Fonte: BrasilAPI (terceiros)':''}</Text>}</View>
+        <View style={s.visualFeature}><Text style={s.visualFeatureTitle}>Consultar CNPJ</Text><Text style={s.visualFeatureBody}>Consulta opcional via BrasilAPI, serviço de terceiros. Ao tocar em Consultar cadastro, o CNPJ será enviado ao provedor. Cadastro ativo não garante boleto legítimo.</Text><TextInput accessibilityLabel="CNPJ" style={s.input} value={cnpj} onChangeText={v=>{cnpjRequestId.current++;reportRequestId.current++;setCnpj(v);setCnpjResult(null);setCnpjLoading(false);setReportExportStatus('');}} placeholder="Digite o CNPJ" placeholderTextColor="#8195AE" keyboardType="number-pad" maxLength={18}/><TouchableOpacity accessibilityRole="button" disabled={cnpjLoading} onPress={async()=>{const requestId=++cnpjRequestId.current;setCnpjLoading(true);try{const result=await consultCnpj(cnpj);if(cnpjRequestId.current===requestId){reportRequestId.current++;setCnpjResult(result);setReportExportStatus('');}}finally{if(cnpjRequestId.current===requestId)setCnpjLoading(false);}}} style={[s.actionButton,{backgroundColor:blue}]}><Text style={s.actionText}>{cnpjLoading?'Consultando...':'Consultar cadastro'}</Text></TouchableOpacity>{cnpjResult&&<Text style={s.visualFeatureBody}>{cnpjResult.status==='found'?'Empresa: '+cnpjResult.legalName+' | Situação: '+(cnpjResult.registration||'não informada'):cnpjResult.message||'Consulta indisponível'}{cnpjResult.source?' | Fonte: BrasilAPI (terceiros)':''}</Text>}</View>
         <View style={s.visualFeature}><Text style={s.visualFeatureTitle}>Reputação empresarial</Text><Text style={s.visualFeatureBody}>Reclame Aqui: {availabilityMessage(reclameAqui)} Não exibimos notas, reclamações ou alertas que não foram realmente consultados.</Text></View>
         <View style={s.visualFeature}><Text style={s.visualFeatureTitle}>Monitoramento bancário</Text><Text style={s.visualFeatureBody}>Status: {bankMonitoring.status==='connected'?'Conector configurado':'Desconectado'}. Sem consentimento bancário ativo, não há coleta de boletos, movimentações ou notificações.</Text></View>
         <View style={s.visualFeature}><Text style={s.visualFeatureTitle}>Consultas externas e monitoramento</Text><Text style={s.visualFeatureBody}>CNPJ: consulta opcional via BrasilAPI. Receita Federal direta, Reclame Aqui e bancos: integrações ainda indisponíveis. Monitoramento automático: desligado, sem coleta de notificações ou dados bancários.</Text><Text style={s.visualFeatureBody}>Alertas de risco nesta versão são limitados a inconsistências matemáticas. Não há classificação automática de fraude.</Text></View>
