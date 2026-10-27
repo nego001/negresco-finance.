@@ -23,7 +23,7 @@ test('two old Android emulators install the same exact SHA-pinned APK',()=>{
 });
 test('UI runner requires real Guardião flow and system chooser, never fakes a pass',()=>{
   for(const s of ['wait_visible("Guardião"','wait_visible("Linha digitável do boleto"',
-  'wait_visible("Analisar estrutura"','wait_visible("Gerar e compartilhar relatório PDF"',
+  'wait_visible("Analisar estrutura"','wait_export_button()',
   'chooser_present()','"systemChooserObserved": True'])
     assert.ok(script.includes(s),'missing mandatory UI stage: '+s);
   assert.match(script,/FIXTURE = "0" \* 47/);
@@ -55,6 +55,18 @@ test('previously observed invalid boleto analysis must not be scrolled out and i
   assert.match(script,/if not observed:[\s\S]*wait_visible\("Verificação inconclusiva ou inválida", retries=6, scroll=False\)/);
   assert.doesNotMatch(script,/wait_visible\("Verificação inconclusiva ou inválida", retries=14, scroll=True\)/);
   assert.match(script,/analysis result was never observed; do not export PDF/);
+});
+test('real PDF stage cannot skip thin button or treat sharing failure as pass',()=>{
+  assert.match(script,/def wait_export_button\(\) -> dict\[str, str\]:/);
+  assert.match(script,/for step in range\(48\):/);
+  assert.match(script,/scroll_forward_precise\(\)/);
+  assert.match(script,/PDF button not visible after 48 small scroll steps/);
+  assert.match(script,/tap_node\(pdf_button, prefer_label=True\)/);
+  assert.match(script,/one bounded PDF export tap dispatched/);
+  assert.match(script,/if chooser_present\(\):/);
+  assert.match(script,/Guardião reported native PDF generation\/sharing failure/);
+  assert.match(script,/Guardião reported Android PDF sharing unavailable/);
+  assert.match(script,/PDF chooser timeout; no app status is treated as success/);
 });
 test('privacy evidence is synthetic, metadata-only and production is forbidden',()=>{
   assert.match(script,/"syntheticInput": True/);
