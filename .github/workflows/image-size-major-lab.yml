@@ -15,6 +15,7 @@ on:
       - lab/p01-metro-js-module-inventory-v1
       - lab/p01-gradle-packager-js-map-inventory-v1
       - lab/p01-forge-host-import-inventory-v1
+      - lab/p01-forge-host-crypto-api-surface-v1
 permissions:
   contents: read
 concurrency:
@@ -421,11 +422,19 @@ jobs:
           node ../../tooling/android/forge_host_import_inventory.cjs capture \
             node_modules forge-lock/image-size-candidate-lock.json \
             "$GITHUB_SHA" HOST_FORGE_IMPORT_INVENTORY.json
+      - name: Capture exact host crypto API lexical census
+        run: |
+          set -euo pipefail
+          node ../../tooling/android/forge_host_crypto_api_census.cjs capture \
+            node_modules forge-lock/image-size-candidate-lock.json \
+            "$GITHUB_SHA" HOST_FORGE_CRYPTO_API_CENSUS.json
       - name: Upload host import report only
         uses: actions/upload-artifact@v4
         with:
           name: node-forge-host-usage-unreviewed
-          path: apps/mobile/HOST_FORGE_IMPORT_INVENTORY.json
+          path: |
+            apps/mobile/HOST_FORGE_IMPORT_INVENTORY.json
+            apps/mobile/HOST_FORGE_CRYPTO_API_CENSUS.json
           if-no-files-found: error
           retention-days: 3
 
@@ -493,6 +502,12 @@ jobs:
           node ../../tooling/android/forge_host_import_inventory.cjs verify \
             node_modules forge-lock/image-size-candidate-lock.json \
             "$GITHUB_SHA" forge-report/HOST_FORGE_IMPORT_INVENTORY.json
+      - name: Reverify exact host crypto API lexical census
+        run: |
+          set -euo pipefail
+          node ../../tooling/android/forge_host_crypto_api_census.cjs verify \
+            node_modules forge-lock/image-size-candidate-lock.json \
+            "$GITHUB_SHA" forge-report/HOST_FORGE_CRYPTO_API_CENSUS.json
 
 
   reverify-downloaded-combined-apk:
