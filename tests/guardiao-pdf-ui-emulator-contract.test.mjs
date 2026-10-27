@@ -18,6 +18,8 @@ test('two old Android emulators install the same exact SHA-pinned APK',()=>{
   assert.match(workflow,/download-artifact@v4/);
   assert.match(workflow,/reactivecircus\/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d/);
   assert.match(script,/EXPECTED_SHA = "668fabea94131b41e5d4e50e3c1a543df2546da295981aefa1b3d77a66c43c88"/);
+  assert.match(script,/for block in iter\(lambda: file\.read\(1024 \* 1024\), b""\)/);
+  assert.doesNotMatch(script,/hashlib\.file_digest/);
 });
 test('UI runner requires real Guardião flow and system chooser, never fakes a pass',()=>{
   for(const s of ['wait_visible("Guardião"','wait_visible("Linha digitável do boleto"',
