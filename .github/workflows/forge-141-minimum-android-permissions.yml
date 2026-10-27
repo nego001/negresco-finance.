@@ -1,0 +1,175 @@
+name: node-forge 1.4.1 minimum Android permissions (lab only)
+on:
+  push:
+    branches:
+      - lab/p01-android-minimum-permissions-v1
+permissions:
+  contents: read
+jobs:
+  build:
+    name: Build isolated debug-signed preview APK with patched node-forge
+    runs-on: ubuntu-latest
+    timeout-minutes: 65
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+          registry-url: https://registry.npmjs.org
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Generate candidate lock without touching production manifest
+        run: |
+          set -euo pipefail
+          test ! -e package-lock.json
+          mkdir -p forge141-apk-lab
+          cp package.json forge141-apk-lab/source-package.json
+          node -e "const fs=require('fs'),p=require('./package.json');if(p.overrides||p.dependencies?.['node-forge']||p.name!=='@negresco/mobile')throw Error('BLOCK: altered source');p.overrides={postcss:'8.5.23','image-size':'2.0.3'};fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n')"
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund --lockfile-version=3
+          cp package-lock.json forge141-apk-lab/candidate-lock.json
+      - name: Block any current npm audit advisory
+        run: npm audit --json --package-lock-only > forge141-apk-lab/audit.json
+      - name: Install exact candidate packages for Android build
+        run: npm ci --no-audit --no-fund
+      - name: Verify node-forge tarball and immutable upstream source
+        run: |
+          set -euo pipefail
+          npm pack node-forge@1.4.1 --ignore-scripts --silent --pack-destination forge141-apk-lab
+          curl --fail --silent --show-error --location --retry 2 https://raw.githubusercontent.com/digitalbazaar/forge/8a917370ec51731e817c2d547b7329a58f8210af/lib/rsa.js -o forge141-apk-lab/upstream-rsa.js
+          node ../../tooling/android/forge_141_registry_provenance.cjs capture \
+            forge141-apk-lab/candidate-lock.json forge141-apk-lab/node-forge-1.4.1.tgz \
+            node_modules/node-forge/lib/rsa.js forge141-apk-lab/upstream-rsa.js \
+            node_modules/node-forge/package.json forge141-apk-lab/audit.json \
+            "$GITHUB_SHA" forge141-apk-lab/FORGE_141_PROVENANCE.json
+      - name: Typecheck candidate and verify no OTA runtime override
+        env:
+          EXPO_NO_TELEMETRY: '1'
+        run: |
+          set -euo pipefail
+          npx tsc --noEmit
+          node ../../tooling/android/verify_no_ota_runtime_override.cjs .
+      - name: Generate native Android project from candidate only
+        env:
+          EXPO_NO_TELEMETRY: '1'
+        run: npx expo prebuild --platform android --non-interactive --no-install
+      - name: Bound Gradle memory and verify exact preview OTA runtime
+        run: |
+          set -euo pipefail
+          PROPS=android/gradle.properties
+          test -s "$PROPS"
+          sed -i '/^org.gradle.jvmargs=/d; /^org.gradle.parallel=/d; /^org.gradle.workers.max=/d; /^kotlin.compiler.execution.strategy=/d' "$PROPS"
+          cat >> "$PROPS" <<'EOF'
+          org.gradle.jvmargs=-Xmx3g -XX:MaxMetaspaceSize=1536m -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8
+          org.gradle.parallel=false
+          org.gradle.workers.max=2
+          kotlin.compiler.execution.strategy=in-process
+          EOF
+          python3 ../../tooling/android/verify_generated_ota_runtime.py app.json android/app/src/main/AndroidManifest.xml android/app/src/main/res/values/strings.xml android/app/src/main/res
+      - name: Build preview APK signed only with Android Debug
+        run: |
+          set -euo pipefail
+          test ! -e android/app/negresco-ci-release.jks
+          chmod +x android/gradlew
+          (cd android && ./gradlew assembleRelease --no-daemon)
+      - name: Verify debug signer, packaged files and preview OTA
+        run: |
+          set -euo pipefail
+          APK=android/app/build/outputs/apk/release/app-release.apk
+          test -s "$APK"
+          TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+          test -x "$TOOLS/apksigner"
+          test -x "$TOOLS/aapt2"
+          "$TOOLS/apksigner" verify --verbose "$APK"
+          "$TOOLS/apksigner" verify --print-certs "$APK" | grep -F 'CN=Android Debug'
+          python3 ../../tooling/android/verify_release_apk_surface.py "$APK"
+          python3 ../../tooling/android/verify_compiled_ota_manifest.py --parse-only "$APK"
+          python3 ../../tooling/android/verify_compiled_ota_runtime.py "$APK" "$TOOLS/aapt2" 3.1.3
+          python3 ../../tooling/android/verify_compiled_preview_ota.py "$APK"
+          python3 ../../tooling/android/verify_packaged_expo_config.py "$APK"
+          python3 ../../tooling/android/verify_compiled_network_policy.py "$APK" "$TOOLS/aapt2"
+          python3 ../../tooling/android/verify_compiled_backup_policy.py "$APK" "$TOOLS/aapt2"
+          python3 ../../tooling/android/verify_compiled_minimum_permissions.py "$APK"
+      - name: Capture APK/Hermes provenance against exact forge version and lock
+        run: |
+          python3 ../../tooling/android/forge_141_candidate_apk_inventory.py capture \
+            android/app/build/outputs/apk/release/app-release.apk \
+            forge141-apk-lab/candidate-lock.json \
+            forge141-apk-lab/FORGE_141_PROVENANCE.json \
+            "$GITHUB_SHA" forge141-apk-lab/FORGE_141_APK_INVENTORY.json
+      - name: Upload temporary debug APK and aggregated proof only
+        uses: actions/upload-artifact@v4
+        with:
+          name: forge-141-android-minimum-permissions-unreviewed
+          path: |
+            apps/mobile/android/app/build/outputs/apk/release/app-release.apk
+            apps/mobile/forge141-apk-lab/source-package.json
+            apps/mobile/forge141-apk-lab/candidate-lock.json
+            apps/mobile/forge141-apk-lab/audit.json
+            apps/mobile/forge141-apk-lab/FORGE_141_PROVENANCE.json
+            apps/mobile/forge141-apk-lab/FORGE_141_APK_INVENTORY.json
+          if-no-files-found: error
+          retention-days: 2
+
+  verify:
+    name: Independently revalidate debug APK, npm provenance and Hermes bytes
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+          registry-url: https://registry.npmjs.org
+      - uses: actions/download-artifact@v4
+        with:
+          name: forge-141-android-minimum-permissions-unreviewed
+          path: apps/mobile/forge141-review
+      - name: Stage independently audited exact lock
+        run: |
+          set -euo pipefail
+          test ! -e package-lock.json
+          node -e "const fs=require('fs'),b=fs.readFileSync('package.json');if(!b.equals(fs.readFileSync('forge141-review/forge141-apk-lab/source-package.json')))throw Error('BLOCK: source mismatch');const p=JSON.parse(b);if(p.overrides||p.dependencies?.['node-forge'])throw Error('BLOCK: unexpected candidate');p.overrides={postcss:'8.5.23','image-size':'2.0.3'};fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n');fs.copyFileSync('forge141-review/forge141-apk-lab/candidate-lock.json','package-lock.json',fs.constants.COPYFILE_EXCL)"
+          npm ci --ignore-scripts --no-audit --no-fund
+      - name: Rerun unsuppressed npm audit
+        run: npm audit --json --package-lock-only > forge141-review/fresh-audit.json
+      - name: Independently reverify official npm/Git source matching
+        run: |
+          set -euo pipefail
+          npm pack node-forge@1.4.1 --ignore-scripts --silent --pack-destination forge141-review
+          curl --fail --silent --show-error --location --retry 2 https://raw.githubusercontent.com/digitalbazaar/forge/8a917370ec51731e817c2d547b7329a58f8210af/lib/rsa.js -o forge141-review/upstream-rsa.js
+          node ../../tooling/android/forge_141_registry_provenance.cjs verify \
+            forge141-review/forge141-apk-lab/candidate-lock.json forge141-review/node-forge-1.4.1.tgz \
+            node_modules/node-forge/lib/rsa.js forge141-review/upstream-rsa.js \
+            node_modules/node-forge/package.json forge141-review/fresh-audit.json \
+            "$GITHUB_SHA" forge141-review/forge141-apk-lab/FORGE_141_PROVENANCE.json
+      - name: Rehash downloaded APK and Hermes independently
+        run: |
+          set -euo pipefail
+          APK=forge141-review/android/app/build/outputs/apk/release/app-release.apk
+          test -s "$APK"
+          TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+          "$TOOLS/apksigner" verify --verbose "$APK"
+          "$TOOLS/apksigner" verify --print-certs "$APK" | grep -F 'CN=Android Debug'
+          python3 ../../tooling/android/forge_141_candidate_apk_inventory.py verify \
+            "$APK" forge141-review/forge141-apk-lab/candidate-lock.json \
+            forge141-review/forge141-apk-lab/FORGE_141_PROVENANCE.json \
+            "$GITHUB_SHA" forge141-review/forge141-apk-lab/FORGE_141_APK_INVENTORY.json
+          python3 ../../tooling/android/verify_compiled_preview_ota.py "$APK"
+          test -x "$TOOLS/aapt2"
+          python3 ../../tooling/android/verify_compiled_network_policy.py "$APK" "$TOOLS/aapt2"
+          python3 ../../tooling/android/verify_compiled_backup_policy.py "$APK" "$TOOLS/aapt2"
+          python3 ../../tooling/android/verify_compiled_minimum_permissions.py "$APK"
+          echo 'PASS (LAB): independent preview APK integrity and native policies only, NEVER production approval'
