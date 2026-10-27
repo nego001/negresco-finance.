@@ -1,0 +1,59 @@
+name: Guardiao PDF real Android UI smoke API 26/28 (lab only)
+on:
+  push:
+    branches:
+      - lab/p01-guardiao-pdf-ui-emulator-26-28-v1
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: guardiao-pdf-ui-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  pdf-ui:
+    name: Exercise synthetic PDF system chooser on Android API ${{ matrix.api }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [26, 28]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Download exact reviewed Debug APK from PR 102 run (read-only)
+        uses: actions/download-artifact@v4
+        with:
+          name: negresco-finance-v313-test-apk
+          run-id: 40573549033
+          repository: nego001/negresco-finance.
+          github-token: ${{ github.token }}
+          path: test-apk
+      - name: Independently lock exact source APK SHA and package
+        run: |
+          set -euo pipefail
+          echo '668fabea94131b41e5d4e50e3c1a543df2546da295981aefa1b3d77a66c43c88  test-apk/android/app/build/outputs/apk/release/app-release.apk' | sha256sum --check --strict
+          test -s test-apk/android/app/build/outputs/apk/release/app-release.apk
+      - name: Enable Android hardware emulator acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-negresco-kvm.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Run real app embedded PDF UI smoke on old Android
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
+        with:
+          api-level: ${{ matrix.api }}
+          target: default
+          arch: x86_64
+          profile: pixel_6
+          emulator-boot-timeout: 600
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          script: python3 tooling/android/guardiao_pdf_ui_emulator_smoke.py
+      - name: Upload tiny synthetic outcome, no UI dumps, screenshots or PDFs
+        uses: actions/upload-artifact@v4
+        with:
+          name: guardiao-pdf-ui-api-${{ matrix.api }}-unreviewed
+          path: pdf-ui-emulator-report.json
+          if-no-files-found: error
+          retention-days: 2
