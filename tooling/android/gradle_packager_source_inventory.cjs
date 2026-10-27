@@ -100,7 +100,7 @@ function verify(apk,lock,hermes,commit,report){
  return true;
 }
 function main(argv){
- if(argv.length!==6||!['capture','verify'].includes(argv[0]))
+ if(!['capture','verify'].includes(argv[0])||(argv[0]==='capture'&&argv.length!==7)||(argv[0]==='verify'&&argv.length!==6))
   block('Usage: capture MAP APK LOCK HERMES COMMIT OUT | verify APK LOCK HERMES COMMIT OUT');
  const [mode,a,b,c,d,e,f]=argv;
  if(mode==='capture')return capture(a,b,c,d,e,f);
