@@ -5,7 +5,7 @@ import {loadHistory,createHistoryWriteQueue} from './guardiao/history';
 import * as SecureStore from 'expo-secure-store';
 import { buildEvidenceReview, type EvidenceReviewState } from './guardiao/evidence';
 import { createLocalReport, renderReportHtml } from './guardiao/report';
-import {exportPdfWithLifecycleGuard} from './guardiao/pdfExport';
+import {exportPdfWithLifecycleGuard, type PdfExportFailurePhase} from './guardiao/pdfExport';
 import {discardUnsharedPrintPdf} from './guardiao/pdfCache';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Print from 'expo-print';
@@ -157,6 +157,7 @@ export default function App() {
     if(!boletoResult||AppState.currentState!=='active'||
        (localLock.status!=='off'&&localLock.status!=='unlocked'))return;
     const requestId=++reportRequestId.current;
+    const diagnosis:{phase:PdfExportFailurePhase|null}={phase:null};
     setReportExportStatus('Gerando PDF local...');
     const html=renderReportHtml(createLocalReport(boletoResult,new Date().toLocaleString('pt-BR'),cnpjResult));
     const outcome=await exportPdfWithLifecycleGuard({
@@ -164,6 +165,7 @@ export default function App() {
       print:content=>Print.printToFileAsync({html:content}),
       sharingAvailable:()=>Sharing.isAvailableAsync(),
       share:uri=>Sharing.shareAsync(uri,{mimeType:'application/pdf',dialogTitle:'Compartilhar relatório do Guardião'}),
+      onFailurePhase:phase=>{diagnosis.phase=phase;},
       discardUnsharedFile:uri=>discardUnsharedPrintPdf(uri,FileSystem.cacheDirectory,
         fileUri=>FileSystem.deleteAsync(fileUri,{idempotent:true})),
       isCurrent:()=>reportRequestId.current===requestId&&AppState.currentState==='active'&&
@@ -173,7 +175,17 @@ export default function App() {
        (lockStatusRef.current!=='off'&&lockStatusRef.current!=='unlocked'))return;
     if(outcome==='shared')setReportExportStatus('Seletor de compartilhamento encerrado. Confira o arquivo no destino escolhido.');
     else if(outcome==='unavailable')setReportExportStatus('Compartilhamento de PDF indisponível neste dispositivo.');
-    else if(outcome==='failed')setReportExportStatus('Não foi possível gerar ou compartilhar o PDF.');
+    else if(outcome==='failed'){
+      // Diagnose only which native boundary failed; never display exception messages,
+      // input HTML, boleto digits or cache URIs.
+      const safePhaseLabels:Record<PdfExportFailurePhase,string>={
+        print:'Falha ao gerar o PDF local.',
+        'invalid-uri':'O arquivo PDF gerado não tem um endereço local válido.',
+        availability:'Falha ao verificar o compartilhamento disponível.',
+        share:'Falha ao abrir o compartilhamento nativo do Android.'
+      };
+      setReportExportStatus(diagnosis.phase?safePhaseLabels[diagnosis.phase]:'Não foi possível exportar o PDF.');
+    }
     else setReportExportStatus('');
   };
   const [guardiaoHistory,setGuardiaoHistory]=useState<{id:string;date:string;kind:string;valid:boolean;digits:number}[]>([]);

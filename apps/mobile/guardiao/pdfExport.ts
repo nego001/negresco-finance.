@@ -4,6 +4,8 @@
  * It cannot revoke a share sheet after the native sharing call has begun.
  */
 export type PdfExportOutcome='shared'|'unavailable'|'cancelled'|'failed';
+// Fixed, non-sensitive phase codes only. Never reveal native exception text or local URI.
+export type PdfExportFailurePhase='print'|'invalid-uri'|'availability'|'share';
 
 export type PdfExportPorts={
   html:string;
@@ -13,6 +15,7 @@ export type PdfExportPorts={
   isCurrent:()=>boolean;
   // Called for a generated file only if native sharing was never invoked.
   discardUnsharedFile?:(uri:string)=>Promise<boolean>;
+  onFailurePhase?:(phase:PdfExportFailurePhase)=>void;
 };
 
 export async function exportPdfWithLifecycleGuard(ports:PdfExportPorts):Promise<PdfExportOutcome>{
@@ -22,22 +25,32 @@ export async function exportPdfWithLifecycleGuard(ports:PdfExportPorts):Promise<
   if(!authorized())return 'cancelled';
   let createdUri:string|null=null;
   let nativeShareStarted=false;
+  let phase:PdfExportFailurePhase='print';
+  const reportFailure=()=>{try{ports.onFailurePhase?.(phase);}catch{/* never expose error text */}};
   try{
     const pdf=await ports.print(ports.html);
     createdUri=typeof pdf?.uri==='string'?pdf.uri:null;
     if(!authorized())return 'cancelled';
     if(!createdUri||!createdUri.startsWith('file://')||
-       !/\.pdf(?:[?#]|$)/i.test(createdUri))return 'failed';
+       !/\.pdf(?:[?#]|$)/i.test(createdUri)){
+      phase='invalid-uri';
+      reportFailure();
+      return 'failed';
+    }
+    phase='availability';
     const available=await ports.sharingAvailable();
     if(!authorized())return 'cancelled';
     if(!available)return 'unavailable';
     if(!authorized())return 'cancelled';
     // After this point the native chooser may still be using the file.
+    phase='share';
     nativeShareStarted=true;
     await ports.share(createdUri);
     return authorized()?'shared':'cancelled';
   }catch{
-    return authorized()?'failed':'cancelled';
+    if(!authorized())return 'cancelled';
+    reportFailure();
+    return 'failed';
   }finally{
     // Explicitly never delete while a native chooser may be reading the file.
     // The optional callback itself must validate ownership and cache path.
