@@ -47,6 +47,18 @@ test('background while availability check is pending cancels before share',async
   assert.equal(await task,'cancelled');
   assert.equal(t.called.share,0);
 });
+test('biometric lock transition invalidates pending generation before native sharing',async()=>{
+  const pending=deferred(),lock={current:'unlocked'},t=setup({
+    print:()=>pending.promise,
+    isCurrent:()=>lock.current==='unlocked'
+  });
+  const task=exportPdfWithLifecycleGuard(t.ports);
+  lock.current='locked';
+  pending.resolve({uri:validUri});
+  assert.equal(await task,'cancelled');
+  assert.equal(t.called.available,0);
+  assert.equal(t.called.share,0);
+});
 test('share-sheet unavailability does not attempt share',async()=>{
   const t=setup({sharingAvailable:async()=>{t.called.available++;return false;}});
   assert.equal(await exportPdfWithLifecycleGuard(t.ports),'unavailable');
@@ -108,6 +120,8 @@ test('App wiring invalidates on biometric lock, edited report inputs and app bac
   const app=readFileSync(new URL('../apps/mobile/App.tsx',import.meta.url),'utf8');
   assert.match(app,/exportPdfWithLifecycleGuard\(\{/);
   assert.match(app,/isCurrent:\(\)=>reportRequestId\.current===requestId&&AppState\.currentState==='active'/);
+  assert.match(app,/lockStatusRef\.current==='off'\|\|lockStatusRef\.current==='unlocked'/);
+  assert.match(app,/lockStatusRef\.current=localLock\.status/);
   assert.match(app,/localLock\.status!=='off'&&localLock\.status!=='unlocked'/);
   assert.match(app,/reportRequestId\.current\+\+;const result=inspectBoleto\(boletoLine\)/);
   assert.match(app,/cnpjRequestId\.current\+\+;reportRequestId\.current\+\+;setCnpj\(v\)/);
