@@ -362,127 +362,6 @@ jobs:
           if-no-files-found: error
           retention-days: 3
 
-  reverify-downloaded-combined-apk:
-    name: Independently reverify exact downloaded combined-patch APK
-    needs: assemble-combined-lab-apk
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout trusted verifier code without persisted credentials
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - name: Download APK from the same workflow run
-        uses: actions/download-artifact@v4
-        with:
-          name: combined-patch-debug-apk-unreviewed
-          path: combined-apk
-      - name: Require exact checksum and immutable canonical APK path
-        run: |
-          set -euo pipefail
-          python3 <<'PY'
-          import hashlib
-          import re
-          from pathlib import Path
-          root=Path('combined-apk')
-          apk=root/'android/app/build/outputs/apk/release/app-release.apk'
-          checksum=root/'combined-patch-apk.sha256'
-          for file in (apk,checksum):
-              if file.is_symlink() or not file.is_file() or not 0<file.stat().st_size<1024*1024*1024:
-                  raise SystemExit('BLOCK: missing, linked or oversized downloaded APK/manifest')
-          pattern=rb'([0-9a-f]{64})  android/app/build/outputs/apk/release/app-release\.apk\n'
-          match=re.fullmatch(pattern,checksum.read_bytes())
-          if not match:
-              raise SystemExit('BLOCK: noncanonical APK checksum or filename')
-          if hashlib.sha256(apk.read_bytes()).hexdigest().encode()!=match.group(1):
-              raise SystemExit('BLOCK: downloaded combined APK bytes altered')
-          print('PASS (LAB): independent downloaded combined APK checksum')
-          PY
-      - name: Verify downloaded APK-to-lockfile provenance and source identity
-        run: |
-          set -euo pipefail
-          node tooling/android/verify_combined_apk_provenance.cjs verify \
-            combined-apk/android/app/build/outputs/apk/release/app-release.apk \
-            combined-apk/image-size-review/image-size-candidate-lock.json \
-            combined-apk/image-size-review/IMAGE_SIZE_MAJOR_FEASIBILITY.json \
-            combined-apk/COMBINED_APK_PROVENANCE.json "$GITHUB_SHA"
-      - name: Independently rederive full npm dependency inventory from downloaded lock
-        run: |
-          set -euo pipefail
-          node tooling/android/npm_lock_cyclonedx_sbom.cjs verify \
-            combined-apk/image-size-review/image-size-candidate-lock.json \
-            combined-apk/NPM_BUILD_GRAPH_CYCLONEDX.json
-      - name: Verify unsuppressed npm advisories against downloaded SBOM and audit
-        run: |
-          set -euo pipefail
-          node tooling/android/npm_audit_sbom_ledger.cjs verify \
-            combined-apk/image-size-review/image-size-candidate-lock.json \
-            combined-apk/image-size-review/image-size-candidate-audit.json \
-            combined-apk/image-size-review/IMAGE_SIZE_MAJOR_FEASIBILITY.json \
-            combined-apk/NPM_BUILD_GRAPH_CYCLONEDX.json \
-            combined-apk/NPM_ADVISORY_LEDGER.json
-      - name: Reverify unsuppressed node-forge npm dependency paths in downloaded APK evidence
-        run: |
-          set -euo pipefail
-          node tooling/android/verify_node_forge_dependency_paths.cjs verify \
-            combined-apk/image-size-review/image-size-candidate-lock.json \
-            combined-apk/NPM_BUILD_GRAPH_CYCLONEDX.json \
-            combined-apk/NPM_ADVISORY_LEDGER.json \
-            combined-apk/NODE_FORGE_DEPENDENCY_PATHS.json
-      - name: Re-derive native Gradle inventory from downloaded raw graph and APK
-        run: |
-          set -euo pipefail
-          node tooling/android/gradle_release_runtime_inventory.cjs verify \
-            combined-apk/ANDROID_RELEASE_RUNTIME_DEPENDENCIES.txt \
-            combined-apk/android/app/build/outputs/apk/release/app-release.apk \
-            "$GITHUB_SHA" combined-apk/ANDROID_RELEASE_RUNTIME_INVENTORY.json
-      - name: Independently rehash packaged ELF/DEX bytes in downloaded APK
-        run: |
-          set -euo pipefail
-          python3 tooling/android/apk_packaged_binary_inventory.py verify \
-            combined-apk/android/app/build/outputs/apk/release/app-release.apk \
-            combined-apk/ANDROID_RELEASE_RUNTIME_INVENTORY.json \
-            "$GITHUB_SHA" combined-apk/APK_PACKAGED_BINARY_INVENTORY.json
-      - name: Reverify downloaded APK Hermes JS payload and native provenance
-        run: |
-          set -euo pipefail
-          python3 tooling/android/apk_hermes_bundle_inventory.py verify \
-            combined-apk/android/app/build/outputs/apk/release/app-release.apk \
-            combined-apk/APK_PACKAGED_BINARY_INVENTORY.json \
-            "$GITHUB_SHA" combined-apk/APK_HERMES_BUNDLE_INVENTORY.json
-      - name: Independently validate Gradle-packager source summary against downloaded APK
-        run: |
-          set -euo pipefail
-          node tooling/android/gradle_packager_source_inventory.cjs verify \
-            combined-apk/android/app/build/outputs/apk/release/app-release.apk \
-            combined-apk/image-size-review/image-size-candidate-lock.json \
-            combined-apk/APK_HERMES_BUNDLE_INVENTORY.json \
-            "$GITHUB_SHA" combined-apk/GRADLE_PACKAGER_SOURCE_INVENTORY.json
-      - name: Revalidate Metro summary against downloaded APK and npm graph
-        run: |
-          set -euo pipefail
-          node tooling/android/metro_source_name_inventory.cjs verify \
-            combined-apk/android/app/build/outputs/apk/release/app-release.apk \
-            combined-apk/image-size-review/image-size-candidate-lock.json \
-            combined-apk/APK_HERMES_BUNDLE_INVENTORY.json \
-            "$GITHUB_SHA" combined-apk/METRO_JS_SOURCE_NAME_INVENTORY.json
-      - name: Reaudit compiled preview runtime, signature and Expo app config
-        run: |
-          set -euo pipefail
-          APK=combined-apk/android/app/build/outputs/apk/release/app-release.apk
-          TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
-          test -x "$TOOLS/apksigner"
-          test -x "$TOOLS/aapt2"
-          "$TOOLS/apksigner" verify --verbose "$APK"
-          python3 tooling/android/verify_release_apk_surface.py "$APK"
-          python3 tooling/android/verify_compiled_ota_manifest.py --parse-only "$APK"
-          python3 tooling/android/verify_compiled_ota_runtime.py "$APK" "$TOOLS/aapt2" 3.1.3
-          python3 tooling/android/verify_compiled_preview_ota.py "$APK"
-          python3 tooling/android/verify_packaged_expo_config.py "$APK"
-          echo "PASS (LAB): independent combined APK checks, not OTA production approval"
-
   host-forge-imports:
     name: Capture installed host node-forge import literals
     needs: compare
@@ -614,3 +493,125 @@ jobs:
           node ../../tooling/android/forge_host_import_inventory.cjs verify \
             node_modules forge-lock/image-size-candidate-lock.json \
             "$GITHUB_SHA" forge-report/HOST_FORGE_IMPORT_INVENTORY.json
+
+
+  reverify-downloaded-combined-apk:
+    name: Independently reverify exact downloaded combined-patch APK
+    needs: assemble-combined-lab-apk
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout trusted verifier code without persisted credentials
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Download APK from the same workflow run
+        uses: actions/download-artifact@v4
+        with:
+          name: combined-patch-debug-apk-unreviewed
+          path: combined-apk
+      - name: Require exact checksum and immutable canonical APK path
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          import hashlib
+          import re
+          from pathlib import Path
+          root=Path('combined-apk')
+          apk=root/'android/app/build/outputs/apk/release/app-release.apk'
+          checksum=root/'combined-patch-apk.sha256'
+          for file in (apk,checksum):
+              if file.is_symlink() or not file.is_file() or not 0<file.stat().st_size<1024*1024*1024:
+                  raise SystemExit('BLOCK: missing, linked or oversized downloaded APK/manifest')
+          pattern=rb'([0-9a-f]{64})  android/app/build/outputs/apk/release/app-release\.apk\n'
+          match=re.fullmatch(pattern,checksum.read_bytes())
+          if not match:
+              raise SystemExit('BLOCK: noncanonical APK checksum or filename')
+          if hashlib.sha256(apk.read_bytes()).hexdigest().encode()!=match.group(1):
+              raise SystemExit('BLOCK: downloaded combined APK bytes altered')
+          print('PASS (LAB): independent downloaded combined APK checksum')
+          PY
+      - name: Verify downloaded APK-to-lockfile provenance and source identity
+        run: |
+          set -euo pipefail
+          node tooling/android/verify_combined_apk_provenance.cjs verify \
+            combined-apk/android/app/build/outputs/apk/release/app-release.apk \
+            combined-apk/image-size-review/image-size-candidate-lock.json \
+            combined-apk/image-size-review/IMAGE_SIZE_MAJOR_FEASIBILITY.json \
+            combined-apk/COMBINED_APK_PROVENANCE.json "$GITHUB_SHA"
+      - name: Independently rederive full npm dependency inventory from downloaded lock
+        run: |
+          set -euo pipefail
+          node tooling/android/npm_lock_cyclonedx_sbom.cjs verify \
+            combined-apk/image-size-review/image-size-candidate-lock.json \
+            combined-apk/NPM_BUILD_GRAPH_CYCLONEDX.json
+      - name: Verify unsuppressed npm advisories against downloaded SBOM and audit
+        run: |
+          set -euo pipefail
+          node tooling/android/npm_audit_sbom_ledger.cjs verify \
+            combined-apk/image-size-review/image-size-candidate-lock.json \
+            combined-apk/image-size-review/image-size-candidate-audit.json \
+            combined-apk/image-size-review/IMAGE_SIZE_MAJOR_FEASIBILITY.json \
+            combined-apk/NPM_BUILD_GRAPH_CYCLONEDX.json \
+            combined-apk/NPM_ADVISORY_LEDGER.json
+      - name: Reverify unsuppressed node-forge npm dependency paths in downloaded APK evidence
+        run: |
+          set -euo pipefail
+          node tooling/android/verify_node_forge_dependency_paths.cjs verify \
+            combined-apk/image-size-review/image-size-candidate-lock.json \
+            combined-apk/NPM_BUILD_GRAPH_CYCLONEDX.json \
+            combined-apk/NPM_ADVISORY_LEDGER.json \
+            combined-apk/NODE_FORGE_DEPENDENCY_PATHS.json
+      - name: Re-derive native Gradle inventory from downloaded raw graph and APK
+        run: |
+          set -euo pipefail
+          node tooling/android/gradle_release_runtime_inventory.cjs verify \
+            combined-apk/ANDROID_RELEASE_RUNTIME_DEPENDENCIES.txt \
+            combined-apk/android/app/build/outputs/apk/release/app-release.apk \
+            "$GITHUB_SHA" combined-apk/ANDROID_RELEASE_RUNTIME_INVENTORY.json
+      - name: Independently rehash packaged ELF/DEX bytes in downloaded APK
+        run: |
+          set -euo pipefail
+          python3 tooling/android/apk_packaged_binary_inventory.py verify \
+            combined-apk/android/app/build/outputs/apk/release/app-release.apk \
+            combined-apk/ANDROID_RELEASE_RUNTIME_INVENTORY.json \
+            "$GITHUB_SHA" combined-apk/APK_PACKAGED_BINARY_INVENTORY.json
+      - name: Reverify downloaded APK Hermes JS payload and native provenance
+        run: |
+          set -euo pipefail
+          python3 tooling/android/apk_hermes_bundle_inventory.py verify \
+            combined-apk/android/app/build/outputs/apk/release/app-release.apk \
+            combined-apk/APK_PACKAGED_BINARY_INVENTORY.json \
+            "$GITHUB_SHA" combined-apk/APK_HERMES_BUNDLE_INVENTORY.json
+      - name: Independently validate Gradle-packager source summary against downloaded APK
+        run: |
+          set -euo pipefail
+          node tooling/android/gradle_packager_source_inventory.cjs verify \
+            combined-apk/android/app/build/outputs/apk/release/app-release.apk \
+            combined-apk/image-size-review/image-size-candidate-lock.json \
+            combined-apk/APK_HERMES_BUNDLE_INVENTORY.json \
+            "$GITHUB_SHA" combined-apk/GRADLE_PACKAGER_SOURCE_INVENTORY.json
+      - name: Revalidate Metro summary against downloaded APK and npm graph
+        run: |
+          set -euo pipefail
+          node tooling/android/metro_source_name_inventory.cjs verify \
+            combined-apk/android/app/build/outputs/apk/release/app-release.apk \
+            combined-apk/image-size-review/image-size-candidate-lock.json \
+            combined-apk/APK_HERMES_BUNDLE_INVENTORY.json \
+            "$GITHUB_SHA" combined-apk/METRO_JS_SOURCE_NAME_INVENTORY.json
+      - name: Reaudit compiled preview runtime, signature and Expo app config
+        run: |
+          set -euo pipefail
+          APK=combined-apk/android/app/build/outputs/apk/release/app-release.apk
+          TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+          test -x "$TOOLS/apksigner"
+          test -x "$TOOLS/aapt2"
+          "$TOOLS/apksigner" verify --verbose "$APK"
+          python3 tooling/android/verify_release_apk_surface.py "$APK"
+          python3 tooling/android/verify_compiled_ota_manifest.py --parse-only "$APK"
+          python3 tooling/android/verify_compiled_ota_runtime.py "$APK" "$TOOLS/aapt2" 3.1.3
+          python3 tooling/android/verify_compiled_preview_ota.py "$APK"
+          python3 tooling/android/verify_packaged_expo_config.py "$APK"
+          echo "PASS (LAB): independent combined APK checks, not OTA production approval"
