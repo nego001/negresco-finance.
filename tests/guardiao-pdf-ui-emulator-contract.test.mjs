@@ -39,8 +39,11 @@ test('Android UI automation taps enabled clickable ancestor and never blind scre
   assert.match(script,/nearest_click = props/);
   assert.match(script,/props\["_tap_bounds"\] = \(nearest_click or props\)/);
   assert.match(script,/refusing touch outside safe app viewport/);
-  assert.match(script,/stage_summary\("after Analyze tap"\)/);
-  assert.match(script,/stage_summary\("analysis result missing, no PDF test attempted"\)/);
+  assert.match(script,/stage_summary\("after first Analyze tap"\)/);
+  assert.match(script,/tap_node\(button, prefer_label=True\)/);
+  assert.match(script,/click_area > 4 \* area/);
+  assert.match(script,/stage_summary\("analysis result missing after two bounded taps, no PDF attempted"\)/);
+  assert.match(script,/for _ in range\(7\):\s*\n\s+scroll_backward\(\)/);
   assert.match(script,/Fixed boolean allowlist only/);
   assert.doesNotMatch(script,/print\(raw\)|write_text\(raw/);
 });
