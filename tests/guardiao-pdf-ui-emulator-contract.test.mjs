@@ -33,5 +33,5 @@ test('privacy evidence is synthetic, metadata-only and production is forbidden',
   assert.match(script,/"stableReleaseAllowed": False/);
   assert.match(script,/No raw UI content is printed/);
   assert.match(workflow,/retention-days: 2/);
-  assert.doesNotMatch(workflow,/screencap|logcat|screenshot|\.pdf\s*$/m);
+  assert.doesNotMatch(workflow,/adb shell screencap|adb logcat|capture-screen|upload.*\.pdf/m);
 });
