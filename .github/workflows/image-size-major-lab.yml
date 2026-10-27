@@ -18,6 +18,7 @@ on:
       - lab/p01-forge-host-crypto-api-surface-v1
       - lab/p01-forge-rsa-verify-callsite-v1
       - lab/p01-expo-cert-api-reference-boundaries-v1
+      - lab/p01-expo-certificate-import-call-boundaries-v1
 permissions:
   contents: read
 concurrency:
@@ -442,6 +443,12 @@ jobs:
           node ../../tooling/android/expo_certificate_symbol_inventory.cjs capture \
             node_modules forge-lock/image-size-candidate-lock.json \
             "$GITHUB_SHA" HOST_EXPO_CERTIFICATE_API_REFERENCES.json
+      - name: Capture installed Expo certificate import/call co-location
+        run: |
+          set -euo pipefail
+          node ../../tooling/android/expo_cert_import_call_boundaries.cjs capture \
+            node_modules forge-lock/image-size-candidate-lock.json \
+            "$GITHUB_SHA" HOST_EXPO_CERT_IMPORT_CALL_BOUNDARIES.json
       - name: Upload host import report only
         uses: actions/upload-artifact@v4
         with:
@@ -451,6 +458,7 @@ jobs:
             apps/mobile/HOST_FORGE_CRYPTO_API_CENSUS.json
             apps/mobile/HOST_FORGE_RSA_VERIFY_CALLSITES.json
             apps/mobile/HOST_EXPO_CERTIFICATE_API_REFERENCES.json
+            apps/mobile/HOST_EXPO_CERT_IMPORT_CALL_BOUNDARIES.json
           if-no-files-found: error
           retention-days: 3
 
@@ -536,6 +544,12 @@ jobs:
           node ../../tooling/android/expo_certificate_symbol_inventory.cjs verify \
             node_modules forge-lock/image-size-candidate-lock.json \
             "$GITHUB_SHA" forge-report/HOST_EXPO_CERTIFICATE_API_REFERENCES.json
+      - name: Independently rederive installed Expo import/call co-location
+        run: |
+          set -euo pipefail
+          node ../../tooling/android/expo_cert_import_call_boundaries.cjs verify \
+            node_modules forge-lock/image-size-candidate-lock.json \
+            "$GITHUB_SHA" forge-report/HOST_EXPO_CERT_IMPORT_CALL_BOUNDARIES.json
 
 
   reverify-downloaded-combined-apk:
