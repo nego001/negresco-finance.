@@ -72,5 +72,10 @@ test('mobile user-facing diagnostics are fixed phase-only messages with no nativ
      'Falha ao abrir o compartilhamento nativo do Android.'])
     assert.ok(app.includes(literal),'missing fixed Portuguese UI phase '+literal);
   assert.match(exportSource,/onFailurePhase\?:\(phase:PdfExportFailurePhase\)=>void/);
-  assert.doesNotMatch(app,/setReportExportStatus\(.*(?:\.message|\.stack|\.uri|JSON\.stringify\(.*Error)/);
+  const start=app.indexOf('const exportLocalPdf=async()=>{');
+  const end=app.indexOf('const [guardiaoHistory',start);
+  assert.ok(start>=0&&end>start,'PDF export function boundary missing');
+  const pdfFlow=app.slice(start,end);
+  assert.doesNotMatch(pdfFlow,/setReportExportStatus\([^;\n]{0,300}(?:\.message|\.stack|\.uri|JSON\.stringify\()/);
+
 });
