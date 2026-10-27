@@ -28,6 +28,9 @@ test('UI runner requires real Guardião flow and system chooser, never fakes a p
     assert.ok(script.includes(s),'missing mandatory UI stage: '+s);
   assert.match(script,/FIXTURE = "0" \* 47/);
   assert.match(script,/if api not in \(26, 28\)/);
+  assert.match(script,/analysis result did not appear after tapping Analyze/);
+  assert.match(script,/STAGE \(LAB\): synthetic analysis result visible/);
+  assert.ok(script.indexOf('analysis result did not appear after tapping Analyze')<script.indexOf('pdf_button = wait_visible'), 'analysis result must precede PDF button');
   assert.match(script,/raise RuntimeError\("PDF share chooser not observed/);
 });
 test('privacy evidence is synthetic, metadata-only and production is forbidden',()=>{
