@@ -31,11 +31,22 @@ def adb(*args: str, timeout: int = 40, check: bool = True) -> str:
     return run("adb", *args, timeout=timeout, check=check)
 
 def xml_nodes() -> list[dict[str, str]]:
-    # No raw UI content is printed to CI logs, reports, or uploaded.
+    # Never print or upload raw UI hierarchy. Tap clickable ancestor for text labels.
     adb("shell", "uiautomator", "dump", "/sdcard/negresco_ui.xml", timeout=35)
     raw = adb("exec-out", "cat", "/sdcard/negresco_ui.xml", timeout=12)
     root = ET.fromstring(raw.lstrip("\ufeff"))
-    return [dict(n.attrib) for n in root.iter("node")]
+    found: list[dict[str, str]] = []
+    def visit(item: ET.Element, nearest_click: dict[str, str] | None = None) -> None:
+        props = dict(item.attrib)
+        if props.get("clickable") == "true" and props.get("enabled") == "true":
+            nearest_click = props
+        if item.tag == "node":
+            props["_tap_bounds"] = (nearest_click or props).get("bounds", "")
+            found.append(props)
+        for child in item:
+            visit(child, nearest_click)
+    visit(root)
+    return found
 
 def lookup(needle: str, *, enabled: bool = False) -> dict[str, str] | None:
     for n in xml_nodes():
@@ -47,11 +58,15 @@ def lookup(needle: str, *, enabled: bool = False) -> dict[str, str] | None:
     return None
 
 def tap_node(node: dict[str, str]) -> None:
-    m = BOUNDS.fullmatch(node.get("bounds", ""))
+    m = BOUNDS.fullmatch(node.get("_tap_bounds", node.get("bounds", "")))
     if m is None:
-        raise RuntimeError("missing Android bounds")
+        raise RuntimeError("missing Android clickable bounds")
     x1, y1, x2, y2 = map(int, m.groups())
-    adb("shell", "input", "tap", str((x1 + x2) // 2), str((y1 + y2) // 2))
+    w, h = screen_size()
+    x, y = (x1+x2)//2, (y1+y2)//2
+    if not (0 < x < w and int(h*.13) < y < int(h*.88)):
+        raise RuntimeError("refusing touch outside safe app viewport")
+    adb("shell", "input", "tap", str(x), str(y))
 
 def screen_size() -> tuple[int, int]:
     raw = adb("shell", "wm", "size")
@@ -72,13 +87,30 @@ def wait_visible(needle: str, retries: int = 25, *, scroll: bool = False,
         try:
             node = lookup(needle, enabled=enabled)
             if node is not None:
-                return node
+                if not scroll:
+                    return node
+                match = BOUNDS.fullmatch(node.get("_tap_bounds", node.get("bounds", "")))
+                if match:
+                    x1, y1, x2, y2 = map(int, match.groups())
+                    _, h = screen_size()
+                    if int(h*.16) < (y1+y2)//2 < int(h*.78):
+                        return node
         except (RuntimeError, ET.ParseError, subprocess.TimeoutExpired):
             pass
-        if scroll and i > 0 and i % 2 == 0:
+        if scroll and i % 2 == 0:
             scroll_forward()
-        time.sleep(1)
+        time.sleep(0.65)
     raise RuntimeError("required UI element unavailable: " + needle)
+
+def stage_summary(label: str) -> None:
+    # Fixed boolean allowlist only. Never print EditText values or raw XML.
+    allow = ("Analisar estrutura", "Preparando histórico seguro",
+             "Verificação inconclusiva ou inválida", "Estrutura consistente",
+             "Gerar e compartilhar relatório PDF", "Limpar dados da análise atual")
+    nodes = xml_nodes()
+    visible = {k: any(k.lower() in (n.get("text","")+" "+n.get("content-desc","")).lower()
+                       for n in nodes) for k in allow}
+    print("STAGE (LAB): "+label+" | "+json.dumps(visible, sort_keys=True), flush=True)
 
 def chooser_present() -> bool:
     # In Android 8/9 the system resolver is exposed as ChooserActivity or ResolverActivity.
@@ -134,9 +166,15 @@ def run_smoke() -> None:
     populated = wait_visible("Linha digitável do boleto", retries=10)
     if populated.get("text", "") != FIXTURE:
         raise RuntimeError("synthetic 47-digit boleto was not populated in the EditText")
+    stage_summary("synthetic field entered")
     tap_node(wait_visible("Analisar estrutura", retries=12, enabled=True, scroll=True))
+    stage_summary("after Analyze tap")
     # Inspect the observed result, not just that Android accepted a tap.
-    wait_visible("Verificação inconclusiva ou inválida", retries=14, scroll=True)
+    try:
+        wait_visible("Verificação inconclusiva ou inválida", retries=14, scroll=True)
+    except RuntimeError:
+        stage_summary("analysis result missing, no PDF test attempted")
+        raise
     print("STAGE (LAB): synthetic analysis result visible, next checking PDF export button")
     pdf_button = wait_visible("Gerar e compartilhar relatório PDF", retries=35, scroll=True)
     tap_node(pdf_button)
