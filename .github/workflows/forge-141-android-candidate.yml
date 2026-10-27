@@ -138,7 +138,7 @@ jobs:
         run: |
           set -euo pipefail
           test ! -e package-lock.json
-          node -e "const fs=require('fs'),b=fs.readFileSync('package.json');if(!b.equals(fs.readFileSync('forge141-review/source-package.json')))throw Error('BLOCK: source mismatch');const p=JSON.parse(b);if(p.overrides||p.dependencies?.['node-forge'])throw Error('BLOCK: unexpected candidate');p.overrides={postcss:'8.5.23','image-size':'2.0.3'};fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n');fs.copyFileSync('forge141-review/candidate-lock.json','package-lock.json',fs.constants.COPYFILE_EXCL)"
+          node -e "const fs=require('fs'),b=fs.readFileSync('package.json');if(!b.equals(fs.readFileSync('forge141-review/forge141-apk-lab/source-package.json')))throw Error('BLOCK: source mismatch');const p=JSON.parse(b);if(p.overrides||p.dependencies?.['node-forge'])throw Error('BLOCK: unexpected candidate');p.overrides={postcss:'8.5.23','image-size':'2.0.3'};fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n');fs.copyFileSync('forge141-review/forge141-apk-lab/candidate-lock.json','package-lock.json',fs.constants.COPYFILE_EXCL)"
           npm ci --ignore-scripts --no-audit --no-fund
       - name: Rerun unsuppressed npm audit
         run: npm audit --json --package-lock-only > forge141-review/fresh-audit.json
@@ -148,10 +148,10 @@ jobs:
           npm pack node-forge@1.4.1 --ignore-scripts --silent --pack-destination forge141-review
           curl --fail --silent --show-error --location --retry 2 https://raw.githubusercontent.com/digitalbazaar/forge/8a917370ec51731e817c2d547b7329a58f8210af/lib/rsa.js -o forge141-review/upstream-rsa.js
           node ../../tooling/android/forge_141_registry_provenance.cjs verify \
-            forge141-review/candidate-lock.json forge141-review/node-forge-1.4.1.tgz \
+            forge141-review/forge141-apk-lab/candidate-lock.json forge141-review/node-forge-1.4.1.tgz \
             node_modules/node-forge/lib/rsa.js forge141-review/upstream-rsa.js \
             node_modules/node-forge/package.json forge141-review/fresh-audit.json \
-            "$GITHUB_SHA" forge141-review/FORGE_141_PROVENANCE.json
+            "$GITHUB_SHA" forge141-review/forge141-apk-lab/FORGE_141_PROVENANCE.json
       - name: Rehash downloaded APK and Hermes independently
         run: |
           set -euo pipefail
@@ -161,8 +161,8 @@ jobs:
           "$TOOLS/apksigner" verify --verbose "$APK"
           "$TOOLS/apksigner" verify --print-certs "$APK" | grep -F 'CN=Android Debug'
           python3 ../../tooling/android/forge_141_candidate_apk_inventory.py verify \
-            "$APK" forge141-review/candidate-lock.json \
-            forge141-review/FORGE_141_PROVENANCE.json \
-            "$GITHUB_SHA" forge141-review/FORGE_141_APK_INVENTORY.json
+            "$APK" forge141-review/forge141-apk-lab/candidate-lock.json \
+            forge141-review/forge141-apk-lab/FORGE_141_PROVENANCE.json \
+            "$GITHUB_SHA" forge141-review/forge141-apk-lab/FORGE_141_APK_INVENTORY.json
           python3 ../../tooling/android/verify_compiled_preview_ota.py "$APK"
           echo 'PASS (LAB): independent preview APK integrity only, NEVER production approval'

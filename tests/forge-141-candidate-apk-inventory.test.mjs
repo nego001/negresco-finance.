@@ -44,6 +44,10 @@ test('workflow retains independent APK audit and no production publishing',()=>{
  assert.match(wf,/lab\/p01-forge-141-android-candidate-v1/);
  assert.match(wf,/forge_141_candidate_apk_inventory\.py capture/);
  assert.match(wf,/forge_141_candidate_apk_inventory\.py verify/);
+ for(const leaf of ['source-package.json','candidate-lock.json','FORGE_141_PROVENANCE.json','FORGE_141_APK_INVENTORY.json']){
+  assert.ok(wf.includes('forge141-review/forge141-apk-lab/'+leaf),'missing artifact subdir '+leaf);
+  assert.ok(!wf.includes('forge141-review/'+leaf),'root-relative artifact confusion '+leaf);
+ }
  assert.match(wf,/npm audit --json --package-lock-only/g);
  assert.match(wf,/CN=Android Debug/g);
  assert.match(wf,/verify_compiled_preview_ota\.py/g);
