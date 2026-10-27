@@ -1,0 +1,93 @@
+name: node-forge 1.4.1 official package provenance (lab only)
+on:
+  push:
+    branches:
+      - lab/p01-forge-141-supply-chain-validation-v1
+permissions:
+  contents: read
+jobs:
+  produce:
+    name: Verify npm package against immutable official Git tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+          registry-url: https://registry.npmjs.org
+      - name: Stage isolated npm lock without changing source manifest
+        run: |
+          set -euo pipefail
+          test ! -e package-lock.json
+          mkdir forge-proof
+          cp package.json forge-proof/source-package.json
+          node -e "const f=require('fs'),p=require('./package.json');if(p.overrides||p.dependencies?.['node-forge']||p.name!=='@negresco/mobile'||p.version!=='3.1.3')throw Error('BLOCK: source manifest');p.overrides={postcss:'8.5.23','image-size':'2.0.3'};f.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n')"
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund --lockfile-version=3
+          cp package-lock.json forge-proof/candidate-lock.json
+      - name: Inspect unsuppressed npm advisories
+        run: npm audit --json --package-lock-only > forge-proof/audit.json
+      - name: Install exact candidate without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Download npm tarball and source from immutable official tag commit
+        run: |
+          set -euo pipefail
+          npm pack node-forge@1.4.1 --ignore-scripts --silent --pack-destination forge-proof
+          curl --fail --silent --show-error --location --retry 2 https://raw.githubusercontent.com/digitalbazaar/forge/8a917370ec51731e817c2d547b7329a58f8210af/lib/rsa.js -o forge-proof/upstream-rsa.js
+      - name: Check registry integrity, source equality and advisory snapshot
+        run: |
+          node ../../tooling/android/forge_141_registry_provenance.cjs capture forge-proof/candidate-lock.json forge-proof/node-forge-1.4.1.tgz node_modules/node-forge/lib/rsa.js forge-proof/upstream-rsa.js node_modules/node-forge/package.json forge-proof/audit.json "$GITHUB_SHA" forge-proof/FORGE_141_PROVENANCE.json
+      - name: Upload metadata only, never npm source or APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: forge-141-registry-unreviewed
+          path: |
+            apps/mobile/forge-proof/source-package.json
+            apps/mobile/forge-proof/candidate-lock.json
+            apps/mobile/forge-proof/audit.json
+            apps/mobile/forge-proof/FORGE_141_PROVENANCE.json
+          if-no-files-found: error
+          retention-days: 3
+
+  independent:
+    name: Independently reproduce registry-to-upstream source proof
+    needs: produce
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+          registry-url: https://registry.npmjs.org
+      - uses: actions/download-artifact@v4
+        with:
+          name: forge-141-registry-unreviewed
+          path: apps/mobile/forge-proof
+      - name: Verify source manifest and reuse exact downloaded candidate lock
+        run: |
+          set -euo pipefail
+          test ! -e package-lock.json
+          node -e "const f=require('fs'),b=f.readFileSync('package.json');if(!b.equals(f.readFileSync('forge-proof/source-package.json')))throw Error('BLOCK: manifest mismatch');const p=JSON.parse(b);if(p.overrides||p.dependencies?.['node-forge'])throw Error('BLOCK: source changed');p.overrides={postcss:'8.5.23','image-size':'2.0.3'};f.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n');f.copyFileSync('forge-proof/candidate-lock.json','package-lock.json',f.constants.COPYFILE_EXCL)"
+      - name: Reinstall exact lock without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Independently inspect current advisories
+        run: npm audit --json --package-lock-only > forge-proof/fresh-audit.json
+      - name: Independently download npm tarball and immutable Git code
+        run: |
+          set -euo pipefail
+          npm pack node-forge@1.4.1 --ignore-scripts --silent --pack-destination forge-proof
+          curl --fail --silent --show-error --location --retry 2 https://raw.githubusercontent.com/digitalbazaar/forge/8a917370ec51731e817c2d547b7329a58f8210af/lib/rsa.js -o forge-proof/upstream-rsa.js
+      - name: Independent compare report byte-for-byte
+        run: |
+          node ../../tooling/android/forge_141_registry_provenance.cjs verify forge-proof/candidate-lock.json forge-proof/node-forge-1.4.1.tgz node_modules/node-forge/lib/rsa.js forge-proof/upstream-rsa.js node_modules/node-forge/package.json forge-proof/fresh-audit.json "$GITHUB_SHA" forge-proof/FORGE_141_PROVENANCE.json
