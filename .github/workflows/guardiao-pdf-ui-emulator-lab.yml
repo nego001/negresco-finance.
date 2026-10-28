@@ -1,8 +1,8 @@
-name: Guardiao PDF WebView and foreground diagnosis Android 8-9 (lab only)
+name: Guardiao PDF WebView image A-B Google APIs Android 8-9 (lab only)
 on:
   push:
     branches:
-      - lab/p01-guardiao-android-print-webview-focus-v1
+      - lab/p01-guardiao-google-apis-webview-control-v1
 permissions:
   contents: read
   actions: read
@@ -44,7 +44,7 @@ jobs:
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
         with:
           api-level: ${{ matrix.api }}
-          target: default
+          target: google_apis
           arch: x86_64
           profile: pixel_6
           emulator-boot-timeout: 600
@@ -53,7 +53,7 @@ jobs:
       - name: Upload tiny synthetic outcome, no UI dumps, screenshots or PDFs
         uses: actions/upload-artifact@v4
         with:
-          name: guardiao-pdf-environment-api-${{ matrix.api }}-unreviewed
+          name: guardiao-pdf-google-apis-api-${{ matrix.api }}-unreviewed
           path: pdf-ui-emulator-report.json
           if-no-files-found: error
           retention-days: 2
