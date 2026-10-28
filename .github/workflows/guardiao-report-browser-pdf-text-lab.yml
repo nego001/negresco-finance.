@@ -1,0 +1,49 @@
+name: Guardiao synthetic rendered PDF text evidence (lab only)
+on:
+  push:
+    branches:
+      - lab/p01-guardiao-rendered-pdf-text-fixture-v1
+permissions:
+  contents: read
+concurrency:
+  group: guardiao-report-pdf-text-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  pdf-text-synthetic:
+    name: Check extracted cautionary text in four synthetic browser PDFs
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Require locally available headless browser and PDF text inspection
+        run: |
+          set -euo pipefail
+          if ! command -v google-chrome >/dev/null && ! command -v google-chrome-stable >/dev/null && ! command -v chromium >/dev/null; then
+            echo 'LAB BLOCKED: headless Chrome unavailable'
+            exit 1
+          fi
+          if ! command -v pdfinfo >/dev/null || ! command -v pdftotext >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq poppler-utils
+          fi
+      - name: Render only fictitious Guardiao HTML and verify PDF-extracted text
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          trap 'rm -rf "$tmp"' EXIT
+          node tooling/guardiao_report_pdf_fixture.mjs "$tmp"
+          python3 tooling/guardiao_report_pdf_text_check.py "$tmp" "$PWD/guardiao-report-pdf-text-receipt.json"
+          test -s guardiao-report-pdf-text-receipt.json
+          # No PDF, HTML, text extraction, screenshot or actual report content leaves tmp.
+      - name: Publish only small metadata JSON with 2-day retention
+        uses: actions/upload-artifact@v4
+        with:
+          name: guardiao-report-pdf-text-metadata-unreviewed
+          path: guardiao-report-pdf-text-receipt.json
+          if-no-files-found: error
+          retention-days: 2
