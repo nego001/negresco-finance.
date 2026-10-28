@@ -51,9 +51,12 @@ def exercise_fixture(path: str, expect_success: bool) -> dict:
     # Fail closed on stale receipts, and do not read or publish document bytes.
     adb("shell", "run-as", PKG, "rm", "-f", "files/receipt.json")
     uri = "content://" + AUTHORITY + "/" + path
-    adb("shell", "am", "start", "-W", "-n", ACTIVITY,
+    # Do not use am start -W: that waits for the slow synchronous PDF activity
+    # to finish drawing and can freeze shell invocation on old emulators.
+    # The independent receipt below (never the am start exit alone) determines PASS.
+    adb("shell", "am", "start", "-n", ACTIVITY,
         "-a", "android.intent.action.SEND", "-t", "application/pdf",
-        "-f", "0x1", "--eu", "android.intent.extra.STREAM", uri, timeout=60)
+        "-f", "0x1", "--eu", "android.intent.extra.STREAM", uri, timeout=25)
     receipt = None
     for _ in range(30):
         receipt = read_receipt()
