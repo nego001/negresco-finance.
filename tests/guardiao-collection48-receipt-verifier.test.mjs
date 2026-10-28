@@ -143,3 +143,29 @@ test('branch-only CI runs strict metadata verification before uploading any rece
   assert.match(workflow,/retention-days: 2/);
   assert.doesNotMatch(workflow,/contents: write|workflow_dispatch|secrets\.|eas update|expo publish|gh release|adb pull/);
 });
+
+test('Android startup checkpoints are bounded, category-only and precede fixture interaction',()=>{
+  const runner=readFileSync('tooling/android/guardiao_pdf_ui_emulator_smoke.py','utf8');
+  const markers=[
+    'STAGE (LAB): audited APK integrity verified',
+    'STAGE (LAB): emulator API',
+    'STAGE (LAB): isolated Android receiver installed',
+    'STAGE (LAB): private synthetic one-shot gate prepared',
+    'STAGE (LAB): stale receiver receipt cleared',
+    'STAGE (LAB): SHA-pinned Android app installed',
+    'STAGE (LAB): Android launcher accepted synthetic app launch',
+    'STAGE (LAB): app home observed',
+    'STAGE (LAB): Guardião navigation tapped',
+    'STAGE (LAB): synthetic input label observed'
+  ];
+  let position=-1;
+  for (const marker of markers){
+    const next=runner.indexOf(marker);
+    assert.ok(next>position, 'ordered non-sensitive startup checkpoint: '+marker);
+    position=next;
+  }
+  assert.match(runner,/BLOCK STAGE \(LAB\): app home not observed after bounded launch wait/);
+  assert.match(runner,/json\.dumps\(safe_environment_summary\(\), sort_keys=True\)/);
+  assert.doesNotMatch(runner,/print\([^\n]*FIXTURE/);
+  assert.doesNotMatch(runner,/print\([^\n]*populated\.get/);
+});
