@@ -100,6 +100,7 @@ def inspect_real_android_pdf(receipt: dict) -> None:
     if base.FIXTURE not in ("0" * 47, "8" + "0" * 47):
         raise RuntimeError("non-synthetic financial input would be unsafe")
     captured = False
+    print("STAGE (LAB): private one-shot PDF verification entered", flush=True)
     try:
         raw = tool(["adb", "exec-out", "run-as", PKG, "cat", CAPTURE],
                    timeout=30, binary=True)
@@ -109,6 +110,7 @@ def inspect_real_android_pdf(receipt: dict) -> None:
         digest = hashlib.sha256(raw).hexdigest()
         if digest != receipt.get("sha256") or len(raw) != receipt.get("bytes"):
             raise RuntimeError("captured bytes differ from independent receiver receipt")
+        print("STAGE (LAB): private PDF SHA and size verified", flush=True)
         if not shutil.which("pdftotext") or not shutil.which("pdfinfo"):
             raise RuntimeError("required offline PDF extraction tools are missing")
 
@@ -137,6 +139,7 @@ def inspect_real_android_pdf(receipt: dict) -> None:
                     raise RuntimeError("native PDF has a blank or unextractable page")
                 text_pages.append(text)
             actual = " ".join(text_pages)
+            print("STAGE (LAB): every native PDF page yielded bounded text", flush=True)
             scenario_specific = (
                 ("ARRECADAÇÃO", "Quantidade de dígitos: 48")
                 if base.FIXTURE == "8" + "0" * 47
@@ -148,6 +151,7 @@ def inspect_real_android_pdf(receipt: dict) -> None:
             for forbidden in FORBIDDEN:
                 if normalize(forbidden) in actual:
                     raise RuntimeError("native PDF leaks fixture or falsely authenticates a charge")
+            print("STAGE (LAB): scenario semantics and forbidden text checked", flush=True)
             observed = {
                 "nativePdfSemanticTextVerified": True, "textPagesVerified": pages,
                 "pdfPages": pages, "receivedPdfSha256": digest,
