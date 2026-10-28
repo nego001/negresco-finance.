@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - lab/p01-guardiao-android-invalid-arrecadacao-48-v1
+      - lab/p01-guardiao-arrecadacao48-receipt-audit-v1
 permissions:
   contents: read
   actions: read
@@ -71,6 +72,8 @@ jobs:
           emulator-boot-timeout: 600
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
           script: python3 tooling/android/guardiao_android_collection48_invalid_pdf_emulator_smoke.py
+      - name: Fail closed on altered, unsafe or unbounded synthetic metadata receipt
+        run: python3 tooling/android/verify_collection48_receipt.py ${{ matrix.api }} guardiao-android-real-pdf-text-receipt.json
       - name: Publish metadata only, never PDF, HTML, screenshot, logcat, app files or extracted text
         uses: actions/upload-artifact@v4
         with:
