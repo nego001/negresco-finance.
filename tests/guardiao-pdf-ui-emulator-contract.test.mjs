@@ -121,6 +121,7 @@ test('receiver Android manifest is single exported PDF-only activity with zero p
   assert.match(manifest,/android:mimeType="application\/pdf"/);
   assert.match(manifest,/android:allowBackup="false"/);
   assert.match(manifest,/android:usesCleartextTraffic="false"/);
+  assert.match(manifest,/android:debuggable="true"/);
   assert.doesNotMatch(manifest,/<uses-permission/);
   assert.match(build,/com.negresco.pdfreceiver.lab/);
   assert.match(build,/--min-sdk-version 26/);
@@ -147,12 +148,13 @@ test('SDK-only receiver build is fully detached from Maven/Gradle and ephemeral 
   for(const t of ['javac -source 8 -target 8','--min-api 26', 'aapt2', 'zipalign', 'apksigner', 'openssl rand -hex 16'])
     assert.ok(build.includes(t),'missing SDK-only build property '+t);
   assert.match(build,/Receiver APK must have zero Android permissions/);
+  assert.match(build,/application-debuggable/);
   assert.doesNotMatch(build,/curl |wget |mvn |gradle |repo\.maven|https?:\/\//);
   assert.doesNotMatch(workflow,/gradle\/actions\/setup-gradle|gradle --project-dir/);
 });
 test('E2E pass requires the separate APK, Android chooser, actual receiver and PdfRenderer receipt',()=>{
   assert.match(workflow,/bash tooling\/android\/pdf-receiver-lab\/build_receiving_apk.sh/);
-  assert.match(workflow,/Receiver lab APK must declare no permissions/);
+  assert.match(readFileSync('tooling/android/pdf-receiver-lab/build_receiving_apk.sh','utf8'),/Receiver APK must have zero Android permissions/);
   assert.match(script,/adb\("install", "-r", str\(RECEIVER_APK\)/);
   assert.match(script,/if chooser_present\(\):[\s\S]{0,160}receive_from_chooser\(api, digest\)/);
   assert.match(script,/wait_visible\("Negresco PDF Receiver LAB"/);
