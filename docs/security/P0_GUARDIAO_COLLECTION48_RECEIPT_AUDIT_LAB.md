@@ -13,13 +13,13 @@ O risco coberto é a publicação de um recibo JSON adulterado ou inflado que de
 - Confere flags de caminho Android, chooser, receptor independente, texto extraível, cache e captura apagados, sem aceitar números como booleanos.
 - Confere contagem de páginas, páginas renderizadas/não vazias/com texto (de 1 a 8), tamanho limitado e formato do SHA-256 do PDF reportado.
 - Exige approvedForProduction=false e stableReleaseAllowed=false.
-- Limita JSON a 4 KiB e ZIP a 1 MiB; ZIP deve conter exatamente um JSON com nome fixo, sem caminhos de travessia, entrada adicional, link simbólico ou criptografia.
+- Limita JSON a 4 KiB e ZIP a 1 MiB; ZIP deve conter exatamente um JSON com nome fixo, sem caminhos de travessia, entrada adicional, comentários ZIP, dados anteriores ao primeiro cabeçalho, link simbólico ou criptografia.
 - Falha de forma fechada com erro de categoria fixa, sem imprimir caminhos, texto de PDF, documentos, linha digitável ou exceções.
 - A CI no branch de laboratório executa o verificador antes de publicar o recibo JSON de retenção de dois dias.
 
 ## Cobertura negativa
 
-O arquivo tests/guardiao-collection48-receipt-verifier.test.mjs cria metadados sintéticos em diretórios temporários e injeta alterações controladas: API errada, checksums, APK divergente, páginas não verificadas, flags falsas, esquema incorreto, campo sensível adicional, chave duplicada, ZIP com PDF adicional, travessia de diretórios, ZIP corrompido, symlink e nome inesperado. Nenhum dado real nem PDF bancário é usado.
+O arquivo tests/guardiao-collection48-receipt-verifier.test.mjs cria metadados sintéticos em diretórios temporários e injeta alterações controladas: API errada, checksums, APK divergente, páginas não verificadas, flags falsas, esquema incorreto, campo sensível adicional, chave duplicada, ZIP com PDF adicional, comentários ocultos, prefixos antes do ZIP, travessia de diretórios, ZIP corrompido, symlink e nome inesperado. Nenhum dado real nem PDF bancário é usado.
 
 ## Comprovação e limites
 
