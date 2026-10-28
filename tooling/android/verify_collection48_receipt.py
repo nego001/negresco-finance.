@@ -14,6 +14,7 @@ import stat
 import struct
 import sys
 import zipfile
+import zlib
 from pathlib import Path
 
 APK_SHA = "29e248742e365c4dd7a8c668a23153d43a89b8be02828620bbc5851775986b4a"
@@ -112,9 +113,25 @@ def verify_contiguous_zip(raw: bytes, entry: zipfile.ZipInfo) -> None:
         or local_uncompressed != entry.file_size
     ):
         raise InvalidReceipt("ZIP local checksums and sizes disagree")
-    payload_end = 30 + len(name) + entry.compress_size
+    payload_start = 30 + len(name)
+    payload_end = payload_start + entry.compress_size
     if payload_end > cd_offset:
         raise InvalidReceipt("ZIP entry overlaps central directory")
+    if entry.compress_type == zipfile.ZIP_DEFLATED:
+        # Python's ZipFile.read() can silently ignore bytes appended *inside*
+        # a declared deflate stream. Require full, exact stream consumption.
+        try:
+            decoder = zlib.decompressobj(wbits=-15)
+            expanded = decoder.decompress(raw[payload_start:payload_end], MAX_JSON + 1)
+        except zlib.error as exc:
+            raise InvalidReceipt("malformed ZIP deflate stream") from exc
+        if (
+            not decoder.eof or decoder.unused_data or decoder.unconsumed_tail
+            or len(expanded) != entry.file_size
+        ):
+            raise InvalidReceipt("ZIP deflate stream has hidden or unconsumed bytes")
+    elif entry.compress_size != entry.file_size:
+        raise InvalidReceipt("ZIP stored entry length mismatch")
     trailer = raw[payload_end:cd_offset]
     if flags & 8:
         expected = struct.pack("<III", entry.CRC, entry.compress_size, entry.file_size)
