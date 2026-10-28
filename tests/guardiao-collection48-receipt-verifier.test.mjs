@@ -240,9 +240,16 @@ test('post-upload gate reopens both platform receipts and rejects missing or ext
   assert.match(gate,/persist-credentials: false/);
   assert.match(gate,/timeout-minutes: 5/);
   const checker=readFileSync('tooling/android/verify_collection48_receipt_pair.py','utf8');
-  assert.match(checker,/with os\.scandir\(root\)/);
-  assert.match(checker,/entry\.is_dir\(follow_symlinks=False\)/);
-  assert.match(checker,/members\[0\]\.is_file\(follow_symlinks=False\)/);
+  assert.match(checker,/root_fd = os\.open\(root, DIR_FLAGS\)/);
+  assert.match(checker,/os\.listdir\(root_fd\)/);
+  assert.match(checker,/folder_fd = os\.open\(folder_name, DIR_FLAGS, dir_fd=root_fd\)/);
+  assert.match(checker,/os\.listdir\(folder_fd\)/);
+  assert.match(checker,/file_fd = os\.open\(receipt\.MEMBER, FILE_FLAGS, dir_fd=folder_fd\)/);
+  assert.match(checker,/info = os\.fstat\(file_fd\)/);
+  assert.match(checker,/stat\.S_ISREG\(info\.st_mode\)/);
+  assert.match(checker,/stream\.read\(receipt\.MAX_JSON \+ 1\)/);
+  assert.match(checker,/os\.close\(folder_fd\)/);
+  assert.match(checker,/os\.close\(root_fd\)/);
   assert.match(checker,/receipt\.verify\(parsed, api\)/);
   assert.doesNotMatch(checker,/print\([^)]*parsed|print\([^)]*folder/);
 });
@@ -326,4 +333,29 @@ test('post-upload verifier refuses symlinked Android receipt folders',()=>withTe
   renameSync(path,target);
   symlinkSync(target,path,'dir');
   assertPairBlock(pairCli(root));
+}));
+
+test('post-upload verifier rejects a symlink substituted for the root',()=>withTemp(dir=>{
+  const target=makePairTree(dir);
+  const link=join(dir,'pair-root-symlink');
+  symlinkSync(target,link,'dir');
+  assertPairBlock(pairCli(link));
+}));
+test('post-upload verifier rejects a symlink substituted for a JSON member',()=>withTemp(dir=>{
+  const root=makePairTree(dir);
+  const path=join(root,'guardiao-android-collection48-pdf-text-api-26-unreviewed',receiptName);
+  const target=join(dir,'isolated-metadata.json');
+  renameSync(path,target);
+  symlinkSync(target,path);
+  assertPairBlock(pairCli(root));
+}));
+test('post-upload verifier rejects FIFO file members without hanging',()=>withTemp(dir=>{
+  const root=makePairTree(dir);
+  const path=join(root,'guardiao-android-collection48-pdf-text-api-26-unreviewed',receiptName);
+  rmSync(path);
+  const result=spawnSync('python3',['-c','import os,sys;os.mkfifo(sys.argv[1])',path],{encoding:'utf8'});
+  assert.equal(result.status,0);
+  const checked=spawnSync('python3',['tooling/android/verify_collection48_receipt_pair.py',root],{encoding:'utf8',timeout:3000});
+  assert.equal(checked.error,undefined,'post-upload gate must never block on FIFO');
+  assertPairBlock(checked);
 }));

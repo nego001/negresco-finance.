@@ -59,6 +59,10 @@ O workflow recebe cada recibo antes do upload no respectivo job API 26/28. Um te
 
 ## Complemento: teste executável do controle pós-upload (28/10/2026)
 
-O terceiro job agora executa `tooling/android/verify_collection48_receipt_pair.py` em vez de depender apenas de uma contagem por shell. O verificador rejeita pastas ausentes/adicionais, links simbólicos, entradas extras e recibos API 26/28 trocados. Cada JSON é reaberto pelo verificador individual existente, com limite de leitura e sem seguir symlinks. Os testes Node criam pastas de laboratório e comprovam PASS de um par válido e bloqueios negativos dessas adulterações. A saída contém apenas códigos fixos, sem conteúdo do PDF ou dados financeiros.
+O terceiro job agora executa `tooling/android/verify_collection48_receipt_pair.py` em vez de depender apenas de uma contagem por shell. Na etapa de reforço seguinte, o diretório raiz, cada subdiretório e o JSON são abertos com descritores fixos e `O_NOFOLLOW`/`O_DIRECTORY`, impedindo desvio por troca de symlink entre a listagem e a leitura. A checagem de `fstat` exige arquivo regular e leitura limitada a 4 KiB; os descritores são fechados mesmo em erro. O verificador rejeita pastas ausentes/adicionais, links simbólicos, entradas extras e recibos API 26/28 trocados. Cada JSON é reaberto pelo verificador individual existente, com limite de leitura e sem seguir symlinks. Os testes Node criam pastas de laboratório e comprovam PASS de um par válido e bloqueios negativos dessas adulterações. A saída contém apenas códigos fixos, sem conteúdo do PDF ou dados financeiros.
 
 **Este incremento exige revalidação no novo HEAD.** A execução de laboratório não autoriza produção, não substitui um dispositivo físico e não prova a autenticidade de um recibo.
+
+## Regressão contra substituição de caminho (28/10/2026)
+
+O gate pós-upload prende a raiz e as pastas Android aos descritores de diretório e usa `dir_fd` em cada abertura, evitando a janela de verificação por caminho seguida de reabertura. Os testes negativos exercitam symlink na raiz, symlink no JSON e FIFO como recibo sem bloqueio. Somente metadados sintéticos são lidos. A nova alteração exige CI verde no próprio commit antes de ser tratada como aprovada.
