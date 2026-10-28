@@ -253,16 +253,24 @@ def validate_receiver_receipt(receipt: dict) -> bool:
     if receipt.get("schemaVersion") != 1 or receipt.get("status") != "received-rendered":
         return False
     required_true = ("contentUriGranted", "pdfHeaderAndEof",
-                     "renderedFirstPage", "syntheticOnly")
+                     "renderedFirstPage", "allPagesRendered", "syntheticOnly")
     if not all(receipt.get(k) is True for k in required_true):
         return False
     if receipt.get("stableReleaseAllowed") is not False:
         return False
     size, pages, sha = (receipt.get("bytes"), receipt.get("pages"),
                         receipt.get("sha256"))
+    nonblank = receipt.get("nonblankPages")
     return (type(size) is int and 200 < size <= 8 * 1024 * 1024
             and type(pages) is int and 1 <= pages <= 100
+            and type(nonblank) is int and nonblank == pages
             and isinstance(sha, str) and re.fullmatch("[0-9a-f]{64}", sha) is not None)
+
+def receiver_cache_empty_of_pdf() -> bool:
+    # Only inspect names locally; do not print filenames from app-private cache.
+    listing = adb("shell", "run-as", RECEIVER_PACKAGE, "ls", "cache",
+                  timeout=10, check=False)
+    return "received-" not in listing
 
 def receive_from_chooser(api: int, digest: str) -> None:
     # Pass only after a separate process has read the actual content:// URI,
@@ -274,18 +282,23 @@ def receive_from_chooser(api: int, digest: str) -> None:
         if receipt is not None:
             if not validate_receiver_receipt(receipt):
                 raise RuntimeError("independent receiver rejected PDF integrity/rendering")
+            if not receiver_cache_empty_of_pdf():
+                raise RuntimeError("receiver failed to remove temporary PDF from its cache")
             REPORT.write_text(json.dumps({
                 "schemaVersion": 2,
                 "scope": "SYNTHETIC_PDF_RECEIVER_RENDERED_FIRST_PAGE_ONLY",
                 "api": api, "apkSha256": digest, "syntheticInput": True,
                 "guardiaoOpened": True, "pdfActionTriggered": True,
                 "systemChooserObserved": True, "receiverPdfRead": True,
-                "renderedFirstPage": True, "pdfSizeBytes": receipt["bytes"],
+                "renderedFirstPage": True, "allPagesRendered": True,
+                "nonblankPages": receipt["nonblankPages"],
+                "receiverCacheClean": True,
+                "pdfSizeBytes": receipt["bytes"],
                 "pdfPageCount": receipt["pages"],
                 "receivedPdfSha256": receipt["sha256"],
                 "stableReleaseAllowed": False
             }, sort_keys=True, indent=2) + "\n", encoding="utf8")
-            print(f"PASS (LAB): Android API {api} receiver read real synthetic PDF, verified EOF and rendered page")
+            print(f"PASS (LAB): Android API {api} receiver read actual PDF, rendered every nonblank page and deleted cache")
             return
         if attempt == 3:
             # Android ResolverActivity may require an explicit final confirmation.
@@ -319,6 +332,8 @@ def run_smoke() -> None:
     if not RECEIVER_APK.is_file() or RECEIVER_APK.is_symlink():
         raise RuntimeError("missing independent receiver debug APK")
     adb("install", "-r", str(RECEIVER_APK), timeout=120)
+    # Ensure no stale success receipt can be mistaken for the current share.
+    adb("shell", "run-as", RECEIVER_PACKAGE, "rm", "-f", "files/receipt.json")
     adb("install", "-r", str(APK), timeout=150)
     launched = adb("shell", "monkey", "-p", PACKAGE, "-c",
                    "android.intent.category.LAUNCHER", "1", timeout=30)
