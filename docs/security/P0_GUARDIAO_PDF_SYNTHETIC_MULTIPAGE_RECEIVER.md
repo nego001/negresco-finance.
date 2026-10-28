@@ -26,3 +26,23 @@ Somente `pdf-multipage-emulator-report.json` (metadados mínimos e hashes) poder
 - [ ] Assinatura, modelo OTA, revisão humana e requisitos de produção.
 
 `approvedForProduction=false` e `stableReleaseAllowed=false`. PR mantida em Draft e branch empilhada. Nenhum merge em `main`, release ou OTA.
+
+## Evidência E2E confirmada independentemente (28/10/2026)
+
+**HEAD de código/testes auditado:** `be903841f79bd969bb9aedc2b8216a21a051bcf4`, com PR #112 em Draft. Três execuções verdes: CI push `40642132866`, CI PR `40642138346` e laboratório multipágina `40642132868`. A verificação não utilizou documentos bancários, dados pessoais, APK financeiro ou assinaturas de distribuição.
+
+As duas matrizes Android `google_apis` tiveram jobs próprios concluídos com sucesso: API 26 e API 28. Os arquivos ZIP publicados pelo workflow foram baixados e abertos independentemente. Cada ZIP tinha **somente** `pdf-multipage-emulator-report.json`. O arquivo foi parseado como JSON e verificado com igualdade de chaves, limites de tamanho, tipo de cada campo, SHA-256 hexadecimal, ambas as provas de limpeza de cache, e os sinalizadores explícitos de proibição de produção.
+
+| Prova | Android 8 / API 26 | Android 9 / API 28 |
+| --- | --- | --- |
+| Artifact ZIP / ID | `12796540014` | `12796068455` |
+| `renderedPages` e `nonblankPages` | 3 / 3 | 3 / 3 |
+| `pdfSizeBytes` (PDF estritamente sintético) | 15990 | 15870 |
+| SHA-256 do PDF sintético (não do ZIP) | `a7a8318dc8a903dab229cf801700d6a2e60b79397cc945bc21a2b179450e6f50` | `27a03509ccab12d9f3f97abb31004998e9497b53ebbc98f97c6fc3463ec3c1b8` |
+| Rejeição intencional | `blockedBlankPageIndex=1` | `blockedBlankPageIndex=1` |
+| Cache limpo em sucesso e bloqueio | true / true | true / true |
+| Permissão para produção | false | false |
+
+**Interpretação estrita:** isso comprova o resultado informado pelos dois receptores sintéticos e que os relatórios CI correspondem ao contrato esperado. Não é inspeção visual externa dos bitmaps, prova de autenticidade dos arquivos PDF, homologação de relatório real multipágina, teste de conteúdo bancário ou revisão de aplicativo instalado. Os PDFs sintéticos não foram publicados nem recuperados desta CI. O segundo app independente com PDF real de uma página foi testado na PR #110/#111, separadamente.
+
+**Gates concluídos nesse HEAD:** testes de contrato e CI, Android API 26 e 28 3/3 com rejeição específica, e inspeção dos dois artefatos JSON. **Gates ainda bloqueados:** validar semanticamente o conteúdo de relatório real a partir de dados totalmente fictícios, QA física, assinatura permanente, OTA, revisão humana e autorização de produção. **Sem merge, sem APK financeiro, sem release.**
