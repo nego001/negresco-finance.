@@ -103,6 +103,14 @@ def inspect_pdf(chrome: str, workspace: Path, name: str) -> dict:
     if not 1 <= pages <= 8:
         raise RuntimeError("PDF pages outside reasonable lab bound")
 
+    # Check every page separately: document-wide text can conceal a blank page.
+    for page_index in range(1, pages + 1):
+        page_text = normalize(execute([
+            "pdftotext", "-f", str(page_index), "-l", str(page_index),
+            "-enc", "UTF-8", "-layout", str(pdf), "-"
+        ]))
+        if len(page_text) < 20:
+            raise RuntimeError("PDF contains blank or unextractable page")
     text = normalize(execute(["pdftotext", "-enc", "UTF-8", "-layout", str(pdf), "-"]))
     if len(text) < 250 or len(text) > 30_000:
         raise RuntimeError("PDF text unreadable or oversized")
@@ -116,7 +124,8 @@ def inspect_pdf(chrome: str, workspace: Path, name: str) -> dict:
         if normalize(phrase) in text:
             raise RuntimeError("PDF text contains forbidden assertion or private fixture")
     return {
-        "case": name, "result": "pass", "pages": pages, "bytes": size,
+        "case": name, "result": "pass", "pages": pages,
+        "textPagesVerified": pages, "bytes": size,
         "sha256": hashlib.sha256(data).hexdigest(),
         "documentRetained": False,
     }
