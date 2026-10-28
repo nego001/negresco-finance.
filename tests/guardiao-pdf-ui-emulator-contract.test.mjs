@@ -183,6 +183,8 @@ test('passing receipt must attest all pages are readable and leave zero PDF cach
   assert.match(script,/nonblank == pages/);
   assert.match(script,/receiver_cache_empty_of_pdf\(\)/);
   assert.match(script,/return "received-" not in listing/);
+  assert.match(script,/listing = adb\("shell", "run-as", RECEIVER_PACKAGE, "ls", "cache",[\s\S]{0,55}check=True\)/);
+  assert.match(script,/SYNTHETIC_PDF_RECEIVER_ALL_PAGES_NONBLANK/);
   assert.match(script,/run-as", RECEIVER_PACKAGE, "rm", "-f", "files\/receipt.json"/);
   assert.match(script,/"allPagesRendered": True/);
   assert.match(script,/"receiverCacheClean": True/);
