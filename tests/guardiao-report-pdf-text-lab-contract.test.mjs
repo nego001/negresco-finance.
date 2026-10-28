@@ -36,6 +36,9 @@ test('PDF text auditor requires real Chrome + poppler outputs, with no fallback 
   assert.match(checker,/Legitimidade da cobrança: inconclusiva/);
   assert.match(checker,/Nenhuma operação de pagamento foi realizada/);
   assert.match(checker,/str\(pdf\), "-"/);
+  assert.match(checker,/for page_index in range\(1, pages \+ 1\)/);
+  assert.match(checker,/if len\(page_text\) < 20:/);
+  assert.match(checker,/"textPagesVerified": pages/);
   assert.match(checker,/0" \* 47/);
   assert.match(checker,/approvedForProduction": False/);
   assert.match(checker,/stableReleaseAllowed": False/);
