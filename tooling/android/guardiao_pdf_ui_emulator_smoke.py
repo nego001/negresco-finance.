@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Android UI smoke of real Negresco Guardião PDF flow (synthetic input only).
+"""Android end-to-end PDF sharing into independent on-device receiver (synthetic only).
 
 Never records window XML, screen captures, account details or the generated PDF.
-Proves only that the OS share resolver opens, not that a receiver reads the PDF.
+Proves receiving and rendering one page using PdfRenderer, not full production QA.
 """
 from __future__ import annotations
 import hashlib
@@ -19,6 +19,8 @@ FIXTURE = "0" * 47  # Deliberately INVALID synthetic boleto; no financial data.
 EXPECTED_SHA = "29e248742e365c4dd7a8c668a23153d43a89b8be02828620bbc5851775986b4a"
 APK = Path("test-apk/android/app/build/outputs/apk/release/app-release.apk")
 REPORT = Path("pdf-ui-emulator-report.json")
+RECEIVER_PACKAGE = 'com.negresco.pdfreceiver.lab'
+RECEIVER_APK = Path('tooling/android/pdf-receiver-lab/app/build/outputs/apk/debug/app-debug.apk')
 # Deliberately no dynamic error text, no screenshots, no PDF upload.
 BOUNDS = re.compile(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]")
 
@@ -235,6 +237,66 @@ def chooser_present() -> bool:
     except (RuntimeError, subprocess.TimeoutExpired):
         return False
 
+def receiver_receipt() -> dict | None:
+    # The receiver is debug-only. Read only its metadata receipt, never its PDF.
+    raw = adb("shell", "run-as", RECEIVER_PACKAGE, "cat", "files/receipt.json",
+              timeout=10, check=False)
+    if not raw.startswith("{") or len(raw) > 1600:
+        return None
+    try:
+        value = json.loads(raw)
+        return value if isinstance(value, dict) else None
+    except json.JSONDecodeError:
+        return None
+
+def validate_receiver_receipt(receipt: dict) -> bool:
+    if receipt.get("schemaVersion") != 1 or receipt.get("status") != "received-rendered":
+        return False
+    required_true = ("contentUriGranted", "pdfHeaderAndEof",
+                     "renderedFirstPage", "syntheticOnly")
+    if not all(receipt.get(k) is True for k in required_true):
+        return False
+    if receipt.get("stableReleaseAllowed") is not False:
+        return False
+    size, pages, sha = (receipt.get("bytes"), receipt.get("pages"),
+                        receipt.get("sha256"))
+    return (type(size) is int and 200 < size <= 8 * 1024 * 1024
+            and type(pages) is int and 1 <= pages <= 100
+            and isinstance(sha, str) and re.fullmatch("[0-9a-f]{64}", sha) is not None)
+
+def receive_from_chooser(api: int, digest: str) -> None:
+    # Pass only after a separate process has read the actual content:// URI,
+    # checked %PDF-/%%EOF, and successfully rendered its first page.
+    target = wait_visible("Negresco PDF Receiver LAB", retries=18, scroll=True)
+    tap_node(target, prefer_label=True)
+    for attempt in range(25):
+        receipt = receiver_receipt()
+        if receipt is not None:
+            if not validate_receiver_receipt(receipt):
+                raise RuntimeError("independent receiver rejected PDF integrity/rendering")
+            REPORT.write_text(json.dumps({
+                "schemaVersion": 2,
+                "scope": "SYNTHETIC_PDF_RECEIVER_RENDERED_FIRST_PAGE_ONLY",
+                "api": api, "apkSha256": digest, "syntheticInput": True,
+                "guardiaoOpened": True, "pdfActionTriggered": True,
+                "systemChooserObserved": True, "receiverPdfRead": True,
+                "renderedFirstPage": True, "pdfSizeBytes": receipt["bytes"],
+                "pdfPageCount": receipt["pages"],
+                "receivedPdfSha256": receipt["sha256"],
+                "stableReleaseAllowed": False
+            }, sort_keys=True, indent=2) + "\n", encoding="utf8")
+            print(f"PASS (LAB): Android API {api} receiver read real synthetic PDF, verified EOF and rendered page")
+            return
+        if attempt == 3:
+            # Android ResolverActivity may require an explicit final confirmation.
+            for title in ("Just once", "JUST ONCE", "Apenas uma vez"):
+                btn = lookup(title, enabled=True)
+                if btn:
+                    tap_node(btn, prefer_label=True)
+                    break
+        time.sleep(1)
+    raise RuntimeError("independent PDF receiver did not produce a verified receipt")
+
 def run_smoke() -> None:
     if not APK.is_file() or APK.is_symlink() or APK.stat().st_size < 25_000_000:
         raise RuntimeError("missing or unsafe audited test APK")
@@ -254,6 +316,9 @@ def run_smoke() -> None:
     # Avoid network dependencies: this test validates the embedded preview only.
     adb("shell", "svc", "wifi", "disable", check=False)
     adb("shell", "svc", "data", "disable", check=False)
+    if not RECEIVER_APK.is_file() or RECEIVER_APK.is_symlink():
+        raise RuntimeError("missing independent receiver debug APK")
+    adb("install", "-r", str(RECEIVER_APK), timeout=120)
     adb("install", "-r", str(APK), timeout=150)
     launched = adb("shell", "monkey", "-p", PACKAGE, "-c",
                    "android.intent.category.LAUNCHER", "1", timeout=30)
@@ -304,14 +369,8 @@ def run_smoke() -> None:
     print("STAGE (LAB): one bounded PDF export tap dispatched", flush=True)
     for attempt in range(55):
         if chooser_present():
-            REPORT.write_text(json.dumps({
-                "schemaVersion": 1,
-                "scope": "UI_SMOKE_ONLY_NO_PDF_RECEIVER_VERIFICATION",
-                "api": api, "apkSha256": digest, "syntheticInput": True,
-                "guardiaoOpened": True, "pdfActionTriggered": True,
-                "systemChooserObserved": True, "stableReleaseAllowed": False
-            }, sort_keys=True, indent=2) + "\n", encoding="utf8")
-            print(f"PASS (LAB): real Android API {api} opened system PDF share chooser from Guardião")
+            print("STAGE (LAB): real chooser observed; selecting isolated PDF receiver")
+            receive_from_chooser(api, digest)
             return
         if attempt in (1,5,12,24,40):
             print("ENV (LAB): " + json.dumps(safe_environment_summary(), sort_keys=True), flush=True)

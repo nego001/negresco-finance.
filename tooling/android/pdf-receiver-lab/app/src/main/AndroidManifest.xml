@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.negresco.pdfreceiver.lab">
+  <application
+      android:label="Negresco PDF Receiver LAB"
+      android:allowBackup="false"
+      android:usesCleartextTraffic="false"
+      android:debuggable="true"
+      android:supportsRtl="false">
+    <!-- Explicit export required solely for ACTION_SEND from Android chooser. -->
+    <activity
+        android:name=".ReceiverActivity"
+        android:exported="true">
+      <intent-filter>
+        <action android:name="android.intent.action.SEND" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <data android:mimeType="application/pdf" />
+      </intent-filter>
+    </activity>
+  </application>
+</manifest>
