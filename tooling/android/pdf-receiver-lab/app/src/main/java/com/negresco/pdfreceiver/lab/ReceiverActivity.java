@@ -12,6 +12,7 @@ import android.widget.TextView;
 
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.FileInputStream;
 import java.io.InputStream;
 import java.io.RandomAccessFile;
 import java.nio.charset.StandardCharsets;
@@ -25,6 +26,10 @@ import java.util.Locale;
 public final class ReceiverActivity extends Activity {
   private static final long MAX_BYTES = 8L * 1024L * 1024L;
   private static final String RECEIPT = "receipt.json";
+  // One-shot private marker set ONLY by adb run-as in disposable CI emulators.
+  // A shared ACTION_SEND Intent can never enable this lab-only capture.
+  private static final String CAPTURE_MARKER = "allow-synthetic-text-check-once";
+  private static final String CAPTURE_FILE = "captured-synthetic-report.pdf";
 
   @Override public void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
@@ -41,6 +46,7 @@ public final class ReceiverActivity extends Activity {
   private void receiveAndRender() {
     File temp = null;
     String receipt = null;
+    boolean captured = false;
     try {
       Intent intent = getIntent();
       if (intent == null || !Intent.ACTION_SEND.equals(intent.getAction())) {
@@ -105,12 +111,36 @@ public final class ReceiverActivity extends Activity {
         }
       }
       if (verifiedPages != pages) throw new IllegalStateException("partial render");
+      // Default mode never retains PDFs. Controlled CI can opt in, once,
+      // with a marker inside this disposable receiver's private files dir.
+      File marker = new File(getFilesDir(), CAPTURE_MARKER);
+      if (marker.isFile()) {
+        if (!marker.delete()) throw new IllegalStateException("cannot consume synthetic marker");
+        File snapshot = new File(getFilesDir(), CAPTURE_FILE);
+        if (snapshot.exists()) throw new IllegalStateException("stale synthetic snapshot");
+        try (FileInputStream input = new FileInputStream(temp);
+             FileOutputStream output = new FileOutputStream(snapshot)) {
+          byte[] buffer = new byte[16 * 1024];
+          int read;
+          while ((read = input.read(buffer)) != -1) {
+            output.write(buffer, 0, read);
+          }
+          output.getFD().sync();
+          if (snapshot.length() != size) throw new IllegalStateException("snapshot size mismatch");
+          captured = true;
+        } catch (Exception failure) {
+          // A partial copy is never a report; no content is logged.
+          if (snapshot.exists()) snapshot.delete();
+          throw failure;
+        }
+      }
       // The SHA identifies test bytes; no document bytes, URI, or PII are logged.
       receipt = ("{\"schemaVersion\":1,\"status\":\"received-rendered\","
           + "\"contentUriGranted\":true,\"pdfHeaderAndEof\":true,"
           + "\"renderedFirstPage\":true,\"allPagesRendered\":true,\"nonblankPages\":" + verifiedPages
           + ",\"pages\":" + pages
-          + ",\"bytes\":" + size + ",\"sha256\":\"" + hex(hash.digest())
+          + ",\"bytes\":" + size + ",\"syntheticTextCapture\":" + captured
+          + ",\"sha256\":\"" + hex(hash.digest())
           + "\",\"syntheticOnly\":true,\"stableReleaseAllowed\":false}");
     } catch (BlankPageException blank) {
       // Fixed failure category and page index only; never expose any PDF content.
