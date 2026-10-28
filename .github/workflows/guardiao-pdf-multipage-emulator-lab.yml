@@ -1,0 +1,59 @@
+name: Guardiao synthetic multipage receiver Android 8-9 (lab only)
+on:
+  push:
+    branches:
+      - lab/p01-guardiao-pdf-multipage-fixture-26-28-v1
+permissions:
+  contents: read
+concurrency:
+  group: guardiao-pdf-multipage-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  synthetic-multipage:
+    name: Verify 3 pages and reject blank second page on Android API ${{ matrix.api }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [26, 28]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Setup Java 17 for isolated receiver
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up pinned Android SDK installer
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd
+        with:
+          packages: platform-tools
+      - name: Compile only synthetic, permissionless receiver (no Negresco APK)
+        run: |
+          set -euo pipefail
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" >/dev/null
+          bash tooling/android/pdf-receiver-lab/build_receiving_apk.sh
+      - name: Enable emulator KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-negresco-kvm.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Execute real PdfRenderer for three pages and blank-page negative
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
+        with:
+          api-level: ${{ matrix.api }}
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          emulator-boot-timeout: 600
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          script: python3 tooling/android/guardiao_pdf_multipage_emulator_smoke.py
+      - name: Upload only small synthetic metadata receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: guardiao-three-page-api-${{ matrix.api }}-unreviewed
+          path: pdf-multipage-emulator-report.json
+          if-no-files-found: error
+          retention-days: 2
