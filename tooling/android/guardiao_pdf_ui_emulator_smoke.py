@@ -164,6 +164,57 @@ def stage_summary(label: str) -> dict[str, bool]:
     print("STAGE (LAB): "+label+" | "+json.dumps(visible, sort_keys=True), flush=True)
     return visible
 
+def safe_environment_summary() -> dict[str, str | bool]:
+    """Return only fixed, non-sensitive categories. No raw activity or dumpsys text."""
+    focus_category = "unknown"
+    provider_category = "unknown"
+    try:
+        activity = adb("shell", "dumpsys", "activity", "activities",
+                       timeout=15, check=False)
+        window = adb("shell", "dumpsys", "window", "windows",
+                     timeout=15, check=False)
+        focused = [
+            line for line in (activity + "\n" + window).splitlines()
+            if any(marker in line for marker in (
+                "mResumedActivity", "topResumedActivity", "mCurrentFocus",
+                "mFocusedApp", "topActivity"
+            ))
+        ]
+        # Category only, never emit the actual third-party app or activity name.
+        for line in focused:
+            if "ChooserActivity" in line or "ResolverActivity" in line:
+                focus_category = "system-chooser"
+                break
+            if PACKAGE in line:
+                focus_category = "negresco-app"
+            elif "com.android.systemui" in line and focus_category == "unknown":
+                focus_category = "system-ui"
+            elif focus_category == "unknown":
+                focus_category = "other-or-unknown"
+    except (RuntimeError, subprocess.TimeoutExpired):
+        pass
+    try:
+        details = adb("shell", "dumpsys", "webviewupdate",
+                      timeout=15, check=False)
+        if "Current WebView package is null" in details or (
+            "Current WebView package" in details and "null" in details
+        ):
+            provider_category = "none-reported"
+        elif "Current WebView package" in details:
+            provider_category = "provider-reported"
+    except (RuntimeError, subprocess.TimeoutExpired):
+        pass
+    try:
+        running = bool(adb("shell", "pidof", PACKAGE,
+                           timeout=10, check=False).strip())
+    except (RuntimeError, subprocess.TimeoutExpired):
+        running = False
+    return {
+        "appProcessAlive": running,
+        "foregroundCategory": focus_category,
+        "webViewProvider": provider_category
+    }
+
 def chooser_present() -> bool:
     # In Android 8/9 the system resolver is exposed as ChooserActivity or ResolverActivity.
     # Inspect the foreground activity rather than trusting stale app UI text.
@@ -263,6 +314,7 @@ def run_smoke() -> None:
             print(f"PASS (LAB): real Android API {api} opened system PDF share chooser from Guardião")
             return
         if attempt in (1,5,12,24,40):
+            print("ENV (LAB): " + json.dumps(safe_environment_summary(), sort_keys=True), flush=True)
             state = stage_summary("PDF chooser pending")
             # All three probe verdicts are BLOCK outcomes for the real report.
             # Do not consider the synthetic PDF to be the user's requested report.
