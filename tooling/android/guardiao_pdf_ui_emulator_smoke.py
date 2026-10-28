@@ -268,8 +268,9 @@ def validate_receiver_receipt(receipt: dict) -> bool:
 
 def receiver_cache_empty_of_pdf() -> bool:
     # Only inspect names locally; do not print filenames from app-private cache.
+    # Fail closed if run-as/ls fails: empty output on command failure is NOT clean cache.
     listing = adb("shell", "run-as", RECEIVER_PACKAGE, "ls", "cache",
-                  timeout=10, check=False)
+                  timeout=10, check=True)
     return "received-" not in listing
 
 def receive_from_chooser(api: int, digest: str) -> None:
@@ -286,7 +287,7 @@ def receive_from_chooser(api: int, digest: str) -> None:
                 raise RuntimeError("receiver failed to remove temporary PDF from its cache")
             REPORT.write_text(json.dumps({
                 "schemaVersion": 2,
-                "scope": "SYNTHETIC_PDF_RECEIVER_RENDERED_FIRST_PAGE_ONLY",
+                "scope": "SYNTHETIC_PDF_RECEIVER_ALL_PAGES_NONBLANK",
                 "api": api, "apkSha256": digest, "syntheticInput": True,
                 "guardiaoOpened": True, "pdfActionTriggered": True,
                 "systemChooserObserved": True, "receiverPdfRead": True,
