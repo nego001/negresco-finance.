@@ -170,7 +170,7 @@ test('rejects ZIP members advertising Unix FIFO or device type',()=>withTemp(dir
     '    info.create_system=3',
     '    info.external_attr=(stat.S_IFIFO|0o644)<<16',
     '    z.writestr(info,open(sys.argv[2],"rb").read())'
-  ].join('\\n');
+  ].join('\n');
   const created=spawnSync('python3',['-c',py,zip,good],{encoding:'utf8'});
   assert.equal(created.status,0,'construct forged Unix FIFO entry');
   assertBlock(cli(26,zip));
