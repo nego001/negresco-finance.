@@ -108,6 +108,23 @@ test('rejects path-traversal artifact names and malformed ZIP payloads',()=>with
   assertBlock(cli(26,broken));
 }));
 
+test('rejects hidden ZIP comments that could contain private content',()=>withTemp(dir=>{
+  const good=jsonAt(dir,fixture);
+  const zip=asZip(dir,[[receiptName,good]]);
+  const py='import sys,zipfile\nwith zipfile.ZipFile(sys.argv[1],"a") as z:\n    z.comment=b"hidden-private-payload"\n';
+  const edit=spawnSync('python3',['-c',py,zip],{encoding:'utf8'});
+  assert.equal(edit.status,0);
+  assertBlock(cli(26,zip));
+}));
+
+test('rejects ZIP self-extracting prefixes or data before the first entry',()=>withTemp(dir=>{
+  const good=jsonAt(dir,fixture);
+  const zip=asZip(dir,[[receiptName,good]]);
+  const bytes=readFileSync(zip);
+  writeFileSync(zip,Buffer.concat([Buffer.from('hidden-preamble'),bytes]));
+  assertBlock(cli(26,zip));
+}));
+
 test('rejects symlinks, JSON with wrong name and other file types',()=>withTemp(dir=>{
   const good=jsonAt(dir,fixture);
   const link=join(dir,'linked.zip');
