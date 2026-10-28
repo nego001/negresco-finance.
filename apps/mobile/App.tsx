@@ -6,7 +6,8 @@ import * as SecureStore from 'expo-secure-store';
 import { buildEvidenceReview, type EvidenceReviewState } from './guardiao/evidence';
 import { createLocalReport, renderReportHtml } from './guardiao/report';
 import {exportPdfWithLifecycleGuard, type PdfExportFailurePhase} from './guardiao/pdfExport';
-import {discardUnsharedPrintPdf} from './guardiao/pdfCache';
+import {discardUnsharedPrintPdf,isOwnedPrintPdfUri} from './guardiao/pdfCache';
+import {probeMinimalPrintEngine,type MinimalPrintProbe} from './guardiao/pdfPrintProbe';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
@@ -157,12 +158,32 @@ export default function App() {
     if(!boletoResult||AppState.currentState!=='active'||
        (localLock.status!=='off'&&localLock.status!=='unlocked'))return;
     const requestId=++reportRequestId.current;
-    const diagnosis:{phase:PdfExportFailurePhase|null}={phase:null};
+    const diagnosis:{phase:PdfExportFailurePhase|null;minimal:MinimalPrintProbe|null}={phase:null,minimal:null};
     setReportExportStatus('Gerando PDF local...');
     const html=renderReportHtml(createLocalReport(boletoResult,new Date().toLocaleString('pt-BR'),cnpjResult));
     const outcome=await exportPdfWithLifecycleGuard({
       html,
-      print:content=>Print.printToFileAsync({html:content}),
+      print:async content=>{
+        try{return await Print.printToFileAsync({html:content});}
+        catch{
+          // LAB ONLY. Never substitute the synthetic probe for the real report.
+          // Do not launch a probe if this analysis lost foreground authorization.
+          if(reportRequestId.current===requestId&&AppState.currentState==='active'&&
+             (lockStatusRef.current==='off'||lockStatusRef.current==='unlocked')){
+            diagnosis.minimal=await probeMinimalPrintEngine({
+              print:html=>Print.printToFileAsync({html}),
+              inspectOwnedPdf:async uri=>{
+                if(!isOwnedPrintPdfUri(uri,FileSystem.cacheDirectory))return false;
+                const info=await FileSystem.getInfoAsync(uri);
+                return info.exists&&typeof info.size==='number'&&info.size>200;
+              },
+              discardOwnedPdf:uri=>discardUnsharedPrintPdf(uri,FileSystem.cacheDirectory,
+                fileUri=>FileSystem.deleteAsync(fileUri,{idempotent:true}))
+            });
+          }
+          throw new Error('LAB_ORIGINAL_PDF_PRINT_FAILED');
+        }
+      },
       sharingAvailable:()=>Sharing.isAvailableAsync(),
       share:uri=>Sharing.shareAsync(uri,{mimeType:'application/pdf',dialogTitle:'Compartilhar relatório do Guardião'}),
       onFailurePhase:phase=>{diagnosis.phase=phase;},
@@ -179,7 +200,11 @@ export default function App() {
       // Diagnose only which native boundary failed; never display exception messages,
       // input HTML, boleto digits or cache URIs.
       const safePhaseLabels:Record<PdfExportFailurePhase,string>={
-        print:'Falha ao gerar o PDF local.',
+        print:diagnosis.minimal==='minimal-output-created'
+          ?'Falha ao gerar o relatório PDF. Teste sintético mínimo criou arquivo local.'
+          :diagnosis.minimal==='minimal-print-failed'
+          ?'Falha ao gerar o relatório PDF. Teste sintético mínimo também falhou.'
+          :'Falha ao gerar o PDF local. Teste sintético sem resultado verificável.',
         'invalid-uri':'O arquivo PDF gerado não tem um endereço local válido.',
         availability:'Falha ao verificar o compartilhamento disponível.',
         share:'Falha ao abrir o compartilhamento nativo do Android.'
