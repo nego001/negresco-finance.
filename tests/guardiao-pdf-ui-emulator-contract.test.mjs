@@ -6,7 +6,7 @@ const workflow=readFileSync('.github/workflows/guardiao-pdf-ui-emulator-lab.yml'
 const script=readFileSync('tooling/android/guardiao_pdf_ui_emulator_smoke.py','utf8');
 
 test('real Android UI lab is branch-only, read-only and never signs or publishes',()=>{
-  assert.match(workflow,/lab\/p01-guardiao-pdf-minimal-probe-ui-26-28-v1/);
+  assert.match(workflow,/lab\/p01-guardiao-android-print-webview-focus-v1/);
   assert.match(workflow,/permissions:\s*\n  contents: read\s*\n  actions: read/);
   assert.match(workflow,/persist-credentials: false/);
   assert.doesNotMatch(workflow,/contents: write|gh release|workflow_dispatch|eas update|expo publish|stable_signing|secrets\./);
@@ -92,6 +92,17 @@ test('minimal-PDF A/B verdict is never interpreted as successful export',()=>{
   assert.match(script,/All three probe verdicts are BLOCK outcomes for the real report/);
   assert.match(script,/raise RuntimeError\("Guardião synthetic A\/B result: " \+ verdict\)/);
   assert.doesNotMatch(script,/print\(result\.uri\)|print\(.*?report_html\)/);
+});
+test('real Android focus and WebView provider are reported only as fixed categories',()=>{
+  assert.match(script,/def safe_environment_summary\(\) -> dict\[str, str \| bool\]:/);
+  assert.match(script,/No raw activity or dumpsys text/);
+  assert.match(script,/return \{\s*"appProcessAlive": running,/);
+  assert.match(script,/"foregroundCategory": focus_category/);
+  assert.match(script,/"webViewProvider": provider_category/);
+  assert.match(script,/provider_category = "provider-reported"/);
+  assert.match(script,/provider_category = "none-reported"/);
+  assert.match(script,/print\("ENV \(LAB\): " \+ json\.dumps\(safe_environment_summary\(\), sort_keys=True\)/);
+  assert.doesNotMatch(script,/print\(.*(?:activity|details|window|focused)\)/);
 });
 test('privacy evidence is synthetic, metadata-only and production is forbidden',()=>{
   assert.match(script,/"syntheticInput": True/);
