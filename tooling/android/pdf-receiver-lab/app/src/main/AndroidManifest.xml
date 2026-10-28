@@ -4,6 +4,7 @@
       android:label="Negresco PDF Receiver LAB"
       android:allowBackup="false"
       android:usesCleartextTraffic="false"
+      android:debuggable="true"
       android:supportsRtl="false">
     <!-- Explicit export required solely for ACTION_SEND from Android chooser. -->
     <activity
