@@ -68,12 +68,12 @@ test('runner clears stale receipt, checks exact positive and negative outcomes, 
 test('receiver publishes a receipt only after private cache removal is attempted', () => {
   const method = receiver.slice(receiver.indexOf('private void receiveAndRender()'),
                                 receiver.indexOf('private static final class BlankPageException'));
-  assert.equal((method.match(/writeReceipt\\(/g) || []).length, 1);
-  assert.match(method, /boolean cacheClean = temp == null \\|\\| temp\\.delete\\(\\) \\|\\| !temp\\.exists\\(\\)/);
-  assert.match(method, /if \\(!cacheClean\\)/);
-  assert.match(method, /cache-cleanup-failed/);
+  assert.equal(method.split('writeReceipt(').length - 1, 1);
+  assert.ok(method.includes('boolean cacheClean = temp == null || temp.delete() || !temp.exists()'));
+  assert.ok(method.includes('if (!cacheClean)'));
+  assert.ok(method.includes('cache-cleanup-failed'));
   assert.ok(method.indexOf('temp.delete()') < method.indexOf('writeReceipt(receipt)'));
-  assert.doesNotMatch(method.slice(0, method.indexOf('} finally {')), /writeReceipt\\(/);
+  assert.ok(!method.slice(0, method.indexOf('} finally {')).includes('writeReceipt('));
 });
 
 test('SDK-only build compiles provider and nested exception; no external packaging service', () => {
