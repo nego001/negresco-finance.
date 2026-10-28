@@ -86,7 +86,7 @@ public final class ReceiverActivity extends Activity {
               bmp.eraseColor(Color.WHITE);
               page.render(bmp, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
               if (!hasVisibleInk(bmp)) {
-                throw new IllegalStateException("blank rendered page");
+                throw new BlankPageException(index);
               }
               verifiedPages++;
             } finally {
@@ -103,6 +103,11 @@ public final class ReceiverActivity extends Activity {
           + ",\"pages\":" + pages
           + ",\"bytes\":" + size + ",\"sha256\":\"" + hex(hash.digest())
           + "\",\"syntheticOnly\":true,\"stableReleaseAllowed\":false}");
+    } catch (BlankPageException blank) {
+      // Fixed failure category and page index only; never expose any PDF content.
+      writeReceipt("{\"schemaVersion\":1,\"status\":\"blocked\",\"reason\":\"blank-page\","
+          + "\"rejectedPageIndex\":" + blank.pageIndex
+          + ",\"syntheticOnly\":true,\"stableReleaseAllowed\":false}");
     } catch (Exception ignored) {
       // No raw exceptions, URI, filenames, source HTML or document contents.
       writeReceipt("{\"schemaVersion\":1,\"status\":\"blocked\","
@@ -111,6 +116,11 @@ public final class ReceiverActivity extends Activity {
       if (temp != null) temp.delete();
       finish();
     }
+  }
+
+  private static final class BlankPageException extends Exception {
+    final int pageIndex;
+    BlankPageException(int pageIndex) { this.pageIndex = pageIndex; }
   }
 
   private static boolean hasVisibleInk(Bitmap bmp) {
