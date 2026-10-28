@@ -98,7 +98,8 @@ test('all interpolated untrusted labels are escaped before entering print HTML',
   for(const safe of ['&lt;svg','&lt;img','&lt;script&gt;','ATIVA &amp; &quot;TESTE&quot;','&lt;i&gt;2026&lt;/i&gt;','&lt;a href=']) {
     assert.ok(html.includes(safe),'expected escaped field: '+safe);
   }
-  assert.doesNotMatch(html,/<script|onerror=alert|onload=alert/iu);
+  // Escaped text may contain event-handler words without becoming executable markup.
+  assert.doesNotMatch(html, /<(?:script|img|svg)\b|<[^>]+\bon(?:error|load)\s*=/iu);
 });
 
 test('long registry details are bounded before rendering',()=>{
