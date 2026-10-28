@@ -27,3 +27,15 @@ A etapa futura precisa comparar o PDF efetivamente produzido pelo APK financeiro
 - [ ] QA físico, revisão humana, publicação de produção.
 
 approvedForProduction=false; stableReleaseAllowed=false. Nenhum merge em main, release, alteração de app financeiro ou credencial.
+
+## Prova de referência verificada (28/10/2026)
+A primeira execução completa do workflow de PDF, run 40697231005, passou no HEAD 4caf8ceeba988e5ada95fd9b9531a3b66fe8b421. Artefato ZIP 12820191017 foi baixado e aberto independentemente, contendo somente guardiao-report-pdf-text-receipt.json, com campos e limites auditados. Nenhum PDF ou HTML foi incluído.
+
+| Caso sintético | Páginas PDF da prova inicial | Resultado |
+| --- | ---: | --- |
+| invalid | 1 | PASS |
+| consistent | 1 | PASS |
+| registry | 2 | PASS |
+| unavailable | 1 | PASS |
+
+Todos os recibos possuem SHA-256 hexadecimal, tamanho plausível, documentRetained=false e os dois indicadores de liberação de produção como false. O caso de cadastro gerou duas páginas no Chrome. Por isso, na revisão posterior foi acrescentada extração independente de texto de **cada página**, com falha para página vazia/inextraível; o resultado da CI do novo HEAD precisa ser conferido antes de marcar este gate concluído. A prova de referência NÃO utiliza o motor PDF do Expo Android.
