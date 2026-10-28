@@ -40,6 +40,7 @@ public final class ReceiverActivity extends Activity {
 
   private void receiveAndRender() {
     File temp = null;
+    String receipt = null;
     try {
       Intent intent = getIntent();
       if (intent == null || !Intent.ACTION_SEND.equals(intent.getAction())) {
@@ -105,7 +106,7 @@ public final class ReceiverActivity extends Activity {
       }
       if (verifiedPages != pages) throw new IllegalStateException("partial render");
       // The SHA identifies test bytes; no document bytes, URI, or PII are logged.
-      writeReceipt("{\"schemaVersion\":1,\"status\":\"received-rendered\","
+      receipt = ("{\"schemaVersion\":1,\"status\":\"received-rendered\","
           + "\"contentUriGranted\":true,\"pdfHeaderAndEof\":true,"
           + "\"renderedFirstPage\":true,\"allPagesRendered\":true,\"nonblankPages\":" + verifiedPages
           + ",\"pages\":" + pages
@@ -113,15 +114,27 @@ public final class ReceiverActivity extends Activity {
           + "\",\"syntheticOnly\":true,\"stableReleaseAllowed\":false}");
     } catch (BlankPageException blank) {
       // Fixed failure category and page index only; never expose any PDF content.
-      writeReceipt("{\"schemaVersion\":1,\"status\":\"blocked\",\"reason\":\"blank-page\","
+      receipt = ("{\"schemaVersion\":1,\"status\":\"blocked\",\"reason\":\"blank-page\","
           + "\"rejectedPageIndex\":" + blank.pageIndex
           + ",\"syntheticOnly\":true,\"stableReleaseAllowed\":false}");
     } catch (Exception ignored) {
       // No raw exceptions, URI, filenames, source HTML or document contents.
-      writeReceipt("{\"schemaVersion\":1,\"status\":\"blocked\","
+      receipt = ("{\"schemaVersion\":1,\"status\":\"blocked\","
           + "\"syntheticOnly\":true,\"stableReleaseAllowed\":false}");
     } finally {
-      if (temp != null) temp.delete();
+      // Publish no success receipt until the private PDF has been removed.
+      // A failed deletion must never be reported as a completed render.
+      boolean cacheClean = temp == null || temp.delete() || !temp.exists();
+      if (!cacheClean) {
+        receipt = "{\"schemaVersion\":1,\"status\":\"blocked\","
+            + "\"reason\":\"cache-cleanup-failed\","
+            + "\"syntheticOnly\":true,\"stableReleaseAllowed\":false}";
+      }
+      if (receipt == null) {
+        receipt = "{\"schemaVersion\":1,\"status\":\"blocked\","
+            + "\"syntheticOnly\":true,\"stableReleaseAllowed\":false}";
+      }
+      writeReceipt(receipt);
       runOnUiThread(this::finish);
     }
   }

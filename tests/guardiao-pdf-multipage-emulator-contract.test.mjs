@@ -65,6 +65,17 @@ test('runner clears stale receipt, checks exact positive and negative outcomes, 
   assert.doesNotMatch(runner, /adb\("shell", "screencap"|adb\("shell", "logcat"|write_bytes|adb\("pull"|print\(receipt\)/);
 });
 
+test('receiver publishes a receipt only after private cache removal is attempted', () => {
+  const method = receiver.slice(receiver.indexOf('private void receiveAndRender()'),
+                                receiver.indexOf('private static final class BlankPageException'));
+  assert.equal((method.match(/writeReceipt\\(/g) || []).length, 1);
+  assert.match(method, /boolean cacheClean = temp == null \\|\\| temp\\.delete\\(\\) \\|\\| !temp\\.exists\\(\\)/);
+  assert.match(method, /if \\(!cacheClean\\)/);
+  assert.match(method, /cache-cleanup-failed/);
+  assert.ok(method.indexOf('temp.delete()') < method.indexOf('writeReceipt(receipt)'));
+  assert.doesNotMatch(method.slice(0, method.indexOf('} finally {')), /writeReceipt\\(/);
+});
+
 test('SDK-only build compiles provider and nested exception; no external packaging service', () => {
   assert.match(build, /FixturePdfProvider\.java/);
   assert.match(build, /\$SOURCE" "\$FIXTURE_SOURCE"/);
