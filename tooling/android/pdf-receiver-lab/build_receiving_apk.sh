@@ -46,6 +46,10 @@ mkdir -p "$(dirname "$OUTPUT")"
 test -s "$OUTPUT"
 "$TOOLS/aapt" dump badging "$OUTPUT" | grep -F "package: name='com.negresco.pdfreceiver.lab'" >/dev/null
 "$TOOLS/aapt" dump badging "$OUTPUT" | grep -F "sdkVersion:'26'" >/dev/null
+# SDK-only compilation does not automatically set android:debuggable, unlike
+# Gradle assembleDebug. Without this flag the test cannot use adb run-as to
+# inspect only the metadata receipt stored inside the disposable recipient.
+"$TOOLS/aapt" dump badging "$OUTPUT" | grep -F 'application-debuggable' >/dev/null
 if "$TOOLS/aapt" dump permissions "$OUTPUT" | grep -Fq 'uses-permission:'; then
   echo "::error::Receiver APK must have zero Android permissions"
   exit 1
