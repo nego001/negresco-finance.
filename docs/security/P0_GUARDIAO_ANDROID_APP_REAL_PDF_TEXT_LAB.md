@@ -29,3 +29,19 @@ Para produção permanecem obrigatórios QA físico, análise de outros cenário
 - [ ] QA físico, assinatura/distribuição e revisão humana (fora do escopo).
 
 approvedForProduction=false. stableReleaseAllowed=false. Sem merge em main, sem OTA, sem APK financeiro novo e sem publicação.
+
+
+## Evidência consolidada da CI (28/10/2026)
+
+**HEAD testado:** b8fd767ccb9ef2d9f297e4f13597b0d79381b542.
+
+- Workflow Android dedicado: https://github.com/nego001/negresco-finance./actions/runs/40699327633, **success**, jobs API 26 e 28 individualmente success.
+- CI do branch e da PR: runs 40699327831 e 40699339690, **success** no mesmo HEAD. Nos testes de contrato Node, **1.195/1.195 passaram**; os testes nativos dos emuladores da CI de PR também passaram.
+- Artefatos Android baixados, descompactados e validados independentemente como ZIPs contendo **somente** guardiao-android-real-pdf-text-receipt.json, ambos com menos de 1 KiB, sem PDF ou HTML: API 26 ID 12819964932, API 28 ID 12820312983.
+- As propriedades dos recibos foram conferidas por igualdade/tipo: api 26/28, realAndroidApkPdf=true, nativePdfSemanticTextVerified=true, receiverPdfRead=true, systemChooserObserved=true, receiverCacheClean=true, privateCaptureDeleted=true, syntheticInput=true, approvedForProduction=false e stableReleaseAllowed=false. Ambos apresentam 1 página renderizada não vazia e 1 página de texto extraída, hash SHA-256 hexadecimal e APK de teste fixado.
+- API 26: PDF sintético compartilhado de **39.372 bytes**, SHA-256 a1125a37ba461da674ce966e068ef3419a457e18c7b90ead04c8e281ce771852.
+- API 28: PDF sintético compartilhado de **39.298 bytes**, SHA-256 c49d3060edd65b8edd79baec6833d490aa69e2d43004efa18365c1b17f6d3453.
+
+**Conclusão restrita:** o relatório nativo gerado pelo APK de teste passou no Android 8/9 para **um boleto propositalmente inválido de 47 zeros**, com os avisos exigidos extraíveis do PDF. Os hashes diferentes refletem que não se exige PDF byte-a-byte idêntico entre APIs. Não é validação visual completa, caso positivo de checksum, boleto de 48 dígitos, envio de dados reais nem autorização de release.
+
+**Gates desta etapa:** contratos, CI, API 26, API 28 e auditoria de artefatos aprovados neste HEAD. A inspeção de outros cenários sintéticos e QA físico, revisão de assinatura, segurança e autorização de produção seguem BLOQUEADOS.
