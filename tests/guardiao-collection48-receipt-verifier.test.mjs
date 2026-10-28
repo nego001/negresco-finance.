@@ -108,6 +108,13 @@ test('rejects path-traversal artifact names and malformed ZIP payloads',()=>with
   assertBlock(cli(26,broken));
 }));
 
+test('rejects trailing ZIP overlay even if Python zipfile can read the entry',()=>withTemp(dir=>{
+  const good=jsonAt(dir,fixture);
+  const archive=asZip(dir,[[receiptName,good]]);
+  writeFileSync(archive,Buffer.concat([readFileSync(archive),Buffer.from('synthetic-overlay-not-a-receipt')]));
+  assertBlock(cli(26,archive));
+}));
+
 test('rejects hidden ZIP comments that could contain private content',()=>withTemp(dir=>{
   const good=jsonAt(dir,fixture);
   const zip=asZip(dir,[[receiptName,good]]);
