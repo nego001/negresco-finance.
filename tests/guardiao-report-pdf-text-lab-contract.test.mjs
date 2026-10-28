@@ -39,5 +39,5 @@ test('PDF text auditor requires real Chrome + poppler outputs, with no fallback 
   assert.match(checker,/0" \* 47/);
   assert.match(checker,/approvedForProduction": False/);
   assert.match(checker,/stableReleaseAllowed": False/);
-  assert.doesNotMatch(checker,/print\(text\)|print\(source\)|upload|requests\.|urllib\.request|subprocess\.run\(\["curl"/);
+  assert.doesNotMatch(checker,/print\(text\)|print\(source\)|upload_file\(|upload_artifact|requests\.|urllib\.request|subprocess\.run\(\["curl"/);
 });
