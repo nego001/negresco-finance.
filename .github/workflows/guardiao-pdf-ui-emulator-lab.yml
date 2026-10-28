@@ -35,6 +35,15 @@ jobs:
           set -euo pipefail
           echo '29e248742e365c4dd7a8c668a23153d43a89b8be02828620bbc5851775986b4a  test-apk/android/app/build/outputs/apk/release/app-release.apk' | sha256sum --check --strict
           test -s test-apk/android/app/build/outputs/apk/release/app-release.apk
+      - name: Setup Java 17 for isolated Android receiver
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Android SDK command line tools
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd
+        with:
+          packages: platform-tools
       - name: Setup pinned Gradle for independent PDF receiver
         uses: gradle/actions/setup-gradle@v4
         with:
