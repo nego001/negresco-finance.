@@ -6,7 +6,7 @@ const workflow=readFileSync('.github/workflows/guardiao-pdf-ui-emulator-lab.yml'
 const script=readFileSync('tooling/android/guardiao_pdf_ui_emulator_smoke.py','utf8');
 
 test('real Android UI lab is branch-only, read-only and never signs or publishes',()=>{
-  assert.match(workflow,/lab\/p01-guardiao-pdf-receiver-integrity-26-28-v1/);
+  assert.match(workflow,/lab\/p01-guardiao-pdf-all-pages-render-26-28-v1/);
   assert.match(workflow,/permissions:\s*\n  contents: read\s*\n  actions: read/);
   assert.match(workflow,/persist-credentials: false/);
   assert.doesNotMatch(workflow,/contents: write|gh release|workflow_dispatch|eas update|expo publish|stable_signing|secrets\./);
@@ -130,7 +130,7 @@ test('receiver Android manifest is single exported PDF-only activity with zero p
   assert.match(receiver,/!"content"\.equals\(uri\.getScheme\(\)\)/);
   assert.match(receiver,/MAX_BYTES = 8L \* 1024L \* 1024L/);
   assert.match(receiver,/new PdfRenderer\(fd\)/);
-  assert.match(receiver,/first\.render\(bmp/);
+  assert.match(receiver,/page\.render\(bmp/);
   assert.match(receiver,/temp\.delete\(\)/);
 });
 test('receiver validates file header and EOF, outputs only metadata and never logs raw document',()=>{
@@ -164,6 +164,31 @@ test('E2E pass requires the separate APK, Android chooser, actual receiver and P
   assert.match(script,/receiverPdfRead": True/);
   assert.match(script,/pdfPageCount": receipt\["pages"\]/);
   assert.match(script,/independent PDF receiver did not produce a verified receipt/);
+});
+test('all pages must be nonblank and renderer must not leak pixel data',()=>{
+  const receiver=readFileSync('tooling/android/pdf-receiver-lab/app/src/main/java/com/negresco/pdfreceiver/lab/ReceiverActivity.java','utf8');
+  assert.match(receiver,/for \(int index = 0; index < pages; index\+\+\)/);
+  assert.match(receiver,/renderer\.openPage\(index\)/);
+  assert.match(receiver,/bmp\.eraseColor\(Color\.WHITE\)/);
+  assert.match(receiver,/page\.render\(bmp/);
+  assert.match(receiver,/hasVisibleInk\(bmp\)/);
+  assert.match(receiver,/if \(verifiedPages != pages\)/);
+  assert.match(receiver,/if \(dark >= 12 && light >= 12\) return true/);
+  assert.match(receiver,/nonblankPages/);
+  assert.match(receiver,/allPagesRendered/);
+  assert.doesNotMatch(receiver,/compress\(|BitmapFactory|write\(bmp|getPixels\(|Log\./);
+});
+test('passing receipt must attest all pages are readable and leave zero PDF cache',()=>{
+  assert.match(script,/required_true = \("contentUriGranted", "pdfHeaderAndEof",[\s\S]{0,120}"allPagesRendered"/);
+  assert.match(script,/nonblank == pages/);
+  assert.match(script,/receiver_cache_empty_of_pdf\(\)/);
+  assert.match(script,/return "received-" not in listing/);
+  assert.match(script,/run-as", RECEIVER_PACKAGE, "rm", "-f", "files\/receipt.json"/);
+  assert.match(script,/"allPagesRendered": True/);
+  assert.match(script,/"receiverCacheClean": True/);
+  assert.match(script,/"nonblankPages": receipt\["nonblankPages"\]/);
+  assert.match(script,/receiver failed to remove temporary PDF from its cache/);
+  assert.doesNotMatch(script,/print\(listing\)|write_text\(listing\)/);
 });
 test('privacy evidence is synthetic, metadata-only and production is forbidden',()=>{
   assert.match(script,/"syntheticInput": True/);
