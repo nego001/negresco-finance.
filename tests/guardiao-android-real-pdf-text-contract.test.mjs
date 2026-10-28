@@ -35,7 +35,7 @@ test('existing UI fixture and receiver gates remain unchanged in normal mode',()
 
 test('independent extractor checks actual Android APK PDF bytes and field semantics',()=>{
   assert.match(runner,/import guardiao_pdf_ui_emulator_smoke as base/);
-  assert.match(runner,/base\.FIXTURE != "0" \* 47/);
+  assert.match(runner,/base\.FIXTURE not in \("0" \* 47, "8" \+ "0" \* 47\)/);
   assert.match(runner,/base\.run_smoke\(after_receiver_install=prepare_private_one_shot,/);
   assert.match(runner,/after_verified_receipt=inspect_real_android_pdf/);
   assert.match(runner,/receipt\.get\("syntheticTextCapture"\) is not True/);
