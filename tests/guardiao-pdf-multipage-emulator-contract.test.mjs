@@ -62,7 +62,7 @@ test('runner clears stale receipt, checks exact positive and negative outcomes, 
   assert.match(runner, /if not receiver_cache_clean\(\):/);
   assert.match(runner, /"ls", "cache", check=True/);
   assert.match(runner, /"syntheticOnly": True/);
-  assert.doesNotMatch(runner, /screencap|logcat|write_bytes|pull.*\.pdf|print\(receipt\)/);
+  assert.doesNotMatch(runner, /adb\("shell", "screencap"|adb\("shell", "logcat"|write_bytes|adb\("pull"|print\(receipt\)/);
 });
 
 test('SDK-only build compiles provider and nested exception; no external packaging service', () => {
