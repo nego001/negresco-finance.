@@ -15,6 +15,7 @@ O risco coberto é a publicação de um recibo JSON adulterado ou inflado que de
 - Exige approvedForProduction=false e stableReleaseAllowed=false.
 - Abre arquivos em descritores com O_NOFOLLOW e verifica tipo e limite no próprio descritor: impede troca por symlink entre pré-checagem e leitura e impede leitura sem limite.
 - Rejeita membros ZIP marcados como FIFO, dispositivo ou outro tipo Unix especial, aceitando apenas arquivo comum (ou sem atributo de tipo) mesmo que o nome termine em `.json`.
+- Para ZIP com data descriptor (bit 3), exige CRC e tamanhos locais de cabeçalho zerados; recusa campos locais contraditórios que a biblioteca ZIP poderia ignorar. Regressão negativa injeta separadamente CRC, tamanho comprimido e descomprimido não nulos.
 - Rejeita também um caminho de recibo apontando para FIFO real sem bloquear a execução, conferindo o tipo pelo descritor aberto.
 - Limita JSON a 4 KiB e ZIP a 1 MiB; ZIP deve conter exatamente um JSON com nome fixo, sem caminhos de travessia, entrada adicional, comentários ZIP, dados anteriores ao primeiro cabeçalho, link simbólico ou criptografia.
 - Falha de forma fechada com erro de categoria fixa, sem imprimir caminhos, texto de PDF, documentos, linha digitável ou exceções.

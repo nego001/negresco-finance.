@@ -159,6 +159,30 @@ test('oversized JSON and ZIP fail closed before parsing',()=>withTemp(dir=>{
   assertBlock(cli(26,zip));
 }));
 
+test('rejects contradictions in ZIP descriptor-mode local CRC and lengths',()=>withTemp(dir=>{
+  const good=jsonAt(dir,fixture);
+  const prefix=join(dir,'deferred-local-');
+  const py=[
+    'import io,struct,sys,zipfile',
+    'class NoSeek(io.BytesIO):',
+    '    def seek(self,*args): raise OSError("not-seekable")',
+    'stream=NoSeek()',
+    'with zipfile.ZipFile(stream,"w",compression=zipfile.ZIP_DEFLATED) as z:',
+    '    z.writestr("guardiao-android-real-pdf-text-receipt.json",open(sys.argv[1],"rb").read())',
+    'original=stream.getvalue()',
+    'assert struct.unpack_from("<H",original,6)[0] & 8',
+    'for offset in (14,18,22):',
+    '    edited=bytearray(original)',
+    '    struct.pack_into("<I",edited,offset,7)',
+    '    path=sys.argv[2]+str(offset)+".zip"',
+    '    with open(path,"wb") as f: f.write(edited)',
+    '    with zipfile.ZipFile(path) as z: assert z.read(z.namelist()[0])'
+  ].join('\n');
+  const forged=spawnSync('python3',['-c',py,good,prefix],{encoding:'utf8'});
+  assert.equal(forged.status,0,'construct descriptor-mode ZIP accepted by ordinary zipfile');
+  for(const offset of [14,18,22])assertBlock(cli(26,prefix+offset+'.zip'));
+}));
+
 test('rejects ZIP members advertising Unix FIFO or device type',()=>withTemp(dir=>{
   const good=jsonAt(dir,fixture);
   const zip=join(dir,'special-member.zip');

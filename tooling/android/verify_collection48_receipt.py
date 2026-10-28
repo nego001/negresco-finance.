@@ -108,7 +108,13 @@ def verify_contiguous_zip(raw: bytes, entry: zipfile.ZipInfo) -> None:
         or extra_len != 0 or raw[30:30 + len(name)] != name
     ):
         raise InvalidReceipt("unsafe ZIP local header")
-    if not flags & 8 and (
+    if flags & 8:
+        # Descriptor-format artifact: local CRC and lengths are deferred.
+        # Require their conventional zero placeholders; reject contradictory
+        # local claims even when zipfile ignores them and reads successfully.
+        if local_crc != 0 or local_compressed != 0 or local_uncompressed != 0:
+            raise InvalidReceipt("ZIP deferred local checksums or sizes are not zero")
+    elif (
         local_crc != entry.CRC
         or local_compressed != entry.compress_size
         or local_uncompressed != entry.file_size
