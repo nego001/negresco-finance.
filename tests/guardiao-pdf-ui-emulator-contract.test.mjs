@@ -93,6 +93,17 @@ test('minimal-PDF A/B verdict is never interpreted as successful export',()=>{
   assert.match(script,/raise RuntimeError\("Guardião synthetic A\/B result: " \+ verdict\)/);
   assert.doesNotMatch(script,/print\(result\.uri\)|print\(.*?report_html\)/);
 });
+test('real Android focus and WebView provider are reported only as fixed categories',()=>{
+  assert.match(script,/def safe_environment_summary\(\) -> dict\[str, str \| bool\]:/);
+  assert.match(script,/No raw activity or dumpsys text/);
+  assert.match(script,/return \{\s*"appProcessAlive": running,/);
+  assert.match(script,/"foregroundCategory": focus_category/);
+  assert.match(script,/"webViewProvider": provider_category/);
+  assert.match(script,/provider_category = "provider-reported"/);
+  assert.match(script,/provider_category = "none-reported"/);
+  assert.match(script,/print\("ENV \(LAB\): " \+ json\.dumps\(safe_environment_summary\(\), sort_keys=True\)/);
+  assert.doesNotMatch(script,/print\(.*(?:activity|details|window|focused)\)/);
+});
 test('privacy evidence is synthetic, metadata-only and production is forbidden',()=>{
   assert.match(script,/"syntheticInput": True/);
   assert.match(script,/"stableReleaseAllowed": False/);
