@@ -1,8 +1,8 @@
-name: Guardiao PDF synthetic minimal-renderer A-B Android 8-9 (lab only)
+name: Guardiao PDF WebView and foreground diagnosis Android 8-9 (lab only)
 on:
   push:
     branches:
-      - lab/p01-guardiao-pdf-minimal-probe-ui-26-28-v1
+      - lab/p01-guardiao-android-print-webview-focus-v1
 permissions:
   contents: read
   actions: read
@@ -53,7 +53,7 @@ jobs:
       - name: Upload tiny synthetic outcome, no UI dumps, screenshots or PDFs
         uses: actions/upload-artifact@v4
         with:
-          name: guardiao-pdf-minimal-probe-api-${{ matrix.api }}-unreviewed
+          name: guardiao-pdf-environment-api-${{ matrix.api }}-unreviewed
           path: pdf-ui-emulator-report.json
           if-no-files-found: error
           retention-days: 2
