@@ -1,0 +1,80 @@
+name: Guardiao real Android app PDF semantic text API 26-28 (lab only)
+on:
+  push:
+    branches:
+      - lab/p01-guardiao-android-export-pdf-text-api26-28-v1
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: guardiao-android-pdf-semantic-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  android-real-pdf-text:
+    name: Validate real APK PDF text with synthetic 47-zero input on Android API ${{ matrix.api }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [26, 28]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Download immutable independently audited synthetic-only financial APK
+        uses: actions/download-artifact@v4
+        with:
+          name: negresco-finance-v313-test-apk
+          run-id: 40617164086
+          repository: nego001/negresco-finance.
+          github-token: ${{ github.token }}
+          path: test-apk
+      - name: Pin exact financial APK bytes; no rebuild of finance application
+        run: |
+          set -euo pipefail
+          echo '29e248742e365c4dd7a8c668a23153d43a89b8be02828620bbc5851775986b4a  test-apk/android/app/build/outputs/apk/release/app-release.apk' | sha256sum --check --strict
+          test -s test-apk/android/app/build/outputs/apk/release/app-release.apk
+      - name: Setup Java 17 for test-only receiver and installed Android SDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Setup Android SDK tooling
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd
+        with:
+          packages: platform-tools
+      - name: Build disposable debuggable receiver with zero Android permissions
+        run: |
+          set -euo pipefail
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" >/dev/null
+          bash tooling/android/pdf-receiver-lab/build_receiving_apk.sh
+      - name: Ensure offline Poppler tools (do not print or upload PDF text)
+        run: |
+          set -euo pipefail
+          if ! command -v pdfinfo >/dev/null || ! command -v pdftotext >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq poppler-utils
+          fi
+      - name: Enable Android emulator acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-negresco-kvm.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Inspect semantic text from real Android shared PDF, synthetic data only
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
+        with:
+          api-level: ${{ matrix.api }}
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          emulator-boot-timeout: 600
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          script: python3 tooling/android/guardiao_android_export_pdf_text_emulator_smoke.py
+      - name: Publish metadata only, never PDF, HTML, screenshot, logcat, app files or extracted text
+        uses: actions/upload-artifact@v4
+        with:
+          name: guardiao-android-real-pdf-text-api-${{ matrix.api }}-unreviewed
+          path: guardiao-android-real-pdf-text-receipt.json
+          if-no-files-found: error
+          retention-days: 2
