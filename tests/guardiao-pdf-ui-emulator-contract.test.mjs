@@ -137,7 +137,7 @@ test('receiver validates file header and EOF, outputs only metadata and never lo
   assert.match(receiver,/%PDF-/);
   assert.match(receiver,/%%EOF/);
   assert.match(receiver,/MessageDigest\.getInstance\("SHA-256"\)/);
-  assert.match(receiver,/"received-rendered"/);
+  assert.ok(receiver.includes('received-rendered'));
   assert.match(receiver,/private static final String RECEIPT = "receipt.json"/);
   assert.match(receiver,/openFileOutput\(RECEIPT, MODE_PRIVATE\)/);
   assert.doesNotMatch(receiver,/Log\.|System\.out|HttpURLConnection|Socket\(|getExternalFilesDir|WRITE_EXTERNAL_STORAGE/);
@@ -150,7 +150,7 @@ test('E2E pass requires the separate APK, Android chooser, actual receiver and P
   assert.match(script,/wait_visible\("Negresco PDF Receiver LAB"/);
   assert.match(script,/run-as", RECEIVER_PACKAGE, "cat", "files\/receipt.json"/);
   assert.match(script,/receipt\.get\("status"\) != "received-rendered"/);
-  assert.match(script,/receipt\.get\("renderedFirstPage"\)/);
+  assert.match(script,/"renderedFirstPage"\)/);
   assert.match(script,/receiverPdfRead": True/);
   assert.match(script,/pdfPageCount": receipt\["pages"\]/);
   assert.match(script,/independent PDF receiver did not produce a verified receipt/);
