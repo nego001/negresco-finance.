@@ -44,6 +44,7 @@ FORBIDDEN = (
     "Pagamento autorizado",
     "Boleto legítimo",
     "0" * 47,
+    "8" + "0" * 47,
     "00000000000000",
 )
 
@@ -94,7 +95,9 @@ def inspect_real_android_pdf(receipt: dict) -> None:
     global observed
     if observed is not None or receipt.get("syntheticTextCapture") is not True:
         raise RuntimeError("receiver did not consume the one-shot private PDF gate")
-    if base.FIXTURE != "0" * 47:
+    # Two explicit offline-only fixed fixtures. Arbitrary user-supplied strings
+    # and any possibly payable input remain prohibited.
+    if base.FIXTURE not in ("0" * 47, "8" + "0" * 47):
         raise RuntimeError("non-synthetic financial input would be unsafe")
     captured = False
     try:
@@ -134,7 +137,12 @@ def inspect_real_android_pdf(receipt: dict) -> None:
                     raise RuntimeError("native PDF has a blank or unextractable page")
                 text_pages.append(text)
             actual = " ".join(text_pages)
-            for expected in EXPECTED:
+            scenario_specific = (
+                ("ARRECADAÇÃO", "Quantidade de dígitos: 48")
+                if base.FIXTURE == "8" + "0" * 47
+                else ("BOLETO BANCÁRIO", "Quantidade de dígitos: 47")
+            )
+            for expected in EXPECTED + scenario_specific:
                 if normalize(expected) not in actual:
                     raise RuntimeError("native PDF fails required synthetic semantic assertion")
             for forbidden in FORBIDDEN:
@@ -170,7 +178,11 @@ def run_lab() -> None:
         baseline.update({
             "scope": "SHA_PINNED_ANDROID_APP_SYNTHETIC_PDF_TEXT",
             "chromeReferenceUsed": False,
-            "realAndroidApkPdf": True, "sourceFixture": "synthetic-47-zero-invalid",
+            "realAndroidApkPdf": True, "sourceFixture": (
+                "synthetic-48-collection-reference-invalid"
+                if base.FIXTURE == "8" + "0" * 47
+                else "synthetic-47-zero-invalid"
+            ),
             "approvedForProduction": False, "stableReleaseAllowed": False,
         })
         # Assert zero content remains even if a hidden lifecycle branch was taken.
