@@ -97,14 +97,4 @@ jobs:
           path: receipt-pair
           merge-multiple: false
       - name: Reject missing, swapped or extra post-upload receipt files
-        run: |
-          set -euo pipefail
-          test "$(find receipt-pair -mindepth 1 | wc -l)" -eq 4
-          for api in 26 28; do
-            dir="receipt-pair/guardiao-android-collection48-pdf-text-api-$api-unreviewed"
-            file="$dir/guardiao-android-real-pdf-text-receipt.json"
-            test -d "$dir" && test ! -L "$dir"
-            test -f "$file" && test ! -L "$file"
-            python3 tooling/android/verify_collection48_receipt.py "$api" "$file"
-          done
-          echo 'PASS (LAB): both published synthetic Android receipts checked after upload'
+        run: python3 tooling/android/verify_collection48_receipt_pair.py receipt-pair

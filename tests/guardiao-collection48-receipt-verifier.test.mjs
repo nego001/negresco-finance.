@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {spawnSync} from 'node:child_process';
-import {mkdtempSync, writeFileSync, rmSync, symlinkSync, readFileSync} from 'node:fs';
+import {mkdtempSync, writeFileSync, rmSync, symlinkSync, readFileSync, mkdirSync, renameSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 
@@ -234,13 +234,17 @@ test('post-upload gate reopens both platform receipts and rejects missing or ext
   assert.match(workflow,/needs: android-real-pdf-text/);
   assert.match(workflow,/pattern: guardiao-android-collection48-pdf-text-api-\*-unreviewed/);
   assert.match(workflow,/merge-multiple: false/);
-  assert.match(workflow,/test "\$\(find receipt-pair -mindepth 1 \| wc -l\)" -eq 4/);
-  assert.match(workflow,/for api in 26 28; do/);
-  assert.match(workflow,/verify_collection48_receipt\.py "\$api" "\$file"/);
+  assert.match(workflow,/python3 tooling\/android\/verify_collection48_receipt_pair\.py receipt-pair/);
   const gate=workflow.slice(workflow.indexOf('  receipt-pair-gate:'));
   assert.doesNotMatch(gate,/actions\/upload-artifact|adb pull|workflow_dispatch|secrets\.|gh release/);
   assert.match(gate,/persist-credentials: false/);
   assert.match(gate,/timeout-minutes: 5/);
+  const checker=readFileSync('tooling/android/verify_collection48_receipt_pair.py','utf8');
+  assert.match(checker,/with os\.scandir\(root\)/);
+  assert.match(checker,/entry\.is_dir\(follow_symlinks=False\)/);
+  assert.match(checker,/members\[0\]\.is_file\(follow_symlinks=False\)/);
+  assert.match(checker,/receipt\.verify\(parsed, api\)/);
+  assert.doesNotMatch(checker,/print\([^)]*parsed|print\([^)]*folder/);
 });
 
 test('Android startup checkpoints are bounded, category-only and precede fixture interaction',()=>{
@@ -268,3 +272,58 @@ test('Android startup checkpoints are bounded, category-only and precede fixture
   assert.doesNotMatch(runner,/print\([^\n]*FIXTURE/);
   assert.doesNotMatch(runner,/print\([^\n]*populated\.get/);
 });
+
+function makePairTree(dir){
+  const root=join(dir,'receipt-pair');
+  mkdirSync(root);
+  for(const api of [26,28]){
+    const folder=join(root,'guardiao-android-collection48-pdf-text-api-'+api+'-unreviewed');
+    mkdirSync(folder);
+    writeFileSync(join(folder,receiptName),JSON.stringify({...fixture,api}));
+  }
+  return root;
+}
+function pairCli(root){
+  return spawnSync('python3',['tooling/android/verify_collection48_receipt_pair.py',root],{encoding:'utf8'});
+}
+function assertPairBlock(result){
+  assert.equal(result.status,1);
+  assert.match(result.stderr,/^BLOCK \(LAB\): post-upload Android receipt pair rejected\s*$/);
+  assert.equal(result.stdout,'');
+}
+test('post-upload verifier accepts exactly two correctly matched synthetic receipts',()=>withTemp(dir=>{
+  const root=makePairTree(dir);
+  const result=pairCli(root);
+  assert.equal(result.status,0);
+  assert.match(result.stdout,/^PASS \(LAB\): both published synthetic Android receipts checked after upload\s*$/);
+  assert.equal(result.stderr,'');
+}));
+test('post-upload verifier fails closed when one Android receipt is absent',()=>withTemp(dir=>{
+  const root=makePairTree(dir);
+  rmSync(join(root,'guardiao-android-collection48-pdf-text-api-28-unreviewed'),{recursive:true,force:true});
+  assertPairBlock(pairCli(root));
+}));
+test('post-upload verifier rejects swapped API receipts',()=>withTemp(dir=>{
+  const root=makePairTree(dir);
+  const file=join(root,'guardiao-android-collection48-pdf-text-api-26-unreviewed',receiptName);
+  writeFileSync(file,JSON.stringify({...fixture,api:28}));
+  assertPairBlock(pairCli(root));
+}));
+test('post-upload verifier rejects extra root and nested files',()=>withTemp(dir=>{
+  const root=makePairTree(dir);
+  const extra=join(root,'unexpected.txt');
+  writeFileSync(extra,'synthetic');
+  assertPairBlock(pairCli(root));
+  rmSync(extra);
+  const nested=join(root,'guardiao-android-collection48-pdf-text-api-26-unreviewed','extra.pdf');
+  writeFileSync(nested,'%PDF- synthetic forbidden extra');
+  assertPairBlock(pairCli(root));
+}));
+test('post-upload verifier refuses symlinked Android receipt folders',()=>withTemp(dir=>{
+  const root=makePairTree(dir);
+  const path=join(root,'guardiao-android-collection48-pdf-text-api-28-unreviewed');
+  const target=join(dir,'safe-target');
+  renameSync(path,target);
+  symlinkSync(target,path,'dir');
+  assertPairBlock(pairCli(root));
+}));

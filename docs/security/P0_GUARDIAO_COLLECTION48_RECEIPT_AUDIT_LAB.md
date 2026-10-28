@@ -56,3 +56,9 @@ O workflow recebe cada recibo antes do upload no respectivo job API 26/28. Um te
 - Android 8 / API 26: artefato `12835969543`, ZIP **688 bytes**, SHA-256 `5042dbd9e39538902acfa45c51f5449de8c45b13ff802c346cc5e9d8f8386f09`; um JSON de **874 bytes**; PDF sintético **declarado** 1 página, **39.220 bytes**, digest `5adf77bbd97d316017de1bac13875635baffc5f2da3a199a078590c8ab31d1e4`.
 - Android 9 / API 28: artefato `12836584625`, ZIP **690 bytes**, SHA-256 `be459658848c06eb6208a601a03bf07475d1c2e4a0fbd496cea7329a3fa8b53e`; um JSON de **874 bytes**; PDF sintético **declarado** 1 página, **39.219 bytes**, digest `f2d7feb006e0f67c9116ab0b9a8440df894467175ae913b992bc1b64b5f15636`.
 - Ambos declaram fixture inválida, mesma hash exata do APK pinado, escopo restrito e flags de produção falsas. Esses dados não são prova criptográfica da execução do Android, e a antiga intermitência da API 28 segue sem causa-raiz conhecida.
+
+## Complemento: teste executável do controle pós-upload (28/10/2026)
+
+O terceiro job agora executa `tooling/android/verify_collection48_receipt_pair.py` em vez de depender apenas de uma contagem por shell. O verificador rejeita pastas ausentes/adicionais, links simbólicos, entradas extras e recibos API 26/28 trocados. Cada JSON é reaberto pelo verificador individual existente, com limite de leitura e sem seguir symlinks. Os testes Node criam pastas de laboratório e comprovam PASS de um par válido e bloqueios negativos dessas adulterações. A saída contém apenas códigos fixos, sem conteúdo do PDF ou dados financeiros.
+
+**Este incremento exige revalidação no novo HEAD.** A execução de laboratório não autoriza produção, não substitui um dispositivo físico e não prova a autenticidade de um recibo.
