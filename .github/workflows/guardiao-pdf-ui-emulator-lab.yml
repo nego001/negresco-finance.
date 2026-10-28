@@ -1,8 +1,8 @@
-name: Guardiao PDF real receiver and page render Android 8-9 (lab only)
+name: Guardiao PDF all-pages nonblank render Android 8-9 (lab only)
 on:
   push:
     branches:
-      - lab/p01-guardiao-pdf-receiver-integrity-26-28-v1
+      - lab/p01-guardiao-pdf-all-pages-render-26-28-v1
 permissions:
   contents: read
   actions: read
@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   pdf-ui:
-    name: Receive and render real synthetic PDF on Android API ${{ matrix.api }}
+    name: Validate all nonblank pages and cache on Android API ${{ matrix.api }}
     runs-on: ubuntu-22.04
     timeout-minutes: 45
     strategy:
@@ -67,7 +67,7 @@ jobs:
       - name: Upload tiny synthetic outcome, no UI dumps, screenshots or PDFs
         uses: actions/upload-artifact@v4
         with:
-          name: guardiao-pdf-received-api-${{ matrix.api }}-unreviewed
+          name: guardiao-pdf-all-pages-api-${{ matrix.api }}-unreviewed
           path: pdf-ui-emulator-report.json
           if-no-files-found: error
           retention-days: 2
