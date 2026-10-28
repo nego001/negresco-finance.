@@ -3,6 +3,7 @@ package com.negresco.pdfreceiver.lab;
 import android.app.Activity;
 import android.content.Intent;
 import android.graphics.Bitmap;
+import android.graphics.Color;
 import android.graphics.pdf.PdfRenderer;
 import android.net.Uri;
 import android.os.Bundle;
@@ -67,24 +68,39 @@ public final class ReceiverActivity extends Activity {
       if (!isPdfWithEof(temp)) throw new IllegalStateException("bad PDF boundaries");
 
       int pages;
+      int verifiedPages = 0;
       try (ParcelFileDescriptor fd = ParcelFileDescriptor.open(
                temp, ParcelFileDescriptor.MODE_READ_ONLY);
            PdfRenderer renderer = new PdfRenderer(fd)) {
         pages = renderer.getPageCount();
         if (pages < 1 || pages > 100) throw new IllegalStateException("invalid page count");
-        try (PdfRenderer.Page first = renderer.openPage(0)) {
-          Bitmap bmp = Bitmap.createBitmap(96, 96, Bitmap.Config.ARGB_8888);
-          try {
-            first.render(bmp, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
-          } finally {
-            bmp.recycle();
+        // Render EVERY page. A decodable file with a blank/unrenderable later page
+        // must not count as a complete PDF. Never persist or share bitmap pixels.
+        for (int index = 0; index < pages; index++) {
+          try (PdfRenderer.Page page = renderer.openPage(index)) {
+            if (page.getWidth() <= 0 || page.getHeight() <= 0) {
+              throw new IllegalStateException("invalid page dimensions");
+            }
+            Bitmap bmp = Bitmap.createBitmap(384, 384, Bitmap.Config.ARGB_8888);
+            try {
+              bmp.eraseColor(Color.WHITE);
+              page.render(bmp, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
+              if (!hasVisibleInk(bmp)) {
+                throw new IllegalStateException("blank rendered page");
+              }
+              verifiedPages++;
+            } finally {
+              bmp.recycle();
+            }
           }
         }
       }
+      if (verifiedPages != pages) throw new IllegalStateException("partial render");
       // The SHA identifies test bytes; no document bytes, URI, or PII are logged.
       writeReceipt("{\"schemaVersion\":1,\"status\":\"received-rendered\","
           + "\"contentUriGranted\":true,\"pdfHeaderAndEof\":true,"
-          + "\"renderedFirstPage\":true,\"pages\":" + pages
+          + "\"renderedFirstPage\":true,\"allPagesRendered\":true,\"nonblankPages\":" + verifiedPages
+          + ",\"pages\":" + pages
           + ",\"bytes\":" + size + ",\"sha256\":\"" + hex(hash.digest())
           + "\",\"syntheticOnly\":true,\"stableReleaseAllowed\":false}");
     } catch (Exception ignored) {
@@ -95,6 +111,23 @@ public final class ReceiverActivity extends Activity {
       if (temp != null) temp.delete();
       finish();
     }
+  }
+
+  private static boolean hasVisibleInk(Bitmap bmp) {
+    // Pixel content is inspected in memory only, never recorded.
+    // Require both light paper and actual dark ink, not merely PDF syntax.
+    int dark = 0;
+    int light = 0;
+    for (int y = 0; y < bmp.getHeight(); y++) {
+      for (int x = 0; x < bmp.getWidth(); x++) {
+        int color = bmp.getPixel(x, y);
+        int luminance = (Color.red(color) + Color.green(color) + Color.blue(color)) / 3;
+        if (luminance < 205) dark++;
+        if (luminance > 245) light++;
+        if (dark >= 12 && light >= 12) return true;
+      }
+    }
+    return false;
   }
 
   private static boolean isPdfWithEof(File file) throws Exception {
