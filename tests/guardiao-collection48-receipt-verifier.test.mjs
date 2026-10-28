@@ -140,6 +140,25 @@ test('rejects ZIP self-extracting prefixes or data before the first entry',()=>w
   assertBlock(cli(26,zip));
 }));
 
+test('receipt opening is descriptor-bound, nofollow and size-bounded',()=>{
+  const source=readFileSync(verifier,'utf8');
+  assert.match(source,/os\.O_NOFOLLOW/);
+  assert.match(source,/fd = os\.open\(path, flags\)/);
+  assert.match(source,/info = os\.fstat\(fd\)/);
+  assert.match(source,/stat\.S_ISREG\(info\.st_mode\)/);
+  assert.match(source,/source\.read\(limit \+ 1\)/);
+  assert.match(source,/os\.close\(fd\)/);
+  assert.doesNotMatch(source,/path\.read_bytes\(\)|path\.open\("rb"\)/);
+});
+
+test('oversized JSON and ZIP fail closed before parsing',()=>withTemp(dir=>{
+  const json=jsonAt(dir,'x'.repeat(4097));
+  assertBlock(cli(26,json));
+  const zip=join(dir,'oversized.zip');
+  writeFileSync(zip,Buffer.alloc(1048577));
+  assertBlock(cli(26,zip));
+}));
+
 test('rejects symlinks, JSON with wrong name and other file types',()=>withTemp(dir=>{
   const good=jsonAt(dir,fixture);
   const link=join(dir,'linked.zip');

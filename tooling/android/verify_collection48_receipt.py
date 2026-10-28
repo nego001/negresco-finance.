@@ -8,6 +8,7 @@ No source PDF, financial input, or user data is read, emitted or uploaded.
 from __future__ import annotations
 
 import io
+import os
 import json
 import re
 import stat
@@ -141,21 +142,38 @@ def verify_contiguous_zip(raw: bytes, entry: zipfile.ZipInfo) -> None:
         raise InvalidReceipt("ZIP has hidden bytes before directory")
 
 
+def read_bounded_regular_file(path: Path, limit: int) -> bytes:
+    """Open the checked inode itself, not a separately pre-checked path.
+
+    No symlink traversal, unbounded reads or blocking on special files.
+    This is a local lab file hygiene gate, not origin attestation.
+    """
+    if not hasattr(os, "O_NOFOLLOW"):
+        raise InvalidReceipt("nofollow file opening unavailable")
+    flags = os.O_RDONLY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0)
+    flags |= getattr(os, "O_NONBLOCK", 0)
+    fd = os.open(path, flags)
+    try:
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode) or not 20 <= info.st_size <= limit:
+            raise InvalidReceipt("unsafe or oversized receipt container")
+        with os.fdopen(fd, "rb", closefd=False) as source:
+            raw = source.read(limit + 1)
+        if len(raw) != info.st_size:
+            raise InvalidReceipt("receipt container changed while reading")
+        return raw
+    finally:
+        os.close(fd)
+
+
 def read_receipt(path: Path) -> dict:
-    if path.is_symlink() or not stat.S_ISREG(path.stat(follow_symlinks=False).st_mode):
-        raise InvalidReceipt("not a regular file")
-    size = path.stat(follow_symlinks=False).st_size
     if path.suffix == ".json":
-        if path.name != MEMBER or size > MAX_JSON:
+        if path.name != MEMBER:
             raise InvalidReceipt("invalid JSON container")
-        return load_json(path.read_bytes())
-    if path.suffix != ".zip" or size > MAX_ZIP:
+        return load_json(read_bounded_regular_file(path, MAX_JSON))
+    if path.suffix != ".zip":
         raise InvalidReceipt("unsupported artifact container")
-    # Bounded read ensures the checked ZIP is the exact ZIP that is parsed.
-    with path.open("rb") as stream:
-        zip_bytes = stream.read(MAX_ZIP + 1)
-    if len(zip_bytes) > MAX_ZIP or len(zip_bytes) != size:
-        raise InvalidReceipt("unsafe archive size")
+    zip_bytes = read_bounded_regular_file(path, MAX_ZIP)
     with zipfile.ZipFile(io.BytesIO(zip_bytes), "r") as archive:
         entries = archive.infolist()
         if archive.comment or len(entries) != 1:
@@ -172,7 +190,6 @@ def read_receipt(path: Path) -> dict:
         verify_contiguous_zip(zip_bytes, item)
         receipt_bytes = archive.read(item)
     return load_json(receipt_bytes)
-
 
 def verify(value: dict, expected_api: int) -> None:
     if type(expected_api) is not int or expected_api not in (26, 28):
