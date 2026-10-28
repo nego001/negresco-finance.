@@ -276,19 +276,26 @@ def receiver_cache_empty_of_pdf() -> bool:
 def receive_from_chooser(api: int, digest: str, after_verified_receipt=None) -> None:
     # Pass only after a separate process has read the actual content:// URI,
     # checked %PDF-/%%EOF, and successfully rendered its first page.
+    print("STAGE (LAB): chooser target lookup started", flush=True)
     target = wait_visible("Negresco PDF Receiver LAB", retries=18, scroll=True)
+    print("STAGE (LAB): chooser target observed", flush=True)
     tap_node(target, prefer_label=True)
+    print("STAGE (LAB): chooser target tapped", flush=True)
     for attempt in range(25):
         receipt = receiver_receipt()
         if receipt is not None:
+            print("STAGE (LAB): independent receiver receipt available", flush=True)
             if not validate_receiver_receipt(receipt):
                 raise RuntimeError("independent receiver rejected PDF integrity/rendering")
             if not receiver_cache_empty_of_pdf():
                 raise RuntimeError("receiver failed to remove temporary PDF from its cache")
+            print("STAGE (LAB): receiver integrity and cache checks passed", flush=True)
             if after_verified_receipt is not None:
                 # Hook only for a separate CI lab; it must fail closed and
                 # delete its own temporary private fixture before PASS.
+                print("STAGE (LAB): isolated semantic verifier entered", flush=True)
                 after_verified_receipt(receipt)
+                print("STAGE (LAB): isolated semantic verifier passed", flush=True)
             REPORT.write_text(json.dumps({
                 "schemaVersion": 2,
                 "scope": "SYNTHETIC_PDF_RECEIVER_ALL_PAGES_NONBLANK",
