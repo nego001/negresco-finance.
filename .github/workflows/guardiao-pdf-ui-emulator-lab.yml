@@ -44,22 +44,11 @@ jobs:
         uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd
         with:
           packages: platform-tools
-      - name: Setup pinned Gradle for independent PDF receiver
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: 8.10.2
-      - name: Compile isolated receiver APK (never built into Negresco)
+      - name: Compile permissionless PDF receiver from installed Android SDK (no Maven)
         run: |
           set -euo pipefail
           sdkmanager "platforms;android-35" "build-tools;35.0.0" >/dev/null
-          gradle --project-dir tooling/android/pdf-receiver-lab :app:assembleDebug --no-daemon --console=plain
-          RECEIVER="tooling/android/pdf-receiver-lab/app/build/outputs/apk/debug/app-debug.apk"
-          test -s "$RECEIVER"
-          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$RECEIVER" | grep -F "package: name='com.negresco.pdfreceiver.lab'"
-          if "$ANDROID_HOME/build-tools/35.0.0/aapt" dump permissions "$RECEIVER" | grep -Fq "uses-permission:"; then
-            echo "::error::Receiver lab APK must declare no permissions"
-            exit 1
-          fi
+          bash tooling/android/pdf-receiver-lab/build_receiving_apk.sh
       - name: Enable Android hardware emulator acceleration
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-negresco-kvm.rules
