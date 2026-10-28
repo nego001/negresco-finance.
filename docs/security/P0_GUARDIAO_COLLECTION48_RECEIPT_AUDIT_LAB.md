@@ -33,10 +33,10 @@ A PR #116 apresentou PASS nativo nas APIs 26/28 no workflow #40708437566, com re
 
 ## Gates
 
-- [x] Contratos do verificador: 1.225/1.225 PASS nas duas CIs da revisão `f66dbe0` (runs #40727477405 e #40727487652, job `contracts`). Nova alteração de leitura por descritor requer nova revalidação.
-- [x] CI nativa Android 8/API 26 integra o verificador antes do upload na revisão `f66dbe0` (run #40727477322 PASS).
-- [x] CI nativa Android 9/API 28 integra o verificador antes do upload na revisão `f66dbe0` (run #40727477322 PASS).
-- [x] Artefatos publicados na revisão `f66dbe0` auditados de forma independente em 28/10/2026 (detalhes abaixo).
+- [x] Contratos do verificador: **1.230/1.230 PASS**, zero falhas na revisão `4f9533d`, CI push `40736168671` e CI PR `40736180163`.
+- [x] CI nativa Android 8/API 26 e Android 9/API 28: `40736168666` **PASS** nas duas APIs, verificador executado antes do upload.
+- [x] Artefatos da revisão `4f9533d` inspecionados separadamente, somente JSON sintético sem PDF (detalhes abaixo).
+- [ ] Novo gate de revalidação **após o upload**, com download de ambos os recibos do mesmo workflow, precisa de resultado verde no novo HEAD.
 - [ ] Revisão humana da lógica, QA em aparelhos físicos e autorização de release: fora deste escopo.
 
 approvedForProduction=false; stableReleaseAllowed=false. PR Draft, sem merge na main, nova assinatura, release, OTA, pagamentos ou dados de clientes.
@@ -48,3 +48,11 @@ approvedForProduction=false; stableReleaseAllowed=false. PR Draft, sem merge na 
 - Auditoria offline independente: contagem/nome de entradas, contiguidade de ZIP, descriptor de dados, stream DEFLATE consumido integralmente, esquema/chaves/tipos, flags, escopo, APK pinado, API, tamanho e formato de digest. Ambos os metadados passaram. Nenhum PDF, captura de tela, UI ou conteúdo financeiro anexado.
 - Logs da execução #40727477322 registram a verificação do APK, inicialização do app, seletor Android, receptor separado, SHA/tamanho do PDF, extração textual em todas as páginas e limpeza. Isso não comprova execução em aparelho físico nem origem criptograficamente atestada.
 - A falha intermitente inicial no Android 9 continua sem causa-raiz isolada. Não promover o sistema a produção com base nesses testes de laboratório.
+
+## Nova etapa: verificação do par após publicação (28/10/2026)
+
+O workflow recebe cada recibo antes do upload no respectivo job API 26/28. Um terceiro job isolado, condicionado ao sucesso de ambos, agora baixa apenas os dois artefatos publicados **desta execução** e recusa um artefato ausente, trocado ou com arquivos extras; então reexecuta o verificador offline com o número fixo de cada API. O verificador continua limitado a metadados sintéticos, sem tocar PDFs ou valores reais. Nunca considera uma API aprovada pela evidência da outra.
+
+- Android 8 / API 26: artefato `12835969543`, ZIP **688 bytes**, SHA-256 `5042dbd9e39538902acfa45c51f5449de8c45b13ff802c346cc5e9d8f8386f09`; um JSON de **874 bytes**; PDF sintético **declarado** 1 página, **39.220 bytes**, digest `5adf77bbd97d316017de1bac13875635baffc5f2da3a199a078590c8ab31d1e4`.
+- Android 9 / API 28: artefato `12836584625`, ZIP **690 bytes**, SHA-256 `be459658848c06eb6208a601a03bf07475d1c2e4a0fbd496cea7329a3fa8b53e`; um JSON de **874 bytes**; PDF sintético **declarado** 1 página, **39.219 bytes**, digest `f2d7feb006e0f67c9116ab0b9a8440df894467175ae913b992bc1b64b5f15636`.
+- Ambos declaram fixture inválida, mesma hash exata do APK pinado, escopo restrito e flags de produção falsas. Esses dados não são prova criptográfica da execução do Android, e a antiga intermitência da API 28 segue sem causa-raiz conhecida.

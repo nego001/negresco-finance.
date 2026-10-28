@@ -228,6 +228,21 @@ test('branch-only CI runs strict metadata verification before uploading any rece
   assert.doesNotMatch(workflow,/contents: write|workflow_dispatch|secrets\.|eas update|expo publish|gh release|adb pull/);
 });
 
+
+test('post-upload gate reopens both platform receipts and rejects missing or extra files',()=>{
+  assert.match(workflow,/receipt-pair-gate:/);
+  assert.match(workflow,/needs: android-real-pdf-text/);
+  assert.match(workflow,/pattern: guardiao-android-collection48-pdf-text-api-\*-unreviewed/);
+  assert.match(workflow,/merge-multiple: false/);
+  assert.match(workflow,/test "\$\(find receipt-pair -mindepth 1 \| wc -l\)" -eq 4/);
+  assert.match(workflow,/for api in 26 28; do/);
+  assert.match(workflow,/verify_collection48_receipt\.py "\$api" "\$file"/);
+  const gate=workflow.slice(workflow.indexOf('  receipt-pair-gate:'));
+  assert.doesNotMatch(gate,/actions\/upload-artifact|adb pull|workflow_dispatch|secrets\.|gh release/);
+  assert.match(gate,/persist-credentials: false/);
+  assert.match(gate,/timeout-minutes: 5/);
+});
+
 test('Android startup checkpoints are bounded, category-only and precede fixture interaction',()=>{
   const runner=readFileSync('tooling/android/guardiao_pdf_ui_emulator_smoke.py','utf8');
   const markers=[
