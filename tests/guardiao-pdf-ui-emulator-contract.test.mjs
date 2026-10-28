@@ -6,7 +6,7 @@ const workflow=readFileSync('.github/workflows/guardiao-pdf-ui-emulator-lab.yml'
 const script=readFileSync('tooling/android/guardiao_pdf_ui_emulator_smoke.py','utf8');
 
 test('real Android UI lab is branch-only, read-only and never signs or publishes',()=>{
-  assert.match(workflow,/lab\/p01-guardiao-android-print-webview-focus-v1/);
+  assert.match(workflow,/lab\/p01-guardiao-google-apis-webview-control-v1/);
   assert.match(workflow,/permissions:\s*\n  contents: read\s*\n  actions: read/);
   assert.match(workflow,/persist-credentials: false/);
   assert.doesNotMatch(workflow,/contents: write|gh release|workflow_dispatch|eas update|expo publish|stable_signing|secrets\./);
@@ -103,6 +103,14 @@ test('real Android focus and WebView provider are reported only as fixed categor
   assert.match(script,/provider_category = "none-reported"/);
   assert.match(script,/print\("ENV \(LAB\): " \+ json\.dumps\(safe_environment_summary\(\), sort_keys=True\)/);
   assert.doesNotMatch(script,/print\(.*(?:activity|details|window|focused)\)/);
+});
+test('Google APIs image is the only A/B dimension, without APK or security policy changes',()=>{
+  assert.match(workflow,/target: google_apis/);
+  assert.doesNotMatch(workflow,/target: default/);
+  assert.match(workflow,/api: \[26, 28\]/);
+  assert.match(workflow,/run-id: 40617164086/);
+  assert.match(workflow,/29e248742e365c4dd7a8c668a23153d43a89b8be02828620bbc5851775986b4a/);
+  assert.match(workflow,/permissions:\s*\n  contents: read\s*\n  actions: read/);
 });
 test('privacy evidence is synthetic, metadata-only and production is forbidden',()=>{
   assert.match(script,/"syntheticInput": True/);
