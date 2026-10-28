@@ -45,9 +45,11 @@ public final class FixturePdfProvider extends ContentProvider {
     try {
       final ParcelFileDescriptor[] pipe = ParcelFileDescriptor.createPipe();
       Thread producer = new Thread(() -> {
-        try (OutputStream out = new ParcelFileDescriptor.AutoCloseOutputStream(pipe[1]);
-             PdfDocument document = new PdfDocument()) {
-          for (int n = 1; n <= 3; n++) {
+        try (OutputStream out = new ParcelFileDescriptor.AutoCloseOutputStream(pipe[1])) {
+          // Android PdfDocument implements neither AutoCloseable nor Closeable.
+          PdfDocument document = new PdfDocument();
+          try {
+            for (int n = 1; n <= 3; n++) {
             PdfDocument.PageInfo info = new PdfDocument.PageInfo.Builder(600, 800, n).create();
             PdfDocument.Page page = document.startPage(info);
             Canvas canvas = page.getCanvas();
@@ -62,7 +64,10 @@ public final class FixturePdfProvider extends ContentProvider {
             }
             document.finishPage(page);
           }
-          document.writeTo(out);
+            document.writeTo(out);
+          } finally {
+            document.close();
+          }
         } catch (IOException | RuntimeException ignored) {
           // Receiver will reject missing or truncated input. No exception content logged.
         }
