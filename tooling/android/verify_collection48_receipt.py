@@ -80,7 +80,7 @@ def verify_contiguous_zip(raw: bytes, entry: zipfile.ZipInfo) -> None:
     name = MEMBER.encode("ascii")
     if len(raw) < 30 + len(name) + 46 + len(name) + 22:
         raise InvalidReceipt("ZIP archive is too small")
-    if raw[-22:-18] != b"PK\\x05\\x06":
+    if raw[-22:-18] != b"PK\x05\x06":
         raise InvalidReceipt("ZIP end marker is not at physical EOF")
     signature, disk, cd_disk, disk_count, count, cd_size, cd_offset, comment_len = (
         struct.unpack_from("<IHHHHIIH", raw, len(raw) - 22)
@@ -95,7 +95,7 @@ def verify_contiguous_zip(raw: bytes, entry: zipfile.ZipInfo) -> None:
         or entry.compress_type not in (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED)
     ):
         raise InvalidReceipt("unsafe ZIP directory layout")
-    if raw[cd_offset:cd_offset + 4] != b"PK\\x01\\x02":
+    if raw[cd_offset:cd_offset + 4] != b"PK\x01\x02":
         raise InvalidReceipt("ZIP directory is not contiguous")
     local = struct.unpack_from("<IHHHHHIIIHH", raw, 0)
     (local_signature, _version, flags, method, _time, _date,
@@ -118,7 +118,7 @@ def verify_contiguous_zip(raw: bytes, entry: zipfile.ZipInfo) -> None:
     trailer = raw[payload_end:cd_offset]
     if flags & 8:
         expected = struct.pack("<III", entry.CRC, entry.compress_size, entry.file_size)
-        if trailer not in (expected, b"PK\\x07\\x08" + expected):
+        if trailer not in (expected, b"PK\x07\x08" + expected):
             raise InvalidReceipt("ZIP has an unexpected data descriptor or hidden bytes")
     elif trailer:
         raise InvalidReceipt("ZIP has hidden bytes before directory")
