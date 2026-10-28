@@ -6,7 +6,7 @@ const workflow=readFileSync('.github/workflows/guardiao-pdf-ui-emulator-lab.yml'
 const script=readFileSync('tooling/android/guardiao_pdf_ui_emulator_smoke.py','utf8');
 
 test('real Android UI lab is branch-only, read-only and never signs or publishes',()=>{
-  assert.match(workflow,/lab\/p01-guardiao-pdf-minimal-probe-ui-26-28-v1/);
+  assert.match(workflow,/lab\/p01-guardiao-android-print-webview-focus-v1/);
   assert.match(workflow,/permissions:\s*\n  contents: read\s*\n  actions: read/);
   assert.match(workflow,/persist-credentials: false/);
   assert.doesNotMatch(workflow,/contents: write|gh release|workflow_dispatch|eas update|expo publish|stable_signing|secrets\./);
