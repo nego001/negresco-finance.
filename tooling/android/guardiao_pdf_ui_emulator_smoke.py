@@ -273,7 +273,7 @@ def receiver_cache_empty_of_pdf() -> bool:
                   timeout=10, check=True)
     return "received-" not in listing
 
-def receive_from_chooser(api: int, digest: str) -> None:
+def receive_from_chooser(api: int, digest: str, after_verified_receipt=None) -> None:
     # Pass only after a separate process has read the actual content:// URI,
     # checked %PDF-/%%EOF, and successfully rendered its first page.
     target = wait_visible("Negresco PDF Receiver LAB", retries=18, scroll=True)
@@ -285,6 +285,10 @@ def receive_from_chooser(api: int, digest: str) -> None:
                 raise RuntimeError("independent receiver rejected PDF integrity/rendering")
             if not receiver_cache_empty_of_pdf():
                 raise RuntimeError("receiver failed to remove temporary PDF from its cache")
+            if after_verified_receipt is not None:
+                # Hook only for a separate CI lab; it must fail closed and
+                # delete its own temporary private fixture before PASS.
+                after_verified_receipt(receipt)
             REPORT.write_text(json.dumps({
                 "schemaVersion": 2,
                 "scope": "SYNTHETIC_PDF_RECEIVER_ALL_PAGES_NONBLANK",
@@ -311,7 +315,7 @@ def receive_from_chooser(api: int, digest: str) -> None:
         time.sleep(1)
     raise RuntimeError("independent PDF receiver did not produce a verified receipt")
 
-def run_smoke() -> None:
+def run_smoke(after_receiver_install=None, after_verified_receipt=None) -> None:
     if not APK.is_file() or APK.is_symlink() or APK.stat().st_size < 25_000_000:
         raise RuntimeError("missing or unsafe audited test APK")
     hasher = hashlib.sha256()
@@ -333,6 +337,8 @@ def run_smoke() -> None:
     if not RECEIVER_APK.is_file() or RECEIVER_APK.is_symlink():
         raise RuntimeError("missing independent receiver debug APK")
     adb("install", "-r", str(RECEIVER_APK), timeout=120)
+    if after_receiver_install is not None:
+        after_receiver_install()
     # Ensure no stale success receipt can be mistaken for the current share.
     adb("shell", "run-as", RECEIVER_PACKAGE, "rm", "-f", "files/receipt.json")
     adb("install", "-r", str(APK), timeout=150)
@@ -386,7 +392,10 @@ def run_smoke() -> None:
     for attempt in range(55):
         if chooser_present():
             print("STAGE (LAB): real chooser observed; selecting isolated PDF receiver")
-            receive_from_chooser(api, digest)
+            if after_verified_receipt is None:
+                receive_from_chooser(api, digest)
+            else:
+                receive_from_chooser(api, digest, after_verified_receipt)
             return
         if attempt in (1,5,12,24,40):
             print("ENV (LAB): " + json.dumps(safe_environment_summary(), sort_keys=True), flush=True)
