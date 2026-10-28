@@ -181,7 +181,7 @@ def read_receipt(path: Path) -> dict:
         item = entries[0]
         mode = (item.external_attr >> 16) & 0o170000
         if (
-            item.filename != MEMBER or item.is_dir() or mode == stat.S_IFLNK
+            item.filename != MEMBER or item.is_dir() or mode not in (0, stat.S_IFREG)
             or item.header_offset != 0 or item.comment or item.extra
             or item.flag_bits & 1 or not 20 <= item.file_size <= MAX_JSON
             or item.compress_size > MAX_JSON

@@ -159,6 +159,32 @@ test('oversized JSON and ZIP fail closed before parsing',()=>withTemp(dir=>{
   assertBlock(cli(26,zip));
 }));
 
+test('rejects ZIP members advertising Unix FIFO or device type',()=>withTemp(dir=>{
+  const good=jsonAt(dir,fixture);
+  const zip=join(dir,'special-member.zip');
+  const py=[
+    'import sys,stat,zipfile',
+    'with zipfile.ZipFile(sys.argv[1],"w") as z:',
+    '    info=zipfile.ZipInfo("guardiao-android-real-pdf-text-receipt.json")',
+    '    info.compress_type=zipfile.ZIP_DEFLATED',
+    '    info.create_system=3',
+    '    info.external_attr=(stat.S_IFIFO|0o644)<<16',
+    '    z.writestr(info,open(sys.argv[2],"rb").read())'
+  ].join('\\n');
+  const created=spawnSync('python3',['-c',py,zip,good],{encoding:'utf8'});
+  assert.equal(created.status,0,'construct forged Unix FIFO entry');
+  assertBlock(cli(26,zip));
+}));
+
+test('named-pipe receipt cannot block the offline verifier',()=>withTemp(dir=>{
+  const pipe=join(dir,receiptName);
+  const mk=spawnSync('python3',['-c','import os,sys;os.mkfifo(sys.argv[1])',pipe],{encoding:'utf8'});
+  assert.equal(mk.status,0,'construct synthetic named pipe');
+  const result=spawnSync('python3',[verifier,'26',pipe],{encoding:'utf8',timeout:3000});
+  assert.equal(result.error,undefined,'verifier must never hang on a FIFO');
+  assertBlock(result);
+}));
+
 test('rejects symlinks, JSON with wrong name and other file types',()=>withTemp(dir=>{
   const good=jsonAt(dir,fixture);
   const link=join(dir,'linked.zip');

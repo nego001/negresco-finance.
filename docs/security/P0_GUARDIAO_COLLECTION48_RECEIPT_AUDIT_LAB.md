@@ -14,6 +14,8 @@ O risco coberto é a publicação de um recibo JSON adulterado ou inflado que de
 - Confere contagem de páginas, páginas renderizadas/não vazias/com texto (de 1 a 8), tamanho limitado e formato do SHA-256 do PDF reportado.
 - Exige approvedForProduction=false e stableReleaseAllowed=false.
 - Abre arquivos em descritores com O_NOFOLLOW e verifica tipo e limite no próprio descritor: impede troca por symlink entre pré-checagem e leitura e impede leitura sem limite.
+- Rejeita membros ZIP marcados como FIFO, dispositivo ou outro tipo Unix especial, aceitando apenas arquivo comum (ou sem atributo de tipo) mesmo que o nome termine em `.json`.
+- Rejeita também um caminho de recibo apontando para FIFO real sem bloquear a execução, conferindo o tipo pelo descritor aberto.
 - Limita JSON a 4 KiB e ZIP a 1 MiB; ZIP deve conter exatamente um JSON com nome fixo, sem caminhos de travessia, entrada adicional, comentários ZIP, dados anteriores ao primeiro cabeçalho, link simbólico ou criptografia.
 - Falha de forma fechada com erro de categoria fixa, sem imprimir caminhos, texto de PDF, documentos, linha digitável ou exceções.
 - A CI no branch de laboratório executa o verificador antes de publicar o recibo JSON de retenção de dois dias.
