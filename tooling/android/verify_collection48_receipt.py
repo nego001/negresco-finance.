@@ -80,12 +80,13 @@ def read_receipt(path: Path) -> dict:
         raise InvalidReceipt("unsupported artifact container")
     with zipfile.ZipFile(path, "r") as archive:
         entries = archive.infolist()
-        if len(entries) != 1:
-            raise InvalidReceipt("archive does not contain exactly one entry")
+        if archive.comment or len(entries) != 1:
+            raise InvalidReceipt("archive contains extra data or entries")
         item = entries[0]
         mode = (item.external_attr >> 16) & 0o170000
         if (
             item.filename != MEMBER or item.is_dir() or mode == stat.S_IFLNK
+            or item.header_offset != 0 or item.comment or item.extra
             or item.flag_bits & 1 or not 20 <= item.file_size <= MAX_JSON
             or item.compress_size > MAX_JSON
         ):
