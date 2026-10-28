@@ -115,6 +115,14 @@ test('rejects trailing ZIP overlay even if Python zipfile can read the entry',()
   assertBlock(cli(26,archive));
 }));
 
+test('rejects invisible data inside a DEFLATE stream that ordinary Python zipfile accepts',()=>withTemp(dir=>{
+  const good=jsonAt(dir,fixture);
+  const archive=asZip(dir,[[receiptName,good]]);
+  const mutate=spawnSync('python3',['-c',"import sys,zipfile,struct\np=sys.argv[1]\nwith zipfile.ZipFile(p) as z:\n    entry=z.infolist()[0]\n    central=z.start_dir\n    assert entry.flag_bits == 0\ndata=bytearray(open(p,'rb').read())\nstart=30+len(entry.filename.encode('ascii'))+len(entry.extra)\nend=start+entry.compress_size\nhidden=b'synthetic-hidden-deflate-overlay'\npatched=bytearray(data[:end]+hidden+data[end:])\nstruct.pack_into('<I',patched,18,entry.compress_size+len(hidden))\nstruct.pack_into('<I',patched,central+len(hidden)+20,entry.compress_size+len(hidden))\nstruct.pack_into('<I',patched,len(patched)-22+16,central+len(hidden))\nwith open(p,'wb') as f:\n    f.write(patched)\nwith zipfile.ZipFile(p) as z:\n    assert z.read(z.infolist()[0])\n",archive],{encoding:'utf8'});
+  assert.equal(mutate.status,0,'fixture proves Python zipfile accepts hidden deflate bytes');
+  assertBlock(cli(26,archive));
+}));
+
 test('rejects hidden ZIP comments that could contain private content',()=>withTemp(dir=>{
   const good=jsonAt(dir,fixture);
   const zip=asZip(dir,[[receiptName,good]]);
