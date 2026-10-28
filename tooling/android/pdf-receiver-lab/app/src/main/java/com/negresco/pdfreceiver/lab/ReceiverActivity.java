@@ -31,6 +31,14 @@ public final class ReceiverActivity extends Activity {
     TextView label = new TextView(this);
     label.setText("Negresco PDF Receiver LAB");
     setContentView(label);
+    // PDF parsing/rendering is not UI work. Keep Activity launch responsive on
+    // Android 8/9 and complete the diagnostic receipt on a worker thread.
+    Thread worker = new Thread(this::receiveAndRender, "pdf-receiver-lab");
+    worker.setDaemon(true);
+    worker.start();
+  }
+
+  private void receiveAndRender() {
     File temp = null;
     try {
       Intent intent = getIntent();
@@ -114,7 +122,7 @@ public final class ReceiverActivity extends Activity {
           + "\"syntheticOnly\":true,\"stableReleaseAllowed\":false}");
     } finally {
       if (temp != null) temp.delete();
-      finish();
+      runOnUiThread(this::finish);
     }
   }
 
