@@ -7,9 +7,11 @@ No source PDF, financial input, or user data is read, emitted or uploaded.
 """
 from __future__ import annotations
 
+import io
 import json
 import re
 import stat
+import struct
 import sys
 import zipfile
 from pathlib import Path
@@ -68,6 +70,60 @@ def load_json(raw: bytes) -> dict:
     return value
 
 
+def verify_contiguous_zip(raw: bytes, entry: zipfile.ZipInfo) -> None:
+    """Reject hidden preambles, overlays, slack and unaccounted ZIP members.
+
+    The metadata-only artifact has one fixed ASCII member and does not need
+    ZIP64, extra fields, comments or multi-disk structures. GitHub artifact
+    ZIPs may contain an ordinary 16-byte data descriptor (general bit 3).
+    """
+    name = MEMBER.encode("ascii")
+    if len(raw) < 30 + len(name) + 46 + len(name) + 22:
+        raise InvalidReceipt("ZIP archive is too small")
+    if raw[-22:-18] != b"PK\\x05\\x06":
+        raise InvalidReceipt("ZIP end marker is not at physical EOF")
+    signature, disk, cd_disk, disk_count, count, cd_size, cd_offset, comment_len = (
+        struct.unpack_from("<IHHHHIIH", raw, len(raw) - 22)
+    )
+    if (
+        signature != 0x06054B50 or disk != 0 or cd_disk != 0
+        or disk_count != 1 or count != 1 or comment_len != 0
+        or cd_size != 46 + len(name)
+        or cd_offset + cd_size != len(raw) - 22
+        or entry.header_offset != 0
+        or entry.flag_bits not in (0, 8, 0x800, 0x808)
+        or entry.compress_type not in (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED)
+    ):
+        raise InvalidReceipt("unsafe ZIP directory layout")
+    if raw[cd_offset:cd_offset + 4] != b"PK\\x01\\x02":
+        raise InvalidReceipt("ZIP directory is not contiguous")
+    local = struct.unpack_from("<IHHHHHIIIHH", raw, 0)
+    (local_signature, _version, flags, method, _time, _date,
+     local_crc, local_compressed, local_uncompressed, name_len, extra_len) = local
+    if (
+        local_signature != 0x04034B50 or flags != entry.flag_bits
+        or method != entry.compress_type or name_len != len(name)
+        or extra_len != 0 or raw[30:30 + len(name)] != name
+    ):
+        raise InvalidReceipt("unsafe ZIP local header")
+    if not flags & 8 and (
+        local_crc != entry.CRC
+        or local_compressed != entry.compress_size
+        or local_uncompressed != entry.file_size
+    ):
+        raise InvalidReceipt("ZIP local checksums and sizes disagree")
+    payload_end = 30 + len(name) + entry.compress_size
+    if payload_end > cd_offset:
+        raise InvalidReceipt("ZIP entry overlaps central directory")
+    trailer = raw[payload_end:cd_offset]
+    if flags & 8:
+        expected = struct.pack("<III", entry.CRC, entry.compress_size, entry.file_size)
+        if trailer not in (expected, b"PK\\x07\\x08" + expected):
+            raise InvalidReceipt("ZIP has an unexpected data descriptor or hidden bytes")
+    elif trailer:
+        raise InvalidReceipt("ZIP has hidden bytes before directory")
+
+
 def read_receipt(path: Path) -> dict:
     if path.is_symlink() or not stat.S_ISREG(path.stat(follow_symlinks=False).st_mode):
         raise InvalidReceipt("not a regular file")
@@ -78,7 +134,12 @@ def read_receipt(path: Path) -> dict:
         return load_json(path.read_bytes())
     if path.suffix != ".zip" or size > MAX_ZIP:
         raise InvalidReceipt("unsupported artifact container")
-    with zipfile.ZipFile(path, "r") as archive:
+    # Bounded read ensures the checked ZIP is the exact ZIP that is parsed.
+    with path.open("rb") as stream:
+        zip_bytes = stream.read(MAX_ZIP + 1)
+    if len(zip_bytes) > MAX_ZIP or len(zip_bytes) != size:
+        raise InvalidReceipt("unsafe archive size")
+    with zipfile.ZipFile(io.BytesIO(zip_bytes), "r") as archive:
         entries = archive.infolist()
         if archive.comment or len(entries) != 1:
             raise InvalidReceipt("archive contains extra data or entries")
@@ -91,8 +152,9 @@ def read_receipt(path: Path) -> dict:
             or item.compress_size > MAX_JSON
         ):
             raise InvalidReceipt("unsafe archive entry")
-        raw = archive.read(item)
-    return load_json(raw)
+        verify_contiguous_zip(zip_bytes, item)
+        receipt_bytes = archive.read(item)
+    return load_json(receipt_bytes)
 
 
 def verify(value: dict, expected_api: int) -> None:
