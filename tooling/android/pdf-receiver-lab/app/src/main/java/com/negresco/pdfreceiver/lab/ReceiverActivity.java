@@ -31,7 +31,16 @@ public final class ReceiverActivity extends Activity {
     TextView label = new TextView(this);
     label.setText("Negresco PDF Receiver LAB");
     setContentView(label);
+    // PDF parsing/rendering is not UI work. Keep Activity launch responsive on
+    // Android 8/9 and complete the diagnostic receipt on a worker thread.
+    Thread worker = new Thread(this::receiveAndRender, "pdf-receiver-lab");
+    worker.setDaemon(true);
+    worker.start();
+  }
+
+  private void receiveAndRender() {
     File temp = null;
+    String receipt = null;
     try {
       Intent intent = getIntent();
       if (intent == null || !Intent.ACTION_SEND.equals(intent.getAction())) {
@@ -86,7 +95,7 @@ public final class ReceiverActivity extends Activity {
               bmp.eraseColor(Color.WHITE);
               page.render(bmp, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
               if (!hasVisibleInk(bmp)) {
-                throw new IllegalStateException("blank rendered page");
+                throw new BlankPageException(index);
               }
               verifiedPages++;
             } finally {
@@ -97,20 +106,42 @@ public final class ReceiverActivity extends Activity {
       }
       if (verifiedPages != pages) throw new IllegalStateException("partial render");
       // The SHA identifies test bytes; no document bytes, URI, or PII are logged.
-      writeReceipt("{\"schemaVersion\":1,\"status\":\"received-rendered\","
+      receipt = ("{\"schemaVersion\":1,\"status\":\"received-rendered\","
           + "\"contentUriGranted\":true,\"pdfHeaderAndEof\":true,"
           + "\"renderedFirstPage\":true,\"allPagesRendered\":true,\"nonblankPages\":" + verifiedPages
           + ",\"pages\":" + pages
           + ",\"bytes\":" + size + ",\"sha256\":\"" + hex(hash.digest())
           + "\",\"syntheticOnly\":true,\"stableReleaseAllowed\":false}");
+    } catch (BlankPageException blank) {
+      // Fixed failure category and page index only; never expose any PDF content.
+      receipt = ("{\"schemaVersion\":1,\"status\":\"blocked\",\"reason\":\"blank-page\","
+          + "\"rejectedPageIndex\":" + blank.pageIndex
+          + ",\"syntheticOnly\":true,\"stableReleaseAllowed\":false}");
     } catch (Exception ignored) {
       // No raw exceptions, URI, filenames, source HTML or document contents.
-      writeReceipt("{\"schemaVersion\":1,\"status\":\"blocked\","
+      receipt = ("{\"schemaVersion\":1,\"status\":\"blocked\","
           + "\"syntheticOnly\":true,\"stableReleaseAllowed\":false}");
     } finally {
-      if (temp != null) temp.delete();
-      finish();
+      // Publish no success receipt until the private PDF has been removed.
+      // A failed deletion must never be reported as a completed render.
+      boolean cacheClean = temp == null || temp.delete() || !temp.exists();
+      if (!cacheClean) {
+        receipt = "{\"schemaVersion\":1,\"status\":\"blocked\","
+            + "\"reason\":\"cache-cleanup-failed\","
+            + "\"syntheticOnly\":true,\"stableReleaseAllowed\":false}";
+      }
+      if (receipt == null) {
+        receipt = "{\"schemaVersion\":1,\"status\":\"blocked\","
+            + "\"syntheticOnly\":true,\"stableReleaseAllowed\":false}";
+      }
+      writeReceipt(receipt);
+      runOnUiThread(this::finish);
     }
+  }
+
+  private static final class BlankPageException extends Exception {
+    final int pageIndex;
+    BlankPageException(int pageIndex) { this.pageIndex = pageIndex; }
   }
 
   private static boolean hasVisibleInk(Bitmap bmp) {

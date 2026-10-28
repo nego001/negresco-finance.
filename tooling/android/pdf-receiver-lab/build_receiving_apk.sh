@@ -16,14 +16,15 @@ command -v keytool >/dev/null
 command -v zip >/dev/null
 command -v openssl >/dev/null
 SOURCE="$ROOT/app/src/main/java/com/negresco/pdfreceiver/lab/ReceiverActivity.java"
+FIXTURE_SOURCE="$ROOT/app/src/main/java/com/negresco/pdfreceiver/lab/FixturePdfProvider.java"
 MANIFEST="$ROOT/app/src/main/AndroidManifest.xml"
-test -s "$SOURCE" && test -s "$MANIFEST"
+test -s "$SOURCE" && test -s "$FIXTURE_SOURCE" && test -s "$MANIFEST"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 mkdir -p "$WORK/classes" "$WORK/dex"
-javac -source 8 -target 8 -Xlint:-options -classpath "$JAR" -d "$WORK/classes" "$SOURCE"
+javac -source 8 -target 8 -Xlint:-options -classpath "$JAR" -d "$WORK/classes" "$SOURCE" "$FIXTURE_SOURCE"
 "$TOOLS/d8" --min-api 26 --lib "$JAR" --output "$WORK/dex" \
-  "$WORK/classes/com/negresco/pdfreceiver/lab/ReceiverActivity.class"
+  "$WORK/classes/com/negresco/pdfreceiver/lab/"*.class
 test -s "$WORK/dex/classes.dex"
 "$TOOLS/aapt2" link -o "$WORK/unsigned.apk" -I "$JAR" \
   --manifest "$MANIFEST" --min-sdk-version 26 --target-sdk-version 28 \
