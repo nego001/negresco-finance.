@@ -6,7 +6,7 @@ const workflow=readFileSync('.github/workflows/guardiao-pdf-ui-emulator-lab.yml'
 const script=readFileSync('tooling/android/guardiao_pdf_ui_emulator_smoke.py','utf8');
 
 test('real Android UI lab is branch-only, read-only and never signs or publishes',()=>{
-  assert.match(workflow,/lab\/p01-guardiao-google-apis-webview-control-v1/);
+  assert.match(workflow,/lab\/p01-guardiao-pdf-receiver-integrity-26-28-v1/);
   assert.match(workflow,/permissions:\s*\n  contents: read\s*\n  actions: read/);
   assert.match(workflow,/persist-credentials: false/);
   assert.doesNotMatch(workflow,/contents: write|gh release|workflow_dispatch|eas update|expo publish|stable_signing|secrets\./);
@@ -104,13 +104,56 @@ test('real Android focus and WebView provider are reported only as fixed categor
   assert.match(script,/print\("ENV \(LAB\): " \+ json\.dumps\(safe_environment_summary\(\), sort_keys=True\)/);
   assert.doesNotMatch(script,/print\(.*(?:activity|details|window|focused)\)/);
 });
-test('Google APIs image is the only A/B dimension, without APK or security policy changes',()=>{
+test('PDF receiver retains SHA-pinned Negresco app on both Google APIs emulator targets',()=>{
   assert.match(workflow,/target: google_apis/);
   assert.doesNotMatch(workflow,/target: default/);
   assert.match(workflow,/api: \[26, 28\]/);
   assert.match(workflow,/run-id: 40617164086/);
   assert.match(workflow,/29e248742e365c4dd7a8c668a23153d43a89b8be02828620bbc5851775986b4a/);
   assert.match(workflow,/permissions:\s*\n  contents: read\s*\n  actions: read/);
+});
+test('receiver Android manifest is single exported PDF-only activity with zero permissions',()=>{
+  const manifest=readFileSync('tooling/android/pdf-receiver-lab/app/src/main/AndroidManifest.xml','utf8');
+  const receiver=readFileSync('tooling/android/pdf-receiver-lab/app/src/main/java/com/negresco/pdfreceiver/lab/ReceiverActivity.java','utf8');
+  const gradle=readFileSync('tooling/android/pdf-receiver-lab/app/build.gradle.kts','utf8');
+  assert.match(manifest,/android:exported="true"/);
+  assert.match(manifest,/android.intent.action.SEND/);
+  assert.match(manifest,/android:mimeType="application\/pdf"/);
+  assert.match(manifest,/android:allowBackup="false"/);
+  assert.match(manifest,/android:usesCleartextTraffic="false"/);
+  assert.doesNotMatch(manifest,/<uses-permission/);
+  assert.match(gradle,/applicationId = "com.negresco.pdfreceiver.lab"/);
+  assert.match(gradle,/minSdk = 26/);
+  assert.match(gradle,/targetSdk = 28/);
+  assert.match(receiver,/Intent\.FLAG_GRANT_READ_URI_PERMISSION/);
+  assert.match(receiver,/!"content"\.equals\(uri\.getScheme\(\)\)/);
+  assert.match(receiver,/MAX_BYTES = 8L \* 1024L \* 1024L/);
+  assert.match(receiver,/new PdfRenderer\(fd\)/);
+  assert.match(receiver,/first\.render\(bmp/);
+  assert.match(receiver,/temp\.delete\(\)/);
+});
+test('receiver validates file header and EOF, outputs only metadata and never logs raw document',()=>{
+  const receiver=readFileSync('tooling/android/pdf-receiver-lab/app/src/main/java/com/negresco/pdfreceiver/lab/ReceiverActivity.java','utf8');
+  assert.match(receiver,/%PDF-/);
+  assert.match(receiver,/%%EOF/);
+  assert.match(receiver,/MessageDigest\.getInstance\("SHA-256"\)/);
+  assert.match(receiver,/"received-rendered"/);
+  assert.match(receiver,/private static final String RECEIPT = "receipt.json"/);
+  assert.match(receiver,/openFileOutput\(RECEIPT, MODE_PRIVATE\)/);
+  assert.doesNotMatch(receiver,/Log\.|System\.out|HttpURLConnection|Socket\(|getExternalFilesDir|WRITE_EXTERNAL_STORAGE/);
+});
+test('E2E pass requires the separate APK, Android chooser, actual receiver and PdfRenderer receipt',()=>{
+  assert.match(workflow,/gradle --project-dir tooling\/android\/pdf-receiver-lab :app:assembleDebug/);
+  assert.match(workflow,/Receiver lab APK must declare no permissions/);
+  assert.match(script,/adb\("install", "-r", str\(RECEIVER_APK\)/);
+  assert.match(script,/if chooser_present\(\):[\s\S]{0,160}receive_from_chooser\(api, digest\)/);
+  assert.match(script,/wait_visible\("Negresco PDF Receiver LAB"/);
+  assert.match(script,/run-as", RECEIVER_PACKAGE, "cat", "files\/receipt.json"/);
+  assert.match(script,/receipt\.get\("status"\) != "received-rendered"/);
+  assert.match(script,/receipt\.get\("renderedFirstPage"\)/);
+  assert.match(script,/receiverPdfRead": True/);
+  assert.match(script,/pdfPageCount": receipt\["pages"\]/);
+  assert.match(script,/independent PDF receiver did not produce a verified receipt/);
 });
 test('privacy evidence is synthetic, metadata-only and production is forbidden',()=>{
   assert.match(script,/"syntheticInput": True/);
