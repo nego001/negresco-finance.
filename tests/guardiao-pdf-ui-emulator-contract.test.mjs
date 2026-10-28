@@ -150,7 +150,7 @@ test('E2E pass requires the separate APK, Android chooser, actual receiver and P
   assert.match(script,/wait_visible\("Negresco PDF Receiver LAB"/);
   assert.match(script,/run-as", RECEIVER_PACKAGE, "cat", "files\/receipt.json"/);
   assert.match(script,/receipt\.get\("status"\) != "received-rendered"/);
-  assert.match(script,/"renderedFirstPage"\)/);
+  assert.match(script,/"renderedFirstPage"/);
   assert.match(script,/receiverPdfRead": True/);
   assert.match(script,/pdfPageCount": receipt\["pages"\]/);
   assert.match(script,/independent PDF receiver did not produce a verified receipt/);
