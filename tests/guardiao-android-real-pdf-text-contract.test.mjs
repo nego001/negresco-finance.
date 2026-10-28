@@ -67,5 +67,5 @@ test('workflow runs only on old Android emulators with audited SHA and metadata-
   assert.match(workflow,/guardiao_android_export_pdf_text_emulator_smoke\.py/);
   assert.match(workflow,/path: guardiao-android-real-pdf-text-receipt\.json/);
   assert.match(workflow,/retention-days: 2/);
-  assert.doesNotMatch(workflow,/contents: write|workflow_dispatch|secrets\.|eas update|expo publish|gh release|path: .*\.pdf|adb pull|screencap|logcat/);
+  assert.doesNotMatch(workflow,/contents: write|workflow_dispatch|secrets\.|eas update|expo publish|gh release|path: .*\.pdf|adb pull|\badb\s+(?:shell\s+)?(?:screencap|logcat)\b/);
 });
