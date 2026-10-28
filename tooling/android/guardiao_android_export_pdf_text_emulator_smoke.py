@@ -72,6 +72,8 @@ def ensure_absent() -> None:
 
 def prepare_private_one_shot() -> None:
     # This runs only AFTER the independently compiled receiver was installed.
+    # The app may never have launched; its private files dir may not exist.
+    base.adb("shell", "run-as", PKG, "mkdir", "-p", "files")
     # Fresh emulator expected; refuse to reuse a prior synthetic snapshot.
     ensure_absent()
     base.adb("shell", "run-as", PKG, "touch", MARKER)
