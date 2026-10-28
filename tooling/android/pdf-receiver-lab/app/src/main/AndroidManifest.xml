@@ -16,5 +16,11 @@
         <data android:mimeType="application/pdf" />
       </intent-filter>
     </activity>
+    <!-- Non-exported, in-memory, fully synthetic three-page lab fixtures only. -->
+    <provider
+        android:name=".FixturePdfProvider"
+        android:authorities="com.negresco.pdfreceiver.lab.fixtures"
+        android:exported="false"
+        android:grantUriPermissions="false" />
   </application>
 </manifest>
