@@ -54,3 +54,9 @@ test('new 48-digit CI is branch-only, exact APK SHA-pinned, metadata-only and re
   assert.match(flow,/retention-days: 2/);
   assert.doesNotMatch(flow,/contents: write|workflow_dispatch|secrets\.|eas update|expo publish|gh release|path: .*\.pdf|adb pull/);
 });
+
+test('native PDF semantic path blocks a formatted full synthetic fixture',()=>{
+  assert.match(semantic,/from guardiao_pdf_synthetic_privacy_gate import contains_formatted_synthetic_fixture/);
+  assert.match(semantic,/if contains_formatted_synthetic_fixture\(actual\):/);
+  assert.match(semantic,/native PDF leaks formatted synthetic fixture/);
+});
