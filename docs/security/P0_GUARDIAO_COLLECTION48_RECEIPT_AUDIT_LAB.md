@@ -23,6 +23,7 @@ O risco coberto é a publicação de um recibo JSON adulterado ou inflado que de
 - Limita JSON a 4 KiB e ZIP a 1 MiB; ZIP deve conter exatamente um JSON com nome fixo, sem caminhos de travessia, entrada adicional, comentários ZIP, dados anteriores ao primeiro cabeçalho, link simbólico ou criptografia.
 - Falha de forma fechada com erro de categoria fixa, sem imprimir caminhos, texto de PDF, documentos, linha digitável ou exceções.
 - A CI no branch de laboratório executa o verificador antes de publicar o recibo JSON de retenção de dois dias.
+- O workflow de Android fixa `actions/checkout`, `actions/setup-java`, `actions/download-artifact` e `actions/upload-artifact` por SHA integral (refs `v4` consultadas na API GitHub em 29/10/2026). O teste de contrato exige 6 usos exatos e falha se uma tag móvel reaparecer. Isso limita mudança silenciosa da implementação das Actions, mas não autentica dispositivos, conteúdo do APK ou terceiros.
 
 ## Cobertura negativa
 

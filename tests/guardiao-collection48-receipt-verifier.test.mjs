@@ -283,12 +283,28 @@ test('rejects symlinks, JSON with wrong name and other file types',()=>withTemp(
 test('branch-only CI runs strict metadata verification before uploading any receipt',()=>{
   assert.match(workflow,/lab\/p01-guardiao-arrecadacao48-receipt-audit-v1/);
   assert.match(workflow,/python3 tooling\/android\/verify_collection48_receipt\.py \$\{\{ matrix\.api \}\} guardiao-android-real-pdf-text-receipt\.json/);
-  assert.ok(workflow.indexOf('verify_collection48_receipt.py')<workflow.indexOf('actions/upload-artifact@v4'));
+  assert.ok(workflow.indexOf('verify_collection48_receipt.py')<workflow.indexOf('actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02'));
   assert.match(workflow,/permissions:\s*\n  contents: read\s*\n  actions: read/);
   assert.match(workflow,/retention-days: 2/);
   assert.doesNotMatch(workflow,/contents: write|workflow_dispatch|secrets\.|eas update|expo publish|gh release|adb pull/);
 });
 
+
+test('receipt CI uses immutable GitHub Actions commit pins',()=>{
+  const expected={
+    'checkout':'11d5960a326750d5838078e36cf38b85af677262',
+    'setup-java':'cf277c60eb25467037889841efdb72551f06f6c3',
+    'download-artifact':'d3f86a106a0bac45b974a628896c90dbdf5c8093',
+    'upload-artifact':'ea165f8d65b6e75b540449e92b4886f43607fa02'
+  };
+  const counts={'checkout':2,'setup-java':1,'download-artifact':2,'upload-artifact':1};
+  const found=[...workflow.matchAll(/uses: actions\\/(checkout|setup-java|download-artifact|upload-artifact)@(\\S+)/g)];
+  assert.equal(found.length,6,'six official actions must be locked');
+  for(const name of Object.keys(expected))
+    assert.equal(found.filter(match=>match[1]===name).length,counts[name],name+' action count');
+  for(const [,name,sha] of found)
+    assert.equal(sha,expected[name],name+' must be pinned to reviewed commit');
+});
 
 test('post-upload gate reopens both platform receipts and rejects missing or extra files',()=>{
   assert.match(workflow,/receipt-pair-gate:/);
