@@ -28,7 +28,8 @@ test('UI runner requires real Guardião flow and system chooser, never fakes a p
     assert.ok(script.includes(s),'missing mandatory UI stage: '+s);
   assert.match(script,/FIXTURE = "0" \* 47/);
   assert.match(script,/if api not in \(26, 28\)/);
-  assert.match(script,/synthetic 47-digit boleto was not populated in the EditText/);
+  assert.match(script,/if populated\.get\("text", ""\) != FIXTURE:/);
+  assert.match(script,/synthetic input was not populated in the EditText/);
   assert.match(script,/wait_visible\("Verificação inconclusiva ou inválida", retries=5, scroll=False\)/);
   assert.match(script,/STAGE \(LAB\): synthetic analysis result visible/);
   const resultGate=script.indexOf('wait_visible("Verificação inconclusiva ou inválida"');

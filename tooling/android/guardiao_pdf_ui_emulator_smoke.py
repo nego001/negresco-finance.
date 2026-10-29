@@ -332,9 +332,11 @@ def run_smoke(after_receiver_install=None, after_verified_receipt=None) -> None:
     digest = hasher.hexdigest()
     if digest != EXPECTED_SHA:
         raise RuntimeError("APK is not the audited four-permission-free binary")
+    print("STAGE (LAB): audited APK integrity verified", flush=True)
     api = int(adb("shell", "getprop", "ro.build.version.sdk").strip())
     if api not in (26, 28):
         raise RuntimeError("unsupported Android API for this lab")
+    print(f"STAGE (LAB): emulator API {api} verified", flush=True)
     adb("shell", "settings", "put", "global", "window_animation_scale", "0")
     adb("shell", "settings", "put", "global", "transition_animation_scale", "0")
     adb("shell", "settings", "put", "global", "animator_duration_scale", "0")
@@ -344,25 +346,39 @@ def run_smoke(after_receiver_install=None, after_verified_receipt=None) -> None:
     if not RECEIVER_APK.is_file() or RECEIVER_APK.is_symlink():
         raise RuntimeError("missing independent receiver debug APK")
     adb("install", "-r", str(RECEIVER_APK), timeout=120)
+    print("STAGE (LAB): isolated Android receiver installed", flush=True)
     if after_receiver_install is not None:
         after_receiver_install()
+        print("STAGE (LAB): private synthetic one-shot gate prepared", flush=True)
     # Ensure no stale success receipt can be mistaken for the current share.
     adb("shell", "run-as", RECEIVER_PACKAGE, "rm", "-f", "files/receipt.json")
+    print("STAGE (LAB): stale receiver receipt cleared", flush=True)
     adb("install", "-r", str(APK), timeout=150)
+    print("STAGE (LAB): SHA-pinned Android app installed", flush=True)
     launched = adb("shell", "monkey", "-p", PACKAGE, "-c",
                    "android.intent.category.LAUNCHER", "1", timeout=30)
     if "Events injected: 1" not in launched:
         raise RuntimeError("Android launcher did not start Negresco")
-    wait_visible("Seu universo", retries=45)
+    print("STAGE (LAB): Android launcher accepted synthetic app launch", flush=True)
+    try:
+        wait_visible("Seu universo", retries=45)
+    except (RuntimeError, subprocess.TimeoutExpired):
+        # Categories only: never log activity names, UI XML, or fixture values.
+        print("ENV (LAB): " + json.dumps(safe_environment_summary(), sort_keys=True), flush=True)
+        print("BLOCK STAGE (LAB): app home not observed after bounded launch wait", flush=True)
+        raise
+    print("STAGE (LAB): app home observed", flush=True)
     tap_node(wait_visible("Guardião", retries=24, scroll=True))
+    print("STAGE (LAB): Guardião navigation tapped", flush=True)
     input_node = wait_visible("Linha digitável do boleto", retries=30)
+    print("STAGE (LAB): synthetic input label observed", flush=True)
     tap_node(input_node)
     adb("shell", "input", "text", FIXTURE)
     adb("shell", "input", "keyevent", "4")  # Hide keyboard.
     # The actual EditText value is required; a tap on the label alone proves nothing.
     populated = wait_visible("Linha digitável do boleto", retries=10)
     if populated.get("text", "") != FIXTURE:
-        raise RuntimeError("synthetic 47-digit boleto was not populated in the EditText")
+        raise RuntimeError("synthetic input was not populated in the EditText")
     stage_summary("synthetic field entered")
     tap_node(wait_visible("Analisar estrutura", retries=12, enabled=True, scroll=True))
     first = stage_summary("after first Analyze tap")
