@@ -99,6 +99,15 @@ def verify_contiguous_zip(raw: bytes, entry: zipfile.ZipInfo) -> None:
         raise InvalidReceipt("unsafe ZIP directory layout")
     if raw[cd_offset:cd_offset + 4] != b"PK\x01\x02":
         raise InvalidReceipt("ZIP directory is not contiguous")
+    # The same ZIP member has both local and central metadata. Any mismatch
+    # makes the artifact ambiguous even if Python's ZipFile.read() tolerates it.
+    # Compare raw DOS time/date and extraction-version fields without relying
+    # on timezone conversions or interpreted ZipInfo timestamps.
+    if (
+        raw[4:6] != raw[cd_offset + 6:cd_offset + 8]
+        or raw[10:14] != raw[cd_offset + 12:cd_offset + 16]
+    ):
+        raise InvalidReceipt("ZIP local and central metadata disagree")
     local = struct.unpack_from("<IHHHHHIIIHH", raw, 0)
     (local_signature, _version, flags, method, _time, _date,
      local_crc, local_compressed, local_uncompressed, name_len, extra_len) = local

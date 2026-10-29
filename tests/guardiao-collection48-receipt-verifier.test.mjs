@@ -159,6 +159,26 @@ test('oversized JSON and ZIP fail closed before parsing',()=>withTemp(dir=>{
   assertBlock(cli(26,zip));
 }));
 
+test('rejects contradictory ZIP local timestamps and extraction versions',()=>withTemp(dir=>{
+  const good=jsonAt(dir,fixture);
+  const zip=asZip(dir,[[receiptName,good]]);
+  const prefix=join(dir,'local-conflict-');
+  const py=[
+    'import struct,sys,zipfile',
+    'source=open(sys.argv[1],"rb").read()',
+    'for offset in (4,10,12):',
+    '    changed=bytearray(source)',
+    '    original=struct.unpack_from("<H",changed,offset)[0]',
+    '    struct.pack_into("<H",changed,offset,(original+1)&0xffff)',
+    '    path=sys.argv[2]+str(offset)+".zip"',
+    '    with open(path,"wb") as f: f.write(changed)',
+    '    with zipfile.ZipFile(path) as z: assert z.read(z.namelist()[0])'
+  ].join('\n');
+  const forged=spawnSync('python3',['-c',py,zip,prefix],{encoding:'utf8'});
+  assert.equal(forged.status,0,'ordinary ZIP reader tolerates the conflicting local header');
+  for(const offset of [4,10,12])assertBlock(cli(26,prefix+offset+'.zip'));
+}));
+
 test('rejects contradictions in ZIP descriptor-mode local CRC and lengths',()=>withTemp(dir=>{
   const good=jsonAt(dir,fixture);
   const prefix=join(dir,'deferred-local-');
