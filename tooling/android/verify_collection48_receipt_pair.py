@@ -42,7 +42,7 @@ def read_member_at(folder_fd: int) -> dict:
 def verify_pair(root: Path) -> None:
     # A held directory descriptor cannot be redirected by renaming a path or
     # replacing its last component with a symlink during the next lookup.
-    root_fd = os.open(root, DIR_FLAGS)
+    root_fd = receipt.open_no_symlink_path(root, DIR_FLAGS)
     try:
         if not stat.S_ISDIR(os.fstat(root_fd).st_mode):
             raise receipt.InvalidReceipt("unsafe post-upload root")

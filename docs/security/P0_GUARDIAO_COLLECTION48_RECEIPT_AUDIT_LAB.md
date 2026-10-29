@@ -14,6 +14,7 @@ O risco coberto é a publicação de um recibo JSON adulterado ou inflado que de
 - Confere contagem de páginas, páginas renderizadas/não vazias/com texto (de 1 a 8), tamanho limitado e formato do SHA-256 do PDF reportado.
 - Exige approvedForProduction=false e stableReleaseAllowed=false.
 - Abre arquivos em descritores com O_NOFOLLOW e verifica tipo e limite no próprio descritor: impede troca por symlink entre pré-checagem e leitura e impede leitura sem limite.
+- Percorre todos os componentes de caminho com descritores de diretório fixados, O_DIRECTORY e O_NOFOLLOW; rejeita ancestrais simbólicos e componentes '..', não somente links na entrada final. O mesmo controle protege o diretório raiz do gate pós-upload. Duas regressões mantêm caminhos genuínos aceitos e recusam caminhos ancestrais indiretos.
 - Rejeita membros ZIP marcados como FIFO, dispositivo ou outro tipo Unix especial, aceitando apenas arquivo comum (ou sem atributo de tipo) mesmo que o nome termine em `.json`.
 - Para ZIP com data descriptor (bit 3), exige CRC e tamanhos locais de cabeçalho zerados; recusa campos locais contraditórios que a biblioteca ZIP poderia ignorar. Regressão negativa injeta separadamente CRC, tamanho comprimido e descomprimido não nulos.
 - Exige que versão necessária para extração, data e hora DOS do cabeçalho ZIP local coincidam byte a byte com o diretório central. Rejeita três adulterações que o leitor ZIP comum pode aceitar, sem imprimir conteúdo sensível.

@@ -176,6 +176,30 @@ def verify_contiguous_zip(raw: bytes, entry: zipfile.ZipInfo) -> None:
         raise InvalidReceipt("ZIP has hidden bytes before directory")
 
 
+def open_no_symlink_path(path: Path, flags: int) -> int:
+    """Open a file or directory through pinned, nofollow directory descriptors.
+
+    O_NOFOLLOW on the leaf alone does not protect against symlinked ancestors.
+    Walk every path component under a held directory fd, without resolving
+    potentially untrusted symlinks or allowing explicit '..' components.
+    """
+    if not hasattr(os, "O_NOFOLLOW") or not hasattr(os, "O_DIRECTORY"):
+        raise InvalidReceipt("safe descriptor traversal unavailable")
+    parts = path.parts[1:] if path.is_absolute() else path.parts
+    if not parts or any(component in ("", ".", "..") for component in parts):
+        raise InvalidReceipt("unsafe receipt path components")
+    dir_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0)
+    dir_fd = os.open("/" if path.is_absolute() else ".", dir_flags)
+    try:
+        for component in parts[:-1]:
+            next_fd = os.open(component, dir_flags, dir_fd=dir_fd)
+            os.close(dir_fd)
+            dir_fd = next_fd
+        return os.open(parts[-1], flags, dir_fd=dir_fd)
+    finally:
+        os.close(dir_fd)
+
+
 def read_bounded_regular_file(path: Path, limit: int) -> bytes:
     """Open the checked inode itself, not a separately pre-checked path.
 
@@ -186,7 +210,7 @@ def read_bounded_regular_file(path: Path, limit: int) -> bytes:
         raise InvalidReceipt("nofollow file opening unavailable")
     flags = os.O_RDONLY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0)
     flags |= getattr(os, "O_NONBLOCK", 0)
-    fd = os.open(path, flags)
+    fd = open_no_symlink_path(path, flags)
     try:
         info = os.fstat(fd)
         if not stat.S_ISREG(info.st_mode) or not 20 <= info.st_size <= limit:

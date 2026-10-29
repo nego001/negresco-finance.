@@ -143,7 +143,9 @@ test('rejects ZIP self-extracting prefixes or data before the first entry',()=>w
 test('receipt opening is descriptor-bound, nofollow and size-bounded',()=>{
   const source=readFileSync(verifier,'utf8');
   assert.match(source,/os\.O_NOFOLLOW/);
-  assert.match(source,/fd = os\.open\(path, flags\)/);
+  assert.match(source,/fd = open_no_symlink_path\\(path, flags\\)/);
+  assert.match(source,/next_fd = os\\.open\\(component, dir_flags, dir_fd=dir_fd\\)/);
+  assert.match(source,/return os\\.open\\(parts\\[-1\\], flags, dir_fd=dir_fd\\)/);
   assert.match(source,/info = os\.fstat\(fd\)/);
   assert.match(source,/stat\.S_ISREG\(info\.st_mode\)/);
   assert.match(source,/source\.read\(limit \+ 1\)/);
@@ -270,6 +272,16 @@ test('named-pipe receipt cannot block the offline verifier',()=>withTemp(dir=>{
   assertBlock(result);
 }));
 
+test('receipt gate rejects symlinked ancestor directories, not only the final file',()=>withTemp(dir=>{
+  const real=join(dir,'real-parent');
+  mkdirSync(real);
+  const good=jsonAt(real,fixture);
+  assert.equal(cli(26,good).status,0,'genuine nested receipt still passes');
+  const alias=join(dir,'linked-parent');
+  symlinkSync(real,alias,'dir');
+  assertBlock(cli(26,join(alias,receiptName)));
+}));
+
 test('rejects symlinks, JSON with wrong name and other file types',()=>withTemp(dir=>{
   const good=jsonAt(dir,fixture);
   const link=join(dir,'linked.zip');
@@ -317,7 +329,7 @@ test('post-upload gate reopens both platform receipts and rejects missing or ext
   assert.match(gate,/persist-credentials: false/);
   assert.match(gate,/timeout-minutes: 5/);
   const checker=readFileSync('tooling/android/verify_collection48_receipt_pair.py','utf8');
-  assert.match(checker,/root_fd = os\.open\(root, DIR_FLAGS\)/);
+  assert.match(checker,/root_fd = receipt\.open_no_symlink_path\(root, DIR_FLAGS\)/);
   assert.match(checker,/os\.listdir\(root_fd\)/);
   assert.match(checker,/folder_fd = os\.open\(folder_name, DIR_FLAGS, dir_fd=root_fd\)/);
   assert.match(checker,/os\.listdir\(folder_fd\)/);
@@ -410,6 +422,14 @@ test('post-upload verifier refuses symlinked Android receipt folders',()=>withTe
   renameSync(path,target);
   symlinkSync(target,path,'dir');
   assertPairBlock(pairCli(root));
+}));
+
+test('post-upload verifier rejects symlinked ancestor of receipt-pair root',()=>withTemp(dir=>{
+  const original=makePairTree(dir);
+  const alias=join(dir,'linked-parent');
+  symlinkSync(dir,alias,'dir');
+  assertPairBlock(pairCli(join(alias,'receipt-pair')));
+  assert.equal(pairCli(original).status,0,'genuine root still passes');
 }));
 
 test('post-upload verifier rejects a symlink substituted for the root',()=>withTemp(dir=>{
