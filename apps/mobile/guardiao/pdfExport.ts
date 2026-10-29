@@ -6,6 +6,9 @@
 export type PdfExportOutcome='shared'|'unavailable'|'cancelled'|'failed';
 // Fixed, non-sensitive phase codes only. Never reveal native exception text or local URI.
 export type PdfExportFailurePhase='print'|'invalid-uri'|'availability'|'share';
+// Informational only. Called immediately before awaiting a native operation;
+// it never receives HTML, URIs, native errors, inputs, or personal data.
+export type PdfExportPendingPhase='print'|'availability'|'share';
 
 export type PdfExportPorts={
   html:string;
@@ -16,6 +19,7 @@ export type PdfExportPorts={
   // Called for a generated file only if native sharing was never invoked.
   discardUnsharedFile?:(uri:string)=>Promise<boolean>;
   onFailurePhase?:(phase:PdfExportFailurePhase)=>void;
+  onPendingPhase?:(phase:PdfExportPendingPhase)=>void;
 };
 
 export async function exportPdfWithLifecycleGuard(ports:PdfExportPorts):Promise<PdfExportOutcome>{
@@ -27,7 +31,12 @@ export async function exportPdfWithLifecycleGuard(ports:PdfExportPorts):Promise<
   let nativeShareStarted=false;
   let phase:PdfExportFailurePhase='print';
   const reportFailure=()=>{try{ports.onFailurePhase?.(phase);}catch{/* never expose error text */}};
+  const reportPending=(stage:PdfExportPendingPhase)=>{
+    if(!authorized())return;
+    try{ports.onPendingPhase?.(stage);}catch{/* no observer may block native export */}
+  };
   try{
+    reportPending('print');
     const pdf=await ports.print(ports.html);
     createdUri=typeof pdf?.uri==='string'?pdf.uri:null;
     if(!authorized())return 'cancelled';
@@ -38,6 +47,7 @@ export async function exportPdfWithLifecycleGuard(ports:PdfExportPorts):Promise<
       return 'failed';
     }
     phase='availability';
+    reportPending('availability');
     const available=await ports.sharingAvailable();
     if(!authorized())return 'cancelled';
     if(!available)return 'unavailable';
@@ -45,6 +55,7 @@ export async function exportPdfWithLifecycleGuard(ports:PdfExportPorts):Promise<
     // After this point the native chooser may still be using the file.
     phase='share';
     nativeShareStarted=true;
+    reportPending('share');
     await ports.share(createdUri);
     return authorized()?'shared':'cancelled';
   }catch{
