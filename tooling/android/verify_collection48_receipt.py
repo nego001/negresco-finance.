@@ -99,6 +99,14 @@ def verify_contiguous_zip(raw: bytes, entry: zipfile.ZipInfo) -> None:
         raise InvalidReceipt("unsafe ZIP directory layout")
     if raw[cd_offset:cd_offset + 4] != b"PK\x01\x02":
         raise InvalidReceipt("ZIP directory is not contiguous")
+    # ZIPs for this one-file lab cannot span disks or carry opaque central
+    # attributes. Ordinary ZIP readers can ignore these covert-data fields.
+    # Accept only the common zero or DOS archive-bit attributes.
+    if (
+        entry.volume != 0 or entry.internal_attr != 0
+        or (entry.external_attr & 0xFFFF) not in (0, 0x20)
+    ):
+        raise InvalidReceipt("unsupported ZIP central directory attributes")
     # The same ZIP member has both local and central metadata. Any mismatch
     # makes the artifact ambiguous even if Python's ZipFile.read() tolerates it.
     # Compare raw DOS time/date and extraction-version fields without relying

@@ -17,6 +17,7 @@ O risco coberto é a publicação de um recibo JSON adulterado ou inflado que de
 - Rejeita membros ZIP marcados como FIFO, dispositivo ou outro tipo Unix especial, aceitando apenas arquivo comum (ou sem atributo de tipo) mesmo que o nome termine em `.json`.
 - Para ZIP com data descriptor (bit 3), exige CRC e tamanhos locais de cabeçalho zerados; recusa campos locais contraditórios que a biblioteca ZIP poderia ignorar. Regressão negativa injeta separadamente CRC, tamanho comprimido e descomprimido não nulos.
 - Exige que versão necessária para extração, data e hora DOS do cabeçalho ZIP local coincidam byte a byte com o diretório central. Rejeita três adulterações que o leitor ZIP comum pode aceitar, sem imprimir conteúdo sensível.
+- Recusa número de disco inicial não nulo, atributos internos opacos e atributos DOS inesperados no diretório central: três campos que leitores ZIP comuns podem ignorar e que poderiam carregar metadados encobertos. Aceita apenas os atributos DOS zero ou bit de arquivo (0x20), compatíveis com os artefatos legítimos observados.
 - Rejeita também um caminho de recibo apontando para FIFO real sem bloquear a execução, conferindo o tipo pelo descritor aberto.
 - Limita JSON a 4 KiB e ZIP a 1 MiB; ZIP deve conter exatamente um JSON com nome fixo, sem caminhos de travessia, entrada adicional, comentários ZIP, dados anteriores ao primeiro cabeçalho, link simbólico ou criptografia.
 - Falha de forma fechada com erro de categoria fixa, sem imprimir caminhos, texto de PDF, documentos, linha digitável ou exceções.
