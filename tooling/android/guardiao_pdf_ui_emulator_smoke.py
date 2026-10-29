@@ -217,6 +217,39 @@ def safe_environment_summary() -> dict[str, str | bool]:
         "webViewProvider": provider_category
     }
 
+def pdf_timeout_category(visible: dict[str, bool],
+                         environment: dict[str, str | bool]) -> str:
+    """Observational only: UI cannot identify the pending native async stage."""
+    if type(visible) is not dict or type(environment) is not dict:
+        return "unclassified"
+    alive = environment.get("appProcessAlive")
+    focus = environment.get("foregroundCategory")
+    if type(alive) is not bool or focus not in (
+        "unknown", "negresco-app", "system-chooser", "system-ui", "other-or-unknown"
+    ):
+        return "unclassified"
+    if not alive:
+        return "app-not-running"
+    if focus == "system-chooser":
+        return "chooser-focus-unverified"
+    if visible.get("Gerando PDF local...") is True:
+        return ("ui-loading-app-foreground" if focus == "negresco-app"
+                else "ui-loading-focus-uncertain")
+    if any(visible.get(label) is True for label in (
+        "Não foi possível gerar ou compartilhar o PDF.",
+        "Compartilhamento de PDF indisponível neste dispositivo.",
+        "Falha ao gerar o PDF local.",
+        "Falha ao gerar o relatório PDF. Teste sintético mínimo criou arquivo local.",
+        "Falha ao gerar o relatório PDF. Teste sintético mínimo também falhou.",
+        "Falha ao gerar o PDF local. Teste sintético sem resultado verificável.",
+        "O arquivo PDF gerado não tem um endereço local válido.",
+        "Falha ao verificar o compartilhamento disponível.",
+        "Falha ao abrir o compartilhamento nativo do Android."
+    )):
+        return "visible-failure-no-chooser"
+    return "unclassified"
+
+
 def chooser_present() -> bool:
     # In Android 8/9 the system resolver is exposed as ChooserActivity or ResolverActivity.
     # Inspect the foreground activity rather than trusting stale app UI text.
@@ -447,7 +480,11 @@ def run_smoke(after_receiver_install=None, after_verified_receipt=None) -> None:
             if state["Compartilhamento de PDF indisponível neste dispositivo."]:
                 raise RuntimeError("Guardião reported Android PDF sharing unavailable")
         time.sleep(1)
-    stage_summary("PDF chooser timeout; no app status is treated as success")
+    # Fail closed; emit fixed category only, never PDF, UI XML or native output.
+    final_visible = stage_summary("PDF chooser timeout; no app status is treated as success")
+    final_environment = safe_environment_summary()
+    print("BLOCK STAGE (LAB): PDF timeout category=" +
+          pdf_timeout_category(final_visible, final_environment), flush=True)
     raise RuntimeError("PDF share chooser not observed after synthetic user action")
 
 if __name__ == "__main__":

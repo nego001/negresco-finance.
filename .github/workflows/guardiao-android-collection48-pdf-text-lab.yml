@@ -4,6 +4,7 @@ on:
     branches:
       - lab/p01-guardiao-android-invalid-arrecadacao-48-v1
       - lab/p01-guardiao-arrecadacao48-receipt-audit-v1
+      - lab/p01-guardiao-api28-timeout-categories-v1
 permissions:
   contents: read
   actions: read
