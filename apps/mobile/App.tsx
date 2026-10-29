@@ -5,7 +5,7 @@ import {loadHistory,createHistoryWriteQueue} from './guardiao/history';
 import * as SecureStore from 'expo-secure-store';
 import { buildEvidenceReview, type EvidenceReviewState } from './guardiao/evidence';
 import { createLocalReport, renderReportHtml } from './guardiao/report';
-import {exportPdfWithLifecycleGuard, type PdfExportFailurePhase} from './guardiao/pdfExport';
+import {exportPdfWithLifecycleGuard, type PdfExportFailurePhase, type PdfExportPendingPhase} from './guardiao/pdfExport';
 import {discardUnsharedPrintPdf,isOwnedPrintPdfUri} from './guardiao/pdfCache';
 import {probeMinimalPrintEngine,type MinimalPrintProbe} from './guardiao/pdfPrintProbe';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -161,7 +161,20 @@ export default function App() {
     const diagnosis:{phase:PdfExportFailurePhase|null;minimal:MinimalPrintProbe|null}={phase:null,minimal:null};
     setReportExportStatus('Gerando PDF local...');
     const html=renderReportHtml(createLocalReport(boletoResult,new Date().toLocaleString('pt-BR'),cnpjResult));
+    // Only debug builds display fixed, non-sensitive boundary labels. No
+    // timer, remote logging, report HTML or user data is exposed by this hook.
+    const labPendingLabels:Record<PdfExportPendingPhase,string>={
+      print:'Gerando PDF local... [LAB: impressão pendente]',
+      availability:'Gerando PDF local... [LAB: disponibilidade pendente]',
+      share:'Gerando PDF local... [LAB: compartilhamento pendente]'
+    };
     const outcome=await exportPdfWithLifecycleGuard({
+      onPendingPhase:stage=>{
+        if(typeof __DEV__==='undefined'||!__DEV__)return;
+        if(reportRequestId.current!==requestId||AppState.currentState!=='active'||
+           (lockStatusRef.current!=='off'&&lockStatusRef.current!=='unlocked'))return;
+        setReportExportStatus(labPendingLabels[stage]);
+      },
       html,
       print:async content=>{
         try{return await Print.printToFileAsync({html:content});}

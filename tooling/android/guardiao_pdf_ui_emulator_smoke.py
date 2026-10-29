@@ -150,7 +150,11 @@ def stage_summary(label: str) -> dict[str, bool]:
     allow = ("Analisar estrutura", "Preparando histórico seguro",
              "Verificação inconclusiva ou inválida", "Estrutura consistente",
              "Gerar e compartilhar relatório PDF", "Limpar dados da análise atual",
-             "Gerando PDF local...", "Não foi possível gerar ou compartilhar o PDF.",
+             "Gerando PDF local...",
+             "Gerando PDF local... [LAB: impressão pendente]",
+             "Gerando PDF local... [LAB: disponibilidade pendente]",
+             "Gerando PDF local... [LAB: compartilhamento pendente]",
+             "Não foi possível gerar ou compartilhar o PDF.",
              "Compartilhamento de PDF indisponível neste dispositivo.",
              "Falha ao gerar o PDF local.",
              "Falha ao gerar o relatório PDF. Teste sintético mínimo criou arquivo local.",
@@ -232,6 +236,17 @@ def pdf_timeout_category(visible: dict[str, bool],
         return "app-not-running"
     if focus == "system-chooser":
         return "chooser-focus-unverified"
+    # Debug-only hints from a separately rebuilt, re-audited APK. This old
+    # SHA-pinned release APK does not emit these labels. A JS-side hint means
+    # "await started", not proof of the native module's internal state.
+    if focus == "negresco-app":
+        for label, fixed in (
+            ("Gerando PDF local... [LAB: impressão pendente]", "lab-print-pending"),
+            ("Gerando PDF local... [LAB: disponibilidade pendente]", "lab-availability-pending"),
+            ("Gerando PDF local... [LAB: compartilhamento pendente]", "lab-share-pending")
+        ):
+            if visible.get(label) is True:
+                return fixed
     if visible.get("Gerando PDF local...") is True:
         return ("ui-loading-app-foreground" if focus == "negresco-app"
                 else "ui-loading-focus-uncertain")
