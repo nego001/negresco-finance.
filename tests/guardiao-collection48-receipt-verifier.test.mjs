@@ -143,9 +143,9 @@ test('rejects ZIP self-extracting prefixes or data before the first entry',()=>w
 test('receipt opening is descriptor-bound, nofollow and size-bounded',()=>{
   const source=readFileSync(verifier,'utf8');
   assert.match(source,/os\.O_NOFOLLOW/);
-  assert.match(source,/fd = open_no_symlink_path\\(path, flags\\)/);
-  assert.match(source,/next_fd = os\\.open\\(component, dir_flags, dir_fd=dir_fd\\)/);
-  assert.match(source,/return os\\.open\\(parts\\[-1\\], flags, dir_fd=dir_fd\\)/);
+  assert.match(source,/fd = open_no_symlink_path\(path, flags\)/);
+  assert.match(source,/next_fd = os\.open\(component, dir_flags, dir_fd=dir_fd\)/);
+  assert.match(source,/return os\.open\(parts\[-1\], flags, dir_fd=dir_fd\)/);
   assert.match(source,/info = os\.fstat\(fd\)/);
   assert.match(source,/stat\.S_ISREG\(info\.st_mode\)/);
   assert.match(source,/source\.read\(limit \+ 1\)/);
