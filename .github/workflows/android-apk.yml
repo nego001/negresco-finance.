@@ -278,6 +278,10 @@ jobs:
           chmod +x android/gradlew
           cd android
           ./gradlew assembleRelease --no-daemon
+      - name: Audit Release APK for Guardiao debug-only UI labels
+        run: |
+          set -euo pipefail
+          python3 ../../tooling/android/verify_guardiao_release_no_lab_markers.py android/app/build/outputs/apk/release/app-release.apk
       - name: Delete ephemeral signing material
         if: always()
         run: rm -f android/app/negresco-ci-release.jks
