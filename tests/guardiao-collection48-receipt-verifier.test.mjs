@@ -173,7 +173,7 @@ test('rejects opaque central ZIP fields ignored by ordinary readers',()=>withTem
     '    path=sys.argv[2]+str(offset)+".zip"',
     '    with open(path,"wb") as output: output.write(modified)',
     '    with zipfile.ZipFile(path) as archive: assert archive.read(archive.namelist()[0])'
-  ].join('\\n');
+  ].join('\n');
   const forged=spawnSync('python3',['-c',py,zip,prefix],{encoding:'utf8'});
   assert.equal(forged.status,0,'standard ZIP reader ignores opaque directory fields');
   for(const offset of [34,36,38])assertBlock(cli(26,prefix+offset+'.zip'));
