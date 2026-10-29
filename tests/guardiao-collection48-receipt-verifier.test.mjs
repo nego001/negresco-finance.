@@ -159,6 +159,27 @@ test('oversized JSON and ZIP fail closed before parsing',()=>withTemp(dir=>{
   assertBlock(cli(26,zip));
 }));
 
+test('rejects hidden ZIP creator or extractor version metadata',()=>withTemp(dir=>{
+  const good=jsonAt(dir,fixture);
+  const zip=asZip(dir,[[receiptName,good]]);
+  const prefix=join(dir,'version-metadata-');
+  const py=[
+    'import struct,sys,zipfile',
+    'original=open(sys.argv[1],"rb").read()',
+    'central=struct.unpack_from("<IHHHHIIH",original,len(original)-22)[6]',
+    'for offset in (4,5,6,7):',
+    '    modified=bytearray(original)',
+    '    modified[central+offset]=(modified[central+offset]+1)&255',
+    '    if offset in (6,7): modified[offset-2]=modified[central+offset]',
+    '    path=sys.argv[2]+str(offset)+".zip"',
+    '    with open(path,"wb") as output: output.write(modified)',
+    '    with zipfile.ZipFile(path) as archive: assert archive.read(archive.namelist()[0])'
+  ].join('\n');
+  const forged=spawnSync('python3',['-c',py,zip,prefix],{encoding:'utf8'});
+  assert.equal(forged.status,0,'standard ZIP reader ignores mutated creator/extractor metadata');
+  for(const offset of [4,5,6,7])assertBlock(cli(26,prefix+offset+'.zip'));
+}));
+
 test('rejects opaque central ZIP fields ignored by ordinary readers',()=>withTemp(dir=>{
   const good=jsonAt(dir,fixture);
   const zip=asZip(dir,[[receiptName,good]]);

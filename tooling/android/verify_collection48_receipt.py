@@ -107,6 +107,17 @@ def verify_contiguous_zip(raw: bytes, entry: zipfile.ZipInfo) -> None:
         or (entry.external_attr & 0xFFFF) not in (0, 0x20)
     ):
         raise InvalidReceipt("unsupported ZIP central directory attributes")
+    # The lab only accepts known normal ZIP creator/extractor version metadata.
+    # Other values are ignored by ordinary readers and can hide opaque bytes.
+    # GitHub artifact upload uses Unix creator 4.5, Python test ZIPs use 2.0.
+    if (
+        (entry.create_system, entry.create_version) not in ((0, 20), (3, 20), (3, 45))
+        or entry.reserved != 0
+        or entry.extract_version not in (
+            (10, 20) if entry.compress_type == zipfile.ZIP_STORED else (20,)
+        )
+    ):
+        raise InvalidReceipt("unsupported ZIP creator or extractor version")
     # The same ZIP member has both local and central metadata. Any mismatch
     # makes the artifact ambiguous even if Python's ZipFile.read() tolerates it.
     # Compare raw DOS time/date and extraction-version fields without relying
