@@ -298,7 +298,7 @@ test('receipt CI uses immutable GitHub Actions commit pins',()=>{
     'upload-artifact':'ea165f8d65b6e75b540449e92b4886f43607fa02'
   };
   const counts={'checkout':2,'setup-java':1,'download-artifact':2,'upload-artifact':1};
-  const found=[...workflow.matchAll(/uses: actions\\/(checkout|setup-java|download-artifact|upload-artifact)@(\\S+)/g)];
+  const found=[...workflow.matchAll(/uses: actions\/(checkout|setup-java|download-artifact|upload-artifact)@(\S+)/g)];
   assert.equal(found.length,6,'six official actions must be locked');
   for(const name of Object.keys(expected))
     assert.equal(found.filter(match=>match[1]===name).length,counts[name],name+' action count');
