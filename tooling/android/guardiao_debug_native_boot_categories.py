@@ -58,6 +58,11 @@ def _adb(arguments: list[str], timeout: int) -> str | None:
         return None
     return result.stdout
 
+def reset_native_window() -> None:
+    """Clear only disposable emulator diagnostics before synthetic app launch."""
+    _adb(["logcat", "-c"], 10)
+
+
 def collect_categories() -> tuple[str, str]:
     # -t bounds lines; -s restricts tags, and no stderr/stdout are logged.
     permissions = _adb(["shell", "dumpsys", "package", APP_PACKAGE], 20)
@@ -65,7 +70,9 @@ def collect_categories() -> tuple[str, str]:
                      else "internet-permission-unconfirmed")
     native_lines = _adb(["logcat", "-d", "-t", "240", "-s",
                          "ReactNative:W", "ReactNativeJS:E", "ReactNativeJNI:E",
-                         "AndroidRuntime:E", "NetworkSecurityConfig:W"], 20)
+                         "AndroidRuntime:E", "NetworkSecurityConfig:W",
+                         "DevServerHelper:W", "BundleDownloader:W",
+                         "Expo:W", "ExpoUpdates:W"], 20)
     boot_category = (classify_native_startup(native_lines) if native_lines is not None
                      else "native-startup-unconfirmed")
     return perm_category, boot_category

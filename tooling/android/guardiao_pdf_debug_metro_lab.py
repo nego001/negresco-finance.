@@ -215,6 +215,25 @@ def run() -> None:
         return original_chooser()
 
     base.chooser_present = observe_before_chooser
+    original_wait_visible = base.wait_visible
+
+    def wait_home_with_early_native_checkpoint(needle: str, retries: int = 25,
+                                               *, scroll: bool = False,
+                                               enabled: bool = False):
+        if needle != "Seu universo" or retries < 2:
+            return original_wait_visible(needle, retries=retries, scroll=scroll, enabled=enabled)
+        early = min(8, retries - 1)
+        try:
+            return original_wait_visible(needle, retries=early, scroll=scroll, enabled=enabled)
+        except RuntimeError:
+            # Fixed categories only, sampled soon after actual app launch.
+            perm, native_phase = native_diagnosis.collect_categories()
+            print("ENV (LAB): early Android network permission " + perm, flush=True)
+            print("ENV (LAB): early Android Debug native startup " + native_phase, flush=True)
+        return original_wait_visible(needle, retries=retries - early,
+                                     scroll=scroll, enabled=enabled)
+
+    base.wait_visible = wait_home_with_early_native_checkpoint
     server = None
     try:
         print("STAGE (LAB): start private offline Metro", flush=True)
@@ -224,6 +243,7 @@ def run() -> None:
         report_android_local_metro("before-app")
         print("STAGE (LAB): Android emulator connected to isolated Metro", flush=True)
         print("STAGE (LAB): start synthetic on-device Guardiao PDF test", flush=True)
+        native_diagnosis.reset_native_window()
         try:
             semantic.run_lab()
         except Exception:
@@ -251,6 +271,7 @@ def run() -> None:
             print("PASS STAGE (LAB): observed " + category, flush=True)
         print("PASS (LAB): Debug synthetic PDF received, rendered, checked and erased")
     finally:
+        base.wait_visible = original_wait_visible
         semantic.REPORT.unlink(missing_ok=True)
         base.REPORT.unlink(missing_ok=True)
         try:

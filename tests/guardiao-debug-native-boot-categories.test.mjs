@@ -36,9 +36,29 @@ test('native Android boot classifier only emits fixed categories on synthetic sa
 test('only bounded native system tags are inspected, and raw logs are never printed or stored',()=>{
  assert.match(native,/MAX_NATIVE_OUTPUT = 120_000/);
  assert.match(native,/\["logcat", "-d", "-t", "240", "-s"/);
+ assert.match(native,/\["logcat", "-c"\], 10/);
+ assert.match(native,/DevServerHelper:W/);
+ assert.match(native,/BundleDownloader:W/);
  assert.match(native,/\["shell", "dumpsys", "package", APP_PACKAGE\]/);
  assert.match(native,/return perm_category, boot_category/);
  assert.match(runner,/native_diagnosis\.collect_categories\(\)/);
+ assert.match(runner,/native_diagnosis\.reset_native_window\(\)/);
+ assert.match(runner,/def wait_home_with_early_native_checkpoint\(/);
+ assert.match(runner,/early = min\(8, retries - 1\)/);
+ assert.match(runner,/base\.wait_visible = wait_home_with_early_native_checkpoint/);
+ assert.match(runner,/base\.wait_visible = original_wait_visible/);
+ assert.match(runner,/early Android Debug native startup/);
  assert.doesNotMatch(native,/print\(|logging\.|write_text|open\(|https?:\/\/|screencap|upload_file|requests\.|urllib/i);
  assert.doesNotMatch(runner,/logcat|screencap|print\(.*(?:html|uri|xml|exception|digest|FIXTURE)/i);
+});
+
+test('early boot classification is observational and preserves the remaining home retry budget',()=>{
+ const start=runner.indexOf('def wait_home_with_early_native_checkpoint(');
+ const end=runner.indexOf('base.wait_visible = wait_home_with_early_native_checkpoint');
+ assert.ok(start>=0&&end>start);
+ const body=runner.slice(start,end);
+ assert.match(body,/original_wait_visible\(needle, retries=early, scroll=scroll, enabled=enabled\)/);
+ assert.match(body,/original_wait_visible\(needle, retries=retries - early,/);
+ assert.match(body,/except RuntimeError:/);
+ assert.doesNotMatch(body,/\.tap\(|input keyevent|force-stop|monkey|logcat|print\(.*(?:text|snapshot|raw)/i);
 });
