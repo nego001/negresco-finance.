@@ -58,10 +58,13 @@ def debug_digest() -> str:
 
 def start_local_metro() -> subprocess.Popen:
     env = dict(os.environ)
+    # Expo CLI treats --offline and --localhost as mutually exclusive host
+    # flags. Keep local-only listening and prohibit external network checks
+    # via EXPO_OFFLINE, without passing the conflicting --offline flag.
     env.update({"CI": "1", "EXPO_NO_TELEMETRY": "1", "EXPO_OFFLINE": "1"})
     # Never print Metro output, JS source, path, host addresses or app data.
     server = subprocess.Popen(
-        ["npx", "expo", "start", "--offline", "--localhost", "--port", str(BUNDLE_PORT)],
+        ["npx", "expo", "start", "--localhost", "--port", str(BUNDLE_PORT)],
         cwd="apps/mobile",
         stdin=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL,

@@ -27,3 +27,13 @@ O workflow tem escopo apenas à branch `lab/p01-guardiao-debug-metro-phase-v1`, 
 The regenerated `android/app/src/debug/AndroidManifest.xml` (temporary CI only) now removes any explicit prohibited declaration and adds high-priority Android merger `tools:node="remove"` directives for exactly four denied permissions. The assembled APK is still audited using `aapt` and blocked if **any** forbidden permission remains. The policy now reports only the static denied permission name, not XML, private paths or app content. Tests cover idempotence, missing/malformed/symlinked XML, preservation of an unrelated permission, and ordering before the actual build/permission verification.
 
 **Not a blanket security exception:** the patch does not modify source `app.json`, Release signing/policies, production permission requirements, or apps on user devices. Metro, UI, PDF and the original Android 9 timeout remain unproven until the workflow actually reaches the emulated application.
+
+## Falha do Metro e correção do conflito de opções CLI
+
+A execução [#40996654568](https://github.com/nego001/negresco-finance./actions/runs/40996654568) confirmou: assinatura, integridade e permissões do APK Debug passaram, assim como o receptor externo e a inicialização do emulador API 28. O fluxo **não entrou no Guardião**: parou com a mensagem fixa `BLOCK STAGE (LAB): private Metro exited before local readiness` aproximadamente um segundo após iniciar Metro. Isso **não é** prova de defeito do PDF ou do Expo Print.
+
+A análise do código do Expo CLI identificou um **conflito de argumentos**: `--offline` e `--localhost` não podem ser fornecidos juntos porque ambos controlam o modo de hospedagem. O laboratório agora inicia `npx expo start --localhost --port 8081`, mantendo `EXPO_OFFLINE=1` e `EXPO_NO_TELEMETRY=1` no ambiente. Assim, a escolha de interface permanece localhost e não são solicitadas consultas remotas. O teste de contrato falha se o conjunto conflitante de flags voltar. Não foi exposto stdout/stderr do Metro, HTML, PDF, token nem dado de cliente.
+
+Referência técnica: `expo/expo/packages/@expo/cli/src/start/resolveOptions.ts`, função `resolveHostType`: recusa mais de uma das opções `--offline`, `--host`, `--tunnel`, `--lan`, `--localhost`.
+
+**A correção é de inicialização do ambiente de testes**, não da intermitência original de Android 9. Nenhuma aprovação de produção ou mudança no APK pinado é inferida. Novo workflow real precisa passar com esse commit antes de reivindicar execução de PDF.

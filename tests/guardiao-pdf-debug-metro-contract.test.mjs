@@ -28,6 +28,10 @@ test('new debug APK must have local SHA, signing and permission gate',()=>{
 
 test('Android PDF test requires actual local Metro, real receiver and fixed dev marker',()=>{
   assert.match(runner,/socket\.create_connection\(\("127\.0\.0\.1", BUNDLE_PORT\)/);
+  assert.match(runner,/env\.update\(\{"CI": "1", "EXPO_NO_TELEMETRY": "1", "EXPO_OFFLINE": "1"\}\)/);
+  assert.match(runner,/\["npx", "expo", "start", "--localhost", "--port", str\(BUNDLE_PORT\)\]/);
+  assert.doesNotMatch(runner,/\["npx", "expo", "start", "--offline", "--localhost"/);
+
   assert.match(runner,/base\.adb\("reverse", f"tcp:\{BUNDLE_PORT\}"/);
   assert.match(runner,/base\.chooser_present = observe_before_chooser/);
   assert.match(runner,/semantic\.run_lab\(\)/);
