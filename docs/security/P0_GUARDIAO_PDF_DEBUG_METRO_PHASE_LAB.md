@@ -19,3 +19,11 @@ Esta experiência, separada e não publicável, compila **um APK Debug novo**, a
 Uma única execução bem-sucedida **não reproduz o timeout intermitente** da issue #120 e não identifica sua causa-raiz. A categoria de etapa indica o último await iniciado pelo JavaScript, não o estado interno do módulo Android. A leitura de UI pode perder rótulos transitórios, levando a BLOCK conservador.
 
 O workflow tem escopo apenas à branch `lab/p01-guardiao-debug-metro-phase-v1`, sem workflow_dispatch, tokens de escrita ou segredos. A `main`, os APKs de Release SHA-pinados, PRs anteriores, assinaturas de produção, Expo OTA e dados financeiros reais não são alterados.
+
+## Debug manifest policy fix following blocked CI
+
+[First Debug workflow #40993013998](https://github.com/nego001/negresco-finance./actions/runs/40993013998) compiled the APK successfully but correctly failed **before installing on the emulator**, after `aapt dump permissions` observed at least one denied permission. The original log did not identify which one. It would be incorrect to claim Android/PDF succeeded or to relax the final gate.
+
+The regenerated `android/app/src/debug/AndroidManifest.xml` (temporary CI only) now removes any explicit prohibited declaration and adds high-priority Android merger `tools:node="remove"` directives for exactly four denied permissions. The assembled APK is still audited using `aapt` and blocked if **any** forbidden permission remains. The policy now reports only the static denied permission name, not XML, private paths or app content. Tests cover idempotence, missing/malformed/symlinked XML, preservation of an unrelated permission, and ordering before the actual build/permission verification.
+
+**Not a blanket security exception:** the patch does not modify source `app.json`, Release signing/policies, production permission requirements, or apps on user devices. Metro, UI, PDF and the original Android 9 timeout remain unproven until the workflow actually reaches the emulated application.

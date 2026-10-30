@@ -37,6 +37,10 @@ jobs:
           npm install --no-audit --no-fund
           npx tsc --noEmit
           npx expo prebuild --platform android --non-interactive --no-install
+      - name: Remove denied permissions from disposable Debug manifest overlay
+        run: |
+          set -euo pipefail
+          python3 tooling/android/sanitize_guardiao_debug_manifest.py apps/mobile/android/app/src/debug/AndroidManifest.xml
       - name: Bound Gradle resources and assemble Android Debug, not Release
         working-directory: apps/mobile
         run: |
@@ -63,7 +67,7 @@ jobs:
           "$ANDROID_HOME/build-tools/35.0.0/aapt" dump permissions "$APK" > /tmp/negresco-lab-debug-permissions
           for denied in android.permission.SYSTEM_ALERT_WINDOW android.permission.WRITE_EXTERNAL_STORAGE android.permission.READ_EXTERNAL_STORAGE android.permission.READ_MEDIA_IMAGES; do
             if grep -Fq "$denied" /tmp/negresco-lab-debug-permissions; then
-              echo 'BLOCK (LAB): forbidden Android permission in debug-only APK'
+              printf 'BLOCK (LAB): forbidden Android permission present: %s\n' "$denied"
               exit 1
             fi
           done
