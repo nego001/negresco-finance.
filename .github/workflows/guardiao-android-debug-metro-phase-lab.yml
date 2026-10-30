@@ -96,4 +96,4 @@ jobs:
           emulator-boot-timeout: 600
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
           script: python3 tooling/android/guardiao_pdf_debug_metro_lab.py
-      # Deliberately no upload-artifact, release, OTA, screenshot, PDF or debug APK.
+      # Evidence stays on the ephemeral runner; nothing is uploaded or published.
