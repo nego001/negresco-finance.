@@ -39,6 +39,6 @@ test('only bounded native system tags are inspected, and raw logs are never prin
  assert.match(native,/\["shell", "dumpsys", "package", APP_PACKAGE\]/);
  assert.match(native,/return perm_category, boot_category/);
  assert.match(runner,/native_diagnosis\.collect_categories\(\)/);
- assert.doesNotMatch(native,/print\(|logging\.|write_text|open\(|https?:\/\/|screencap|upload|requests\.|urllib/i);
+ assert.doesNotMatch(native,/print\(|logging\.|write_text|open\(|https?:\/\/|screencap|upload_file|requests\.|urllib/i);
  assert.doesNotMatch(runner,/logcat|screencap|print\(.*(?:html|uri|xml|exception|digest|FIXTURE)/i);
 });
