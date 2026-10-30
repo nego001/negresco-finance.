@@ -37,3 +37,11 @@ A análise do código do Expo CLI identificou um **conflito de argumentos**: `--
 Referência técnica: `expo/expo/packages/@expo/cli/src/start/resolveOptions.ts`, função `resolveHostType`: recusa mais de uma das opções `--offline`, `--host`, `--tunnel`, `--lan`, `--localhost`.
 
 **A correção é de inicialização do ambiente de testes**, não da intermitência original de Android 9. Nenhuma aprovação de produção ou mudança no APK pinado é inferida. Novo workflow real precisa passar com esse commit antes de reivindicar execução de PDF.
+
+## Preparar bundle JavaScript antes de abrir a interface
+
+A execução [Android Debug #40998077817](https://github.com/nego001/negresco-finance./actions/runs/40998077817) concluiu **FAILURE** após validar assinatura, quatro permissões, APK Debug, Metro em `localhost`, `adb reverse`, receptor independente e início real do processo do aplicativo no Android 9. O Android reportou `appProcessAlive=true` e `foregroundCategory=negresco-app`, mas **não foi encontrado o rótulo de home `Seu universo` dentro do prazo**. Nenhuma navegação para Guardião, chooser ou PDF ocorreu.
+
+Para separar atraso/falha de bundle de problemas de UI, a nova etapa `prewarm_android_bundle` solicita **somente em 127.0.0.1:8081** o bundle de desenvolvimento `node_modules/expo/AppEntry.bundle?platform=android&dev=true&minify=false` antes de instalar/iniciar o aplicativo. Exige HTTP 200, resposta JavaScript e ao menos um byte, sem armazenar, imprimir, extrair, exportar ou publicar JS. A conexão local tem timeout limitado e a etapa **falha** sem fazer teste de PDF caso o bundle não esteja disponível. Se a interface ainda não aparecer, o runner imprime apenas `private Metro process alive/exited` e as categorias já aprovadas de atividade/processo.
+
+O pré-aquecimento por si só não confirma que o app consumiu ou executou o bundle no emulador. A issue #120 permanece aberta e nenhuma hipótese de correção do PDF foi adotada.

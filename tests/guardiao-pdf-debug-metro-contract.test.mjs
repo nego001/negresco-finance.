@@ -28,6 +28,13 @@ test('new debug APK must have local SHA, signing and permission gate',()=>{
 
 test('Android PDF test requires actual local Metro, real receiver and fixed dev marker',()=>{
   assert.match(runner,/socket\.create_connection\(\("127\.0\.0\.1", BUNDLE_PORT\)/);
+  assert.match(runner,/def prewarm_android_bundle\(\) -> None:/);
+  assert.match(runner,/http\.client\.HTTPConnection\("127\.0\.0\.1", BUNDLE_PORT, timeout=210\)/);
+  assert.match(runner,/node_modules\/expo\/AppEntry\.bundle\?platform=android&dev=true&minify=false/);
+  assert.match(runner,/response\.status != 200 or "javascript" not in content_type/);
+  assert.match(runner,/response\.read\(1\)/);
+  assert.match(runner,/server = start_local_metro\(\)\s+prewarm_android_bundle\(\)\s+base\.adb\("reverse"/);
+
   assert.match(runner,/env\.update\(\{"CI": "1", "EXPO_NO_TELEMETRY": "1", "EXPO_OFFLINE": "1"\}\)/);
   assert.match(runner,/\["npx", "expo", "start", "--localhost", "--port", str\(BUNDLE_PORT\)\]/);
   assert.doesNotMatch(runner,/\["npx", "expo", "start", "--offline", "--localhost"/);
@@ -50,4 +57,12 @@ test('all diagnostics use fixed source categories and no external input data',()
     assert.ok(runner.includes(category));
   assert.match(runner,/FIXTURE = "8" \+ "0" \* 47/);
   assert.doesNotMatch(runner,/input\(|argparse|sys\.argv\[1\]|requests\.|HttpURLConnection/);
+});
+
+test('prewarm never prints JS and preserves fail-closed local-only policy',()=>{
+  assert.match(runner,/conn\.request\("GET", path, headers=\{"Host": "localhost"\}\)/);
+  assert.match(runner,/print\("BLOCK STAGE \(LAB\): private Android JS bundle not served"/);
+  assert.match(runner,/conn\.close\(\)/);
+  assert.match(runner,/ENV \(LAB\): private Metro process/);
+  assert.doesNotMatch(runner,/print\(.*response\.read|print\(.*content_type|urllib\.request|https:\/\/|logcat|screencap/i);
 });

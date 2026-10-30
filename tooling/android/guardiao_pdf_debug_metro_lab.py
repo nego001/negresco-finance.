@@ -8,6 +8,7 @@ and its independently approved receipt files are never changed.
 from __future__ import annotations
 
 import hashlib
+import http.client
 import json
 import os
 import re
@@ -86,6 +87,31 @@ def start_local_metro() -> subprocess.Popen:
     raise RuntimeError("local Metro readiness not observed in bounded window")
 
 
+def prewarm_android_bundle() -> None:
+    """Bounded local-only JS compile; never collect or print bundle contents."""
+    print("STAGE (LAB): prewarm local Android Debug JS bundle", flush=True)
+    # The mobile entrypoint is declared in apps/mobile/package.json. This
+    # request is always loopback, cannot reach Expo's hosted OTA or a CDN.
+    path = "/node_modules/expo/AppEntry.bundle?platform=android&dev=true&minify=false"
+    conn = http.client.HTTPConnection("127.0.0.1", BUNDLE_PORT, timeout=210)
+    try:
+        conn.request("GET", path, headers={"Host": "localhost"})
+        response = conn.getresponse()
+        content_type = response.getheader("Content-Type", "").lower()
+        if response.status != 200 or "javascript" not in content_type:
+            print("BLOCK STAGE (LAB): private Android JS bundle not served", flush=True)
+            raise RuntimeError("private Android Debug bundle HTTP policy rejected")
+        if not response.read(1):
+            print("BLOCK STAGE (LAB): private Android JS bundle empty", flush=True)
+            raise RuntimeError("private Android Debug bundle empty")
+        print("STAGE (LAB): private Android Debug JS bundle served locally", flush=True)
+    except (OSError, http.client.HTTPException):
+        print("BLOCK STAGE (LAB): private Android JS bundle request unavailable", flush=True)
+        raise
+    finally:
+        conn.close()
+
+
 def run() -> None:
     if len(sys.argv) != 1 or len(FIXTURE) != 48 or FIXTURE[2] != "0":
         raise RuntimeError("synthetic fixture policy rejected")
@@ -120,10 +146,17 @@ def run() -> None:
     try:
         print("STAGE (LAB): start private offline Metro", flush=True)
         server = start_local_metro()
+        prewarm_android_bundle()
         base.adb("reverse", f"tcp:{BUNDLE_PORT}", f"tcp:{BUNDLE_PORT}")
         print("STAGE (LAB): Android emulator connected to isolated Metro", flush=True)
         print("STAGE (LAB): start synthetic on-device Guardiao PDF test", flush=True)
-        semantic.run_lab()
+        try:
+            semantic.run_lab()
+        except Exception:
+            # Fixed process state only: no stdout, JavaScript, stack or PDF.
+            print("ENV (LAB): private Metro process " +
+                  ("alive" if server.poll() is None else "exited"), flush=True)
+            raise
         report = json.loads(semantic.REPORT.read_text(encoding="utf8"))
         if (report.get("api") != 28 or report.get("apkSha256") != digest or
             report.get("sourceFixture") != "synthetic-48-collection-reference-invalid" or
