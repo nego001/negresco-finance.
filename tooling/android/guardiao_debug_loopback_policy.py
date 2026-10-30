@@ -88,25 +88,25 @@ def verify_apk(apk: Path = APK, aapt: str = "aapt") -> None:
     xmltree = proc.stdout
     # AAPT's binary-XML dump describes the actual compiled resource included
     # in this APK. Never print the dump or include it in an artifact.
-    if (not re.search(r"E: base-config\\b", xmltree) or
-        not re.search(r"E: domain-config\\b", xmltree) or
-        len(re.findall(r"E: domain\\s*\\(", xmltree)) != 3):
+    if (not re.search(r"E: base-config\b", xmltree) or
+        not re.search(r"E: domain-config\b", xmltree) or
+        len(re.findall(r"E: domain\s*\(", xmltree)) != 3):
         raise ValueError("compiled Debug network configuration is missing")
     for host in HOSTS:
-        if len(re.findall(r'C:\\s*"' + re.escape(host) + r'"', xmltree)) != 1:
+        if len(re.findall(r'C:\s*"' + re.escape(host) + r'"', xmltree)) != 1:
             raise ValueError("compiled Debug loopback host set differs")
-    attrs = re.findall(r"^\\s*A: (?:android:)?cleartextTrafficPermitted[^\\n]*$", xmltree, re.M)
+    attrs = re.findall(r"^\s*A: (?:android:)?cleartextTrafficPermitted[^\n]*$", xmltree, re.M)
     # AAPT booleans are encoded 0xffffffff/0x00000000, with vendor formats
     # allowing 0x1/0x0. Check both attributes in expected element order.
     if len(attrs) != 2:
         raise ValueError("compiled Debug cleartext rules not uniquely encoded")
     def value(line: str) -> bool | None:
-        match = re.search(r"\\(type 0x12\\)0x([0-9a-fA-F]+)", line)
+        match = re.search(r"\(type 0x12\)0x([0-9a-fA-F]+)", line)
         if match:
             return int(match.group(1), 16) != 0
-        if re.search(r'=\\s*"false"\\b|=\\s*false\\b', line):
+        if re.search(r'=\s*"false"\b|=\s*false\b', line):
             return False
-        if re.search(r'=\\s*"true"\\b|=\\s*true\\b', line):
+        if re.search(r'=\s*"true"\b|=\s*true\b', line):
             return True
         return None
     if [value(a) for a in attrs] != [False, True]:

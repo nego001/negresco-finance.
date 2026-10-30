@@ -19,7 +19,7 @@ main.parent.mkdir(parents=True)
 main.write_text(RELEASE_XML, encoding="utf-8")
 install(root)
 install(root)
-assert main.read_text()=="<?xml version=\\"1.0\\" encoding=\\"utf-8\\"?>\\n"+RELEASE_XML.split("\\n",1)[1]
+assert main.read_text()==RELEASE_XML
 debug=root/"src/debug/res/xml/negresco_network_security.xml"
 assert debug.read_text()==DEBUG_XML
 assert tuple(HOSTS)==("localhost","127.0.0.1","10.0.2.2")
@@ -36,13 +36,13 @@ test('Only a disposable Debug XML resource receives three loopback cleartext exc
 });
 
 test('Network policy source and workflow keep the release fail-closed',()=>{
- assert.match(release,/cleartextTrafficPermitted=\\"false\\"/);
+ assert.ok(release.includes('cleartextTrafficPermitted="false"'));
  assert.match(release,/android:usesCleartextTraffic.*false/);
  assert.match(source,/base-config cleartextTrafficPermitted="false"/);
  assert.match(source,/domain-config cleartextTrafficPermitted="true"/);
  for (const host of ['localhost','127.0.0.1','10.0.2.2']) assert.ok(source.includes(host));
  assert.match(workflow,/python3 tooling\/android\/guardiao_debug_loopback_policy\.py install/);
- assert.match(workflow,/python3 tooling\/android\/guardiao_debug_loopback_policy\.py verify-apk "\\$APK" "\\$ANDROID_HOME\/build-tools\/35\.0\.0\/aapt"/);
+ assert.ok(workflow.includes('python3 tooling/android/guardiao_debug_loopback_policy.py verify-apk "$APK" "$ANDROID_HOME/build-tools/35.0.0/aapt"'));
  const prebuild=workflow.indexOf('npx expo prebuild');
  const overlay=workflow.indexOf('python3 tooling/android/guardiao_debug_loopback_policy.py install');
  const compile=workflow.indexOf('./gradlew :app:assembleDebug');
