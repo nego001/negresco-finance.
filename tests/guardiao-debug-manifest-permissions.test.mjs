@@ -61,7 +61,7 @@ test('workflow patches only isolated Debug overlay, retains final assembled APK 
   const build=workflow.indexOf('name: Bound Gradle resources and assemble Android Debug, not Release');
   const check=workflow.indexOf('name: Validate unsigned-for-production debug APK, pin its SHA locally');
   assert.ok(patch>0 && patch<build && check>build);
-  assert.match(workflow,/BLOCK \(LAB\): forbidden Android permission in debug-only APK/);
+  assert.match(workflow,/BLOCK \(LAB\): forbidden Android permission present: %s/);
   assert.match(workflow,/apksigner" verify --verbose/);
   assert.doesNotMatch(workflow,/workflow_dispatch|contents: write|secrets\.|stable_signing|upload-artifact/);
   const implementation=readFileSync(source,'utf8');
