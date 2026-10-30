@@ -71,6 +71,7 @@ def start_local_metro() -> subprocess.Popen:
     )
     for _ in range(90):
         if server.poll() is not None:
+            print("BLOCK STAGE (LAB): private Metro exited before local readiness", flush=True)
             raise RuntimeError("isolated Metro terminated before serving")
         try:
             with socket.create_connection(("127.0.0.1", BUNDLE_PORT), timeout=1):
@@ -78,13 +79,20 @@ def start_local_metro() -> subprocess.Popen:
                 return server
         except OSError:
             time.sleep(1)
+    print("BLOCK STAGE (LAB): private Metro readiness not reached", flush=True)
     raise RuntimeError("local Metro readiness not observed in bounded window")
 
 
 def run() -> None:
     if len(sys.argv) != 1 or len(FIXTURE) != 48 or FIXTURE[2] != "0":
         raise RuntimeError("synthetic fixture policy rejected")
-    digest = debug_digest()
+    print("STAGE (LAB): Debug APK local digest check starting", flush=True)
+    try:
+        digest = debug_digest()
+    except (ValueError, OSError, RuntimeError):
+        print("BLOCK STAGE (LAB): Debug APK digest input rejected", flush=True)
+        raise
+    print("STAGE (LAB): Debug APK local digest check passed", flush=True)
     # Explicitly override only the isolated process's Debug APK identity.
     # The immutable Release APK verifier and workflows are not modified.
     base.APK = APK
@@ -107,9 +115,11 @@ def run() -> None:
     base.chooser_present = observe_before_chooser
     server = None
     try:
+        print("STAGE (LAB): start private offline Metro", flush=True)
         server = start_local_metro()
         base.adb("reverse", f"tcp:{BUNDLE_PORT}", f"tcp:{BUNDLE_PORT}")
         print("STAGE (LAB): Android emulator connected to isolated Metro", flush=True)
+        print("STAGE (LAB): start synthetic on-device Guardiao PDF test", flush=True)
         semantic.run_lab()
         report = json.loads(semantic.REPORT.read_text(encoding="utf8"))
         if (report.get("api") != 28 or report.get("apkSha256") != digest or
