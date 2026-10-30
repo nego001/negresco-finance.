@@ -31,12 +31,16 @@ export async function exportPdfWithLifecycleGuard(ports:PdfExportPorts):Promise<
   let nativeShareStarted=false;
   let phase:PdfExportFailurePhase='print';
   const reportFailure=()=>{try{ports.onFailurePhase?.(phase);}catch{/* never expose error text */}};
-  const reportPending=(stage:PdfExportPendingPhase)=>{
-    if(!authorized())return;
-    try{ports.onPendingPhase?.(stage);}catch{/* no observer may block native export */}
+  const reportPending=(stage:PdfExportPendingPhase):boolean=>{
+    if(!authorized())return false;
+    try{ports.onPendingPhase?.(stage);}catch{/* observer errors are contained */}
+    // The observer is untrusted and can synchronously revoke the foreground
+    // token, e.g. by changing a screen or triggering a biometric lock.
+    // Never start a native operation after that revocation.
+    return authorized();
   };
   try{
-    reportPending('print');
+    if(!reportPending('print'))return 'cancelled';
     const pdf=await ports.print(ports.html);
     createdUri=typeof pdf?.uri==='string'?pdf.uri:null;
     if(!authorized())return 'cancelled';
@@ -47,15 +51,15 @@ export async function exportPdfWithLifecycleGuard(ports:PdfExportPorts):Promise<
       return 'failed';
     }
     phase='availability';
-    reportPending('availability');
+    if(!reportPending('availability'))return 'cancelled';
     const available=await ports.sharingAvailable();
     if(!authorized())return 'cancelled';
     if(!available)return 'unavailable';
     if(!authorized())return 'cancelled';
     // After this point the native chooser may still be using the file.
     phase='share';
+    if(!reportPending('share'))return 'cancelled';
     nativeShareStarted=true;
-    reportPending('share');
     await ports.share(createdUri);
     return authorized()?'shared':'cancelled';
   }catch{

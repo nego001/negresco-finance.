@@ -46,6 +46,49 @@ test('failing, throwing, cancelled observers cannot promote a failure or weaken 
   assert.deepEqual(notices,['print','availability','share']);
 });
 
+
+test('pending-stage observer cannot revoke authorization and still start a native operation',async()=>{
+  for(const revokeAt of ['print','availability','share']){
+    let allowed=true;
+    const seen=[],called={print:0,available:0,share:0,discard:0};
+    const result=await exportPdfWithLifecycleGuard({
+      html:synthetic,
+      isCurrent:()=>allowed,
+      onPendingPhase:stage=>{
+        seen.push(stage);
+        if(stage===revokeAt)allowed=false;
+      },
+      print:async()=>{called.print++;return {uri};},
+      sharingAvailable:async()=>{called.available++;return true;},
+      share:async()=>{called.share++;},
+      discardUnsharedFile:async()=>{called.discard++;return true;}
+    });
+    assert.equal(result,'cancelled',revokeAt);
+    const expected={
+      print:{print:0,available:0,share:0,discard:0},
+      availability:{print:1,available:0,share:0,discard:1},
+      share:{print:1,available:1,share:0,discard:1}
+    }[revokeAt];
+    assert.deepEqual(called,expected,revokeAt);
+    assert.equal(seen.at(-1),revokeAt);
+  }
+});
+
+test('throwing isCurrent during observer recheck fails closed before native call',async()=>{
+  let checks=0,printCalled=0,stageCalled=0;
+  const result=await exportPdfWithLifecycleGuard({
+    html:synthetic,
+    isCurrent:()=>++checks<3?true:(()=>{throw Error('synthetic lifecycle invalid');})(),
+    onPendingPhase:()=>{stageCalled++;},
+    print:async()=>{printCalled++;return {uri};},
+    sharingAvailable:async()=>true,
+    share:async()=>{}
+  });
+  assert.equal(result,'cancelled');
+  assert.equal(stageCalled,1);
+  assert.equal(printCalled,0);
+});
+
 test('source exposes debug-only phase UI without user data, and old APK remains pinned',()=>{
   const app=readFileSync('apps/mobile/App.tsx','utf8');
   const pdf=readFileSync('apps/mobile/guardiao/pdfExport.ts','utf8');
@@ -55,6 +98,9 @@ test('source exposes debug-only phase UI without user data, and old APK remains 
   assert.match(app,/reportRequestId\.current!==requestId/);
   assert.match(pdf,/onPendingPhase\?:\(phase:PdfExportPendingPhase\)=>void/);
   assert.match(pdf,/try\{ports\.onPendingPhase\?\.\(stage\);\}catch/);
+  assert.match(pdf,/if\(!reportPending\('print'\)\)return 'cancelled'/);
+  assert.match(pdf,/if\(!reportPending\('availability'\)\)return 'cancelled'/);
+  assert.match(pdf,/if\(!reportPending\('share'\)\)return 'cancelled'/);
   assert.match(workflow,/29e248742e365c4dd7a8c668a23153d43a89b8be02828620bbc5851775986b4a/);
   assert.doesNotMatch(app,/console\.log\(.*labPendingLabels|JSON\.stringify\(.*reportExportStatus/);
 });
