@@ -21,6 +21,7 @@ import time
 from pathlib import Path
 
 import guardiao_android_export_pdf_text_emulator_smoke as semantic
+import guardiao_debug_native_boot_categories as native_diagnosis
 
 base = semantic.base
 APK = Path("apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk")
@@ -231,6 +232,9 @@ def run() -> None:
                   ("alive" if server.poll() is None else "exited"), flush=True)
             diagnose_private_debug_home()
             report_android_local_metro("after-app-failure")
+            permission_category, native_category = native_diagnosis.collect_categories()
+            print("ENV (LAB): Android app network permission " + permission_category, flush=True)
+            print("ENV (LAB): Android Debug native startup " + native_category, flush=True)
             raise
         report = json.loads(semantic.REPORT.read_text(encoding="utf8"))
         if (report.get("api") != 28 or report.get("apkSha256") != digest or
