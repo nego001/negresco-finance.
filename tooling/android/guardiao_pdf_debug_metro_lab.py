@@ -152,6 +152,38 @@ def diagnose_private_debug_home() -> None:
     print("ENV (LAB): Android Debug startup category " + category, flush=True)
 
 
+def probe_android_local_metro() -> str:
+    """Read-only, fixed-loopback-only transport probe; no native logs/content."""
+    try:
+        routes = base.adb("reverse", "--list", timeout=15, check=False)
+        mapping = f"tcp:{BUNDLE_PORT} tcp:{BUNDLE_PORT}"
+        if mapping not in routes:
+            return "adb-reverse-not-confirmed"
+        # This endpoint contains only the static Metro status. Android API 28
+        # may lack toybox nc, so a missing tool is NOT reported as an outage.
+        request = (
+            "printf 'GET /status HTTP/1.0\\r\\n"
+            "Host: localhost\\r\\n"
+            "Connection: close\\r\\n\\r\\n' "
+            f"| toybox nc -w 4 127.0.0.1 {BUNDLE_PORT}"
+        )
+        raw = base.adb("shell", "sh", "-c", request, timeout=15, check=False)
+        if len(raw) > 24_000:
+            return "device-status-probe-unconfirmed"
+        if "HTTP/1." in raw and "packager-status:running" in raw:
+            return "device-local-metro-reachable"
+        return "device-status-probe-unconfirmed"
+    except (OSError, RuntimeError, subprocess.TimeoutExpired):
+        return "device-status-probe-unavailable"
+
+
+def report_android_local_metro(stage: str) -> None:
+    # stage comes only from literal call sites, never external strings.
+    if stage not in ("before-app", "after-app-failure"):
+        raise ValueError("unapproved Android network-probe phase")
+    print("ENV (LAB): " + stage + " " + probe_android_local_metro(), flush=True)
+
+
 def run() -> None:
     if len(sys.argv) != 1 or len(FIXTURE) != 48 or FIXTURE[2] != "0":
         raise RuntimeError("synthetic fixture policy rejected")
@@ -188,6 +220,7 @@ def run() -> None:
         server = start_local_metro()
         prewarm_android_bundle()
         base.adb("reverse", f"tcp:{BUNDLE_PORT}", f"tcp:{BUNDLE_PORT}")
+        report_android_local_metro("before-app")
         print("STAGE (LAB): Android emulator connected to isolated Metro", flush=True)
         print("STAGE (LAB): start synthetic on-device Guardiao PDF test", flush=True)
         try:
@@ -197,6 +230,7 @@ def run() -> None:
             print("ENV (LAB): private Metro process " +
                   ("alive" if server.poll() is None else "exited"), flush=True)
             diagnose_private_debug_home()
+            report_android_local_metro("after-app-failure")
             raise
         report = json.loads(semantic.REPORT.read_text(encoding="utf8"))
         if (report.get("api") != 28 or report.get("apkSha256") != digest or

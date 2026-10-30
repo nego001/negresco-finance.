@@ -65,3 +65,13 @@ O novo arquivo `tooling/android/guardiao_debug_loopback_policy.py` acrescenta, *
 O laboratório **verifica novamente o APK Debug empacotado**, lendo a representação binária do recurso com `aapt dump xmltree` e exigindo exatamente as exceções locais e padrão global falso. Qualquer ambiguidade bloqueia. O gate das quatro permissões negadas, assinatura SHA e isolamento sintético continuam. Nenhum recurso Debug é enviado ou publicado. A causa-raiz do PDF #120 segue desconhecida até teste end-to-end real.
 
 Base normativa: Android Network Security Configuration `base-config` e `domain-config` conforme documentação oficial do Android. O Android 9 não dispõe da exceção localhost implícita que só foi introduzida muito depois.
+
+## Diagnóstico do transporte Android ↔ Metro, sem alterar rede
+
+No [workflow Android Debug #41063983807](https://github.com/nego001/negresco-finance./actions/runs/41063983807), a política de cleartext **restrita ao Debug** passou na auditoria do APK empacotado, mas o emulador continuou com categoria `js-bundle-load-error`. A causa da falha de carregamento ainda **não** está comprovada. O app nunca chegou ao Guardião/PDF.
+
+O novo diagnóstico consulta exclusivamente `adb reverse --list` e, se houver mapeamento `tcp:8081`, solicita com `toybox nc` o endpoint literal `/status` no **loopback do próprio Android, 127.0.0.1:8081**, que deve responder apenas o marcador fixo `packager-status:running`. A saída bruta é processada apenas em memória e nunca impressa. O resultado é uma entre quatro categorias: `adb-reverse-not-confirmed`, `device-local-metro-reachable`, `device-status-probe-unconfirmed` e `device-status-probe-unavailable`. A ausência do utilitário `nc` em determinada imagem Android é tratada como **inconclusiva**, não como falha de rede.
+
+A medição ocorre duas vezes: **antes de abrir o app**, após o `adb reverse`, e **após a falha de carregamento**, quando o teste de UI original já desativou `wifi` e dados celulares. Isso poderá separar uma perda de transporte após a desativação de rádio de uma falha própria de RN/debug host. Nenhuma regra de egress foi relaxada; não são ativados Wi-Fi, dados móveis, pagamentos, OTA nem acessos remotos.
+
+A hipótese de que desligar wifi/dados interrompe o caminho de rede RN **permanece não testada**; a instrução `svc wifi disable` e `svc data disable` foi preservada neste commit. A política do app e o APK Release seguem inalterados. Um PASS da prova HTTP de loopback não demonstra que a aplicação consumiu o bundle nem que o PDF funciona.
