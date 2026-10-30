@@ -112,6 +112,46 @@ def prewarm_android_bundle() -> None:
         conn.close()
 
 
+BOOT_DIAGNOSTIC_LABELS = (
+    ("Preparando proteção", "local-lock-loading"),
+    ("Proteção indisponível", "local-lock-error"),
+    ("Acesso protegido", "local-lock-protected"),
+    ("Unable to load script", "js-bundle-load-error"),
+    ("Could not connect to development server", "js-dev-server-error"),
+    ("Unable to connect to development server", "js-dev-server-error"),
+    ("Failed to load bundle", "js-bundle-load-error"),
+    ("Failed to load JavaScript bundle", "js-bundle-load-error"),
+    ("Welcome to Expo", "expo-development-screen"),
+    ("Open a project", "expo-development-screen"),
+    ("Start a development server", "expo-development-screen"),
+    ("React Native DevTools", "react-native-debug-screen"),
+    ("Reload the app", "react-native-debug-screen"),
+    ("JavaScript Error", "react-native-error-screen"),
+)
+
+
+def classify_boot_nodes(nodes: list[dict[str, str]]) -> str:
+    """Return ONLY fixed categories; no original text, XML or user input."""
+    labels = tuple(
+        (node.get("text", "") + " " + node.get("content-desc", "")).casefold()
+        for node in nodes
+    )
+    for phrase, category in BOOT_DIAGNOSTIC_LABELS:
+        if any(phrase.casefold() in label for label in labels):
+            return category
+    return "no-recognized-boot-label"
+
+
+def diagnose_private_debug_home() -> None:
+    # Native app is already installed; read only parsed UI nodes in memory.
+    # Neither hierarchy, source text, data, coordinates nor filenames leave CI.
+    try:
+        category = classify_boot_nodes(base.xml_nodes())
+    except (RuntimeError, subprocess.TimeoutExpired):
+        category = "ui-inspection-unavailable"
+    print("ENV (LAB): Android Debug startup category " + category, flush=True)
+
+
 def run() -> None:
     if len(sys.argv) != 1 or len(FIXTURE) != 48 or FIXTURE[2] != "0":
         raise RuntimeError("synthetic fixture policy rejected")
@@ -156,6 +196,7 @@ def run() -> None:
             # Fixed process state only: no stdout, JavaScript, stack or PDF.
             print("ENV (LAB): private Metro process " +
                   ("alive" if server.poll() is None else "exited"), flush=True)
+            diagnose_private_debug_home()
             raise
         report = json.loads(semantic.REPORT.read_text(encoding="utf8"))
         if (report.get("api") != 28 or report.get("apkSha256") != digest or

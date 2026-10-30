@@ -45,3 +45,11 @@ A execução [Android Debug #40998077817](https://github.com/nego001/negresco-fi
 Para separar atraso/falha de bundle de problemas de UI, a nova etapa `prewarm_android_bundle` solicita **somente em 127.0.0.1:8081** o bundle de desenvolvimento `node_modules/expo/AppEntry.bundle?platform=android&dev=true&minify=false` antes de instalar/iniciar o aplicativo. Exige HTTP 200, resposta JavaScript e ao menos um byte, sem armazenar, imprimir, extrair, exportar ou publicar JS. A conexão local tem timeout limitado e a etapa **falha** sem fazer teste de PDF caso o bundle não esteja disponível. Se a interface ainda não aparecer, o runner imprime apenas `private Metro process alive/exited` e as categorias já aprovadas de atividade/processo.
 
 O pré-aquecimento por si só não confirma que o app consumiu ou executou o bundle no emulador. A issue #120 permanece aberta e nenhuma hipótese de correção do PDF foi adotada.
+
+## Categorização fechada da tela de inicialização (HEAD posterior ao bdb4fef)
+
+O [workflow #41005688734](https://github.com/nego001/negresco-finance./actions/runs/41005688734) **terminou em FAILURE**. O Metro iniciou, o bundle Android Debug foi realmente entregue localmente (`STAGE (LAB): private Android Debug JS bundle served locally`), o `adb reverse` estava configurado, e o processo Android do app estava ativo e no foreground. Mesmo após a espera limitada, o texto `Seu universo` não ficou visível. Não houve navegação para Guardião, marcador Debug de PDF ou compartilhamento.
+
+A nova classificação observa, **somente após a falha do teste de UI**, os nós retornados pelo parser in-memory existente e responde apenas com uma categoria de vocabulário fechado: `local-lock-loading/error/protected`, `js-bundle-load-error`, `js-dev-server-error`, `expo-development-screen`, `react-native-debug-screen`, `react-native-error-screen`, `no-recognized-boot-label` ou `ui-inspection-unavailable`. Nenhum texto do app, campos financeiros, XML, screenshot, stacktrace ou mídia é enviado. Não realiza taps em diálogos de permissão, erro, autenticação ou desenvolvimento; não desbloqueia a biometria. Os testes da categorização usam apenas strings sintéticas.
+
+Uma categoria indica indício do estado visível, não causa-raiz. Não se altera a política de não publicar APKs, a lista de permissões vedadas, o APK Release pinado, a `main` ou qualquer backend.
