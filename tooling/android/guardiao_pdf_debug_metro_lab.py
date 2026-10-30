@@ -86,13 +86,13 @@ def start_local_metro() -> subprocess.Popen:
 def run() -> None:
     if len(sys.argv) != 1 or len(FIXTURE) != 48 or FIXTURE[2] != "0":
         raise RuntimeError("synthetic fixture policy rejected")
-    print("STAGE (LAB): Debug APK local digest check starting", flush=True)
+    print("STAGE (LAB): Debug APK local integrity check starting", flush=True)
     try:
         digest = debug_digest()
     except (ValueError, OSError, RuntimeError):
-        print("BLOCK STAGE (LAB): Debug APK digest input rejected", flush=True)
+        print("BLOCK STAGE (LAB): Debug APK local integrity check rejected", flush=True)
         raise
-    print("STAGE (LAB): Debug APK local digest check passed", flush=True)
+    print("STAGE (LAB): Debug APK local integrity check passed", flush=True)
     # Explicitly override only the isolated process's Debug APK identity.
     # The immutable Release APK verifier and workflows are not modified.
     base.APK = APK
