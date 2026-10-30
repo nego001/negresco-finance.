@@ -25,3 +25,9 @@ O workflow atual continua verificando o **mesmo APK imutável** SHA-256 `29e2487
 - [ ] Revisão humana e testes físicos necessários antes de produção.
 
 Sem merge na `main`, OTA, assinatura de release, transações, dados financeiros reais ou aprovação de produção.
+
+## Revalidação após observadores de fase (PR #124)
+
+O observador `onPendingPhase` é opcional, mas pode sincronamente invalidar o estado autorizado. Antes, uma alteração de tela/bloqueio realizada pelo observador poderia deixar a próxima operação nativa iniciar com a autorização já revogada. Agora o exportador testa `isCurrent` **antes e depois** de cada notificação, interrompe com `cancelled` e não entra no compartilhamento após a revogação. A flag `nativeShareStarted` só fica verdadeira depois que o observer de `share` passou na rechecagem. Isso preserva a limpeza segura do PDF gerado quando o compartilhamento não chegou a começar.
+
+Dois novos contratos validam cancelamento em `print`, `availability`, `share`, limpeza do PDF não compartilhado, e falha fechada quando `isCurrent` lança exceção durante a rechecagem. Este patch não repara a intermitência do Android 9 nem altera o APK fixado por hash.
