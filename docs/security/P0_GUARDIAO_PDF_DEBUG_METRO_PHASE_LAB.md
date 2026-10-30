@@ -53,3 +53,15 @@ O [workflow #41005688734](https://github.com/nego001/negresco-finance./actions/r
 A nova classificação observa, **somente após a falha do teste de UI**, os nós retornados pelo parser in-memory existente e responde apenas com uma categoria de vocabulário fechado: `local-lock-loading/error/protected`, `js-bundle-load-error`, `js-dev-server-error`, `expo-development-screen`, `react-native-debug-screen`, `react-native-error-screen`, `no-recognized-boot-label` ou `ui-inspection-unavailable`. Nenhum texto do app, campos financeiros, XML, screenshot, stacktrace ou mídia é enviado. Não realiza taps em diálogos de permissão, erro, autenticação ou desenvolvimento; não desbloqueia a biometria. Os testes da categorização usam apenas strings sintéticas.
 
 Uma categoria indica indício do estado visível, não causa-raiz. Não se altera a política de não publicar APKs, a lista de permissões vedadas, o APK Release pinado, a `main` ou qualquer backend.
+
+## Hipótese forte: bloqueio HTTP do Metro pela política nativa
+
+[Android Debug #41061263347](https://github.com/nego001/negresco-finance./actions/runs/41061263347) encerrou `FAILURE` após validar APK, receptor, Metro, pré-aquecer bundle JavaScript, instalar e iniciar o aplicativo. A análise categórica de UI confirmou `js-bundle-load-error`, mas o processo do app e o Metro continuaram vivos. Não houve nenhuma tentativa de PDF.
+
+O plugin original `apps/mobile/plugins/withNegrescoNetworkPolicy.js` impõe `base-config cleartextTrafficPermitted="false"` e `android:usesCleartextTraffic=false` em **todas** as variantes. No Android 9, isso também pode bloquear o HTTP local necessário para carregar bundles React Native no build Debug. A entrega de JavaScript no host não demonstra que o app no emulador consegue lê-lo.
+
+O novo arquivo `tooling/android/guardiao_debug_loopback_policy.py` acrescenta, **após o prebuild e apenas na árvore de saída temporária** `android/app/src/debug/res/xml/negresco_network_security.xml`, uma sobreposição de recurso Gradle com `base-config cleartextTrafficPermitted="false"` e exceção estreita para `localhost`, `127.0.0.1` e `10.0.2.2`. Não usa wildcard, subdomínios, CAs de usuário ou política global permissiva. Mantém nome do recurso já referenciado pelo AndroidManifest principal e não toca nesse manifesto ou no arquivo Release `src/main/res/xml/negresco_network_security.xml`.
+
+O laboratório **verifica novamente o APK Debug empacotado**, lendo a representação binária do recurso com `aapt dump xmltree` e exigindo exatamente as exceções locais e padrão global falso. Qualquer ambiguidade bloqueia. O gate das quatro permissões negadas, assinatura SHA e isolamento sintético continuam. Nenhum recurso Debug é enviado ou publicado. A causa-raiz do PDF #120 segue desconhecida até teste end-to-end real.
+
+Base normativa: Android Network Security Configuration `base-config` e `domain-config` conforme documentação oficial do Android. O Android 9 não dispõe da exceção localhost implícita que só foi introduzida muito depois.

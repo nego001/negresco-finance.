@@ -41,6 +41,10 @@ jobs:
         run: |
           set -euo pipefail
           python3 tooling/android/sanitize_guardiao_debug_manifest.py apps/mobile/android/app/src/debug/AndroidManifest.xml
+      - name: Scope Metro HTTP exception to disposable Debug loopback resources
+        run: |
+          set -euo pipefail
+          python3 tooling/android/guardiao_debug_loopback_policy.py install
       - name: Bound Gradle resources and assemble Android Debug, not Release
         working-directory: apps/mobile
         run: |
@@ -71,6 +75,7 @@ jobs:
               exit 1
             fi
           done
+          python3 tooling/android/guardiao_debug_loopback_policy.py verify-apk "$APK" "$ANDROID_HOME/build-tools/35.0.0/aapt"
           sha256sum "$APK" > /tmp/negresco-debug-test-apk.sha256
           echo 'PASS (LAB): disposable debuggable APK validated, SHA stored inside ephemeral runner'
       - name: Build independent permissionless PDF receiver, no Maven or Gradle
