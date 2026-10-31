@@ -46,7 +46,13 @@ try:
             client.close()
             return status,body
         assert fetch("/status")[0]==200
-        assert relay.category()=="device-metro-connection-without-bundle"
+        assert relay.category()=="device-http-request-without-bundle"
+        # A read-only network preflight cannot count as app-initiated traffic.
+        stale_epoch=relay._connection()
+        relay.reset_after_preflight()
+        relay._http_request(stale_epoch,is_bundle=True)
+        relay._bundle_response(stale_epoch,True)
+        assert relay.category()=="device-no-metro-connection-observed"
         assert fetch("/node_modules/expo/AppEntry.bundle?platform=android")[0]==200
         assert relay.category()=="device-debug-bundle-http-200"
     finally:
@@ -84,6 +90,10 @@ test('relay is local to both endpoints and never prints, writes or uploads traff
  assert.match(probe,/METRO_PORT = 8081/);
  assert.match(probe,/MAX_HEADER_SAMPLE = 2048/);
  assert.match(probe,/MAX_CONNECTION_SECONDS = 240/);
+ assert.match(probe,/def reset_after_preflight\(self\)/);
+ assert.match(probe,/if epoch != self\._epoch:/);
+ assert.match(runner,/report_android_local_metro\("before-app"\)[\s\S]{0,350}relay\.reset_after_preflight\(\)/);
+
  assert.match(probe,/outgoing\.sendall\(piece\)/);
  assert.doesNotMatch(probe,/\bprint\(|logging\.|write_text|write_bytes|open\(|os\.system|subprocess|requests\.|urllib|https:\/\/|upload_file|screencap/i);
  assert.match(runner,/relay = transport\.PrivateMetroRelay\(\)/);
