@@ -24,6 +24,7 @@ import guardiao_android_export_pdf_text_emulator_smoke as semantic
 import guardiao_debug_native_boot_categories as native_diagnosis
 import guardiao_debug_metro_transport_probe as transport
 import guardiao_debug_metro_host_routes as host_routes
+import guardiao_debug_metro_app_process_probe as shell_route_probe
 
 base = semantic.base
 APK = Path("apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk")
@@ -268,6 +269,11 @@ def run() -> None:
             print("ENV (LAB): Android Debug Metro host property " + host_property, flush=True)
             print("ENV (LAB): Android Debug Metro reverse route " + reverse_route, flush=True)
             print("ENV (LAB): Android Debug Metro emulator alias " + emulator_alias, flush=True)
+            # API 28 emulator images often lack toybox nc. The standalone Java
+            # shell-UID probe is observational, not proof of app reachability.
+            shell_loopback, shell_alias = shell_route_probe.probe_shell_routes()
+            print("ENV (LAB): Android Debug shell loopback " + shell_loopback, flush=True)
+            print("ENV (LAB): Android Debug shell emulator alias " + shell_alias, flush=True)
             report_android_local_metro("after-app-failure")
             permission_category, native_category = native_diagnosis.collect_categories()
             print("ENV (LAB): Android app network permission " + permission_category, flush=True)
