@@ -181,6 +181,17 @@ def probe_android_local_metro() -> str:
         return "device-status-probe-unavailable"
 
 
+def is_legacy_offline_radio_disable(args: tuple[str, ...], kwargs: dict) -> bool:
+    """Only the two fixed offline-smoke commands can be deferred in Debug CI."""
+    return (
+        args in (
+            ("shell", "svc", "wifi", "disable"),
+            ("shell", "svc", "data", "disable"),
+        )
+        and kwargs == {"check": False}
+    )
+
+
 def report_android_local_metro(stage: str) -> None:
     # stage comes only from literal call sites, never external strings.
     if stage not in ("before-app", "after-app-failure"):
@@ -219,6 +230,19 @@ def run() -> None:
 
     base.chooser_present = observe_before_chooser
     original_wait_visible = base.wait_visible
+    original_adb = base.adb
+    deferred_radios: set[str] = set()
+
+    def preserve_debug_metro_radios(*args: str, **kwargs) -> str:
+        # The old smoke script is a RELEASE offline test and disables radio
+        # before launch. This DEBUG-only APK instead needs Metro for its JS.
+        # Intercept exactly those two legacy commands in this process only.
+        if is_legacy_offline_radio_disable(args, kwargs):
+            deferred_radios.add(args[2])
+            return ""
+        if args[:2] == ("shell", "svc") and "disable" in args:
+            raise RuntimeError("unexpected radio command in isolated Debug Metro lab")
+        return original_adb(*args, **kwargs)
 
     def wait_home_with_early_native_checkpoint(needle: str, retries: int = 25,
                                                *, scroll: bool = False,
@@ -259,8 +283,12 @@ def run() -> None:
         print("STAGE (LAB): Android emulator connected to isolated Metro", flush=True)
         print("STAGE (LAB): start synthetic on-device Guardiao PDF test", flush=True)
         native_diagnosis.reset_native_window()
+        # Keep transport for Debug JS; Release's offline runner is unchanged.
+        base.adb = preserve_debug_metro_radios
         try:
             semantic.run_lab()
+            if deferred_radios != {"wifi", "data"}:
+                raise RuntimeError("Debug Metro radio boundary was not exercised")
         except Exception:
             # Fixed process state only: no stdout, JavaScript, stack or PDF.
             print("ENV (LAB): private Metro process " +
@@ -301,7 +329,9 @@ def run() -> None:
             print("PASS STAGE (LAB): observed " + category, flush=True)
         print("PASS (LAB): Debug synthetic PDF received, rendered, checked and erased")
     finally:
+        base.adb = original_adb
         base.wait_visible = original_wait_visible
+        base.chooser_present = original_chooser
         semantic.REPORT.unlink(missing_ok=True)
         base.REPORT.unlink(missing_ok=True)
         try:
