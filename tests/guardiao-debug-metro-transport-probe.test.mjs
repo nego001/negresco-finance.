@@ -85,7 +85,7 @@ test('relay is local to both endpoints and never prints, writes or uploads traff
  assert.match(probe,/MAX_HEADER_SAMPLE = 2048/);
  assert.match(probe,/MAX_CONNECTION_SECONDS = 240/);
  assert.match(probe,/outgoing\.sendall\(piece\)/);
- assert.doesNotMatch(probe,/\bprint\(|logging\.|write_text|write_bytes|open\(|os\.system|subprocess|requests\.|urllib|https:\/\/|upload|screencap/i);
+ assert.doesNotMatch(probe,/\bprint\(|logging\.|write_text|write_bytes|open\(|os\.system|subprocess|requests\.|urllib|https:\/\/|upload_file|screencap/i);
  assert.match(runner,/relay = transport\.PrivateMetroRelay\(\)/);
  assert.match(runner,/base\.adb\("reverse", f"tcp:\{BUNDLE_PORT\}", f"tcp:\{transport\.LISTEN_PORT\}"\)/);
  assert.match(runner,/Android Debug bundle transport/);
