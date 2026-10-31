@@ -245,6 +245,10 @@ def run() -> None:
         relay.start()
         base.adb("reverse", f"tcp:{BUNDLE_PORT}", f"tcp:{transport.LISTEN_PORT}")
         report_android_local_metro("before-app")
+        # Preflight may itself connect to the relay via Android toybox nc.
+        # Erase that observation before installing or launching the real app.
+        # The generation gate also ignores late requests from preflight sockets.
+        relay.reset_after_preflight()
         print("STAGE (LAB): Android emulator connected to isolated Metro", flush=True)
         print("STAGE (LAB): start synthetic on-device Guardiao PDF test", flush=True)
         native_diagnosis.reset_native_window()
