@@ -22,6 +22,7 @@ from pathlib import Path
 
 import guardiao_android_export_pdf_text_emulator_smoke as semantic
 import guardiao_debug_native_boot_categories as native_diagnosis
+import guardiao_debug_metro_transport_probe as transport
 
 base = semantic.base
 APK = Path("apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk")
@@ -157,7 +158,7 @@ def probe_android_local_metro() -> str:
     """Read-only, fixed-loopback-only transport probe; no native logs/content."""
     try:
         routes = base.adb("reverse", "--list", timeout=15, check=False)
-        mapping = f"tcp:{BUNDLE_PORT} tcp:{BUNDLE_PORT}"
+        mapping = f"tcp:{BUNDLE_PORT} tcp:{transport.LISTEN_PORT}"
         if mapping not in routes:
             return "adb-reverse-not-confirmed"
         # This endpoint contains only the static Metro status. Android API 28
@@ -235,11 +236,14 @@ def run() -> None:
 
     base.wait_visible = wait_home_with_early_native_checkpoint
     server = None
+    relay = None
     try:
         print("STAGE (LAB): start private offline Metro", flush=True)
         server = start_local_metro()
         prewarm_android_bundle()
-        base.adb("reverse", f"tcp:{BUNDLE_PORT}", f"tcp:{BUNDLE_PORT}")
+        relay = transport.PrivateMetroRelay()
+        relay.start()
+        base.adb("reverse", f"tcp:{BUNDLE_PORT}", f"tcp:{transport.LISTEN_PORT}")
         report_android_local_metro("before-app")
         print("STAGE (LAB): Android emulator connected to isolated Metro", flush=True)
         print("STAGE (LAB): start synthetic on-device Guardiao PDF test", flush=True)
@@ -251,11 +255,15 @@ def run() -> None:
             print("ENV (LAB): private Metro process " +
                   ("alive" if server.poll() is None else "exited"), flush=True)
             diagnose_private_debug_home()
+            if relay is not None:
+                print("ENV (LAB): Android Debug bundle transport " + relay.category(), flush=True)
             report_android_local_metro("after-app-failure")
             permission_category, native_category = native_diagnosis.collect_categories()
             print("ENV (LAB): Android app network permission " + permission_category, flush=True)
             print("ENV (LAB): Android Debug native startup " + native_category, flush=True)
             raise
+        if relay is not None:
+            print("ENV (LAB): Android Debug bundle transport " + relay.category(), flush=True)
         report = json.loads(semantic.REPORT.read_text(encoding="utf8"))
         if (report.get("api") != 28 or report.get("apkSha256") != digest or
             report.get("sourceFixture") != "synthetic-48-collection-reference-invalid" or
@@ -278,6 +286,8 @@ def run() -> None:
             base.adb("reverse", "--remove", f"tcp:{BUNDLE_PORT}", check=False)
         except (RuntimeError, subprocess.TimeoutExpired):
             pass
+        if relay is not None:
+            relay.stop()
         if server is not None:
             if server.poll() is None:
                 os.killpg(server.pid, signal.SIGTERM)
