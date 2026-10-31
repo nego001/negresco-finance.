@@ -84,18 +84,18 @@ public final class MetroRouteProbe {
 
 
 def classify_result(raw: str | None) -> tuple[str, str]:
-    """Reject anything except the exact two fixed category tokens."""
+    """Reject non-probe output instead of treating failed execution as a network failure."""
     if not isinstance(raw, str) or len(raw) > MAX_RESULT:
-        return UNCONFIRMED
+        return UNAVAILABLE
     candidate = raw.strip()
     if candidate.count("\n") or candidate.count("\r"):
-        return UNCONFIRMED
+        return UNAVAILABLE
     if not candidate.startswith("LOOPBACK=") or ";ALIAS=" not in candidate:
-        return UNCONFIRMED
+        return UNAVAILABLE
     left, right = candidate.split(";ALIAS=", 1)
     first = left[len("LOOPBACK="):]
     if first not in ALLOWED or right not in ALLOWED:
-        return UNCONFIRMED
+        return UNAVAILABLE
     return ALLOWED[first], ALLOWED[right]
 
 
