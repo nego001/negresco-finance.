@@ -247,9 +247,14 @@ def run() -> None:
         relay.start()
         base.adb("reverse", f"tcp:{BUNDLE_PORT}", f"tcp:{transport.LISTEN_PORT}")
         report_android_local_metro("before-app")
-        # Preflight may itself connect to the relay via Android toybox nc.
-        # Erase that observation before installing or launching the real app.
-        # The generation gate also ignores late requests from preflight sockets.
+        # Compare shell-UID local routes *before* the legacy smoke runner turns
+        # Wi-Fi and mobile data off. The Debug build depends on Metro JS.
+        # This is observational only, not a request from the app itself.
+        before_loopback, before_alias = shell_route_probe.probe_shell_routes()
+        print("ENV (LAB): before-radio-disable shell loopback " + before_loopback, flush=True)
+        print("ENV (LAB): before-radio-disable shell emulator alias " + before_alias, flush=True)
+        # Probes above can themselves connect via adb reverse. Discard their
+        # sockets before launch so they cannot be mistaken for app requests.
         relay.reset_after_preflight()
         print("STAGE (LAB): Android emulator connected to isolated Metro", flush=True)
         print("STAGE (LAB): start synthetic on-device Guardiao PDF test", flush=True)
