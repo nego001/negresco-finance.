@@ -33,13 +33,13 @@ test('Android PDF test requires actual local Metro, real receiver and fixed dev 
   assert.match(runner,/node_modules\/expo\/AppEntry\.bundle\?platform=android&dev=true&minify=false/);
   assert.match(runner,/response\.status != 200 or "javascript" not in content_type/);
   assert.match(runner,/response\.read\(1\)/);
-  assert.match(runner,/server = start_local_metro\(\)\s+prewarm_android_bundle\(\)\s+base\.adb\("reverse"/);
+  assert.match(runner,/server = start_local_metro\(\)\s+prewarm_android_bundle\(\)\s+relay = transport\.PrivateMetroRelay\(\)\s+relay\.start\(\)\s+base\.adb\("reverse"/);
 
   assert.match(runner,/env\.update\(\{"CI": "1", "EXPO_NO_TELEMETRY": "1", "EXPO_OFFLINE": "1"\}\)/);
   assert.match(runner,/\["npx", "expo", "start", "--localhost", "--port", str\(BUNDLE_PORT\)\]/);
   assert.doesNotMatch(runner,/\["npx", "expo", "start", "--offline", "--localhost"/);
 
-  assert.match(runner,/base\.adb\("reverse", f"tcp:\{BUNDLE_PORT\}"/);
+  assert.match(runner,/base\.adb\("reverse", f"tcp:\{BUNDLE_PORT\}", f"tcp:\{transport\.LISTEN_PORT\}"/);
   assert.match(runner,/base\.chooser_present = observe_before_chooser/);
   assert.match(runner,/semantic\.run_lab\(\)/);
   assert.match(runner,/if not observed:/);
