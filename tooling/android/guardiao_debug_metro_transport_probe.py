@@ -31,7 +31,7 @@ class _PrivateServer(socketserver.ThreadingTCPServer):
 class _ForwardHandler(socketserver.BaseRequestHandler):
     def handle(self) -> None:
         observer = self.server.observer
-        observer._connection()
+        epoch = observer._connection()
         try:
             upstream = socket.create_connection((METRO_HOST, METRO_PORT), timeout=5)
         except OSError:
@@ -62,14 +62,16 @@ class _ForwardHandler(socketserver.BaseRequestHandler):
                                 bundle = bool(re.match(rb"^(GET|HEAD) /[^ ]*\.bundle(?:\?| )", first_line))
                                 request_seen = True
                                 if bundle:
-                                    observer._bundle_request()
+                                    observer._http_request(epoch, is_bundle=bundle)
+                                else:
+                                    observer._http_request(epoch, is_bundle=False)
                         if incoming is upstream and bundle and not status_seen:
                             response_head = (response_head + piece)[:128]
                             if b"\r\n" in response_head:
                                 first_line = response_head.split(b"\r\n", 1)[0]
                                 match = re.match(rb"^HTTP/1\.[01] ([0-9]{3})(?: |$)", first_line)
                                 if match:
-                                    observer._bundle_response(match.group(1) == b"200")
+                                    observer._bundle_response(epoch, match.group(1) == b"200")
                                 status_seen = True
                         outgoing.sendall(piece)
                 except (OSError, ValueError):
@@ -81,27 +83,51 @@ class PrivateMetroRelay:
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
+        self._epoch = 0
         self._connections = 0
+        self._http_requests = 0
         self._bundles = 0
         self._bundle_ok = False
         self._bundle_rejected = False
         self._server = None
         self._thread = None
 
-    def _connection(self) -> None:
+    def _connection(self) -> int:
         with self._lock:
+            epoch = self._epoch
             self._connections += 1
+            return epoch
 
-    def _bundle_request(self) -> None:
+    def _http_request(self, epoch: int, *, is_bundle: bool) -> None:
         with self._lock:
-            self._bundles += 1
+            if epoch != self._epoch:
+                return  # A late preflight socket cannot contaminate app evidence.
+            self._http_requests += 1
+            if is_bundle:
+                self._bundles += 1
 
-    def _bundle_response(self, ok: bool) -> None:
+    def _bundle_response(self, epoch: int, ok: bool) -> None:
         with self._lock:
+            if epoch != self._epoch:
+                return
             if ok:
                 self._bundle_ok = True
             else:
                 self._bundle_rejected = True
+
+    def reset_after_preflight(self) -> None:
+        """Discard probe traffic; isolate requests made after the pre-app gate.
+
+        Epoch filtering rejects late callbacks from sockets accepted earlier.
+        This resets categories, not TCP connections or the actual Metro server.
+        """
+        with self._lock:
+            self._epoch += 1
+            self._connections = 0
+            self._http_requests = 0
+            self._bundles = 0
+            self._bundle_ok = False
+            self._bundle_rejected = False
 
     def start(self) -> None:
         if self._server is not None:
@@ -120,8 +146,10 @@ class PrivateMetroRelay:
                 return "device-debug-bundle-http-non200"
             if self._bundles:
                 return "device-debug-bundle-response-unconfirmed"
+            if self._http_requests:
+                return "device-http-request-without-bundle"
             if self._connections:
-                return "device-metro-connection-without-bundle"
+                return "device-tcp-only-no-http-observed"
             return "device-no-metro-connection-observed"
 
     def stop(self) -> None:
