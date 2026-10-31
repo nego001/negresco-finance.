@@ -10,7 +10,7 @@ import sys
 sys.path.insert(0,"tooling/android")
 import guardiao_pdf_debug_metro_lab as p
 def reachable(*args,**kwargs):
-  if args[:2]==("reverse","--list"): return "emulator-5554 tcp:8081 tcp:8081"
+  if args[:2]==("reverse","--list"): return "emulator-5554 tcp:8081 tcp:18081"
   if args[:3]==("shell","sh","-c"): return "HTTP/1.0 200 OK\\r\\n\\r\\npackager-status:running"
   raise AssertionError("unapproved adb command")
 p.base.adb=reachable
@@ -19,12 +19,12 @@ def missing(*args,**kwargs): return ""
 p.base.adb=missing
 assert p.probe_android_local_metro()=="adb-reverse-not-confirmed"
 def unavailable(*args,**kwargs):
-  if args[:2]==("reverse","--list"): return "tcp:8081 tcp:8081"
+  if args[:2]==("reverse","--list"): return "tcp:8081 tcp:18081"
   raise RuntimeError("synthetic unsupported network tool")
 p.base.adb=unavailable
 assert p.probe_android_local_metro()=="device-status-probe-unavailable"
 def invalid(*args,**kwargs):
-  if args[:2]==("reverse","--list"): return "tcp:8081 tcp:8081"
+  if args[:2]==("reverse","--list"): return "tcp:8081 tcp:18081"
   return "HTTP/1.0 503 unavailable"
 p.base.adb=invalid
 assert p.probe_android_local_metro()=="device-status-probe-unconfirmed"
