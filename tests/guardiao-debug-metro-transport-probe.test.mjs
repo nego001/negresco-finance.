@@ -92,7 +92,10 @@ test('relay is local to both endpoints and never prints, writes or uploads traff
  assert.match(probe,/MAX_CONNECTION_SECONDS = 240/);
  assert.match(probe,/def reset_after_preflight\(self\)/);
  assert.match(probe,/if epoch != self\._epoch:/);
- assert.match(runner,/report_android_local_metro\("before-app"\)[\s\S]{0,350}relay\.reset_after_preflight\(\)/);
+ const before=runner.indexOf('report_android_local_metro("before-app")');
+ const reset=runner.indexOf('relay.reset_after_preflight()',before);
+ const runLab=runner.indexOf('semantic.run_lab()',reset);
+ assert.ok(before>=0 && reset>before && runLab>reset,'reset relay after all preflight probes, before app start');
 
  assert.match(probe,/outgoing\.sendall\(piece\)/);
  assert.doesNotMatch(probe,/\bprint\(|logging\.|write_text|write_bytes|open\(|os\.system|subprocess|requests\.|urllib|https:\/\/|upload_file|screencap/i);
