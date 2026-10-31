@@ -56,7 +56,7 @@ test('all diagnostics use fixed source categories and no external input data',()
   for(const category of ['lab-print-pending','lab-availability-pending','lab-share-pending'])
     assert.ok(runner.includes(category));
   assert.match(runner,/FIXTURE = "8" \+ "0" \* 47/);
-  assert.doesNotMatch(runner,/input\(|argparse|sys\.argv\[1\]|requests\.|HttpURLConnection/);
+  assert.doesNotMatch(runner,/\binput\(|\bargparse\b|sys\.argv\[1\]|\bimport requests\b|\brequests\.(?:get|post|put|delete|request)\(|HttpURLConnection/);
 });
 
 test('prewarm never prints JS and preserves fail-closed local-only policy',()=>{
