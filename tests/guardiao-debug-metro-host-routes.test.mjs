@@ -6,7 +6,7 @@ import {spawnSync} from 'node:child_process';
 const probe=readFileSync('tooling/android/guardiao_debug_metro_host_routes.py','utf8');
 const runner=readFileSync('tooling/android/guardiao_pdf_debug_metro_lab.py','utf8');
 
-const synthetic=String.raw\`
+const synthetic=`
 import sys
 sys.path.insert(0, 'tooling/android')
 import guardiao_debug_metro_host_routes as p
@@ -41,7 +41,7 @@ assert p.fixed_route_categories()==(
 )
 assert len([c for c in commands if c[:3]==('shell','sh','-c')])==2
 print('PASS: synthetic Android host aliases classified without raw output')
-\`;
+`;
 
 test('Android Metro host-route diagnostic only emits fixed categories',()=>{
   const r=spawnSync('python3',['-c',synthetic],{encoding:'utf8',timeout:15000});
