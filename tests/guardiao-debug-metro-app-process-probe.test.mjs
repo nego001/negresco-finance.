@@ -13,7 +13,8 @@ const synthetic=[
 "assert p.classify_result('LOOPBACK=REACHABLE;ALIAS=UNCONFIRMED')==('shell-metro-status-reachable','shell-route-unconfirmed')",
 "assert p.classify_result('LOOPBACK=UNCONFIRMED;ALIAS=REACHABLE')==('shell-route-unconfirmed','shell-metro-status-reachable')",
 "for value in (None,'','LOOPBACK=REACHABLE;ALIAS=TOKEN','LOOPBACK=REACHABLE;ALIAS=REACHABLE;OTHER=1','OTHER=REACHABLE;ALIAS=REACHABLE','x'*513):",
-"    assert p.classify_result(value)==p.UNCONFIRMED",
+"    assert p.classify_result(value)==p.UNAVAILABLE",
+"assert p.classify_result('LOOPBACK=UNCONFIRMED;ALIAS=UNCONFIRMED')==p.UNCONFIRMED",
 "assert p.CLASS_NAME=='com.negresco.lab.MetroRouteProbe'",
 "assert p.DESTINATION.startswith('/data/local/tmp/')",
 "assert 'GET /status HTTP/1.0' in p.JAVA_SOURCE",
@@ -39,6 +40,9 @@ test('probe uses two fixed local hosts and cleans ephemeral Android dex',()=>{
  assert.match(source,/--min-api", "28"/);
  assert.match(source,/app_process \/system\/bin/);
  assert.match(source,/finally:[\s\S]*?\["adb", "shell", "rm", "-f", DESTINATION\]/);
+ assert.match(runner,/before-radio-disable shell loopback/);
+ assert.match(runner,/before-radio-disable shell emulator alias/);
+ assert.match(runner,/relay\.reset_after_preflight\(\)/);
  assert.match(runner,/shell_route_probe\.probe_shell_routes\(\)/);
  assert.match(runner,/Android Debug shell emulator alias/);
  assert.doesNotMatch(source,/logcat|screencap|READ_EXTERNAL_STORAGE|WRITE_EXTERNAL_STORAGE|upload_file|https?:\/\/|eas update|adb.*root|adb.*remount|sh -c.*curl/i);
