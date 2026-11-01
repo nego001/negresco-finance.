@@ -323,7 +323,19 @@ def run() -> None:
             report.get("stableReleaseAllowed") is not False):
             raise RuntimeError("Debug-only PDF evidence has inconsistent synthetic gates")
         if not observed:
-            raise RuntimeError("no actual debug-only pending-phase marker was observed")
+            # After the external receiver verified and cleaned the real PDF,
+            # return from its Activity to observe a persistent, fixed
+            # Debug-only phase marker. This is an "entered" event, never a
+            # claim that the native await was pending at inspection time.
+            # No tap/relaunch is performed before PDF evidence is complete.
+            try:
+                base.adb("shell", "input", "keyevent", "4", timeout=15)
+                base.wait_visible("LAB: última etapa PDF iniciada: share", retries=12)
+                observed.add("lab-share-entered-after-receipt")
+            except (RuntimeError, subprocess.TimeoutExpired):
+                pass
+        if not observed:
+            raise RuntimeError("no actual debug-only phase marker was observed")
         # Print only categories that the source defines, never values from UI.
         for category in sorted(observed):
             print("PASS STAGE (LAB): observed " + category, flush=True)
