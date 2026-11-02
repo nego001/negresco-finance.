@@ -11,7 +11,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-TARGET = Path("apps/mobile/node_modules/expo-print/android/src/main/java/expo/modules/print/PrintPDFRenderTask.kt")
+# The installation step runs with working-directory: apps/mobile.
+# Runtime category collection only uses the tag and does not access TARGET.
+TARGET = Path("node_modules/expo-print/android/src/main/java/expo/modules/print/PrintPDFRenderTask.kt")
 TAG = "NegrescoPdfPhaseLab"
 MARKERS = (
     "native-render-entered", "native-webview-created", "native-page-finished",
