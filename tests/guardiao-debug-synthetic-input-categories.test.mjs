@@ -42,8 +42,9 @@ test('diagnosis cannot bypass strict Release/shared fixture validation',()=>{
  const local=runner.slice(pos,end);
  assert.ok(pos>=0 && end>pos);
  assert.match(local,/base\.xml_nodes\(\)/);
- assert.match(local,/field\.get\("text", ""\) != FIXTURE/);
+ assert.match(local,/select_verified_debug_synthetic_edittext\(/);
  assert.match(local,/classify_debug_synthetic_input_node/);
+ assert.match(local,/return verified/);
  assert.match(local,/return field/);
  assert.doesNotMatch(local,/adb\("shell", "input"|print\([^)]*(?:FIXTURE|field\[|node\[|base\.xml_nodes)/i);
  assert.match(runner,/if not observed:\s+raise RuntimeError\("no actual debug-only phase marker was observed"\)/);
