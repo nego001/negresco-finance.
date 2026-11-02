@@ -7,6 +7,7 @@ The SHA-pinned Release APK is not changed.
 from __future__ import annotations
 
 import re
+import secrets
 import subprocess
 import sys
 from pathlib import Path
@@ -21,7 +22,13 @@ MARKERS = (
     "native-layout-cancelled", "native-write-requested", "native-write-finished",
     "native-write-failed", "native-write-cancelled", "native-render-completed",
 )
-MARKER_PATTERN = re.compile(r"\bNegrescoPdfPhaseLab:\s*(native-[a-z-]+)\s*$")
+# The -v tag format is deterministic. Also accept documented threadtime/brief
+# forms to avoid treating a formatting difference as absence of a callback.
+MARKER_PATTERN = re.compile(
+    r"(?:\\bI/NegrescoPdfPhaseLab(?:\\(\\s*\\d+\\))?:"
+    r"|\\bI\\s+NegrescoPdfPhaseLab:)\\s*(native-[a-z-]+)\\s*$"
+)
+PROBE_TAG = "NegrescoPdfPhaseProbe"
 MAX_CAPTURE = 64_000
 
 
@@ -123,9 +130,11 @@ def classify_log(raw: str | None) -> str:
 
 
 def collect_last_phase() -> str:
+    """Read only the fixed tag, with an explicit format and bounded history."""
     try:
         result = subprocess.run(
-            ["adb", "logcat", "-d", "-t", "96", "-s", TAG + ":I", "*:S"],
+            ["adb", "logcat", "-d", "-v", "tag", "-t", "512",
+             "-s", TAG + ":I", "*:S"],
             capture_output=True, text=True, timeout=12, check=False,
         )
         if result.returncode != 0:
@@ -133,6 +142,34 @@ def collect_last_phase() -> str:
         return classify_log(result.stdout)
     except (OSError, subprocess.TimeoutExpired, UnicodeError):
         return "native-phase-unconfirmed"
+
+
+def verify_logcat_channel() -> str:
+    """Fixed-tag canary: checks that a known event is readable via adb.
+
+    The nonce is ephemeral and never emitted. This function does NOT say
+    whether expo-print executed any callback or where a native hang occurs.
+    """
+    token = secrets.token_hex(8)
+    marker = "lab-probe-" + token
+    try:
+        written = subprocess.run(
+            ["adb", "shell", "log", "-p", "i", "-t", PROBE_TAG, marker],
+            capture_output=True, text=True, timeout=12, check=False,
+        )
+        if written.returncode != 0:
+            return "native-logcat-probe-unconfirmed"
+        read = subprocess.run(
+            ["adb", "logcat", "-d", "-v", "tag", "-t", "512",
+             "-s", PROBE_TAG + ":I", "*:S"],
+            capture_output=True, text=True, timeout=12, check=False,
+        )
+        if (read.returncode == 0 and len(read.stdout) <= MAX_CAPTURE
+            and ("I/" + PROBE_TAG + ": " + marker) in read.stdout.splitlines()):
+            return "native-logcat-probe-confirmed"
+    except (OSError, subprocess.TimeoutExpired, UnicodeError):
+        pass
+    return "native-logcat-probe-unconfirmed"
 
 
 if __name__ == "__main__":

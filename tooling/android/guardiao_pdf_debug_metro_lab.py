@@ -367,6 +367,10 @@ def run() -> None:
         print("STAGE (LAB): Android emulator connected to isolated Metro", flush=True)
         print("STAGE (LAB): start synthetic on-device Guardiao PDF test", flush=True)
         native_diagnosis.reset_native_window()
+        # Separate read-path canary, never a native callback and never a PDF PASS.
+        # Runs after native diagnostic log reset, before any PDF export.
+        print("ENV (LAB): Android Debug native logcat channel " +
+              native_print_phase.verify_logcat_channel(), flush=True)
         # Keep transport for Debug JS; Release's offline runner is unchanged.
         base.adb = preserve_debug_metro_radios
         try:

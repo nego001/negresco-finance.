@@ -14,6 +14,10 @@ const py=[
 'import guardiao_pdf_native_phase_lab as p',
 'assert p.mark("native-render-entered").endswith(\'"native-render-entered")\')',
 'assert p.classify_log("I NegrescoPdfPhaseLab: native-write-finished")=="native-write-finished"',
+'assert p.classify_log("I/NegrescoPdfPhaseLab: native-write-finished")=="native-write-finished"',
+'assert p.classify_log("I/NegrescoPdfPhaseLab(  585): native-write-finished")=="native-write-finished"',
+'assert p.classify_log("I/OtherTag: native-write-finished")=="native-phase-unconfirmed"',
+'assert p.classify_log("E/NegrescoPdfPhaseLab: native-write-finished")=="native-phase-unconfirmed"',
 'assert p.classify_log("I NegrescoPdfPhaseLab: native-unlisted")=="native-phase-unconfirmed"',
 'assert p.classify_log("other: native-write-finished")=="native-phase-unconfirmed"',
 'assert p.classify_log("x"*64001)=="native-phase-unconfirmed"',
@@ -45,6 +49,10 @@ test('native instrumentation is installed only in disposable Debug build',()=>{
  assert.match(source,/capture_output=True, text=True, timeout=12, check=False/);
  assert.doesNotMatch(source,/print\(result\.stdout\)|write_text\(result\.stdout\)|print\(content\)|upload_file|https?:\/\//i);
  assert.match(runner,/native_print_phase\.collect_last_phase\(\)/);
+ assert.match(runner,/native_print_phase\.verify_logcat_channel\(\)/);
+ assert.match(source,/\["adb", "logcat", "-d", "-v", "tag", "-t", "512"/);
+ assert.match(source,/PROBE_TAG = "NegrescoPdfPhaseProbe"/);
+ assert.match(source,/secrets\.token_hex\(8\)/);
  assert.match(runner,/nativePdfSemanticTextVerified/);
  assert.match(runner,/receiverCacheClean/);
  assert.match(runner,/approvedForProduction/);
