@@ -120,7 +120,7 @@ def install() -> None:
 
 
 DEBUG_APK = Path("apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk")
-DEX_NAMES = re.compile(r"classes(?:[2-9][0-9]*)?\\.dex")
+DEX_NAMES = re.compile(r"classes(?:[2-9][0-9]*)?\.dex")
 MAX_DEX_ENTRY_BYTES = 96 * 1024 * 1024
 MAX_DEX_FILES = 24
 # Strict literals from the fixed Debug-only Kotlin hooks. Never print DEX data.
@@ -156,7 +156,7 @@ def verify_debug_apk_dex(path: Path) -> bool:
             for entry in dex:
                 with archive.open(entry) as file:
                     data = file.read(MAX_DEX_ENTRY_BYTES + 1)
-                if len(data) != entry.file_size or not data.startswith(b"dex\\n"):
+                if len(data) != entry.file_size or not data.startswith(b"dex\n"):
                     return False
                 for token in DEX_REQUIRED:
                     if token in data:
