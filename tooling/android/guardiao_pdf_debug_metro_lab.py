@@ -206,6 +206,26 @@ def classify_debug_synthetic_input_node(
     return "synthetic-edittext-empty"
 
 
+def select_verified_debug_synthetic_edittext(
+    selected: dict[str, str], nodes: list[dict[str, str]], fixture: str
+) -> dict[str, str]:
+    """Prefer the *unique* actual EditText with the exact synthetic value.
+
+    Never infer a match from a label, nor choose when duplicate/ambiguous
+    candidates exist. Original Release fixture validation still runs.
+    """
+    if len(fixture) != 48 or fixture != "8" + "0" * 47:
+        return selected
+    candidates = [
+        node for node in nodes
+        if node.get("class") == "android.widget.EditText"
+        and node.get("content-desc") == "Linha digitável do boleto"
+    ]
+    if len(candidates) == 1 and candidates[0].get("text") == fixture:
+        return candidates[0]
+    return selected
+
+
 def is_legacy_offline_radio_disable(args: tuple[str, ...], kwargs: dict) -> bool:
     """Only the two fixed offline-smoke commands can be deferred in Debug CI."""
     return (
@@ -284,14 +304,31 @@ def run() -> None:
                 print("ENV (LAB): Android Debug synthetic input "
                       "synthetic-input-view-unconfirmed", flush=True)
                 raise
-            if field.get("text", "") != FIXTURE:
-                try:
-                    category = classify_debug_synthetic_input_node(
-                        field, base.xml_nodes(), FIXTURE
-                    )
-                except (RuntimeError, subprocess.TimeoutExpired, ValueError):
-                    category = "synthetic-input-view-unconfirmed"
-                print("ENV (LAB): Android Debug synthetic input " + category, flush=True)
+            # The generic text lookup may return the label TextView before
+            # the actual EditText. Read the hierarchy ONLY in memory and
+            # select the unique, exact-value, accessibility-labeled EditText.
+            # Do not inject text, change the fixture or bypass smoke equality.
+            try:
+                nodes = base.xml_nodes()
+            except (RuntimeError, subprocess.TimeoutExpired, ValueError):
+                print("ENV (LAB): Android Debug synthetic input "
+                      "synthetic-input-view-unconfirmed", flush=True)
+                return field
+            verified = select_verified_debug_synthetic_edittext(
+                field, nodes, FIXTURE
+            )
+            if verified is not field:
+                print("ENV (LAB): Android Debug synthetic input "
+                      "synthetic-edittext-exact-verified", flush=True)
+                return verified
+            if (field.get("class") == "android.widget.EditText"
+                    and field.get("content-desc") == "Linha digitável do boleto"
+                    and field.get("text") == FIXTURE):
+                return field
+            category = classify_debug_synthetic_input_node(
+                field, nodes, FIXTURE
+            )
+            print("ENV (LAB): Android Debug synthetic input " + category, flush=True)
             return field
         if needle != "Seu universo" or retries < 2:
             return original_wait_visible(needle, retries=retries, scroll=scroll, enabled=enabled)
