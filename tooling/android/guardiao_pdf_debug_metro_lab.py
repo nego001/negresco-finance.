@@ -261,9 +261,11 @@ def run() -> None:
     base.EXPECTED_SHA = digest
     base.FIXTURE = FIXTURE
     observed: set[str] = set()
+    native_before_receiver: str | None = None
     original_chooser = base.chooser_present
 
     def observe_before_chooser() -> bool:
+        nonlocal native_before_receiver
         # Use existing allowlisted booleans; never emit raw UI XML.
         try:
             state = base.stage_summary("debug-only PDF await boundary")
@@ -272,7 +274,14 @@ def run() -> None:
                     observed.add(category)
         except (RuntimeError, subprocess.TimeoutExpired):
             pass
-        return original_chooser()
+        chooser_visible = original_chooser()
+        if chooser_visible and native_before_receiver is None:
+            # Sample while real Android chooser is visible, before switching
+            # to the independent receiver. A missing event is diagnostic only.
+            native_before_receiver = native_print_phase.collect_last_phase()
+            print("ENV (LAB): Android Debug native phase before receiver " +
+                  native_before_receiver, flush=True)
+        return chooser_visible
 
     base.chooser_present = observe_before_chooser
     original_wait_visible = base.wait_visible

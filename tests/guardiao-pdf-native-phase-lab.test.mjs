@@ -39,6 +39,32 @@ test('native phases and exact SDK54 anchors are synthetic and fail-closed',()=>{
  assert.equal(r.status,0,r.stderr);
  assert.equal(r.stdout.trim(),'PASS: allowlisted native phases, source patch refuses drift');
 });
+test('synthetic APK ZIP scan requires actual DEX source markers and fails closed',()=>{
+ const code=[
+  'import sys,io,zipfile,tempfile,pathlib',
+  "sys.path.insert(0,'tooling/android')",
+  'import guardiao_pdf_native_phase_lab as p',
+  'with tempfile.TemporaryDirectory() as tmp:',
+  '    apk=pathlib.Path(tmp)/"debug.apk"',
+  '    def make(content, name="classes.dex"):',
+  '        with zipfile.ZipFile(apk,"w") as z:',
+  '            z.writestr(name,content)',
+  '    good=b"dex\\n035\\x00"+b"\\x00".join(p.DEX_REQUIRED)',
+  '    make(good)',
+  '    assert p.verify_debug_apk_dex(apk)',
+  '    make(good.replace(b"native-write-finished", b"native-other-finished"))',
+  '    assert not p.verify_debug_apk_dex(apk)',
+  '    make(good,"other.bin")',
+  '    assert not p.verify_debug_apk_dex(apk)',
+  '    make(good[:4])',
+  '    assert not p.verify_debug_apk_dex(apk)',
+  'print("PASS: native DEX source-string verification rejects missing/invalid markers")',
+ ].join('\n');
+ const r=spawnSync('python3',['-c',code],{encoding:'utf8',timeout:15000});
+ assert.equal(r.status,0,r.stderr);
+ assert.equal(r.stdout.trim(),'PASS: native DEX source-string verification rejects missing/invalid markers');
+});
+
 test('native instrumentation is installed only in disposable Debug build',()=>{
  assert.match(workflow,/python3 \.\.\/\.\.\/tooling\/android\/guardiao_pdf_native_phase_lab\.py install/);
  assert.match(workflow,/assembleDebug/);
@@ -53,6 +79,16 @@ test('native instrumentation is installed only in disposable Debug build',()=>{
  assert.match(source,/\["adb", "logcat", "-d", "-v", "tag", "-t", "512"/);
  assert.match(source,/PROBE_TAG = "NegrescoPdfPhaseProbe"/);
  assert.match(source,/secrets\.token_hex\(8\)/);
+ assert.match(workflow,/python3 tooling\/android\/guardiao_pdf_native_phase_lab\.py verify-debug-apk/);
+ assert.match(source,/def verify_debug_apk_dex\(path: Path\) -> bool:/);
+ assert.match(source,/MAX_DEX_ENTRY_BYTES = 96 \* 1024 \* 1024/);
+ assert.match(source,/native-render-completed/);
+ assert.match(runner,/native_before_receiver: str \| None = None/);
+ assert.match(runner,/if chooser_visible and native_before_receiver is None:/);
+ assert.match(runner,/native_before_receiver = native_print_phase\.collect_last_phase\(\)/);
+ assert.match(runner,/if not observed:\n            raise RuntimeError\("no actual debug-only phase marker was observed"\)/);
+ assert.match(runner,/report\.get\("nativePdfSemanticTextVerified"\) is not True/);
+
  assert.match(runner,/nativePdfSemanticTextVerified/);
  assert.match(runner,/receiverCacheClean/);
  assert.match(runner,/approvedForProduction/);

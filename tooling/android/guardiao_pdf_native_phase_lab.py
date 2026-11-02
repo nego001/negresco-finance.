@@ -10,6 +10,7 @@ import re
 import secrets
 import subprocess
 import sys
+import zipfile
 from pathlib import Path
 
 # The installation step runs with working-directory: apps/mobile.
@@ -118,6 +119,60 @@ def install() -> None:
     print("PASS (LAB): fixed Debug native print phase hooks installed", flush=True)
 
 
+DEBUG_APK = Path("apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk")
+DEX_NAMES = re.compile(r"classes(?:[2-9][0-9]*)?\\.dex")
+MAX_DEX_ENTRY_BYTES = 96 * 1024 * 1024
+MAX_DEX_FILES = 24
+# Strict literals from the fixed Debug-only Kotlin hooks. Never print DEX data.
+DEX_REQUIRED = (
+    TAG.encode("ascii"),
+    b"native-render-entered",
+    b"native-page-finished",
+    b"native-layout-requested",
+    b"native-write-requested",
+    b"native-write-finished",
+    b"native-render-completed",
+)
+
+
+def verify_debug_apk_dex(path: Path) -> bool:
+    """Check instrumented native phase strings in the actual Debug APK DEX.
+
+    Does not decompile APK, publish classes or read non-DEX files. The existing
+    independent APK hash/signature/permission gates remain mandatory.
+    """
+    if not path.is_file() or path.is_symlink():
+        return False
+    try:
+        with zipfile.ZipFile(path) as archive:
+            dex = [i for i in archive.infolist()
+                   if DEX_NAMES.fullmatch(i.filename)]
+            if not (1 <= len(dex) <= MAX_DEX_FILES):
+                return False
+            if any(i.file_size < 8 or i.file_size > MAX_DEX_ENTRY_BYTES
+                   for i in dex):
+                return False
+            found = set()
+            for entry in dex:
+                with archive.open(entry) as file:
+                    data = file.read(MAX_DEX_ENTRY_BYTES + 1)
+                if len(data) != entry.file_size or not data.startswith(b"dex\\n"):
+                    return False
+                for token in DEX_REQUIRED:
+                    if token in data:
+                        found.add(token)
+            return len(found) == len(DEX_REQUIRED)
+    except (OSError, ValueError, RuntimeError, zipfile.BadZipFile):
+        return False
+
+
+def verify_apk_command() -> None:
+    if not verify_debug_apk_dex(DEBUG_APK):
+        print("BLOCK (LAB): compiled Debug APK native phase strings missing", flush=True)
+        raise SystemExit(1)
+    print("PASS (LAB): compiled Debug APK contains fixed native print phases", flush=True)
+
+
 def classify_log(raw: str | None) -> str:
     if not isinstance(raw, str) or len(raw) > MAX_CAPTURE:
         return "native-phase-unconfirmed"
@@ -173,10 +228,13 @@ def verify_diagnostic_channel() -> str:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2 or sys.argv[1] != "install":
+    if len(sys.argv) != 2 or sys.argv[1] not in ("install", "verify-debug-apk"):
         raise SystemExit(2)
-    try:
-        install()
-    except (OSError, RuntimeError, ValueError):
-        print("BLOCK (LAB): native phase hooks not installed", flush=True)
-        raise SystemExit(1)
+    if sys.argv[1] == "verify-debug-apk":
+        verify_apk_command()
+    else:
+        try:
+            install()
+        except (OSError, RuntimeError, ValueError):
+            print("BLOCK (LAB): native phase hooks not installed", flush=True)
+            raise SystemExit(1)
