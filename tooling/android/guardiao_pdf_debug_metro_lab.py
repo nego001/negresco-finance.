@@ -181,6 +181,31 @@ def probe_android_local_metro() -> str:
         return "device-status-probe-unavailable"
 
 
+def classify_debug_synthetic_input_node(
+    selected: dict[str, str], nodes: list[dict[str, str]], fixture: str
+) -> str:
+    """Classify only fixed synthetic EditText states; never return input text.
+
+    Never infer a successful injection from a label alone. The original strict
+    fixture equality check in the shared Release smoke remains authoritative.
+    """
+    label = "Linha digitável do boleto"
+    candidates = [
+        node for node in nodes
+        if node.get("class") == "android.widget.EditText"
+        and node.get("content-desc") == label
+    ]
+    if selected.get("text") == fixture:
+        return "synthetic-selected-value-matched"
+    if any(node.get("text") == fixture for node in candidates):
+        return "synthetic-value-in-other-edittext"
+    if not candidates:
+        return "synthetic-edittext-not-observed"
+    if any(node.get("text", "") for node in candidates):
+        return "synthetic-edittext-nonempty-mismatch"
+    return "synthetic-edittext-empty"
+
+
 def is_legacy_offline_radio_disable(args: tuple[str, ...], kwargs: dict) -> bool:
     """Only the two fixed offline-smoke commands can be deferred in Debug CI."""
     return (
@@ -247,6 +272,27 @@ def run() -> None:
     def wait_home_with_early_native_checkpoint(needle: str, retries: int = 25,
                                                *, scroll: bool = False,
                                                enabled: bool = False):
+        if needle == "Linha digitável do boleto" and retries == 10:
+            # The strict smoke test then compares node["text"] to a fixed,
+            # deliberately invalid fixture. If that fails, classify without
+            # printing it or retyping. Do not turn UI flakiness into PDF PASS.
+            try:
+                field = original_wait_visible(
+                    needle, retries=retries, scroll=scroll, enabled=enabled
+                )
+            except (RuntimeError, subprocess.TimeoutExpired):
+                print("ENV (LAB): Android Debug synthetic input "
+                      "synthetic-input-view-unconfirmed", flush=True)
+                raise
+            if field.get("text", "") != FIXTURE:
+                try:
+                    category = classify_debug_synthetic_input_node(
+                        field, base.xml_nodes(), FIXTURE
+                    )
+                except (RuntimeError, subprocess.TimeoutExpired, ValueError):
+                    category = "synthetic-input-view-unconfirmed"
+                print("ENV (LAB): Android Debug synthetic input " + category, flush=True)
+            return field
         if needle != "Seu universo" or retries < 2:
             return original_wait_visible(needle, retries=retries, scroll=scroll, enabled=enabled)
         early = min(8, retries - 1)
