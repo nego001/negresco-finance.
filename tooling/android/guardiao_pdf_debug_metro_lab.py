@@ -25,6 +25,7 @@ import guardiao_debug_native_boot_categories as native_diagnosis
 import guardiao_debug_metro_transport_probe as transport
 import guardiao_debug_metro_host_routes as host_routes
 import guardiao_debug_metro_app_process_probe as shell_route_probe
+import guardiao_pdf_native_phase_lab as native_print_phase
 
 base = semantic.base
 APK = Path("apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk")
@@ -373,6 +374,8 @@ def run() -> None:
             if deferred_radios != {"wifi", "data"}:
                 raise RuntimeError("Debug Metro radio boundary was not exercised")
         except Exception:
+            print("ENV (LAB): Android Debug native print phase " +
+                  native_print_phase.collect_last_phase(), flush=True)
             # Fixed process state only: no stdout, JavaScript, stack or PDF.
             print("ENV (LAB): private Metro process " +
                   ("alive" if server.poll() is None else "exited"), flush=True)
@@ -397,6 +400,8 @@ def run() -> None:
             raise
         if relay is not None:
             print("ENV (LAB): Android Debug bundle transport " + relay.category(), flush=True)
+        print("ENV (LAB): Android Debug native print phase " +
+              native_print_phase.collect_last_phase(), flush=True)
         report = json.loads(semantic.REPORT.read_text(encoding="utf8"))
         if (report.get("api") != 28 or report.get("apkSha256") != digest or
             report.get("sourceFixture") != "synthetic-48-collection-reference-invalid" or

@@ -37,6 +37,7 @@ jobs:
           npm install --no-audit --no-fund
           npx tsc --noEmit
           npx expo prebuild --platform android --non-interactive --no-install
+          python3 ../../tooling/android/guardiao_pdf_native_phase_lab.py install
       - name: Remove denied permissions from disposable Debug manifest overlay
         run: |
           set -euo pipefail

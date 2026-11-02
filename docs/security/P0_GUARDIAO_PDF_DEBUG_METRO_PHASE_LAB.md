@@ -205,3 +205,13 @@ A branch experimental acrescenta `select_verified_debug_synthetic_edittext`: ape
 Contratos novos cobrem campo único correto, rótulo TextView, vazio, incompleto, duplicidade, classe/label incorretos, fixture diferente e manutenção do gate estrito. Ainda é necessário confirmar sucesso do teste Android **no novo HEAD**; contratos PASS não equivalem a PDF gerado.
 
 **Escopo de segurança:** PR #125 Draft, issue P0 #120 aberta e com travamento Release intermitente reproduzido, APK Release original SHA-pinado intacto, `approvedForProduction=false`, `stableReleaseAllowed=false`, sem merge, assinatura, release/OTA, dinheiro real ou dados financeiros privados.
+
+## Instrumentação de callbacks nativos do expo-print, somente Debug descartável
+
+As duas tentativas do [Android Debug #41377374088](https://github.com/nego001/negresco-finance./actions/runs/41377374088), HEAD `cb029dc`, terminaram **SUCCESS**, assim como Mobile static, CI push e CI PR (1289/1289 contratos). Esse PASS ainda não corrige o [Release original intermitente, P0 #120](https://github.com/nego001/negresco-finance./issues/120).
+
+O script `tooling/android/guardiao_pdf_native_phase_lab.py` injeta somente linhas constantes de fase na cópia `node_modules/expo-print` de um runner CI efêmero, após `npm install`/`expo prebuild` e antes de `assembleDebug`. Rejeita âncoras de SDK54 desconhecidas, fonte ausente e dupla aplicação. Ele **não** altera pacote-fonte versionado de produção, APK Release SHA-pinado, `main`, credenciais ou rede externa.
+
+Eventos nativos allowlisted: `native-render-entered`, `native-webview-created`, `native-page-finished`, `native-layout-requested/finished/failed/cancelled`, `native-write-requested/finished/failed/cancelled`, `native-render-completed`. Coleta apenas as linhas da tag privada e retorna **a última categoria fixa**, ou `native-phase-unconfirmed`; nunca imprime logs brutos, conteúdo do PDF, dados do boleto, HTML, URIs, código ou exceções. Eventos não observados não provam ausência de callback; a categoria é auxílio diagnóstico, não substituto do recibo/semântica/limpeza PDF.
+
+O app e o smoke Release originais não foram alterados. A instrumentação requer CI/Android reais no novo HEAD para comprovar compilação, fases e validade do PDF. PR #125 permanece DRAFT, issue #120 aberta, `approvedForProduction=false`, `stableReleaseAllowed=false`; sem merge, release/OTA ou transação financeira real.
