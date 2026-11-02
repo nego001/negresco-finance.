@@ -25,8 +25,8 @@ MARKERS = (
 # The -v tag format is deterministic. Also accept documented threadtime/brief
 # forms to avoid treating a formatting difference as absence of a callback.
 MARKER_PATTERN = re.compile(
-    r"(?:\\bI/NegrescoPdfPhaseLab(?:\\(\\s*\\d+\\))?:"
-    r"|\\bI\\s+NegrescoPdfPhaseLab:)\\s*(native-[a-z-]+)\\s*$"
+    r"(?:\bI/NegrescoPdfPhaseLab(?:\(\s*\d+\))?:"
+    r"|\bI\s+NegrescoPdfPhaseLab:)\s*(native-[a-z-]+)\s*$"
 )
 PROBE_TAG = "NegrescoPdfPhaseProbe"
 MAX_CAPTURE = 64_000
