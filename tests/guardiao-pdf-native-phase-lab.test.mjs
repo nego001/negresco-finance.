@@ -39,30 +39,45 @@ test('native phases and exact SDK54 anchors are synthetic and fail-closed',()=>{
  assert.equal(r.status,0,r.stderr);
  assert.equal(r.stdout.trim(),'PASS: allowlisted native phases, source patch refuses drift');
 });
-test('synthetic APK ZIP scan requires actual DEX source markers and fails closed',()=>{
+test('synthetic APK ZIP scan categorizes multidex including classes10 without exposing data',()=>{
  const code=[
-  'import sys,io,zipfile,tempfile,pathlib',
+  'import sys,zipfile,tempfile,pathlib',
   "sys.path.insert(0,'tooling/android')",
   'import guardiao_pdf_native_phase_lab as p',
+  'assert p.DEX_NAMES.fullmatch("classes.dex")',
+  'assert p.DEX_NAMES.fullmatch("classes2.dex")',
+  'assert p.DEX_NAMES.fullmatch("classes9.dex")',
+  'assert p.DEX_NAMES.fullmatch("classes10.dex")',
+  'assert p.DEX_NAMES.fullmatch("classes11.dex")',
+  'assert not p.DEX_NAMES.fullmatch("classes1.dex")',
+  'assert not p.DEX_NAMES.fullmatch("other.dex")',
   'with tempfile.TemporaryDirectory() as tmp:',
   '    apk=pathlib.Path(tmp)/"debug.apk"',
   '    def make(content, name="classes.dex"):',
   '        with zipfile.ZipFile(apk,"w") as z:',
   '            z.writestr(name,content)',
   '    good=b"dex\\n035\\x00"+b"\\x00".join(p.DEX_REQUIRED)',
-  '    make(good)',
+  '    make(good,"classes10.dex")',
+  '    assert p.classify_debug_apk_dex(apk)=="native-dex-hooks-present"',
   '    assert p.verify_debug_apk_dex(apk)',
   '    make(good.replace(b"native-write-finished", b"native-other-finished"))',
+  '    assert p.classify_debug_apk_dex(apk)=="native-dex-hooks-partial"',
   '    assert not p.verify_debug_apk_dex(apk)',
+  '    make(b"dex\\n035\\x00"+b"unrelated")',
+  '    assert p.classify_debug_apk_dex(apk)=="native-dex-hooks-not-observed"',
   '    make(good,"other.bin")',
-  '    assert not p.verify_debug_apk_dex(apk)',
+  '    assert p.classify_debug_apk_dex(apk)=="native-dex-set-unconfirmed"',
   '    make(good[:4])',
-  '    assert not p.verify_debug_apk_dex(apk)',
-  'print("PASS: native DEX source-string verification rejects missing/invalid markers")',
+  '    assert p.classify_debug_apk_dex(apk)=="native-dex-size-unconfirmed"',
+  '    make(b"broken header"+b"\\x00".join(p.DEX_REQUIRED))',
+  '    assert p.classify_debug_apk_dex(apk)=="native-dex-header-unconfirmed"',
+  '    apk.unlink()',
+  '    assert p.classify_debug_apk_dex(apk)=="native-dex-apk-unavailable"',
+  'print("PASS: all bounded native DEX categories and multidex indexes covered")',
  ].join('\n');
  const r=spawnSync('python3',['-c',code],{encoding:'utf8',timeout:15000});
  assert.equal(r.status,0,r.stderr);
- assert.equal(r.stdout.trim(),'PASS: native DEX source-string verification rejects missing/invalid markers');
+ assert.equal(r.stdout.trim(),'PASS: all bounded native DEX categories and multidex indexes covered');
 });
 
 test('native instrumentation is installed only in disposable Debug build',()=>{

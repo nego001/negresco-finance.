@@ -120,7 +120,9 @@ def install() -> None:
 
 
 DEBUG_APK = Path("apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk")
-DEX_NAMES = re.compile(r"classes(?:[2-9][0-9]*)?\.dex")
+# Android multidex uses classes.dex, classes2.dex ... classes10.dex, etc.
+# The old pattern missed classes10+ and could falsely report missing hooks.
+DEX_NAMES = re.compile(r"classes(?:[2-9]|[1-9][0-9]+)?\.dex")
 MAX_DEX_ENTRY_BYTES = 96 * 1024 * 1024
 MAX_DEX_FILES = 24
 # Strict literals from the fixed Debug-only Kotlin hooks. Never print DEX data.
@@ -135,40 +137,53 @@ DEX_REQUIRED = (
 )
 
 
-def verify_debug_apk_dex(path: Path) -> bool:
-    """Check instrumented native phase strings in the actual Debug APK DEX.
+def classify_debug_apk_dex(path: Path) -> str:
+    """Classify a bounded scan of classes*.dex; never return raw bytes/names.
 
-    Does not decompile APK, publish classes or read non-DEX files. The existing
-    independent APK hash/signature/permission gates remain mandatory.
+    A successful string scan proves only that compiler-emitted fixed hooks
+    are present in DEX, not that the methods were actually executed.
     """
     if not path.is_file() or path.is_symlink():
-        return False
+        return "native-dex-apk-unavailable"
     try:
         with zipfile.ZipFile(path) as archive:
             dex = [i for i in archive.infolist()
                    if DEX_NAMES.fullmatch(i.filename)]
             if not (1 <= len(dex) <= MAX_DEX_FILES):
-                return False
+                return "native-dex-set-unconfirmed"
             if any(i.file_size < 8 or i.file_size > MAX_DEX_ENTRY_BYTES
                    for i in dex):
-                return False
+                return "native-dex-size-unconfirmed"
             found = set()
             for entry in dex:
                 with archive.open(entry) as file:
                     data = file.read(MAX_DEX_ENTRY_BYTES + 1)
                 if len(data) != entry.file_size or not data.startswith(b"dex\n"):
-                    return False
+                    return "native-dex-header-unconfirmed"
                 for token in DEX_REQUIRED:
                     if token in data:
                         found.add(token)
-            return len(found) == len(DEX_REQUIRED)
+            if len(found) == len(DEX_REQUIRED):
+                return "native-dex-hooks-present"
+            if not found:
+                return "native-dex-hooks-not-observed"
+            return "native-dex-hooks-partial"
     except (OSError, ValueError, RuntimeError, zipfile.BadZipFile):
-        return False
+        return "native-dex-inspection-unavailable"
+
+
+def verify_debug_apk_dex(path: Path) -> bool:
+    """Fail-closed public gate, preserving existing caller interface."""
+    return classify_debug_apk_dex(path) == "native-dex-hooks-present"
 
 
 def verify_apk_command() -> None:
-    if not verify_debug_apk_dex(DEBUG_APK):
-        print("BLOCK (LAB): compiled Debug APK native phase strings missing", flush=True)
+    result = classify_debug_apk_dex(DEBUG_APK)
+    # Only one literal category: never print filenames, classes or DEX data.
+    print("ENV (LAB): compiled Debug native phase inventory " + result, flush=True)
+    if result != "native-dex-hooks-present":
+        print("BLOCK (LAB): compiled Debug APK native phase strings unconfirmed",
+              flush=True)
         raise SystemExit(1)
     print("PASS (LAB): compiled Debug APK contains fixed native print phases", flush=True)
 
