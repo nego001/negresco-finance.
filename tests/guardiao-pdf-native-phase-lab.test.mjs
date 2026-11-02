@@ -49,7 +49,7 @@ test('native instrumentation is installed only in disposable Debug build',()=>{
  assert.match(source,/capture_output=True, text=True, timeout=12, check=False/);
  assert.doesNotMatch(source,/print\(result\.stdout\)|write_text\(result\.stdout\)|print\(content\)|upload_file|https?:\/\//i);
  assert.match(runner,/native_print_phase\.collect_last_phase\(\)/);
- assert.match(runner,/native_print_phase\.verify_logcat_channel\(\)/);
+ assert.match(runner,/native_print_phase\.verify_diagnostic_channel\(\)/);
  assert.match(source,/\["adb", "logcat", "-d", "-v", "tag", "-t", "512"/);
  assert.match(source,/PROBE_TAG = "NegrescoPdfPhaseProbe"/);
  assert.match(source,/secrets\.token_hex\(8\)/);

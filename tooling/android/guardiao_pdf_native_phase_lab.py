@@ -144,7 +144,7 @@ def collect_last_phase() -> str:
         return "native-phase-unconfirmed"
 
 
-def verify_logcat_channel() -> str:
+def verify_diagnostic_channel() -> str:
     """Fixed-tag canary: checks that a known event is readable via adb.
 
     The nonce is ephemeral and never emitted. This function does NOT say

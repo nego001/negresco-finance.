@@ -370,7 +370,7 @@ def run() -> None:
         # Separate read-path canary, never a native callback and never a PDF PASS.
         # Runs after native diagnostic log reset, before any PDF export.
         print("ENV (LAB): Android Debug native diagnostic channel " +
-              native_print_phase.verify_logcat_channel(), flush=True)
+              native_print_phase.verify_diagnostic_channel(), flush=True)
         # Keep transport for Debug JS; Release's offline runner is unchanged.
         base.adb = preserve_debug_metro_radios
         try:
