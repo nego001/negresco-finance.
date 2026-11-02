@@ -172,3 +172,22 @@ Uma alteração exclusivamente na branch laboratorial `apps/mobile/App.tsx` adic
 O runner do Android 9 continua exigindo recibo íntegro e prova semântica independente, limpeza de cache e `approvedForProduction=false`; **somente depois** de `semantic.run_lab()` completar, se nenhuma observação transitória foi vista, ele volta do receptor externo com uma tecla Back e procura o texto fixo `LAB: última etapa PDF iniciada: share`. Se não encontrar nem essa observação, bloqueia do mesmo jeito. Os testes de contrato verificam a ordem, o escopo `__DEV__`, a ausência de espera artificial e a manutenção dos gates de PDF. O smoke Release original e o APK SHA-pinado continuam inalterados.
 
 **Não se declara consertada a causa nativa do PDF Release.** O resultado do novo teste ainda depende de CI e emulador no novo HEAD. Para fechar a issue #120: diagnosticar o `await` responsável no Release sob intermitência, verificar repetibilidade Android 9 e Android 8, testar fisicamente e realizar revisão humana antes de uma decisão de produção. PR #125 segue DRAFT, issue #120 OPEN, sem merge, release, OTA ou operações financeiras reais.
+
+## Execução do HEAD `8026edf`: falha da entrada sintética antes da exportação
+
+As três execuções do HEAD `8026edf9066f3693725ff1a3cc252988bad5f514` foram consultadas e concluíram:
+- [Mobile static check #41342977192](https://github.com/nego001/negresco-finance./actions/runs/41342977192): **SUCCESS**.
+- [CI push #41342972587](https://github.com/nego001/negresco-finance./actions/runs/41342972587): **SUCCESS**, 1.285/1.285 contratos.
+- [CI PR #41342977187](https://github.com/nego001/negresco-finance./actions/runs/41342977187): **SUCCESS**, 9/9 jobs e 1.285/1.285 contratos.
+- [Android Debug #41342972588](https://github.com/nego001/negresco-finance./actions/runs/41342972588), job `124956751650`: **FAILURE**. Compilação/assinatura/manifesto/Metro/API28/instalação/launch passaram, a home foi observada, a navegação ao Guardião funcionou, e o rótulo do campo sintético apareceu. A execução terminou **antes** da etapa `synthetic field entered`, durante o preenchimento/verificação da entrada sintética, sem confirmação do valor no `EditText`. O runner de propósito oculta exceções e valores, portanto os logs **não identificam ainda se houve falha de toque, entrada vazia, valor divergente, XML temporariamente ausente ou outro bloqueio**. Nenhum toque no botão PDF nem teste do novo marcador persistente ocorreu nessa tentativa.
+
+Esse resultado NÃO reproduz o travamento do PDF Release nem prova defeito do novo marcador; é um bloqueio anterior da automação Android Debug.
+
+### Instrumentação seguinte sem mascarar falhas da automação
+
+No runner exclusivamente Debug, a conferência do `EditText` de entrada sintética, chamada com `wait_visible("Linha digitável do boleto", retries=10)`, continua usando **a comparação original estrita** de `guardiao_pdf_ui_emulator_smoke.py`: `populated.get("text", "") == FIXTURE`. Quando essa conferência pode falhar, a branch experimental coleta uma segunda visão da UI em memória e emite apenas categoria fixa:
+`synthetic-input-view-unconfirmed`, `synthetic-edittext-not-observed`, `synthetic-edittext-empty`, `synthetic-edittext-nonempty-mismatch` ou `synthetic-value-in-other-edittext`.
+
+O classificador compara campos permitidos (`class`, `content-desc`, `text`) com a fixture artificial em memória, **sem publicar** texto, dígitos, XML, coordenadas, quantidade de caracteres ou hierarquia. Não reinjeta texto, não toca em botões, não altera o Release original nem permite PASS quando a validação da entrada falha. Testes sintéticos verificam as categorias, o allowlist do campo correto e o gate de igualdade ainda obrigatório.
+
+O objetivo é distinguir uma falha de automação de um bloqueio funcional do PDF. **A próxima execução Android do novo HEAD ainda precisa validar a instrumentação.** PR #125 permanece Draft; issue #120 OPEN, APK Release SHA-pinado intocado, nenhuma aprovação de produção, OTA, merge ou pagamento real.
