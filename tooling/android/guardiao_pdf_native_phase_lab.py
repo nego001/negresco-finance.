@@ -6,6 +6,7 @@ The SHA-pinned Release APK is not changed.
 """
 from __future__ import annotations
 
+import json
 import re
 import secrets
 import subprocess
@@ -16,6 +17,7 @@ from pathlib import Path
 # The installation step runs with working-directory: apps/mobile.
 # Runtime category collection only uses the tag and does not access TARGET.
 TARGET = Path("node_modules/expo-print/android/src/main/java/expo/modules/print/PrintPDFRenderTask.kt")
+PACKAGE_JSON = Path("package.json")
 TAG = "NegrescoPdfPhaseLab"
 MARKERS = (
     "native-render-entered", "native-webview-created", "native-page-finished",
@@ -109,6 +111,48 @@ def instrument_source(content: str) -> str:
     if any(updated.count(mark(phase)) != 1 for phase in MARKERS):
         raise ValueError("missing fixed phase")
     return updated
+
+
+def configure_expo_print_from_source(path: Path = PACKAGE_JSON) -> None:
+    """Opt out only expo-print from Android precompiled .aar in this CI copy.
+
+    SDK 54 uses precompiled Expo AARs by default; editing node_modules code
+    does not affect prebuilt AARs. This setting remains local to disposable
+    workflow checkout and is never changed in tracked mobile package.json.
+    """
+    if path.is_symlink() or not path.is_file():
+        raise ValueError("package metadata unavailable")
+    raw = path.read_text(encoding="utf-8")
+    if len(raw) > 256_000:
+        raise ValueError("unexpected package size")
+    data = json.loads(raw)
+    if not isinstance(data, dict) or not isinstance(data.get("dependencies"), dict):
+        raise ValueError("unexpected mobile dependency metadata")
+    if not isinstance(data["dependencies"].get("expo-print"), str):
+        raise ValueError("expo-print missing from mobile dependencies")
+    expo = data.setdefault("expo", {})
+    if not isinstance(expo, dict):
+        raise ValueError("unexpected Expo metadata")
+    al = expo.setdefault("autolinking", {})
+    if not isinstance(al, dict):
+        raise ValueError("unexpected Expo autolinking metadata")
+    android = al.setdefault("android", {})
+    if not isinstance(android, dict):
+        raise ValueError("unexpected Android autolinking metadata")
+    existing = android.setdefault("buildFromSource", [])
+    if not isinstance(existing, list) or any(not isinstance(x, str) for x in existing):
+        raise ValueError("unexpected Android build-from-source list")
+    # Preserve any existing explicit source builds without broadening to all
+    # modules. Expo Autolinking supports exact package names in this list.
+    if "expo-print" not in existing:
+        existing.append("expo-print")
+    if existing.count("expo-print") != 1:
+        raise ValueError("duplicate source build selector")
+    # Re-read only local checkout; no secrets, no network, no Release build.
+    updated = json.dumps(data, ensure_ascii=False, indent=2) + "\n"
+    path.write_text(updated, encoding="utf-8")
+    if "expo-print" not in json.loads(path.read_text(encoding="utf-8"))["expo"]["autolinking"]["android"]["buildFromSource"]:
+        raise ValueError("source build setting did not persist")
 
 
 def install() -> None:
@@ -243,10 +287,17 @@ def verify_diagnostic_channel() -> str:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2 or sys.argv[1] not in ("install", "verify-debug-apk"):
+    if len(sys.argv) != 2 or sys.argv[1] not in ("install", "verify-debug-apk", "source-build"):
         raise SystemExit(2)
     if sys.argv[1] == "verify-debug-apk":
         verify_apk_command()
+    elif sys.argv[1] == "source-build":
+        try:
+            configure_expo_print_from_source()
+            print("PASS (LAB): disposable Android expo-print source build selected", flush=True)
+        except (OSError, ValueError, TypeError, json.JSONDecodeError):
+            print("BLOCK (LAB): expo-print source build setting unconfirmed", flush=True)
+            raise SystemExit(1)
     else:
         try:
             install()

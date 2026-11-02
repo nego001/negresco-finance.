@@ -36,6 +36,9 @@ jobs:
           set -euo pipefail
           npm install --no-audit --no-fund
           npx tsc --noEmit
+          # SDK 54 links prebuilt Expo AARs by default. Only in this disposable
+          # Debug workspace, compile expo-print's instrumented Kotlin from source.
+          python3 ../../tooling/android/guardiao_pdf_native_phase_lab.py source-build
           npx expo prebuild --platform android --non-interactive --no-install
           python3 ../../tooling/android/guardiao_pdf_native_phase_lab.py install
       - name: Remove denied permissions from disposable Debug manifest overlay

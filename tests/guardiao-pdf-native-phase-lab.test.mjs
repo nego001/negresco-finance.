@@ -80,8 +80,44 @@ test('synthetic APK ZIP scan categorizes multidex including classes10 without ex
  assert.equal(r.stdout.trim(),'PASS: all bounded native DEX categories and multidex indexes covered');
 });
 
+test('source-build selector is disposable, scoped to expo-print and fails closed',()=>{
+ const code=[
+  'import sys,json,tempfile,pathlib',
+  "sys.path.insert(0,'tooling/android')",
+  'import guardiao_pdf_native_phase_lab as p',
+  'with tempfile.TemporaryDirectory() as tmp:',
+  '  pkg=pathlib.Path(tmp)/"package.json"',
+  '  pkg.write_text(json.dumps({"dependencies":{"expo-print":"~15.0.7","expo":"~54.0.0"}}))',
+  '  p.configure_expo_print_from_source(pkg)',
+  '  data=json.loads(pkg.read_text())',
+  '  assert data["expo"]["autolinking"]["android"]["buildFromSource"]==["expo-print"]',
+  '  p.configure_expo_print_from_source(pkg)',
+  '  assert json.loads(pkg.read_text())==data',
+  '  pkg.write_text(json.dumps({"dependencies":{"expo-print":"~15.0.7"},"expo":{"autolinking":{"android":{"buildFromSource":["expo-screen-capture"]}}}}))',
+  '  p.configure_expo_print_from_source(pkg)',
+  '  assert json.loads(pkg.read_text())["expo"]["autolinking"]["android"]["buildFromSource"]==["expo-screen-capture","expo-print"]',
+  '  pkg.write_text(json.dumps({"dependencies":{"expo-print":"~15.0.7"},"expo":{"autolinking":{"android":{"buildFromSource":"all"}}}}))',
+  '  try: p.configure_expo_print_from_source(pkg)',
+  '  except ValueError: pass',
+  '  else: raise AssertionError("malformed source build selector accepted")',
+  '  pkg.write_text(json.dumps({"dependencies":{"expo":"~54.0.0"}}))',
+  '  try: p.configure_expo_print_from_source(pkg)',
+  '  except ValueError: pass',
+  '  else: raise AssertionError("missing expo-print accepted")',
+  'print("PASS: source build selector isolated and idempotent")',
+ ].join('\n');
+ const r=spawnSync('python3',['-c',code],{encoding:'utf8',timeout:15000});
+ assert.equal(r.status,0,r.stderr);
+ assert.equal(r.stdout.trim(),'PASS: source build selector isolated and idempotent');
+});
+
 test('native instrumentation is installed only in disposable Debug build',()=>{
  assert.match(workflow,/python3 \.\.\/\.\.\/tooling\/android\/guardiao_pdf_native_phase_lab\.py install/);
+ assert.match(workflow,/python3 \.\.\/\.\.\/tooling\/android\/guardiao_pdf_native_phase_lab\.py source-build/);
+ assert.match(source,/def configure_expo_print_from_source\(path: Path = PACKAGE_JSON\) -> None:/);
+ assert.match(source,/android\.setdefault\("buildFromSource", \[\]\)/);
+ assert.match(source,/existing\.append\("expo-print"\)/);
+ assert.doesNotMatch(workflow,/npm publish|eas update|assembleRelease|bundleRelease|upload-artifact/);
  assert.match(workflow,/assembleDebug/);
  assert.doesNotMatch(workflow,/assembleRelease|upload-artifact|workflow_dispatch|eas update|secrets\./i);
  assert.match(source,/node_modules\/expo-print\/android\/src\/main\/java/);
