@@ -111,6 +111,36 @@ test('source-build selector is disposable, scoped to expo-print and fails closed
  assert.equal(r.stdout.trim(),'PASS: source build selector isolated and idempotent');
 });
 
+test('persistent Debug phase marker only accepts a unique exact TextView',()=>{
+ const py=[
+  'import sys',
+  "sys.path.insert(0,'tooling/android')",
+  'import guardiao_pdf_debug_metro_lab as p',
+  'm=p.VISUAL_SHARE_MARKER',
+  'a={"class":"android.widget.TextView","content-desc":m,"text":m}',
+  'assert p.exact_visual_share_marker([a])',
+  'assert p.exact_visual_share_marker([{"class":"android.widget.TextView","text":m}])',
+  'assert not p.exact_visual_share_marker([])',
+  'assert not p.exact_visual_share_marker([{"class":"android.view.View","text":m}])',
+  'assert not p.exact_visual_share_marker([{"class":"android.widget.TextView","text":m+" spoof"}])',
+  'assert not p.exact_visual_share_marker([a,dict(a)])',
+  'print("PASS: exact visual evidence only")'
+ ].join('\n');
+ const r=spawnSync('python3',['-c',py],{encoding:'utf8',timeout:15000});
+ assert.equal(r.status,0,r.stderr);
+ assert.equal(r.stdout.trim(),'PASS: exact visual evidence only');
+});
+
+test('post-receipt visual search stays bounded and cannot fabricate PASS',()=>{
+ assert.match(runner,/if exact_visual_share_marker\(base\.xml_nodes\(\)\):/);
+ assert.match(runner,/for _ in range\(2\):/);
+ assert.match(runner,/for movement in \(base\.scroll_forward_precise, base\.scroll_backward\):/);
+ assert.match(runner,/for step in range\(8\):/);
+ assert.match(runner,/if confirmed:\s*\n\s*observed\.add\("lab-share-entered-after-receipt"\)/);
+ assert.match(runner,/if not observed:\s*\n\s*raise RuntimeError\("no actual debug-only phase marker was observed"\)/);
+ assert.doesNotMatch(runner,/native_before_receiver == "native-render-completed"[\s\S]{0,60}observed\.add/);
+});
+
 test('native instrumentation is installed only in disposable Debug build',()=>{
  assert.match(workflow,/python3 \.\.\/\.\.\/tooling\/android\/guardiao_pdf_native_phase_lab\.py install/);
  assert.match(workflow,/python3 \.\.\/\.\.\/tooling\/android\/guardiao_pdf_native_phase_lab\.py source-build/);

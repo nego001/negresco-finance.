@@ -18,6 +18,7 @@ import stat
 import subprocess
 import sys
 import time
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import guardiao_android_export_pdf_text_emulator_smoke as semantic
@@ -245,6 +246,41 @@ def report_android_local_metro(stage: str) -> None:
     print("ENV (LAB): " + stage + " " + probe_android_local_metro(), flush=True)
 
 
+VISUAL_SHARE_MARKER = "LAB: última etapa PDF iniciada: share"
+
+
+def exact_visual_share_marker(nodes: list[dict[str, str]]) -> bool:
+    """One exact accessibility-labeled TextView, never a substring or raw dump."""
+    matches = [
+        node for node in nodes
+        if node.get("class") == "android.widget.TextView"
+        and (node.get("content-desc") == VISUAL_SHARE_MARKER
+             or node.get("text") == VISUAL_SHARE_MARKER)
+    ]
+    return len(matches) == 1
+
+
+def collect_persistent_visual_share_marker() -> bool:
+    """Only post-receipt: at most two Back keys, bounded bidirectional search.
+
+    The independent receiver may return to Android chooser rather than the app.
+    This never taps Export again. Missing evidence is still a failure.
+    """
+    for _ in range(2):
+        base.adb("shell", "input", "keyevent", "4", timeout=15)
+        for movement in (base.scroll_forward_precise, base.scroll_backward):
+            for step in range(8):
+                try:
+                    if exact_visual_share_marker(base.xml_nodes()):
+                        return True
+                    if step < 7:
+                        movement()
+                except (RuntimeError, subprocess.TimeoutExpired,
+                        ValueError, ET.ParseError):
+                    pass
+    return False
+
+
 def run() -> None:
     if len(sys.argv) != 1 or len(FIXTURE) != 48 or FIXTURE[2] != "0":
         raise RuntimeError("synthetic fixture policy rejected")
@@ -424,17 +460,17 @@ def run() -> None:
             report.get("stableReleaseAllowed") is not False):
             raise RuntimeError("Debug-only PDF evidence has inconsistent synthetic gates")
         if not observed:
-            # After the external receiver verified and cleaned the real PDF,
-            # return from its Activity to observe a persistent, fixed
-            # Debug-only phase marker. This is an "entered" event, never a
-            # claim that the native await was pending at inspection time.
-            # No tap/relaunch is performed before PDF evidence is complete.
+            # After actual receiver proof, require a unique real TextView.
+            # A native completion alone cannot substitute for visual evidence.
             try:
-                base.adb("shell", "input", "keyevent", "4", timeout=15)
-                base.wait_visible("LAB: última etapa PDF iniciada: share", retries=12)
-                observed.add("lab-share-entered-after-receipt")
+                confirmed = collect_persistent_visual_share_marker()
             except (RuntimeError, subprocess.TimeoutExpired):
-                pass
+                confirmed = False
+            print("ENV (LAB): Debug persistent visual share marker " +
+                  ("visual-share-exact-confirmed" if confirmed
+                   else "visual-share-unconfirmed"), flush=True)
+            if confirmed:
+                observed.add("lab-share-entered-after-receipt")
         if not observed:
             raise RuntimeError("no actual debug-only phase marker was observed")
         # Print only categories that the source defines, never values from UI.
