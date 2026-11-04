@@ -45,3 +45,19 @@ test('persistent marker is checked only after real PDF receipt, without weakenin
  assert.match(baseline,/if not receiver_cache_empty_of_pdf\(\):/);
  assert.doesNotMatch(runner,/logcat.*print|screencap|upload-artifact|approvedForProduction.*True/i);
 });
+
+test('post-receiver visual scan checks UI before any Back that could dismiss evidence',()=>{
+  const start=runner.indexOf('def collect_persistent_visual_share_marker() -> bool:');
+  const end=runner.indexOf('def run() -> None:',start);
+  assert.ok(start>=0 && end>start);
+  const collector=runner.slice(start,end);
+  const snapshot=collector.indexOf('initial_nodes = base.xml_nodes()');
+  const match=collector.indexOf('initial_confirmed = exact_visual_share_marker(initial_nodes)',snapshot);
+  const gate=collector.indexOf('if initial_confirmed:',match);
+  const back=collector.indexOf('base.adb("shell", "input", "keyevent", "4"',gate);
+  assert.ok(snapshot>=0 && match>snapshot && gate>match && back>gate);
+  assert.match(collector,/initial_category = classify_debug_visual_screen\(initial_nodes\)/);
+  assert.match(collector,/if initial_confirmed:\s+return True/);
+  assert.match(collector,/for _ in range\(2\):/);
+  assert.match(collector,/initial_category = "screen-inspection-unavailable"/);
+});
