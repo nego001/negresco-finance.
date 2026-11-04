@@ -157,7 +157,8 @@ test('E2E pass requires the separate APK, Android chooser, actual receiver and P
   assert.match(workflow,/bash tooling\/android\/pdf-receiver-lab\/build_receiving_apk.sh/);
   assert.match(readFileSync('tooling/android/pdf-receiver-lab/build_receiving_apk.sh','utf8'),/Receiver APK must have zero Android permissions/);
   assert.match(script,/adb\("install", "-r", str\(RECEIVER_APK\)/);
-  assert.match(script,/if chooser_present\(\):[\s\S]{0,160}receive_from_chooser\(api, digest\)/);
+  // The bounded gap now includes a read-only chooser timing category; receiver remains mandatory.
+  assert.match(script,/if chooser_present\(\):[\s\S]{0,450}if after_verified_receipt is None:\s+receive_from_chooser\(api, digest\)/);
   assert.match(script,/wait_visible\("Negresco PDF Receiver LAB"/);
   assert.match(script,/run-as", RECEIVER_PACKAGE, "cat", "files\/receipt.json"/);
   assert.match(script,/receipt\.get\("status"\) != "received-rendered"/);
