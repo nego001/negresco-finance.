@@ -47,3 +47,33 @@ test('Release replay never changes SHA-pinned APK, publication or gate requireme
  assert.match(runner,/choose_unique_input\(base\.xml_nodes\(\), verify_value=\(retries == 10\)\)/);
  assert.doesNotMatch(runner,/print\([^\n]*(?:get\("text"\)|FIXTURE|xml_nodes\(\))|upload_artifact|https?:\/\//);
 });
+
+test('chooser observation delay uses only fixed bounded categories',()=>{
+ const code=[
+  'import sys',
+  "sys.path.insert(0,'tooling/android')",
+  'import guardiao_pdf_ui_emulator_smoke as m',
+  'cases=[(-1,"unclassified"),(0,"under-5s"),(4.99,"under-5s"),(5,"5-to-15s"),(14.99,"5-to-15s"),(15,"15-to-30s"),(29.99,"15-to-30s"),(30,"30s-or-more"),(90,"30s-or-more"),(float("nan"),"unclassified"),(float("inf"),"unclassified"),("5","unclassified"),(True,"unclassified")]',
+  'for value,expected in cases: assert m.chooser_observation_delay_band(value)==expected, (value,expected)',
+  'print("PASS: fixed coarse chooser observation bands")'
+ ].join('\\n');
+ const r=spawnSync('python3',['-c',code],{encoding:'utf8',timeout:15000});
+ assert.equal(r.status,0,r.stderr);
+ assert.equal(r.stdout.trim(),'PASS: fixed coarse chooser observation bands');
+});
+
+test('Release chooser delay telemetry does not alter PDF timeout or receipt gates',()=>{
+ const smoke=readFileSync('tooling/android/guardiao_pdf_ui_emulator_smoke.py','utf8');
+ const tap=smoke.indexOf('tap_node(pdf_button, prefer_label=True)');
+ const started=smoke.indexOf('chooser_wait_started = time.monotonic()',tap);
+ const poll=smoke.indexOf('for attempt in range(55):',started);
+ const observed=smoke.indexOf('if chooser_present():',poll);
+ const category=smoke.indexOf('chooser_observation_delay_band(time.monotonic() - chooser_wait_started)',observed);
+ const receiver=smoke.indexOf('receive_from_chooser(api, digest',category);
+ const timeout=smoke.indexOf('PDF chooser observation delay not-observed-before-block',receiver);
+ const reject=smoke.indexOf('raise RuntimeError("PDF share chooser not observed after synthetic user action")',timeout);
+ assert.ok(tap>=0 && started>tap && poll>started && observed>poll && category>observed && receiver>category && timeout>receiver && reject>timeout);
+ assert.match(smoke,/for attempt in range\\(55\\):/);
+ assert.match(smoke,/PDF timeout category=/);
+ assert.doesNotMatch(smoke,/print\\([^\\n]*chooser_wait_started\\)/);
+});
