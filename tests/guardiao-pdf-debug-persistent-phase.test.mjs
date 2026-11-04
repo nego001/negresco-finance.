@@ -72,6 +72,6 @@ test('every verified Debug PDF records a non-gating post-receiver screen categor
   assert.ok(receipt>=0 && cleanup>receipt && classify>cleanup && emit>classify && fallback>emit && deny>fallback);
   const diagnostic=runner.slice(cleanup, fallback);
   assert.match(diagnostic,/post_receiver_category = "screen-inspection-unavailable"/);
-  assert.doesNotMatch(diagnostic,/observed\\.add|input", "keyevent|scroll_forward|scroll_backward|shareAsync|upload-artifact/);
-  assert.match(runner,/if not observed:[\\s\\S]*?collect_persistent_visual_share_marker\\(\\)/);
+  assert.doesNotMatch(diagnostic,/observed\.add|input", "keyevent|scroll_forward|scroll_backward|shareAsync|upload-artifact/);
+  assert.match(runner,/if not observed:[\s\S]*?collect_persistent_visual_share_marker\(\)/);
 });
