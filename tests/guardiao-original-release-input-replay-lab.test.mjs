@@ -32,6 +32,12 @@ test('Release replay never changes SHA-pinned APK, publication or gate requireme
  assert.match(workflow,/matrix:\s*\n\s*api: \[26, 28\]/);
  assert.match(workflow,/29e248742e365c4dd7a8c668a23153d43a89b8be02828620bbc5851775986b4a/);
  assert.match(workflow,/sha256sum --check --strict/);
+ assert.match(workflow,/negresco-finance-v313-security-preview/);
+ assert.match(workflow,/Negresco-Finance-V3\.1\.3-preview\.apk/);
+ assert.match(workflow,/install -D -m 0600 test-apk\/Negresco-Finance-V3\.1\.3-preview\.apk test-apk\/android\/app\/build\/outputs\/apk\/release\/app-release\.apk/);
+ assert.match(workflow,/test ! -L test-apk\/Negresco-Finance-V3\.1\.3-preview\.apk/);
+ assert.doesNotMatch(workflow,/name: negresco-finance-v313-test-apk/);
+
  assert.match(workflow,/python3 tooling\/android\/guardiao_original_release_input_replay_lab\.py/);
  assert.match(workflow,/python3 tooling\/android\/verify_collection48_receipt_pair\.py receipt-pair/);
  assert.match(workflow,/path: guardiao-android-real-pdf-text-receipt\.json/);

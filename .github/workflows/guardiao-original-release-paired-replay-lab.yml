@@ -25,7 +25,7 @@ jobs:
       - name: Download immutable independently audited synthetic-only financial APK
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          name: negresco-finance-v313-test-apk
+          name: negresco-finance-v313-security-preview
           run-id: 40617164086
           repository: nego001/negresco-finance.
           github-token: ${{ github.token }}
@@ -33,6 +33,13 @@ jobs:
       - name: Pin exact financial APK bytes; no rebuild of finance application
         run: |
           set -euo pipefail
+          # The original standalone Actions artifact expired. The other
+          # artifact of the SAME audited source run retained an exact APK
+          # copy. Verify those bytes before normalizing the original path.
+          test -f test-apk/Negresco-Finance-V3.1.3-preview.apk
+          test ! -L test-apk/Negresco-Finance-V3.1.3-preview.apk
+          echo '29e248742e365c4dd7a8c668a23153d43a89b8be02828620bbc5851775986b4a  test-apk/Negresco-Finance-V3.1.3-preview.apk' | sha256sum --check --strict
+          install -D -m 0600 test-apk/Negresco-Finance-V3.1.3-preview.apk test-apk/android/app/build/outputs/apk/release/app-release.apk
           echo '29e248742e365c4dd7a8c668a23153d43a89b8be02828620bbc5851775986b4a  test-apk/android/app/build/outputs/apk/release/app-release.apk' | sha256sum --check --strict
           test -s test-apk/android/app/build/outputs/apk/release/app-release.apk
       - name: Setup Java 17 for test-only receiver and installed Android SDK

@@ -9,6 +9,12 @@ const verifier=readFileSync('tooling/android/verify_original_release_repeat_rece
 test('Release repetitions use fixed SHA, three independent API28 jobs, strict receipts',()=>{
  assert.match(workflow,/29e248742e365c4dd7a8c668a23153d43a89b8be02828620bbc5851775986b4a/);
  assert.match(workflow,/sha256sum --check --strict/);
+ assert.match(workflow,/negresco-finance-v313-security-preview/);
+ assert.match(workflow,/Negresco-Finance-V3\.1\.3-preview\.apk/);
+ assert.match(workflow,/install -D -m 0600 test-apk\/Negresco-Finance-V3\.1\.3-preview\.apk test-apk\/android\/app\/build\/outputs\/apk\/release\/app-release\.apk/);
+ assert.match(workflow,/test ! -L test-apk\/Negresco-Finance-V3\.1\.3-preview\.apk/);
+ assert.doesNotMatch(workflow,/name: negresco-finance-v313-test-apk/);
+
  assert.match(workflow,/api: 26\s*\n\s*sample: control/);
  for(const label of ['a','b','c'])assert.match(workflow,new RegExp('api: 28\\s*\\n\\s*sample: '+label));
  assert.match(workflow,/fail-fast: false/);
