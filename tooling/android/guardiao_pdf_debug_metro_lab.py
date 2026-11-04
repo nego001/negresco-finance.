@@ -260,6 +260,36 @@ def exact_visual_share_marker(nodes: list[dict[str, str]]) -> bool:
     return len(matches) == 1
 
 
+def classify_debug_visual_screen(nodes: list[dict[str, str]]) -> str:
+    """Return a fixed screen category; never expose any node values or XML.
+
+    This is DIAGNOSTIC ONLY; these categories do not satisfy the strict
+    visible phase marker requirement.
+    """
+    if exact_visual_share_marker(nodes):
+        return "visual-share-exact-confirmed"
+    def has_exact(label: str) -> bool:
+        return any(
+            n.get("text") == label or n.get("content-desc") == label
+            for n in nodes
+        )
+    if has_exact(VISUAL_SHARE_MARKER):
+        return "visual-share-other-class"
+    if any(
+        VISUAL_SHARE_MARKER in (n.get("text") or "")
+        or VISUAL_SHARE_MARKER in (n.get("content-desc") or "")
+        for n in nodes
+    ):
+        return "visual-share-nonexact"
+    if has_exact("Gerar e compartilhar relatório PDF"):
+        return "guardiao-export-visible-no-marker"
+    if has_exact("Relatório de evidências"):
+        return "guardiao-report-visible-no-marker"
+    if has_exact("Seu universo"):
+        return "app-home-visible"
+    return "screen-unclassified"
+
+
 def collect_persistent_visual_share_marker() -> bool:
     """Only post-receipt: at most two Back keys, bounded bidirectional search.
 
@@ -268,6 +298,12 @@ def collect_persistent_visual_share_marker() -> bool:
     """
     for _ in range(2):
         base.adb("shell", "input", "keyevent", "4", timeout=15)
+        # One categorical snapshot on each Activity return before scrolling.
+        try:
+            category = classify_debug_visual_screen(base.xml_nodes())
+        except (RuntimeError, subprocess.TimeoutExpired, ValueError, ET.ParseError):
+            category = "screen-inspection-unavailable"
+        print("ENV (LAB): Debug after receiver Back " + category, flush=True)
         for movement in (base.scroll_forward_precise, base.scroll_backward):
             for step in range(8):
                 try:

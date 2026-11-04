@@ -141,6 +141,40 @@ test('post-receipt visual search stays bounded and cannot fabricate PASS',()=>{
  assert.doesNotMatch(runner,/native_before_receiver == "native-render-completed"[\s\S]{0,60}observed\.add/);
 });
 
+test('Debug post-receiver screen categories do not qualify as visual evidence',()=>{
+ const python=[
+  'import sys',
+  "sys.path.insert(0,'tooling/android')",
+  'import guardiao_pdf_debug_metro_lab as p',
+  'm=p.VISUAL_SHARE_MARKER',
+  'text=lambda s,c="android.widget.TextView":{"class":c,"text":s}',
+  'assert p.classify_debug_visual_screen([text(m)])=="visual-share-exact-confirmed"',
+  'assert p.classify_debug_visual_screen([text(m,"android.view.View")])=="visual-share-other-class"',
+  'assert p.classify_debug_visual_screen([text(m+" extra")])=="visual-share-nonexact"',
+  'assert p.classify_debug_visual_screen([text("Gerar e compartilhar relatório PDF")])=="guardiao-export-visible-no-marker"',
+  'assert p.classify_debug_visual_screen([text("Relatório de evidências")])=="guardiao-report-visible-no-marker"',
+  'assert p.classify_debug_visual_screen([text("Seu universo")])=="app-home-visible"',
+  'assert p.classify_debug_visual_screen([text("outra tela")])=="screen-unclassified"',
+  'assert not p.exact_visual_share_marker([text(m,"android.view.View")])',
+  'assert not p.exact_visual_share_marker([text(m+" extra")])',
+  'print("PASS: fixed UI categories cannot spoof a confirmed TextView")'
+ ].join('\n');
+ const r=spawnSync('python3',['-c',python],{encoding:'utf8',timeout:15000});
+ assert.equal(r.status,0,r.stderr);
+ assert.equal(r.stdout.trim(),'PASS: fixed UI categories cannot spoof a confirmed TextView');
+});
+
+test('categorical UI trace is only after PDF evidence and never logs raw XML',()=>{
+ const after=runner.indexOf('if not observed:',runner.indexOf('report = json.loads(semantic.REPORT'));
+ const probe=runner.indexOf('confirmed = collect_persistent_visual_share_marker()',after);
+ assert.ok(after>0&&probe>after);
+ assert.match(runner,/print\("ENV \(LAB\): Debug after receiver Back " \+ category, flush=True\)/);
+ assert.match(runner,/except \(RuntimeError, subprocess\.TimeoutExpired, ValueError, ET\.ParseError\):\s*\n\s*category = "screen-inspection-unavailable"/);
+ assert.match(runner,/return "visual-share-other-class"/);
+ assert.match(runner,/return "app-home-visible"/);
+ assert.doesNotMatch(runner,/print\(base\.xml_nodes|print\(nodes\)|print\(node\)|screencap|upload-artifact/);
+});
+
 test('native instrumentation is installed only in disposable Debug build',()=>{
  assert.match(workflow,/python3 \.\.\/\.\.\/tooling\/android\/guardiao_pdf_native_phase_lab\.py install/);
  assert.match(workflow,/python3 \.\.\/\.\.\/tooling\/android\/guardiao_pdf_native_phase_lab\.py source-build/);
