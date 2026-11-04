@@ -509,6 +509,15 @@ def run() -> None:
             report.get("approvedForProduction") is not False or
             report.get("stableReleaseAllowed") is not False):
             raise RuntimeError("Debug-only PDF evidence has inconsistent synthetic gates")
+        # Observe the post-receiver viewport in *every* successful PDF run.
+        # This one-shot read is diagnostic only: no Back, scroll, taps, or
+        # weakened gate. Never serialize or print any UI node content.
+        try:
+            post_receiver_category = classify_debug_visual_screen(base.xml_nodes())
+        except (RuntimeError, subprocess.TimeoutExpired, ValueError, ET.ParseError):
+            post_receiver_category = "screen-inspection-unavailable"
+        print("ENV (LAB): Debug post-receiver observational screen " +
+              post_receiver_category, flush=True)
         if not observed:
             # After actual receiver proof, require a unique real TextView.
             # A native completion alone cannot substitute for visual evidence.
