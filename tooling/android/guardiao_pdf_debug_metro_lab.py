@@ -296,6 +296,20 @@ def collect_persistent_visual_share_marker() -> bool:
     The independent receiver may return to Android chooser rather than the app.
     This never taps Export again. Missing evidence is still a failure.
     """
+    # A successful receiver can return straight to Guardião. Observe the
+    # current viewport BEFORE Back, which may otherwise dismiss valid UI proof.
+    # Only an exact unique TextView can satisfy the existing visual gate.
+    try:
+        initial_nodes = base.xml_nodes()
+        initial_category = classify_debug_visual_screen(initial_nodes)
+        initial_confirmed = exact_visual_share_marker(initial_nodes)
+    except (RuntimeError, subprocess.TimeoutExpired, ValueError, ET.ParseError):
+        initial_category = "screen-inspection-unavailable"
+        initial_confirmed = False
+    print("ENV (LAB): Debug post-receiver initial screen " +
+          initial_category, flush=True)
+    if initial_confirmed:
+        return True
     for _ in range(2):
         base.adb("shell", "input", "keyevent", "4", timeout=15)
         # One categorical snapshot on each Activity return before scrolling.
