@@ -56,7 +56,7 @@ test('chooser observation delay uses only fixed bounded categories',()=>{
   'cases=[(-1,"unclassified"),(0,"under-5s"),(4.99,"under-5s"),(5,"5-to-15s"),(14.99,"5-to-15s"),(15,"15-to-30s"),(29.99,"15-to-30s"),(30,"30s-or-more"),(90,"30s-or-more"),(float("nan"),"unclassified"),(float("inf"),"unclassified"),("5","unclassified"),(True,"unclassified")]',
   'for value,expected in cases: assert m.chooser_observation_delay_band(value)==expected, (value,expected)',
   'print("PASS: fixed coarse chooser observation bands")'
- ].join('\\n');
+ ].join('\n');
  const r=spawnSync('python3',['-c',code],{encoding:'utf8',timeout:15000});
  assert.equal(r.status,0,r.stderr);
  assert.equal(r.stdout.trim(),'PASS: fixed coarse chooser observation bands');
@@ -73,7 +73,7 @@ test('Release chooser delay telemetry does not alter PDF timeout or receipt gate
  const timeout=smoke.indexOf('PDF chooser observation delay not-observed-before-block',receiver);
  const reject=smoke.indexOf('raise RuntimeError("PDF share chooser not observed after synthetic user action")',timeout);
  assert.ok(tap>=0 && started>tap && poll>started && observed>poll && category>observed && receiver>category && timeout>receiver && reject>timeout);
- assert.match(smoke,/for attempt in range\\(55\\):/);
+ assert.match(smoke,/for attempt in range\(55\):/);
  assert.match(smoke,/PDF timeout category=/);
- assert.doesNotMatch(smoke,/print\\([^\\n]*chooser_wait_started\\)/);
+ assert.doesNotMatch(smoke,/print\([^\n]*chooser_wait_started\)/);
 });
