@@ -61,3 +61,17 @@ test('post-receiver visual scan checks UI before any Back that could dismiss evi
   assert.match(collector,/for _ in range\(2\):/);
   assert.match(collector,/initial_category = "screen-inspection-unavailable"/);
 });
+
+test('every verified Debug PDF records a non-gating post-receiver screen category',()=>{
+  const receipt=runner.indexOf('report.get("nativePdfSemanticTextVerified") is not True');
+  const cleanup=runner.indexOf('report.get("receiverCacheClean") is not True',receipt);
+  const classify=runner.indexOf('post_receiver_category = classify_debug_visual_screen(base.xml_nodes())',cleanup);
+  const emit=runner.indexOf('Debug post-receiver observational screen',classify);
+  const fallback=runner.indexOf('if not observed:',emit);
+  const deny=runner.indexOf('raise RuntimeError("no actual debug-only phase marker was observed")',fallback);
+  assert.ok(receipt>=0 && cleanup>receipt && classify>cleanup && emit>classify && fallback>emit && deny>fallback);
+  const diagnostic=runner.slice(cleanup, fallback);
+  assert.match(diagnostic,/post_receiver_category = "screen-inspection-unavailable"/);
+  assert.doesNotMatch(diagnostic,/observed\\.add|input", "keyevent|scroll_forward|scroll_backward|shareAsync|upload-artifact/);
+  assert.match(runner,/if not observed:[\\s\\S]*?collect_persistent_visual_share_marker\\(\\)/);
+});
