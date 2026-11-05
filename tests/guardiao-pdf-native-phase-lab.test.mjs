@@ -232,3 +232,31 @@ test('WebView renderer exit marker is Debug-only and preserves default handling'
  assert.match(source,/b"native-render-process-gone"/);
  assert.doesNotMatch(release,/native-render-process-gone|onRenderProcessGone/);
 });
+
+test('renderer exit observation survives later callbacks without changing any PDF gate',()=>{
+ const py=[
+  'import sys',
+  "sys.path.insert(0,'tooling/android')",
+  'import guardiao_pdf_native_phase_lab as p',
+  'tag="I/NegrescoPdfPhaseLab: "',
+  'before=tag+"native-render-entered"',
+  'gone=tag+"native-render-process-gone"',
+  'after=tag+"native-render-completed"',
+  'assert p.classify_renderer_exit_log(before+"\\n"+gone+"\\n"+after)=="native-renderer-exit-observed"',
+  'assert p.classify_renderer_exit_log(before+"\\n"+after)=="native-renderer-exit-not-observed-in-window"',
+  'assert p.classify_renderer_exit_log("I/UntrustedTag: native-render-process-gone")=="native-renderer-exit-unconfirmed"',
+  'assert p.classify_renderer_exit_log(after+"\\nI/UntrustedTag: native-render-process-gone")=="native-renderer-exit-not-observed-in-window"',
+  'assert p.classify_renderer_exit_log("junk"*(p.MAX_CAPTURE+1))=="native-renderer-exit-unconfirmed"',
+  'assert p.classify_renderer_exit_log(None)=="native-renderer-exit-unconfirmed"',
+  'print("PASS: fixed renderer-exit category survives later native phases")'
+ ].join('\n');
+ const result=spawnSync('python3',['-c',py],{encoding:'utf8',timeout:15000});
+ assert.equal(result.status,0,result.stderr);
+ assert.equal(result.stdout.trim(),'PASS: fixed renderer-exit category survives later native phases');
+ assert.match(source,/def collect_renderer_exit_category\(\) -> str:/);
+ assert.match(source,/native-renderer-exit-not-observed-in-window/);
+ assert.match(source,/return "native-renderer-exit-unconfirmed"/);
+ assert.equal((runner.match(/native_print_phase\.collect_renderer_exit_category\(\)/g)||[]).length,2);
+ assert.match(runner,/ENV \(LAB\): Android Debug native renderer exit /);
+ assert.doesNotMatch(release,/collect_renderer_exit_category|native-renderer-exit/);
+});
