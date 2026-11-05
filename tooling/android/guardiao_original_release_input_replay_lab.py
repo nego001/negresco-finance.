@@ -34,6 +34,26 @@ def choose_unique_input(nodes: list[dict[str, str]], *, verify_value: bool) -> d
     return target
 
 
+
+def verify_post_injection_snapshots(read_nodes) -> tuple[dict[str, str], str]:
+    """Read the existing EditText at most three times; never inject more text.
+
+    An initially incomplete accessibility snapshot may catch a pending UI
+    update. Only a unique EXACT synthetic EditText value can ever pass.
+    Missing/ambiguous fields fail immediately; a value mismatch fails after
+    at most two additional read-only UI snapshots.
+    """
+    for attempt in range(3):
+        try:
+            selected = choose_unique_input(read_nodes(), verify_value=True)
+            return selected, ("synthetic-value-exact-verified" if attempt == 0
+                              else "synthetic-value-exact-after-read-recheck")
+        except ValueError as exc:
+            if str(exc) != "synthetic-edittext-value-unconfirmed" or attempt == 2:
+                raise
+    raise RuntimeError("bounded synthetic EditText read failed")
+
+
 def run() -> None:
     if len(sys.argv) != 1 or len(FIXTURE) != 48 or FIXTURE[2] != "0":
         raise ValueError("invalid synthetic-only replay invocation")
@@ -52,7 +72,11 @@ def run() -> None:
             needle, retries=retries, scroll=scroll, enabled=enabled
         )
         try:
-            chosen = choose_unique_input(base.xml_nodes(), verify_value=(retries == 10))
+            if retries == 10:
+                chosen, category = verify_post_injection_snapshots(base.xml_nodes)
+            else:
+                chosen = choose_unique_input(base.xml_nodes(), verify_value=False)
+                category = "synthetic-edittext-unique-confirmed"
         except ValueError as exc:
             # Exception message comes solely from this module's literals.
             print("ENV (LAB): Release replay synthetic input " + str(exc), flush=True)
@@ -61,9 +85,7 @@ def run() -> None:
             print("ENV (LAB): Release replay synthetic input synthetic-view-unconfirmed",
                   flush=True)
             raise
-        print("ENV (LAB): Release replay synthetic input " +
-              ("synthetic-value-exact-verified" if retries == 10
-               else "synthetic-edittext-unique-confirmed"), flush=True)
+        print("ENV (LAB): Release replay synthetic input " + category, flush=True)
         return chosen
 
     base.wait_visible = strict_wait_visible
