@@ -34,3 +34,11 @@
 - Homologação de Android 8/9 em dispositivos físicos e revisão humana ainda **pendentes**.
 - APK original de teste pode expirar antes da causa-raiz ser isolada; a perda do artefato é bloqueio de infraestrutura, não regressão PDF. Retenção adicional ou redistribuição requer decisão explícita e revisão de segurança.
 - Zero operações financeiras reais, zero produção, zero OTA e zero merge em `main`.
+
+## 05/11/2026 | Novo experimento de uso repetido sem apagar dados locais
+
+O laboratório anterior reinicia o estado do aplicativo entre dois PDFs com `pm clear`; isso testa instalações com dados recém-limpos, mas não o comportamento quando o usuário fecha e reabre o app **sem limpar seus dados**.
+
+Experimento adicional exclusivo da branch Draft: `guardiao_original_release_retained_state_lab.py` executa duas verificações do **mesmo APK imutável no mesmo emulador API28**, sem `pm clear` nem uninstall. Entre os ciclos, faz `am force-stop` e comprova o fim do processo por `pidof`; o runner compartilhado instala novamente **com `adb install -r`**, relança o app e recria o receptor PDF sintético de uso único. A etapa `install -r` pretende preservar os dados locais, mas **não é prova criptográfica de que todo estado foi preservado**. A verificação é do fluxo de uso repetido sob essas condições.
+
+O recibo de cada ciclo só é aceito após chooser real, PDF recebido, semântica e limpeza aprovadas; um auditor separado reabre **somente os dois metadados**, rejeitando saída ausente/extra, symlinks e conteúdo inválido. Nenhum resultado deste experimento poderá liberar produção ou declarar que a falha histórica foi corrigida, mesmo com PASS. O teste anterior de dois ciclos com dados limpos permanece **inalterado** como controle.
