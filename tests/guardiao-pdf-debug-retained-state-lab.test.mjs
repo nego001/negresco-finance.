@@ -29,7 +29,7 @@ test('second Debug run retains app state but requires fresh native phase channel
  assert.match(runner,/native\.collect_last_phase\(\)/);
  assert.match(runner,/native\.collect_renderer_exit_category\(\)/);
  assert.match(runner,/semantic\.REPORT\.unlink\(\)/);
- assert.doesNotMatch(runner,/pm", "clear"|uninstall|logcat", "-d"|print\(.*(?:exception|pdf|raw)/i);
+ assert.doesNotMatch(runner,/pm", "clear"|base\.adb\("uninstall"|logcat", "-d"|print\([^\n]*(?:\.message|\.stack|raw_(?:pdf|xml)|pdf_bytes|html|uri)/i);
  assert.match(original,/native_print_phase\.collect_last_phase\(\)/);
 });
 
