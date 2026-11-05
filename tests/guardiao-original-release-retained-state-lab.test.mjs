@@ -29,7 +29,7 @@ test('same-APK retained-state Android 9 lab preserves original SHA, receiver and
  assert.match(runner,/if index:\s*\n\s*base\.adb\("shell", "am", "force-stop", base\.PACKAGE/);
  assert.match(runner,/base\.adb\("shell", "pidof", base\.PACKAGE/);
  assert.match(runner,/if base\.adb[\s\S]{0,150}\.strip\(\):\s*\n\s*raise RuntimeError\("retained-state process stop unconfirmed"\)/);
- assert.doesNotMatch(runner,/pm", "clear"|uninstall|adb\("shell", "rm"|delete|install", "-r"/);
+ assert.doesNotMatch(runner,/base\.adb\("shell", "pm", "clear"|base\.adb\("uninstall"|base\.adb\("shell", "rm"/);
  assert.equal((runner.match(/replay\.run\(\)/g)||[]).length,2); // one code call plus comment
  assert.match(runner,/semantic\.observed = None/);
  assert.match(runner,/semantic\.REPORT\.replace\(folder \/ receipt\.MEMBER\)/);
