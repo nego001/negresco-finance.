@@ -44,7 +44,8 @@ test('Release replay never changes SHA-pinned APK, publication or gate requireme
  assert.doesNotMatch(workflow,/assembleRelease|upload-apk|eas update|workflow_dispatch/);
  assert.match(runner,/base\.wait_visible = original_wait_visible/);
  assert.match(runner,/lab\.run_lab\(\)/);
- assert.match(runner,/choose_unique_input\(base\.xml_nodes\(\), verify_value=\(retries == 10\)\)/);
+ assert.match(runner,/chosen, category = verify_post_injection_snapshots\(base\.xml_nodes\)/);
+ assert.match(runner,/chosen = choose_unique_input\(base\.xml_nodes\(\), verify_value=False\)/);
  assert.doesNotMatch(runner,/print\([^\n]*(?:get\("text"\)|FIXTURE|xml_nodes\(\))|upload_artifact|https?:\/\//);
 });
 
@@ -76,4 +77,42 @@ test('Release chooser delay telemetry does not alter PDF timeout or receipt gate
  assert.match(smoke,/for attempt in range\(55\):/);
  assert.match(smoke,/PDF timeout category=/);
  assert.doesNotMatch(smoke,/print\([^\n]*chooser_wait_started\)/);
+});
+
+test('Release EditText read-only recheck accepts only a subsequent exact value',()=>{
+ const code=[
+  'import sys',
+  "sys.path.insert(0,'tooling/android')",
+  'import guardiao_original_release_input_replay_lab as p',
+  'field={"class":"android.widget.EditText","content-desc":p.LABEL,"text":p.FIXTURE}',
+  'def check(seq):',
+  '  calls=[0]',
+  '  items=iter(seq)',
+  '  def read():',
+  '    calls[0]+=1',
+  '    return next(items)',
+  '  try: return p.verify_post_injection_snapshots(read),calls[0],None',
+  '  except ValueError as exc: return None,calls[0],str(exc)',
+  'result,n,error=check([[field]])',
+  'assert result[1]=="synthetic-value-exact-verified" and n==1 and error is None',
+  'result,n,error=check([[dict(field,text="")],[field]])',
+  'assert result[1]=="synthetic-value-exact-after-read-recheck" and n==2 and error is None',
+  'result,n,error=check([[dict(field,text="")],[dict(field,text="partial")],[field]])',
+  'assert result[1]=="synthetic-value-exact-after-read-recheck" and n==3 and error is None',
+  'result,n,error=check([[dict(field,text="")]]*3)',
+  'assert result is None and n==3 and error=="synthetic-edittext-value-unconfirmed"',
+  'result,n,error=check([[field,dict(field)]])',
+  'assert result is None and n==1 and error=="synthetic-edittext-ambiguous"',
+  'result,n,error=check([[]])',
+  'assert result is None and n==1 and error=="synthetic-edittext-not-observed"',
+  'result,n,error=check([[dict(field,text="")],[field,dict(field)]])',
+  'assert result is None and n==2 and error=="synthetic-edittext-ambiguous"',
+  'print("PASS: at most three read-only snapshots, exact value and unique field required")'
+ ].join('\n');
+ const result=spawnSync('python3',['-c',code],{encoding:'utf8',timeout:15000});
+ assert.equal(result.status,0,result.stderr);
+ assert.equal(result.stdout.trim(),'PASS: at most three read-only snapshots, exact value and unique field required');
+ assert.match(runner,/for attempt in range\(3\):/);
+ assert.match(runner,/choose_unique_input\(read_nodes\(\), verify_value=True\)/);
+ assert.doesNotMatch(runner,/read_nodes\(\)\s*;\s*base\.adb|input", "text"/);
 });
