@@ -21,6 +21,7 @@ PACKAGE_JSON = Path("package.json")
 TAG = "NegrescoPdfPhaseLab"
 MARKERS = (
     "native-render-entered", "native-webview-created", "native-page-finished",
+    "native-render-process-gone",
     "native-layout-requested", "native-layout-finished", "native-layout-failed",
     "native-layout-cancelled", "native-write-requested", "native-write-finished",
     "native-write-failed", "native-write-cancelled", "native-render-completed",
@@ -71,6 +72,10 @@ def instrument_source(content: str) -> str:
          "    webView = WebView(context)\n"
          "    " + mark("native-webview-created") + "\n"),
         ("    override fun onPageFinished(view: WebView, url: String) {\n",
+         "    override fun onRenderProcessGone(view: WebView, detail: android.webkit.RenderProcessGoneDetail): Boolean {\n"
+         "      " + mark("native-render-process-gone") + "\n"
+         "      return super.onRenderProcessGone(view, detail)\n"
+         "    }\n"
          "    override fun onPageFinished(view: WebView, url: String) {\n"
          "      " + mark("native-page-finished") + "\n"),
         ("      " + layout + "\n",
@@ -173,6 +178,7 @@ MAX_DEX_FILES = 24
 DEX_REQUIRED = (
     TAG.encode("ascii"),
     b"native-render-entered",
+    b"native-render-process-gone",
     b"native-page-finished",
     b"native-layout-requested",
     b"native-write-requested",
