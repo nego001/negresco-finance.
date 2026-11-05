@@ -249,6 +249,40 @@ def classify_log(raw: str | None) -> str:
     return last or "native-phase-unconfirmed"
 
 
+def classify_renderer_exit_log(raw: str | None) -> str:
+    """Report only whether the fixed renderer-exit marker occurs in this window.
+
+    Absence in bounded logcat is *not* evidence that the renderer never exited.
+    This is diagnostics only and must not promote a PDF or UI PASS.
+    """
+    if not isinstance(raw, str) or len(raw) > MAX_CAPTURE:
+        return "native-renderer-exit-unconfirmed"
+    seen_phase = False
+    for line in raw.splitlines():
+        match = MARKER_PATTERN.search(line)
+        if match and match.group(1) in MARKERS:
+            seen_phase = True
+            if match.group(1) == "native-render-process-gone":
+                return "native-renderer-exit-observed"
+    return ("native-renderer-exit-not-observed-in-window" if seen_phase
+            else "native-renderer-exit-unconfirmed")
+
+
+def collect_renderer_exit_category() -> str:
+    """Read bounded fixed-tag logcat; never emit or persist raw device logs."""
+    try:
+        result = subprocess.run(
+            ["adb", "logcat", "-d", "-v", "tag", "-t", "512",
+             "-s", TAG + ":I", "*:S"],
+            capture_output=True, text=True, timeout=12, check=False,
+        )
+        if result.returncode != 0:
+            return "native-renderer-exit-unconfirmed"
+        return classify_renderer_exit_log(result.stdout)
+    except (OSError, subprocess.TimeoutExpired, UnicodeError):
+        return "native-renderer-exit-unconfirmed"
+
+
 def collect_last_phase() -> str:
     """Read only the fixed tag, with an explicit format and bounded history."""
     try:
