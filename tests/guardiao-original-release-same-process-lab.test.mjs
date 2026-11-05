@@ -1,0 +1,94 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {spawnSync} from 'node:child_process';
+
+const script=readFileSync('tooling/android/guardiao_original_release_same_process_lab.py','utf8');
+const workflow=readFileSync('.github/workflows/guardiao-original-release-api28-same-process-lab.yml','utf8');
+const common=readFileSync('tooling/android/guardiao_pdf_ui_emulator_smoke.py','utf8');
+
+test('API28 same-process lab checks original APK and forbids reinstallation after cycle one',()=>{
+ assert.match(workflow,/lab\/p01-guardiao-debug-metro-phase-v1/);
+ assert.match(workflow,/run-id: 40617164086/);
+ assert.match(workflow,/name: negresco-finance-v313-security-preview/);
+ assert.match(workflow,/29e248742e365c4dd7a8c668a23153d43a89b8be02828620bbc5851775986b4a/);
+ assert.equal((workflow.match(/sha256sum --check --strict/g)||[]).length,2);
+ assert.match(workflow,/api-level: 28/);
+ assert.match(workflow,/script: python3 tooling\/android\/guardiao_original_release_same_process_lab\.py/);
+ assert.match(workflow,/needs: android-api28-same-process/);
+ assert.match(workflow,/verify_guardiao_api28_two_cycle_receipts\.py same-process-review/);
+ assert.match(workflow,/guardiao-api28-same-process-metadata-unreviewed/);
+ assert.match(workflow,/path: same-process-receipts\//);
+ assert.match(workflow,/retention-days: 2/);
+ assert.doesNotMatch(workflow,/workflow_dispatch|assembleRelease|eas update|upload-apk|signingConfig|secrets\./i);
+ assert.doesNotMatch(workflow,/path:\s*[^\n]*(?:\.apk|\.pdf|logcat|screenshots?)/i);
+ assert.match(script,/base\.EXPECTED_SHA != receipt\.APK_SHA/);
+ assert.match(script,/replay\.FIXTURE != "8" \+ "0" \* 47/);
+ assert.match(script,/re\.fullmatch\(r"\[1-9\]\[0-9\]\{0,8\}", raw\)/);
+ assert.match(script,/if args == \("install", "-r", str\(base\.APK\)\):/);
+ assert.match(script,/if skipped or observed_single_app_pid\(\) != baseline_pid:/);
+ assert.match(script,/base\.adb = keep_installed_app[\s\S]*finally:\s*\n\s*base\.adb = real_adb/);
+ assert.match(script,/if not skipped or observed_single_app_pid\(\) != baseline_pid:/);
+ assert.match(script,/semantic\.observed = None/);
+ assert.match(script,/receipt\.verify\(parsed, 28\)/);
+ assert.match(script,/semantic\.REPORT\.replace\(folder \/ receipt\.MEMBER\)/);
+ assert.doesNotMatch(script,/base\.adb\("shell", "pm", "clear"|base\.adb\("uninstall"|base\.adb\("shell", "am", "force-stop"/);
+ assert.match(common,/adb\("install", "-r", str\(APK\)/);
+});
+
+test('same-process flow accepts exactly one APK installation and rejects changed/unknown PIDs',()=>{
+ const code=[
+  'import os,sys,tempfile',
+  'from pathlib import Path',
+  "sys.path.insert(0,'tooling/android')",
+  'import guardiao_original_release_same_process_lab as x',
+  'with tempfile.TemporaryDirectory() as tmp:',
+  '  os.chdir(tmp)',
+  '  x.OUT=Path("same-process-receipts")',
+  '  x.semantic.REPORT=Path("receipt.json")',
+  '  calls=[]',
+  '  pid=["321"]',
+  '  def adb(*args,**kwargs):',
+  '    calls.append(tuple(args))',
+  '    if args[:2]==("shell","pidof"): return pid[0]',
+  '    return ""',
+  '  def replay():',
+  '    x.base.adb("install","-r",str(x.base.APK))',
+  '    x.semantic.REPORT.write_text("{}")',
+  '  x.base.adb=adb',
+  '  x.replay.run=replay',
+  '  x.receipt.read_receipt=lambda path: {}',
+  '  x.receipt.verify=lambda evidence,api: None',
+  '  x.run()',
+  '  assert sum(1 for call in calls if call[:2]==("install","-r"))==1,calls',
+  '  assert (x.OUT/"cycle-a"/x.receipt.MEMBER).is_file()',
+  '  assert (x.OUT/"cycle-b"/x.receipt.MEMBER).is_file()',
+  '  x.OUT=Path("changed-pid")',
+  '  calls=[]',
+  '  pid=["321"]',
+  '  counter=[0]',
+  '  def changed(*args,**kwargs):',
+  '    calls.append(tuple(args))',
+  '    if args[:2]==("shell","pidof"):',
+  '      counter[0]+=1',
+  '      return "321" if counter[0]==1 else "654"',
+  '    return ""',
+  '  x.base.adb=changed',
+  '  try: x.run()',
+  '  except RuntimeError as e: assert str(e)=="same-process pre-replay identity unconfirmed"',
+  '  else: raise AssertionError("PID changed without BLOCK")',
+  '  assert not (x.OUT/"cycle-b").exists()',
+  '  x.OUT=Path("unknown-pid")',
+  '  x.base.adb=lambda *args,**kwargs: ""',
+  '  try: x.run()',
+  '  except RuntimeError as e: assert str(e)=="same-process baseline not confirmed"',
+  '  else: raise AssertionError("unknown PID allowed")',
+  '  assert not (x.OUT/"cycle-a").exists()',
+  '  assert x.observed_single_app_pid() is None',
+  '  assert x.observed_single_app_pid.__name__=="observed_single_app_pid"',
+  'print("PASS: same-process synthetic PID and receipt gates")'
+ ].join('\n');
+ const run=spawnSync('python3',['-c',code],{encoding:'utf8',timeout:15000});
+ assert.equal(run.status,0,run.stderr);
+ assert.match(run.stdout,/PASS: same-process synthetic PID and receipt gates/);
+});
