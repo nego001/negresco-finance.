@@ -475,6 +475,8 @@ def run() -> None:
         except Exception:
             print("ENV (LAB): Android Debug native print phase " +
                   native_print_phase.collect_last_phase(), flush=True)
+            print("ENV (LAB): Android Debug native renderer exit " +
+                  native_print_phase.collect_renderer_exit_category(), flush=True)
             # Fixed process state only: no stdout, JavaScript, stack or PDF.
             print("ENV (LAB): private Metro process " +
                   ("alive" if server.poll() is None else "exited"), flush=True)
@@ -501,6 +503,8 @@ def run() -> None:
             print("ENV (LAB): Android Debug bundle transport " + relay.category(), flush=True)
         print("ENV (LAB): Android Debug native print phase " +
               native_print_phase.collect_last_phase(), flush=True)
+        print("ENV (LAB): Android Debug native renderer exit " +
+              native_print_phase.collect_renderer_exit_category(), flush=True)
         report = json.loads(semantic.REPORT.read_text(encoding="utf8"))
         if (report.get("api") != 28 or report.get("apkSha256") != digest or
             report.get("sourceFixture") != "synthetic-48-collection-reference-invalid" or
