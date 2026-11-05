@@ -210,3 +210,25 @@ test('native instrumentation is installed only in disposable Debug build',()=>{
  assert.match(release,/adb\("shell", "svc", "wifi", "disable", check=False\)/);
  assert.doesNotMatch(release,/NegrescoPdfPhaseLab|native-phase-/);
 });
+
+test('WebView renderer exit marker is Debug-only and preserves default handling',()=>{
+ const py=[
+  'import sys',
+  "sys.path.insert(0,'tooling/android')",
+  'import guardiao_pdf_native_phase_lab as p',
+  'assert "native-render-process-gone" in p.MARKERS',
+  'assert b"native-render-process-gone" in p.DEX_REQUIRED',
+  'assert p.classify_log("I/NegrescoPdfPhaseLab: native-render-process-gone")=="native-render-process-gone"',
+  'assert p.classify_log("I/UntrustedTag: native-render-process-gone")=="native-phase-unconfirmed"',
+  'print("PASS: fixed WebView renderer exit category")'
+ ].join('\n');
+ const result=spawnSync('python3',['-c',py],{encoding:'utf8',timeout:15000});
+ assert.equal(result.status,0,result.stderr);
+ assert.equal(result.stdout.trim(),'PASS: fixed WebView renderer exit category');
+ assert.match(source,/mark\("native-render-process-gone"\)/);
+ assert.match(source,/override fun onRenderProcessGone\(view: WebView, detail: android\.webkit\.RenderProcessGoneDetail\): Boolean/);
+ assert.match(source,/return super\.onRenderProcessGone\(view, detail\)/);
+ assert.doesNotMatch(source,/return true\s*\\n"\s*\+\s*"\s*}\s*\\n"/);
+ assert.match(source,/b"native-render-process-gone"/);
+ assert.doesNotMatch(release,/native-render-process-gone|onRenderProcessGone/);
+});
