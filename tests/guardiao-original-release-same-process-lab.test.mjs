@@ -52,8 +52,11 @@ test('same-process flow accepts exactly one APK installation and rejects changed
   '    calls.append(tuple(args))',
   '    if args[:2]==("shell","pidof"): return pid[0]',
   '    return ""',
+  '  x.base.wait_visible=lambda needle,**kw: {}',
+  '  x.restore_home_tab_in_same_process=lambda expected: calls.append(("home-restored",))',
   '  def replay():',
   '    x.base.adb("install","-r",str(x.base.APK))',
+  '    x.base.wait_visible("Seu universo")',
   '    x.semantic.REPORT.write_text("{}")',
   '  x.base.adb=adb',
   '  x.replay.run=replay',
@@ -91,4 +94,60 @@ test('same-process flow accepts exactly one APK installation and rejects changed
  const run=spawnSync('python3',['-c',code],{encoding:'utf8',timeout:15000});
  assert.equal(run.status,0,run.stderr);
  assert.match(run.stdout,/PASS: same-process synthetic PID and receipt gates/);
+});
+
+test('home recovery needs exact accessible tab, safe lower bound, home banner and unchanged process',()=>{
+ const code=[
+  'import sys',
+  "sys.path.insert(0,'tooling/android')",
+  'import guardiao_original_release_same_process_lab as x',
+  'calls=[]',
+  'x.base.screen_size=lambda: (1080,960)',
+  'tab={"text":"Início","class":"android.widget.TextView","enabled":"true","bounds":"[100,850][170,900]"}',
+  'x.base.xml_nodes=lambda: [tab]',
+  'x.base.lookup=lambda needle: {"text":"Seu dinheiro."} if needle=="Seu dinheiro." else None',
+  'x.base.scroll_backward=lambda: calls.append(("scroll",))',
+  'x.base.adb=lambda *args,**kw: calls.append(tuple(args)) or ""',
+  'x.observed_single_app_pid=lambda: "321"',
+  'x.restore_home_tab_in_same_process("321")',
+  'assert calls==[("shell","input","tap","135","875")],calls',
+  'calls.clear()',
+  'x.base.xml_nodes=lambda: [tab,tab]',
+  'try: x.restore_home_tab_in_same_process("321")',
+  'except RuntimeError as e: assert str(e)=="same-process exact home tab unavailable"',
+  'else: raise AssertionError("duplicate tab accepted")',
+  'assert not calls',
+  'x.base.xml_nodes=lambda: [dict(tab,bounds="[100,50][170,100]")]',
+  'try: x.restore_home_tab_in_same_process("321")',
+  'except RuntimeError as e: assert str(e)=="same-process home tab outside bounded bottom bar"',
+  'else: raise AssertionError("out-of-bounds tap accepted")',
+  'assert not calls',
+  'x.base.xml_nodes=lambda: [tab]',
+  'x.base.lookup=lambda needle: None',
+  'try: x.restore_home_tab_in_same_process("321")',
+  'except RuntimeError as e: assert str(e)=="same-process home-only banner not observed"',
+  'else: raise AssertionError("unverified home accepted")',
+  'assert calls.count(("scroll",))==8',
+  'calls.clear()',
+  'x.observed_single_app_pid=lambda: "654"',
+  'try: x.restore_home_tab_in_same_process("321")',
+  'except RuntimeError as e: assert str(e)=="same-process home-navigation PID unconfirmed"',
+  'else: raise AssertionError("changed PID accepted")',
+  'assert not calls',
+  'print("PASS: safe home navigation verified")'
+ ].join('\n');
+ const r=spawnSync('python3',['-c',code],{encoding:'utf8',timeout:15000});
+ assert.equal(r.status,0,r.stderr);
+ assert.match(r.stdout,/PASS: safe home navigation verified/);
+});
+
+test('second cycle requires home navigation before searching for Guardiao',()=>{
+ assert.match(script,/if needle == "Seu universo" and not home_gate_done:/);
+ assert.match(script,/restore_home_tab_in_same_process\(baseline_pid\)/);
+ assert.match(script,/if not home_gate_done:/);
+ assert.match(script,/n\.get\("text"\) == "Início"/);
+ assert.match(script,/base\.lookup\("Seu dinheiro\."\)/);
+ assert.match(script,/base\.adb = keep_installed_app[\s\S]+base\.wait_visible = wait_with_home_gate/);
+ assert.match(script,/finally:\s*\n\s*base\.adb = real_adb\s*\n\s*base\.wait_visible = original_wait_visible/);
+ assert.doesNotMatch(script,/base\.adb\("shell", "pm", "clear"|base\.adb\("uninstall"|base\.adb\("shell", "am", "force-stop"/);
 });
