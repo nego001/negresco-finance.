@@ -171,6 +171,52 @@ def safe_ancestor_constraint_category(raw: str, width: int, height: int) -> str:
 
 
 
+
+def safe_sibling_tab_height_category(
+    tab: dict[str, str], nodes: list[dict[str, str]], width: int, height: int
+) -> str:
+    """Read-only comparison of bottom-nav sibling heights; never return pixels."""
+    if width <= 0 or height <= 0:
+        return "viewport-unconfirmed"
+    package = tab.get("package", "")
+    if not package:
+        return "package-unconfirmed"
+    home = base.BOUNDS.fullmatch(tab.get("_tap_bounds", ""))
+    if home is None:
+        return "home-bounds-unconfirmed"
+    home_rect = tuple(map(int, home.groups()))
+    siblings: list[tuple[int, int, int, int]] = []
+    for name in ("Pix", "Negresco"):
+        matches = [
+            node for node in nodes
+            if node.get("class") == "android.widget.TextView"
+            and node.get("enabled") == "true"
+            and (node.get("text") == name or node.get("content-desc") == name)
+        ]
+        if len(matches) != 1:
+            return "siblings-missing-or-ambiguous"
+        node = matches[0]
+        if node.get("package") != package:
+            return "siblings-package-mismatch"
+        bound = base.BOUNDS.fullmatch(node.get("_tap_bounds", ""))
+        if bound is None:
+            return "siblings-bounds-unconfirmed"
+        rect = tuple(map(int, bound.groups()))
+        x1, y1, x2, y2 = rect
+        if not (0 <= x1 < x2 <= width and 0 <= y1 < y2 <= height):
+            return "siblings-offscreen-or-degenerate"
+        siblings.append(rect)
+    if siblings[0] == siblings[1] or home_rect in siblings:
+        return "siblings-shared-region"
+    short = [rect[3]-rect[1] < int(height * .025) for rect in siblings]
+    if all(short):
+        return "siblings-both-thin"
+    if not any(short):
+        return "siblings-both-regular"
+    return "siblings-mixed-height"
+
+
+
 def safe_clickable_ancestor_attestation(
     tab: dict[str, str], nodes: list[dict[str, str]],
     width: int, height: int
@@ -235,6 +281,9 @@ def emit_home_geometry_diagnostic(x: int, y: int, width: int,
     ancestor_constraint = safe_ancestor_constraint_category(
         (node or {}).get("_tap_bounds", ""), width, height
     )
+    sibling_height = safe_sibling_tab_height_category(
+        node or {}, nodes or [], width, height
+    )
     attestation = safe_clickable_ancestor_attestation(
         node or {}, nodes or [], width, height
     )
@@ -255,6 +304,7 @@ def emit_home_geometry_diagnostic(x: int, y: int, width: int,
           " axis=" + axis + " label-shape=" + label_shape +
           " clickable-ancestor-shape=" + ancestor_shape +
           " ancestor-constraint=" + ancestor_constraint +
+          " sibling-height=" + sibling_height +
           " ancestor-attestation=" + attestation +
           " ime=" + ime + " viewport=" + viewport, flush=True)
 
