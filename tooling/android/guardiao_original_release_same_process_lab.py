@@ -439,6 +439,25 @@ def safe_header_footer_geometry_category(
     return "header-other-geometry-footer-thin"
 
 
+def safe_initial_home_detail(nodes: list[dict[str, str]],
+                             width: int, height: int) -> tuple[str, str, str]:
+    """Three allowlisted geometric categories; never publish raw UI data."""
+    tabs = [n for n in nodes
+            if n.get("class") == "android.widget.TextView"
+            and n.get("enabled") == "true"
+            and (n.get("text") == "Início" or n.get("content-desc") == "Início")]
+    if len(tabs) != 1:
+        return ("label-unconfirmed", "ancestor-unconfirmed",
+                "siblings-unconfirmed")
+    tab = tabs[0]
+    return (
+        safe_bounds_shape(tab.get("bounds", ""), width, height),
+        safe_ancestor_constraint_category(tab.get("_tap_bounds", ""),
+                                          width, height),
+        safe_sibling_tab_height_category(tab, nodes, width, height),
+    )
+
+
 def safe_home_layout_snapshot_category(nodes: list[dict[str, str]],
                                        width: int, height: int) -> str:
     """Categorize one private accessibility snapshot, not a touch permission."""
@@ -579,12 +598,22 @@ def run() -> None:
                     initial_home_probed = True
                     try:
                         width, height = base.screen_size()
+                        initial_nodes = base.xml_nodes()
                         category = safe_home_layout_snapshot_category(
-                            base.xml_nodes(), width, height
+                            initial_nodes, width, height
+                        )
+                        label, ancestor, siblings = safe_initial_home_detail(
+                            initial_nodes, width, height
                         )
                     except Exception:
                         category = "initial-home-unavailable"
-                    print("ENV (LAB): home-before-pdf=" + category, flush=True)
+                        label, ancestor, siblings = (
+                            "label-unconfirmed", "ancestor-unconfirmed",
+                            "siblings-unconfirmed"
+                        )
+                    print("ENV (LAB): home-before-pdf=" + category +
+                          " label=" + label + " ancestor=" + ancestor +
+                          " siblings=" + siblings, flush=True)
                 return selected
 
             base.wait_visible = wait_with_initial_home_probe
