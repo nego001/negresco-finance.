@@ -90,6 +90,42 @@ def safe_ime_category(raw: str) -> str:
     return "ambiguous"
 
 
+def safe_ime_window_registration(raw: str) -> str:
+    """Observation of WindowManager registration, NOT keyboard visibility."""
+    if not isinstance(raw, str) or len(raw) > 256_000:
+        return "ime-window-unconfirmed"
+    candidates = re.findall(r"(?m)^\s*mInputMethodWindow=([^\r\n]+)", raw)
+    if len(candidates) != 1:
+        return "ime-window-unconfirmed"
+    value = candidates[0].strip()
+    if value == "null":
+        return "ime-window-not-listed"
+    if re.fullmatch(r"Window\{[^{}\r\n]{1,256}\}", value):
+        return "ime-window-listed"
+    return "ime-window-unconfirmed"
+
+
+def safe_window_focus_category(raw: str, own_package: str) -> str:
+    """Coarse focused-window owner, without returning window or package text."""
+    if not isinstance(raw, str) or len(raw) > 256_000 or not own_package:
+        return "window-focus-unconfirmed"
+    candidates = re.findall(r"(?m)^\s*mCurrentFocus=([^\r\n]+)", raw)
+    if len(candidates) != 1:
+        return "window-focus-unconfirmed"
+    value = candidates[0].strip()
+    if value == "null":
+        return "window-focus-null"
+    if re.fullmatch(r"Window\{[^{}\r\n]{1,256}\}", value) is None:
+        return "window-focus-unconfirmed"
+    if own_package in value:
+        return "window-focus-app"
+    if "InputMethod" in value or "ime" in value.lower():
+        return "window-focus-ime-named"
+    if "ChooserActivity" in value or "ResolverActivity" in value:
+        return "window-focus-chooser"
+    return "window-focus-other"
+
+
 def safe_ime_flag_pair(raw: str) -> str:
     """Aggregate exact Android input/view visibility flags without raw output."""
     pair = []
@@ -325,11 +361,22 @@ def emit_home_geometry_diagnostic(x: int, y: int, width: int,
     ime_pair = "ime-flags-unconfirmed"
     focus = safe_focused_edit_category(node or {}, nodes or [])
     viewport = "unconfirmed"
+    ime_window = "ime-window-unconfirmed"
+    window_focus = "window-focus-unconfirmed"
     try:
         private_ime = base.adb("shell", "dumpsys", "input_method",
                                timeout=8, check=False)
         ime = safe_ime_category(private_ime)
         ime_pair = safe_ime_flag_pair(private_ime)
+    except Exception:
+        pass
+    try:
+        private_windows = base.adb("shell", "dumpsys", "window", "windows",
+                                   timeout=8, check=False)
+        ime_window = safe_ime_window_registration(private_windows)
+        window_focus = safe_window_focus_category(
+            private_windows, (node or {}).get("package", "")
+        )
     except Exception:
         pass
     try:
@@ -345,7 +392,9 @@ def emit_home_geometry_diagnostic(x: int, y: int, width: int,
           " sibling-height=" + sibling_height +
           " ancestor-attestation=" + attestation +
           " ime=" + ime + " ime-pair=" + ime_pair +
-          " focus=" + focus + " viewport=" + viewport, flush=True)
+          " focus=" + focus + " ime-window=" + ime_window +
+          " window-focus=" + window_focus +
+          " viewport=" + viewport, flush=True)
 
 
 def restore_home_tab_in_same_process(expected_pid: str) -> None:
