@@ -46,7 +46,7 @@ test('fixed categorical IME, tab position and Android viewport probes',()=>{
     'assert x.safe_ancestor_constraint_category("[0,800][70,900]",1080,960)=="width-too-small"',
     'assert x.safe_ancestor_constraint_category("[0,800][600,900]",1080,960)=="width-too-large"',
     'assert x.safe_ancestor_constraint_category("[0,800][320,819]",1080,960)=="height-too-small"',
-    'assert x.safe_ancestor_constraint_category("[0,700][320,950]",1080,960)=="height-too-large"',
+    'assert x.safe_ancestor_constraint_category("[0,690][320,900]",1080,960)=="height-too-large"',
     'assert x.safe_ancestor_constraint_category("[0,800][320,900]",1080,960)=="geometry-eligible"',
     'label={"text":"Início","class":"android.widget.TextView","enabled":"true","package":"com.negresco.test","bounds":"[0,0][0,0]","_tap_bounds":"[0,800][320,900]"}',
     'ancestor={"class":"android.view.View","clickable":"true","enabled":"true","package":"com.negresco.test","bounds":"[0,800][320,900]","_tap_bounds":"[0,800][320,900]"}',
