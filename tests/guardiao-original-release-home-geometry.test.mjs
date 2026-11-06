@@ -48,6 +48,28 @@ test('fixed categorical IME, tab position and Android viewport probes',()=>{
     'assert x.safe_ancestor_constraint_category("[0,800][320,819]",1080,960)=="height-too-small"',
     'assert x.safe_ancestor_constraint_category("[0,690][320,900]",1080,960)=="height-too-large"',
     'assert x.safe_ancestor_constraint_category("[0,800][320,900]",1080,960)=="geometry-eligible"',
+    'h2={"text":"Início","class":"android.widget.TextView","enabled":"true","package":"com.test","bounds":"[0,0][0,0]","_tap_bounds":"[0,800][310,815]"}',
+    'p2={"text":"Pix","class":"android.widget.TextView","enabled":"true","package":"com.test","bounds":"[0,0][0,0]","_tap_bounds":"[320,800][650,815]"}',
+    'n2={"text":"Negresco","class":"android.widget.TextView","enabled":"true","package":"com.test","bounds":"[0,0][0,0]","_tap_bounds":"[660,800][1000,815]"}',
+    'assert x.safe_home_layout_snapshot_category([h2,p2,n2],1080,960)=="three-tabs-thin"',
+    'assert x.safe_home_layout_snapshot_category([dict(h2,bounds="[100,850][170,900]")],1080,960)=="home-label-bounded"',
+    'assert x.safe_home_layout_snapshot_category([h2,h2,p2,n2],1080,960)=="home-label-unconfirmed"',
+    'assert x.safe_home_layout_snapshot_category([],1080,960)=="home-label-unconfirmed"',
+    'x.observed_single_app_pid=lambda:"321"',
+    'snapshots=iter([[h2,p2,n2],[h2,p2,n2]])',
+    'x.base.xml_nodes=lambda:next(snapshots)',
+    'assert x.safe_home_layout_evolution([h2,p2,n2],1080,960,"321")=="three-observations-thin"',
+    'snapshots=iter([[h2,p2,n2],[dict(h2,bounds="[100,850][170,900]")]])',
+    'x.base.xml_nodes=lambda:next(snapshots)',
+    'assert x.safe_home_layout_evolution([h2,p2,n2],1080,960,"321")=="thin-then-bounded"',
+    'snapshots=iter([[h2,p2,n2],[]])',
+    'x.base.xml_nodes=lambda:next(snapshots)',
+    'assert x.safe_home_layout_evolution([h2,p2,n2],1080,960,"321")=="thin-layout-changed"',
+    'x.observed_single_app_pid=lambda:"654"',
+    'assert x.safe_home_layout_evolution([h2,p2,n2],1080,960,"321")=="recheck-process-unconfirmed"',
+    'x.observed_single_app_pid=lambda:"321"',
+    'x.base.xml_nodes=lambda:(_ for _ in ()).throw(RuntimeError("PRIVATE"))',
+    'assert x.safe_home_layout_evolution([h2,p2,n2],1080,960,"321")=="recheck-unavailable"',
     'h={"text":"Início","class":"android.widget.TextView","enabled":"true","package":"com.test","_tap_bounds":"[0,800][310,815]"}',
     'p={"text":"Pix","class":"android.widget.TextView","enabled":"true","package":"com.test","_tap_bounds":"[320,800][650,815]"}',
     'n={"text":"Negresco","class":"android.widget.TextView","enabled":"true","package":"com.test","_tap_bounds":"[660,800][1000,815]"}',
@@ -144,6 +166,8 @@ test('unsafe home tab is never tapped and only safe categories leave the process
 
 test('original strict touch rejection is unchanged',()=>{
   assert.match(script,/emit_home_geometry_diagnostic\(x, y, width, height, tabs\[0\], nodes\)/);
+  assert.match(script,/safe_home_layout_evolution\(nodes, width, height, expected_pid\)/);
+  assert.match(script,/raise RuntimeError\("same-process home tab outside bounded bottom bar"\)/);
   assert.match(script,/raise RuntimeError\("same-process home tab outside bounded bottom bar"\)/);
   assert.match(script,/if not \(x2 > x1 and y2 > y1/);
   assert.doesNotMatch(script,/print\([^\n]*(?:raw|bounds|dumpsys|str\(error\)|repr\(error\))/);

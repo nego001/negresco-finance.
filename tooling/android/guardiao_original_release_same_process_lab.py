@@ -400,6 +400,62 @@ def emit_home_geometry_diagnostic(x: int, y: int, width: int,
           " viewport=" + viewport, flush=True)
 
 
+
+def safe_home_layout_snapshot_category(nodes: list[dict[str, str]],
+                                       width: int, height: int) -> str:
+    """Categorize one private accessibility snapshot, not a touch permission."""
+    tabs = [n for n in nodes
+            if n.get("class") == "android.widget.TextView"
+            and n.get("enabled") == "true"
+            and (n.get("text") == "Início" or n.get("content-desc") == "Início")]
+    if len(tabs) != 1:
+        return "home-label-unconfirmed"
+    tab = tabs[0]
+    bounds = base.BOUNDS.fullmatch(tab.get("bounds", ""))
+    if bounds is None:
+        return "home-bounds-unconfirmed"
+    x1, y1, x2, y2 = map(int, bounds.groups())
+    if (x1 == x2 and y1 == y2
+            and safe_ancestor_constraint_category(
+                tab.get("_tap_bounds", ""), width, height
+            ) == "height-too-small"
+            and safe_sibling_tab_height_category(tab, nodes, width, height)
+            == "siblings-both-thin"):
+        return "three-tabs-thin"
+    x, y = (x1 + x2) // 2, (y1 + y2) // 2
+    if (width > 0 and height > 0 and x2 > x1 and y2 > y1
+            and 0 < x < width and int(height * .70) < y < int(height * .985)):
+        return "home-label-bounded"
+    return "home-layout-unconfirmed"
+
+
+def safe_home_layout_evolution(first: list[dict[str, str]],
+                               width: int, height: int,
+                               expected_pid: str) -> str:
+    """Two EXTRA read-only snapshots after rejection; no tap, back or swipe."""
+    observed = [safe_home_layout_snapshot_category(first, width, height)]
+    for _ in range(2):
+        try:
+            if observed_single_app_pid() != expected_pid:
+                return "recheck-process-unconfirmed"
+            observed.append(safe_home_layout_snapshot_category(
+                base.xml_nodes(), width, height
+            ))
+        except Exception:
+            return "recheck-unavailable"
+    if len(set(observed)) == 1:
+        return {
+            "three-tabs-thin": "three-observations-thin",
+            "home-label-bounded": "three-observations-bounded",
+        }.get(observed[0], "three-observations-unconfirmed")
+    if observed[0] == "three-tabs-thin" and observed[-1] == "home-label-bounded":
+        return "thin-then-bounded"
+    if "three-tabs-thin" in observed:
+        return "thin-layout-changed"
+    return "other-layout-changed"
+
+
+
 def restore_home_tab_in_same_process(expected_pid: str) -> None:
     """Navigate to home through one exact bottom tab, without resetting app."""
     if observed_single_app_pid() != expected_pid:
@@ -439,6 +495,9 @@ def restore_home_tab_in_same_process(expected_pid: str) -> None:
     if not (x2 > x1 and y2 > y1 and 0 < x < width
             and int(height * .70) < y < int(height * .985)):
         emit_home_geometry_diagnostic(x, y, width, height, tabs[0], nodes)
+        print("ENV (LAB): home-layout-recheck=" +
+              safe_home_layout_evolution(nodes, width, height, expected_pid),
+              flush=True)
         raise RuntimeError("same-process home tab outside bounded bottom bar")
     print("STAGE (LAB): same-process home tab target bounded", flush=True)
     base.adb("shell", "input", "tap", str(x), str(y), timeout=10)
