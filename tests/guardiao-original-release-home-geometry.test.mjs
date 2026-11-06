@@ -37,6 +37,15 @@ test('fixed categorical IME, tab position and Android viewport probes',()=>{
     'assert x.safe_ancestor_geometry({"bounds":"[0,0][0,0]","_tap_bounds":"[10,850][140,900]"},1080,960)=="on-bottom-band"',
     'assert x.safe_ancestor_geometry({"bounds":"[0,0][0,0]","_tap_bounds":"[0,0][0,0]"},1080,960)=="same-as-label"',
     'assert x.safe_ancestor_geometry({"bounds":"[0,0][0,0]"},1080,960)=="not-provided"',
+    'label={"text":"Início","class":"android.widget.TextView","enabled":"true","package":"com.negresco.test","bounds":"[0,0][0,0]","_tap_bounds":"[0,800][320,900]"}',
+    'ancestor={"class":"android.view.View","clickable":"true","enabled":"true","package":"com.negresco.test","bounds":"[0,800][320,900]","_tap_bounds":"[0,800][320,900]"}',
+    'assert x.safe_clickable_ancestor_attestation(label,[label,ancestor],1080,960)=="ancestor-associated-unique-bounded"',
+    'assert x.safe_clickable_ancestor_attestation(label,[label,ancestor,dict(ancestor)],1080,960)=="ancestor-not-unique-clickable"',
+    'assert x.safe_clickable_ancestor_attestation(label,[label,dict(ancestor,enabled="false")],1080,960)=="ancestor-not-unique-clickable"',
+    'assert x.safe_clickable_ancestor_attestation(label,[label,dict(ancestor,package="other")],1080,960)=="ancestor-package-unconfirmed"',
+    'assert x.safe_clickable_ancestor_attestation(label,[label,ancestor,{"bounds":"[0,700][500,910]","clickable":"true"}],1080,960)=="ancestor-overlapped"',
+    'assert x.safe_clickable_ancestor_attestation(dict(label,bounds="[10,800][90,840]"),[ancestor],1080,960)=="label-not-point-only"',
+    'assert x.safe_clickable_ancestor_attestation(dict(label,_tap_bounds="[0,500][800,900]"),[ancestor],1080,960)=="ancestor-not-bounded-bottom-tab"',
     'assert x.safe_ime_category("mInputShown=true mIsInputViewShown=true")=="shown"',
     'assert x.safe_ime_category("mInputShown=false")=="hidden"',
     'assert x.safe_ime_category("mInputShown=true mIsInputViewShown=false")=="ambiguous"',
@@ -72,14 +81,14 @@ test('unsafe home tab is never tapped and only safe categories leave the process
     '  else: raise AssertionError("unsafe tab approved")',
     'assert calls==[("shell","dumpsys","input_method"),("shell","wm","size")],calls',
     's=out.getvalue()',
-    'assert "home-position-band=middle axis=within-screen-not-footer label-shape=onscreen-other-band clickable-ancestor-shape=not-provided ime=shown viewport=override-would-pass" in s,s',
+    'assert "home-position-band=middle axis=within-screen-not-footer label-shape=onscreen-other-band clickable-ancestor-shape=not-provided ancestor-attestation=label-not-point-only ime=shown viewport=override-would-pass" in s,s',
     'for secret in ("1080","800","620","SENSITIVE","SECRET","[100,600]"): assert secret not in s,s',
     'print("PASS: bounded home geometry diagnostic")'
   ]);
 });
 
 test('original strict touch rejection is unchanged',()=>{
-  assert.match(script,/emit_home_geometry_diagnostic\(x, y, width, height, tabs\[0\]\)/);
+  assert.match(script,/emit_home_geometry_diagnostic\(x, y, width, height, tabs\[0\], nodes\)/);
   assert.match(script,/raise RuntimeError\("same-process home tab outside bounded bottom bar"\)/);
   assert.match(script,/if not \(x2 > x1 and y2 > y1/);
   assert.doesNotMatch(script,/print\([^\n]*(?:raw|bounds|dumpsys|str\(error\)|repr\(error\))/);

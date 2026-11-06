@@ -141,13 +141,76 @@ def safe_ancestor_geometry(node: dict[str, str], width: int, height: int) -> str
     return safe_bounds_shape(ancestor, width, height)
 
 
+
+def safe_clickable_ancestor_attestation(
+    tab: dict[str, str], nodes: list[dict[str, str]],
+    width: int, height: int
+) -> str:
+    """Read-only proof that a point-only label belongs to one safe bottom tab.
+
+    This function NEVER returns tap coordinates or authorizes a gesture.
+    """
+    if (tab.get("class") != "android.widget.TextView"
+            or tab.get("enabled") != "true"
+            or (tab.get("text") != "Início"
+                and tab.get("content-desc") != "Início")):
+        return "label-unconfirmed"
+    label = base.BOUNDS.fullmatch(tab.get("bounds", ""))
+    if label is None:
+        return "label-bounds-unconfirmed"
+    lx1, ly1, lx2, ly2 = map(int, label.groups())
+    if lx1 != lx2 or ly1 != ly2:
+        return "label-not-point-only"
+    parent_raw = tab.get("_tap_bounds", "")
+    parent = base.BOUNDS.fullmatch(parent_raw)
+    if parent is None or parent_raw == tab.get("bounds"):
+        return "ancestor-unconfirmed"
+    x1, y1, x2, y2 = map(int, parent.groups())
+    if not (width > 0 and height > 0
+            and 0 <= x1 < x2 <= width and 0 <= y1 < y2 <= height
+            and int(height * .68) < y1
+            and y2 < int(height * .985)
+            and int(width * .08) <= x2 - x1 <= int(width * .45)
+            and int(height * .025) <= y2 - y1 <= int(height * .20)):
+        return "ancestor-not-bounded-bottom-tab"
+    matched = [
+        n for n in nodes
+        if n.get("bounds") == parent_raw
+        and n.get("clickable") == "true"
+        and n.get("enabled") == "true"
+        and n.get("_tap_bounds") == parent_raw
+    ]
+    if len(matched) != 1:
+        return "ancestor-not-unique-clickable"
+    package = tab.get("package")
+    if not package or matched[0].get("package") != package:
+        return "ancestor-package-unconfirmed"
+    # Other clickable regions must not cover the candidate center.
+    # An overlapping area could be an overlay/keyboard/other interactive UI.
+    cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
+    for n in nodes:
+        if n is matched[0] or n.get("clickable") != "true":
+            continue
+        overlap = base.BOUNDS.fullmatch(n.get("bounds", ""))
+        if overlap is None:
+            continue
+        a, b, c, d = map(int, overlap.groups())
+        if a <= cx <= c and b <= cy <= d:
+            return "ancestor-overlapped"
+    return "ancestor-associated-unique-bounded"
+
+
 def emit_home_geometry_diagnostic(x: int, y: int, width: int,
-                                  height: int, node: dict[str, str] | None = None) -> None:
+                                  height: int, node: dict[str, str] | None = None,
+                                  nodes: list[dict[str, str]] | None = None) -> None:
     """Passive categories only, never upload dumpsys, UI XML or exception."""
     band = safe_home_tab_band(x, y, width, height)
     axis = safe_home_axis_category(x, y, width, height)
     label_shape = safe_bounds_shape((node or {}).get("bounds", ""), width, height)
     ancestor_shape = safe_ancestor_geometry(node or {}, width, height)
+    attestation = safe_clickable_ancestor_attestation(
+        node or {}, nodes or [], width, height
+    )
     ime = "unconfirmed"
     viewport = "unconfirmed"
     try:
@@ -164,6 +227,7 @@ def emit_home_geometry_diagnostic(x: int, y: int, width: int,
     print("ENV (LAB): home-position-band=" + band +
           " axis=" + axis + " label-shape=" + label_shape +
           " clickable-ancestor-shape=" + ancestor_shape +
+          " ancestor-attestation=" + attestation +
           " ime=" + ime + " viewport=" + viewport, flush=True)
 
 
@@ -205,7 +269,7 @@ def restore_home_tab_in_same_process(expected_pid: str) -> None:
     x, y = (x1 + x2) // 2, (y1 + y2) // 2
     if not (x2 > x1 and y2 > y1 and 0 < x < width
             and int(height * .70) < y < int(height * .985)):
-        emit_home_geometry_diagnostic(x, y, width, height, tabs[0])
+        emit_home_geometry_diagnostic(x, y, width, height, tabs[0], nodes)
         raise RuntimeError("same-process home tab outside bounded bottom bar")
     print("STAGE (LAB): same-process home tab target bounded", flush=True)
     base.adb("shell", "input", "tap", str(x), str(y), timeout=10)
