@@ -31,12 +31,20 @@ def restore_home_tab_in_same_process(expected_pid: str) -> None:
     """Navigate to home through one exact bottom tab, without resetting app."""
     if observed_single_app_pid() != expected_pid:
         raise RuntimeError("same-process home-navigation PID unconfirmed")
-    tabs = [
-        n for n in base.xml_nodes()
-        if n.get("text") == "Início"
-        and n.get("class") == "android.widget.TextView"
-        and n.get("enabled") == "true"
-    ]
+    # Android UI hierarchy can be briefly stale after reentering the app.
+    # Read only; never retry a tap, type text or trust more than one target.
+    tabs = []
+    for _ in range(5):
+        tabs = [
+            n for n in base.xml_nodes()
+            if n.get("text") == "Início"
+            and n.get("class") == "android.widget.TextView"
+            and n.get("enabled") == "true"
+        ]
+        if len(tabs) > 1:
+            raise RuntimeError("same-process exact home tab unavailable")
+        if tabs:
+            break
     if len(tabs) != 1:
         raise RuntimeError("same-process exact home tab unavailable")
     bound = base.BOUNDS.fullmatch(tabs[0].get("bounds", ""))
@@ -108,13 +116,16 @@ def run() -> None:
             def wait_with_home_gate(needle, retries=25, *, scroll=False,
                                     enabled=False):
                 nonlocal home_gate_done
-                found = original_wait_visible(
-                    needle, retries=retries, scroll=scroll, enabled=enabled
-                )
+                # The home-only label cannot appear until the existing
+                # Guardiao page returns to Início. Restore first, then wait
+                # for the actual home-only marker; never claim PDF failure
+                # when this navigation gate has not been confirmed.
                 if needle == "Seu universo" and not home_gate_done:
                     restore_home_tab_in_same_process(baseline_pid)
                     home_gate_done = True
-                return found
+                return original_wait_visible(
+                    needle, retries=retries, scroll=scroll, enabled=enabled
+                )
 
             base.adb = keep_installed_app
             base.wait_visible = wait_with_home_gate

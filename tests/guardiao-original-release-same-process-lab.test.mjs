@@ -52,7 +52,13 @@ test('same-process flow accepts exactly one APK installation and rejects changed
   '    calls.append(tuple(args))',
   '    if args[:2]==("shell","pidof"): return pid[0]',
   '    return ""',
-  '  x.base.wait_visible=lambda needle,**kw: {}',
+  '  observed_home=[0]',
+  '  def wait_visible(needle,**kw):',
+  '    if needle=="Seu universo":',
+  '      observed_home[0]+=1',
+  '      if observed_home[0]==2: assert ("home-restored",) in calls',
+  '    return {}',
+  '  x.base.wait_visible=wait_visible',
   '  x.restore_home_tab_in_same_process=lambda expected: calls.append(("home-restored",))',
   '  def replay():',
   '    x.base.adb("install","-r",str(x.base.APK))',
@@ -144,6 +150,10 @@ test('home recovery needs exact accessible tab, safe lower bound, home banner an
 test('second cycle requires home navigation before searching for Guardiao',()=>{
  assert.match(script,/if needle == "Seu universo" and not home_gate_done:/);
  assert.match(script,/restore_home_tab_in_same_process\(baseline_pid\)/);
+ const gate=script.indexOf('if needle == "Seu universo" and not home_gate_done:');
+ const restore=script.indexOf('restore_home_tab_in_same_process(baseline_pid)',gate);
+ const wait=script.indexOf('return original_wait_visible(',gate);
+ assert.ok(gate>=0&&restore>gate&&wait>restore,'home gate must precede the home-only wait');
  assert.match(script,/if not home_gate_done:/);
  assert.match(script,/n\.get\("text"\) == "Início"/);
  assert.match(script,/base\.lookup\("Seu dinheiro\."\)/);
