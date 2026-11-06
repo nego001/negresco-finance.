@@ -142,6 +142,35 @@ def safe_ancestor_geometry(node: dict[str, str], width: int, height: int) -> str
 
 
 
+
+def safe_ancestor_constraint_category(raw: str, width: int, height: int) -> str:
+    """One bounded diagnostic for bottom-tab geometry, never an input target."""
+    bound = base.BOUNDS.fullmatch(raw)
+    if bound is None:
+        return "bounds-unconfirmed"
+    x1, y1, x2, y2 = map(int, bound.groups())
+    if width <= 0 or height <= 0:
+        return "viewport-unconfirmed"
+    if x2 <= x1 or y2 <= y1:
+        return "bounds-degenerate"
+    if not (0 <= x1 < x2 <= width and 0 <= y1 < y2 <= height):
+        return "bounds-offscreen"
+    if y1 <= int(height * .68):
+        return "top-outside-bottom-tab"
+    if y2 >= int(height * .985):
+        return "bottom-too-low"
+    if x2 - x1 < int(width * .08):
+        return "width-too-small"
+    if x2 - x1 > int(width * .45):
+        return "width-too-large"
+    if y2 - y1 < int(height * .025):
+        return "height-too-small"
+    if y2 - y1 > int(height * .20):
+        return "height-too-large"
+    return "geometry-eligible"
+
+
+
 def safe_clickable_ancestor_attestation(
     tab: dict[str, str], nodes: list[dict[str, str]],
     width: int, height: int
@@ -165,14 +194,9 @@ def safe_clickable_ancestor_attestation(
     parent = base.BOUNDS.fullmatch(parent_raw)
     if parent is None or parent_raw == tab.get("bounds"):
         return "ancestor-unconfirmed"
-    x1, y1, x2, y2 = map(int, parent.groups())
-    if not (width > 0 and height > 0
-            and 0 <= x1 < x2 <= width and 0 <= y1 < y2 <= height
-            and int(height * .68) < y1
-            and y2 < int(height * .985)
-            and int(width * .08) <= x2 - x1 <= int(width * .45)
-            and int(height * .025) <= y2 - y1 <= int(height * .20)):
+    if safe_ancestor_constraint_category(parent_raw, width, height) != "geometry-eligible":
         return "ancestor-not-bounded-bottom-tab"
+    x1, y1, x2, y2 = map(int, parent.groups())
     matched = [
         n for n in nodes
         if n.get("bounds") == parent_raw
@@ -208,6 +232,9 @@ def emit_home_geometry_diagnostic(x: int, y: int, width: int,
     axis = safe_home_axis_category(x, y, width, height)
     label_shape = safe_bounds_shape((node or {}).get("bounds", ""), width, height)
     ancestor_shape = safe_ancestor_geometry(node or {}, width, height)
+    ancestor_constraint = safe_ancestor_constraint_category(
+        (node or {}).get("_tap_bounds", ""), width, height
+    )
     attestation = safe_clickable_ancestor_attestation(
         node or {}, nodes or [], width, height
     )
@@ -227,6 +254,7 @@ def emit_home_geometry_diagnostic(x: int, y: int, width: int,
     print("ENV (LAB): home-position-band=" + band +
           " axis=" + axis + " label-shape=" + label_shape +
           " clickable-ancestor-shape=" + ancestor_shape +
+          " ancestor-constraint=" + ancestor_constraint +
           " ancestor-attestation=" + attestation +
           " ime=" + ime + " viewport=" + viewport, flush=True)
 
