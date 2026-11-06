@@ -59,6 +59,8 @@ test('same-process flow accepts exactly one APK installation and rejects changed
   '      if observed_home[0]==2: assert ("home-restored",) in calls',
   '    return {}',
   '  x.base.wait_visible=wait_visible',
+  '  x.base.screen_size=lambda: (1080,960)',
+  '  x.base.xml_nodes=lambda: [{"text":"Início","class":"android.widget.TextView","enabled":"true","bounds":"[100,850][170,900]"}]',
   '  x.restore_home_tab_in_same_process=lambda expected: calls.append(("home-restored",))',
   '  def replay():',
   '    x.base.adb("install","-r",str(x.base.APK))',
@@ -70,6 +72,7 @@ test('same-process flow accepts exactly one APK installation and rejects changed
   '  x.receipt.verify=lambda evidence,api: None',
   '  x.run()',
   '  assert sum(1 for call in calls if call[:2]==("install","-r"))==1,calls',
+  '  assert x.base.wait_visible is wait_visible, "passive initial probe not restored"',
   '  assert (x.OUT/"cycle-a"/x.receipt.MEMBER).is_file()',
   '  assert (x.OUT/"cycle-b"/x.receipt.MEMBER).is_file()',
   '  x.OUT=Path("changed-pid")',
@@ -100,6 +103,16 @@ test('same-process flow accepts exactly one APK installation and rejects changed
  const run=spawnSync('python3',['-c',code],{encoding:'utf8',timeout:15000});
  assert.equal(run.status,0,run.stderr);
  assert.match(run.stdout,/PASS: same-process synthetic PID and receipt gates/);
+});
+
+test('initial home geometry is only observed before first PDF, never used to touch',()=>{
+ assert.match(script,/def wait_with_initial_home_probe\(needle, retries=25/);
+ assert.match(script,/selected = original_wait_visible\(/);
+ assert.match(script,/if needle == "Seu universo" and not initial_home_probed:/);
+ assert.match(script,/safe_home_layout_snapshot_category\(\s*base\.xml_nodes\(\), width, height/);
+ assert.match(script,/finally:\s*\n\s*base\.wait_visible = original_wait_visible/);
+ assert.match(script,/ENV \(LAB\): home-before-pdf=/);
+ assert.match(script,/category = "initial-home-unavailable"/);
 });
 
 test('home recovery needs exact accessible tab, safe lower bound, home banner and unchanged process',()=>{

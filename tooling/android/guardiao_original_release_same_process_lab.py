@@ -564,7 +564,34 @@ def run() -> None:
         semantic.observed = None
         print("STAGE (LAB): original API28 same-process cycle " + cycle, flush=True)
         if baseline_pid is None:
-            replay.run()  # First cycle installs the exact SHA-pinned APK.
+            # One passive observation on the initial Início screen, prior to
+            # Guardião navigation, synthetic input and the first PDF export.
+            original_wait_visible = base.wait_visible
+            initial_home_probed = False
+
+            def wait_with_initial_home_probe(needle, retries=25, *,
+                                             scroll=False, enabled=False):
+                nonlocal initial_home_probed
+                selected = original_wait_visible(
+                    needle, retries=retries, scroll=scroll, enabled=enabled
+                )
+                if needle == "Seu universo" and not initial_home_probed:
+                    initial_home_probed = True
+                    try:
+                        width, height = base.screen_size()
+                        category = safe_home_layout_snapshot_category(
+                            base.xml_nodes(), width, height
+                        )
+                    except Exception:
+                        category = "initial-home-unavailable"
+                    print("ENV (LAB): home-before-pdf=" + category, flush=True)
+                return selected
+
+            base.wait_visible = wait_with_initial_home_probe
+            try:
+                replay.run()  # Unmodified SHA-pinned APK.
+            finally:
+                base.wait_visible = original_wait_visible
             baseline_pid = observed_single_app_pid()
             if baseline_pid is None:
                 raise RuntimeError("same-process baseline not confirmed")
