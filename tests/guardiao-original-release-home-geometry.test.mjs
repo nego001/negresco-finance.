@@ -79,7 +79,7 @@ test('unsafe home tab is never tapped and only safe categories leave the process
 });
 
 test('original strict touch rejection is unchanged',()=>{
-  assert.match(script,/emit_home_geometry_diagnostic\(x, y, width, height\)/);
+  assert.match(script,/emit_home_geometry_diagnostic\(x, y, width, height, tabs\[0\]\)/);
   assert.match(script,/raise RuntimeError\("same-process home tab outside bounded bottom bar"\)/);
   assert.match(script,/if not \(x2 > x1 and y2 > y1/);
   assert.doesNotMatch(script,/print\([^\n]*(?:raw|bounds|dumpsys|str\(error\)|repr\(error\))/);
