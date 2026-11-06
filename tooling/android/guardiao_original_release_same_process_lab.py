@@ -59,6 +59,25 @@ def safe_home_tab_band(x: int, y: int, width: int, height: int) -> str:
     return "bottom-edge"
 
 
+
+def safe_home_axis_category(x: int, y: int, width: int, height: int) -> str:
+    """One constant category for which axis rejected the tab location."""
+    if width <= 0 or height <= 0:
+        return "screen-unconfirmed"
+    invalid_x = x <= 0 or x >= width
+    invalid_y = y <= 0 or y >= height
+    if invalid_x and invalid_y:
+        return "both-outside"
+    if x <= 0:
+        return "x-before"
+    if x >= width:
+        return "x-after"
+    if y <= 0:
+        return "y-before"
+    if y >= height:
+        return "y-after"
+    return "within-screen-not-footer"
+
 def safe_ime_category(raw: str) -> str:
     """Read only known IME display flags from unsaved private dumpsys output."""
     flags = re.findall(r"\bm(?:InputShown|IsInputViewShown)\s*=\s*(true|false)\b", raw)
@@ -93,6 +112,7 @@ def emit_home_geometry_diagnostic(x: int, y: int, width: int,
                                   height: int) -> None:
     """Passive categories only, never upload dumpsys, UI XML or exception."""
     band = safe_home_tab_band(x, y, width, height)
+    axis = safe_home_axis_category(x, y, width, height)
     ime = "unconfirmed"
     viewport = "unconfirmed"
     try:
@@ -107,7 +127,8 @@ def emit_home_geometry_diagnostic(x: int, y: int, width: int,
     except Exception:
         pass
     print("ENV (LAB): home-position-band=" + band +
-          " ime=" + ime + " viewport=" + viewport, flush=True)
+          " axis=" + axis + " ime=" + ime +
+          " viewport=" + viewport, flush=True)
 
 
 def restore_home_tab_in_same_process(expected_pid: str) -> None:

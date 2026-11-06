@@ -20,6 +20,13 @@ test('fixed categorical IME, tab position and Android viewport probes',()=>{
     'assert x.safe_home_tab_band(100,875,1080,960)=="lower"',
     'assert x.safe_home_tab_band(100,950,1080,960)=="bottom-edge"',
     'assert x.safe_home_tab_band(100,1300,1080,960)=="outside-screen"',
+    'assert x.safe_home_axis_category(100,1300,1080,960)=="y-after"',
+    'assert x.safe_home_axis_category(100,-1,1080,960)=="y-before"',
+    'assert x.safe_home_axis_category(-1,620,1080,960)=="x-before"',
+    'assert x.safe_home_axis_category(2000,620,1080,960)=="x-after"',
+    'assert x.safe_home_axis_category(2000,1300,1080,960)=="both-outside"',
+    'assert x.safe_home_axis_category(100,620,1080,960)=="within-screen-not-footer"',
+    'assert x.safe_home_axis_category(100,620,0,960)=="screen-unconfirmed"',
     'assert x.safe_ime_category("mInputShown=true mIsInputViewShown=true")=="shown"',
     'assert x.safe_ime_category("mInputShown=false")=="hidden"',
     'assert x.safe_ime_category("mInputShown=true mIsInputViewShown=false")=="ambiguous"',
@@ -55,7 +62,7 @@ test('unsafe home tab is never tapped and only safe categories leave the process
     '  else: raise AssertionError("unsafe tab approved")',
     'assert calls==[("shell","dumpsys","input_method"),("shell","wm","size")],calls',
     's=out.getvalue()',
-    'assert "home-position-band=middle ime=shown viewport=override-would-pass" in s,s',
+    'assert "home-position-band=middle axis=within-screen-not-footer ime=shown viewport=override-would-pass" in s,s',
     'for secret in ("1080","800","620","SENSITIVE","SECRET","[100,600]"): assert secret not in s,s',
     'print("PASS: bounded home geometry diagnostic")'
   ]);
