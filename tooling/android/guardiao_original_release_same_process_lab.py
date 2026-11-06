@@ -90,6 +90,40 @@ def safe_ime_category(raw: str) -> str:
     return "ambiguous"
 
 
+def safe_ime_flag_pair(raw: str) -> str:
+    """Aggregate exact Android input/view visibility flags without raw output."""
+    pair = []
+    for name in ("mInputShown", "mIsInputViewShown"):
+        values = re.findall(r"\b" + name + r"\s*=\s*(true|false)\b", raw)
+        if len(set(values)) > 1:
+            return "ime-flags-conflicting"
+        pair.append(values[0] if values else "missing")
+    if "missing" in pair:
+        return "ime-flags-missing"
+    return {
+        ("true", "true"): "both-shown",
+        ("false", "false"): "both-hidden",
+        ("true", "false"): "input-only-shown",
+        ("false", "true"): "view-only-shown",
+    }.get(tuple(pair), "ime-flags-unconfirmed")
+
+
+def safe_focused_edit_category(node: dict[str, str],
+                               nodes: list[dict[str, str]]) -> str:
+    """Only report whether an EditText remains focused, never its contents."""
+    pkg = node.get("package", "")
+    if not pkg:
+        return "focus-package-unconfirmed"
+    focused = [n for n in nodes if n.get("focused") == "true"]
+    edits = [n for n in focused if n.get("class") == "android.widget.EditText"]
+    if len(edits) > 1:
+        return "multiple-editables-focused"
+    if len(edits) == 1:
+        return ("app-editable-focused" if edits[0].get("package") == pkg
+                else "other-editable-focused")
+    return "other-focused" if focused else "no-focused-node"
+
+
 def safe_wm_override_category(raw: str, x: int, y: int) -> str:
     """Classify overrides, never permit a gesture based on this diagnostic."""
     physical = re.search(r"(?m)^Physical size:\s*(\d+)x(\d+)\s*$", raw)
@@ -288,10 +322,14 @@ def emit_home_geometry_diagnostic(x: int, y: int, width: int,
         node or {}, nodes or [], width, height
     )
     ime = "unconfirmed"
+    ime_pair = "ime-flags-unconfirmed"
+    focus = safe_focused_edit_category(node or {}, nodes or [])
     viewport = "unconfirmed"
     try:
-        ime = safe_ime_category(base.adb("shell", "dumpsys", "input_method",
-                                         timeout=8, check=False))
+        private_ime = base.adb("shell", "dumpsys", "input_method",
+                               timeout=8, check=False)
+        ime = safe_ime_category(private_ime)
+        ime_pair = safe_ime_flag_pair(private_ime)
     except Exception:
         pass
     try:
@@ -306,7 +344,8 @@ def emit_home_geometry_diagnostic(x: int, y: int, width: int,
           " ancestor-constraint=" + ancestor_constraint +
           " sibling-height=" + sibling_height +
           " ancestor-attestation=" + attestation +
-          " ime=" + ime + " viewport=" + viewport, flush=True)
+          " ime=" + ime + " ime-pair=" + ime_pair +
+          " focus=" + focus + " viewport=" + viewport, flush=True)
 
 
 def restore_home_tab_in_same_process(expected_pid: str) -> None:
