@@ -117,7 +117,10 @@ def safe_window_focus_category(raw: str, own_package: str) -> str:
         return "window-focus-null"
     if re.fullmatch(r"Window\{[^{}\r\n]{1,256}\}", value) is None:
         return "window-focus-unconfirmed"
-    if own_package in value:
+    # A substring can match a different package, e.g. app.id.evil.
+    # Only the exact Android component owner (package followed by '/') passes.
+    if (re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)+", own_package)
+            and re.search(r"(?<![A-Za-z0-9_.])" + re.escape(own_package) + r"/", value)):
         return "window-focus-app"
     if "InputMethod" in value or "ime" in value.lower():
         return "window-focus-ime-named"
