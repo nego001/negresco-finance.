@@ -8,6 +8,7 @@ import { createLocalReport, renderReportHtml } from './guardiao/report';
 import {exportPdfWithLifecycleGuard, type PdfExportFailurePhase, type PdfExportPendingPhase} from './guardiao/pdfExport';
 import {discardUnsharedPrintPdf,isOwnedPrintPdfUri} from './guardiao/pdfCache';
 import {probeMinimalPrintEngine,type MinimalPrintProbe} from './guardiao/pdfPrintProbe';
+import {createPdfNativeExportGate} from './guardiao/pdfSingleFlight';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
@@ -140,6 +141,10 @@ export default function App() {
   const [boletoLine,setBoletoLine]=useState('');
   const [boletoResult,setBoletoResult]=useState<ReturnType<typeof inspectBoleto>|null>(null);
   const [reportExportStatus,setReportExportStatus]=useState('');
+  const [reportPdfBusy,setReportPdfBusy]=useState(false);
+  // Do not release merely because navigation revoked a report token: the
+  // Android native print promise might still be running in the background.
+  const pdfNativeGate=useRef(createPdfNativeExportGate());
   // Debug-only observation: this fixed code survives rapid native chooser
   // transitions, unlike transient pending Text. No PDF/input/URI is retained.
   const [labLastPdfStartedPhase,setLabLastPdfStartedPhase]=useState<PdfExportPendingPhase|null>(null);
@@ -160,6 +165,10 @@ export default function App() {
   const exportLocalPdf=async()=>{
     if(!boletoResult||AppState.currentState!=='active'||
        (localLock.status!=='off'&&localLock.status!=='unlocked'))return;
+    const releasePdfGate=pdfNativeGate.current.acquire();
+    if(!releasePdfGate)return;
+    setReportPdfBusy(true);
+    try{
     const requestId=++reportRequestId.current;
     const diagnosis:{phase:PdfExportFailurePhase|null;minimal:MinimalPrintProbe|null}={phase:null,minimal:null};
     if(typeof __DEV__!=='undefined'&&__DEV__)setLabLastPdfStartedPhase(null);
@@ -230,6 +239,12 @@ export default function App() {
       setReportExportStatus(diagnosis.phase?safePhaseLabels[diagnosis.phase]:'Não foi possível exportar o PDF.');
     }
     else setReportExportStatus('');
+    }finally{
+      // There is no safe JS-only cancellation of a stuck native renderer.
+      // Unlock only after the original export promise actually settles.
+      releasePdfGate();
+      setReportPdfBusy(false);
+    }
   };
   const [guardiaoHistory,setGuardiaoHistory]=useState<{id:string;date:string;kind:string;valid:boolean;digits:number}[]>([]);
   const [historyLoaded,setHistoryLoaded]=useState(false);
@@ -369,7 +384,7 @@ export default function App() {
           <Text style={s.visualFeatureBody}>O PDF reúne a análise matemática e, se você consultou um CNPJ, registra essa resposta como informação independente. Nenhuma consulta atribui automaticamente a cobrança à empresa.</Text>
           <Text style={s.visualFeatureBody}>O relatório não contém a linha digitável nem o CNPJ completo. Banco, beneficiário, contrato e Reclame Aqui permanecem sem verificação externa.</Text>
         </View>
-        {boletoResult&&<TouchableOpacity accessibilityRole="button" onPress={exportLocalPdf} style={[s.actionButton,{backgroundColor:blue,marginBottom:15}]}><Text style={s.actionText}>Gerar e compartilhar relatório PDF</Text></TouchableOpacity>}
+        {boletoResult&&<TouchableOpacity accessibilityRole="button" disabled={reportPdfBusy} onPress={exportLocalPdf} style={[s.actionButton,{backgroundColor:blue,marginBottom:15}]}><Text style={s.actionText}>Gerar e compartilhar relatório PDF</Text></TouchableOpacity>}
         {!!reportExportStatus&&<Text style={[s.visualFeatureBody,{marginBottom:12}]}>{reportExportStatus}</Text>}
         {typeof __DEV__!=='undefined'&&__DEV__&&labLastPdfStartedPhase&&
           <Text style={[s.visualFeatureBody,{marginBottom:12}]}
