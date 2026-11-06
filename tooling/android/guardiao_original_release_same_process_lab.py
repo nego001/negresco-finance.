@@ -357,6 +357,9 @@ def emit_home_geometry_diagnostic(x: int, y: int, width: int,
     sibling_height = safe_sibling_tab_height_category(
         node or {}, nodes or [], width, height
     )
+    chrome_geometry = safe_header_footer_geometry_category(
+        node or {}, nodes or [], width, height
+    )
     attestation = safe_clickable_ancestor_attestation(
         node or {}, nodes or [], width, height
     )
@@ -393,12 +396,47 @@ def emit_home_geometry_diagnostic(x: int, y: int, width: int,
           " clickable-ancestor-shape=" + ancestor_shape +
           " ancestor-constraint=" + ancestor_constraint +
           " sibling-height=" + sibling_height +
+          " header-footer=" + chrome_geometry +
           " ancestor-attestation=" + attestation +
           " ime=" + ime + " ime-pair=" + ime_pair +
           " focus=" + focus + " ime-window=" + ime_window +
           " window-focus=" + window_focus +
           " viewport=" + viewport, flush=True)
 
+
+
+def safe_header_footer_geometry_category(
+    tab: dict[str, str], nodes: list[dict[str, str]],
+    width: int, height: int
+) -> str:
+    """Compare fixed app chrome with thin footer, no pixels or text emitted."""
+    if width <= 0 or height <= 0:
+        return "chrome-viewport-unconfirmed"
+    package = tab.get("package", "")
+    if not package:
+        return "chrome-package-unconfirmed"
+    if (safe_ancestor_constraint_category(tab.get("_tap_bounds", ""),
+                                          width, height) != "height-too-small"
+            or safe_sibling_tab_height_category(tab, nodes, width, height)
+            != "siblings-both-thin"):
+        return "footer-not-three-thin"
+    # Exact, invariant subtitle from App.tsx. No user-generated text.
+    headers = [n for n in nodes
+               if n.get("class") == "android.widget.TextView"
+               and n.get("text") == "SEU UNIVERSO FINANCEIRO"
+               and n.get("package") == package]
+    if len(headers) != 1:
+        return "header-missing-or-ambiguous"
+    match = base.BOUNDS.fullmatch(headers[0].get("bounds", ""))
+    if match is None:
+        return "header-bounds-unconfirmed"
+    x1, y1, x2, y2 = map(int, match.groups())
+    if not (0 <= x1 < x2 <= width and 0 <= y1 < y2 <= height):
+        return "header-bounds-invalid"
+    if (y2 < int(height * .40) and x2 - x1 >= int(width * .10)
+            and y2 - y1 >= max(1, int(height * .01))):
+        return "header-bounded-footer-thin"
+    return "header-other-geometry-footer-thin"
 
 
 def safe_home_layout_snapshot_category(nodes: list[dict[str, str]],
