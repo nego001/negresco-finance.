@@ -108,11 +108,46 @@ def safe_wm_override_category(raw: str, x: int, y: int) -> str:
     return "override-still-outside"
 
 
+def safe_bounds_shape(raw: str, width: int, height: int) -> str:
+    """Classify XML geometry locally; do not publish coordinates or XML."""
+    match = base.BOUNDS.fullmatch(raw)
+    if match is None:
+        return "unconfirmed"
+    x1, y1, x2, y2 = map(int, match.groups())
+    if x2 < x1 or y2 < y1:
+        return "reversed"
+    if x2 == x1 and y2 == y1:
+        return "point-only"
+    if x2 == x1 or y2 == y1:
+        return "zero-area"
+    if width <= 0 or height <= 0:
+        return "viewport-unconfirmed"
+    center_x, center_y = (x1 + x2) // 2, (y1 + y2) // 2
+    if not (0 < center_x < width and 0 < center_y < height):
+        return "offscreen"
+    if int(height * .70) < center_y < int(height * .985):
+        return "on-bottom-band"
+    return "onscreen-other-band"
+
+
+def safe_ancestor_geometry(node: dict[str, str], width: int, height: int) -> str:
+    """Bounded ancestry classification: observation is not tap approval."""
+    label = node.get("bounds", "")
+    ancestor = node.get("_tap_bounds", "")
+    if not ancestor:
+        return "not-provided"
+    if ancestor == label:
+        return "same-as-label"
+    return safe_bounds_shape(ancestor, width, height)
+
+
 def emit_home_geometry_diagnostic(x: int, y: int, width: int,
-                                  height: int) -> None:
+                                  height: int, node: dict[str, str] | None = None) -> None:
     """Passive categories only, never upload dumpsys, UI XML or exception."""
     band = safe_home_tab_band(x, y, width, height)
     axis = safe_home_axis_category(x, y, width, height)
+    label_shape = safe_bounds_shape((node or {}).get("bounds", ""), width, height)
+    ancestor_shape = safe_ancestor_geometry(node or {}, width, height)
     ime = "unconfirmed"
     viewport = "unconfirmed"
     try:
@@ -127,8 +162,9 @@ def emit_home_geometry_diagnostic(x: int, y: int, width: int,
     except Exception:
         pass
     print("ENV (LAB): home-position-band=" + band +
-          " axis=" + axis + " ime=" + ime +
-          " viewport=" + viewport, flush=True)
+          " axis=" + axis + " label-shape=" + label_shape +
+          " clickable-ancestor-shape=" + ancestor_shape +
+          " ime=" + ime + " viewport=" + viewport, flush=True)
 
 
 def restore_home_tab_in_same_process(expected_pid: str) -> None:
@@ -169,7 +205,7 @@ def restore_home_tab_in_same_process(expected_pid: str) -> None:
     x, y = (x1 + x2) // 2, (y1 + y2) // 2
     if not (x2 > x1 and y2 > y1 and 0 < x < width
             and int(height * .70) < y < int(height * .985)):
-        emit_home_geometry_diagnostic(x, y, width, height)
+        emit_home_geometry_diagnostic(x, y, width, height, tabs[0])
         raise RuntimeError("same-process home tab outside bounded bottom bar")
     print("STAGE (LAB): same-process home tab target bounded", flush=True)
     base.adb("shell", "input", "tap", str(x), str(y), timeout=10)
