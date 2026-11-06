@@ -161,3 +161,41 @@ test('second cycle requires home navigation before searching for Guardiao',()=>{
  assert.match(script,/finally:\s*\n\s*base\.adb = real_adb\s*\n\s*base\.wait_visible = original_wait_visible/);
  assert.doesNotMatch(script,/base\.adb\("shell", "pm", "clear"|base\.adb\("uninstall"|base\.adb\("shell", "am", "force-stop"/);
 });
+
+
+test('safe home block categories never contain native error details, data or UI XML',()=>{
+ const py=[
+  'import sys',
+  "sys.path.insert(0,'tooling/android')",
+  'import guardiao_original_release_same_process_lab as m',
+  'expected={',
+  ' "same-process home-navigation PID unconfirmed":"pid-before-home-unconfirmed",',
+  ' "same-process exact home tab unavailable":"tab-absent-or-ambiguous",',
+  ' "same-process home tab label type unconfirmed":"tab-label-other-class",',
+  ' "same-process home tab bounds unavailable":"tab-bounds-unconfirmed",',
+  ' "same-process home tab outside bounded bottom bar":"tab-outside-bottom-bar",',
+  ' "same-process home-navigation PID changed":"pid-after-home-changed",',
+  ' "same-process home-only banner not observed":"home-banner-unconfirmed"}',
+  'for message,code in expected.items():',
+  ' assert m.safe_home_block_category(RuntimeError(message)) == code',
+  ' assert "same-process" not in code',
+  'assert m.safe_home_block_category(RuntimeError("sensitive screen text")) == "other-or-unconfirmed"',
+  'assert m.safe_home_block_category(ValueError("raw emulator dump")) == "other-or-unconfirmed"',
+  'assert m.safe_home_block_category(Exception("secret")) == "other-or-unconfirmed"',
+  'print("PASS: native and private errors cannot enter public home category")'
+ ].join('\n');
+ const result=spawnSync('python3',['-c',py],{encoding:'utf8',timeout:15000});
+ assert.equal(result.status,0,result.stderr);
+ assert.match(result.stdout,/PASS: native and private errors cannot enter public home category/);
+});
+
+test('same-process navigation diagnostics disclose stage only and never native error strings',()=>{
+ assert.match(script,/HOME_BLOCK_CODES = \{/);
+ assert.match(script,/safe_home_block_category\(error\)/);
+ assert.match(script,/if n\.get\("text"\) == "Início" or n\.get\("content-desc"\) == "Início"/);
+ assert.match(script,/other_class_label_seen = True/);
+ assert.match(script,/STAGE \(LAB\): same-process unique home tab verified/);
+ assert.match(script,/STAGE \(LAB\): same-process home tab target bounded/);
+ assert.match(script,/BLOCK STAGE \(LAB\): same-process home return/);
+ assert.doesNotMatch(script,/print\([^\n]*(?:str\(error\)|repr\(error\)|traceback|\\.message|\\.stack)/i);
+});

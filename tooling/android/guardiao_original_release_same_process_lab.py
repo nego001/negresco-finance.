@@ -27,6 +27,24 @@ def observed_single_app_pid() -> str | None:
 
 
 
+HOME_BLOCK_CODES = {
+    "same-process home-navigation PID unconfirmed": "pid-before-home-unconfirmed",
+    "same-process exact home tab unavailable": "tab-absent-or-ambiguous",
+    "same-process home tab label type unconfirmed": "tab-label-other-class",
+    "same-process home tab bounds unavailable": "tab-bounds-unconfirmed",
+    "same-process home tab outside bounded bottom bar": "tab-outside-bottom-bar",
+    "same-process home-navigation PID changed": "pid-after-home-changed",
+    "same-process home-only banner not observed": "home-banner-unconfirmed",
+}
+
+
+def safe_home_block_category(exc: Exception) -> str:
+    """Allowlisted literals only. Never print a raw Android or Python error."""
+    if type(exc) is not RuntimeError:
+        return "other-or-unconfirmed"
+    return HOME_BLOCK_CODES.get(str(exc), "other-or-unconfirmed")
+
+
 def restore_home_tab_in_same_process(expected_pid: str) -> None:
     """Navigate to home through one exact bottom tab, without resetting app."""
     if observed_single_app_pid() != expected_pid:
@@ -34,19 +52,29 @@ def restore_home_tab_in_same_process(expected_pid: str) -> None:
     # Android UI hierarchy can be briefly stale after reentering the app.
     # Read only; never retry a tap, type text or trust more than one target.
     tabs = []
+    other_class_label_seen = False
     for _ in range(5):
+        nodes = base.xml_nodes()  # Private in-memory snapshot only.
+        matching_label = [
+            n for n in nodes
+            if n.get("text") == "Início" or n.get("content-desc") == "Início"
+        ]
         tabs = [
-            n for n in base.xml_nodes()
-            if n.get("text") == "Início"
-            and n.get("class") == "android.widget.TextView"
+            n for n in matching_label
+            if n.get("class") == "android.widget.TextView"
             and n.get("enabled") == "true"
         ]
         if len(tabs) > 1:
             raise RuntimeError("same-process exact home tab unavailable")
         if tabs:
             break
+        if matching_label:
+            other_class_label_seen = True
     if len(tabs) != 1:
-        raise RuntimeError("same-process exact home tab unavailable")
+        raise RuntimeError("same-process home tab label type unconfirmed"
+                           if other_class_label_seen
+                           else "same-process exact home tab unavailable")
+    print("STAGE (LAB): same-process unique home tab verified", flush=True)
     bound = base.BOUNDS.fullmatch(tabs[0].get("bounds", ""))
     if bound is None:
         raise RuntimeError("same-process home tab bounds unavailable")
@@ -56,6 +84,7 @@ def restore_home_tab_in_same_process(expected_pid: str) -> None:
     if not (x2 > x1 and y2 > y1 and 0 < x < width
             and int(height * .70) < y < int(height * .985)):
         raise RuntimeError("same-process home tab outside bounded bottom bar")
+    print("STAGE (LAB): same-process home tab target bounded", flush=True)
     base.adb("shell", "input", "tap", str(x), str(y), timeout=10)
     for _ in range(8):
         if base.lookup("Seu dinheiro.") is not None:
@@ -121,7 +150,16 @@ def run() -> None:
                 # for the actual home-only marker; never claim PDF failure
                 # when this navigation gate has not been confirmed.
                 if needle == "Seu universo" and not home_gate_done:
-                    restore_home_tab_in_same_process(baseline_pid)
+                    print("STAGE (LAB): same-process return to home started",
+                          flush=True)
+                    try:
+                        restore_home_tab_in_same_process(baseline_pid)
+                    except Exception as error:
+                        # Only map exact locally authored error constants to
+                        # fixed public categories; never print raw exception.
+                        print("BLOCK STAGE (LAB): same-process home return " +
+                              safe_home_block_category(error), flush=True)
+                        raise
                     home_gate_done = True
                 return original_wait_visible(
                     needle, retries=retries, scroll=scroll, enabled=enabled
