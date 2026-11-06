@@ -45,6 +45,71 @@ def safe_home_block_category(exc: Exception) -> str:
     return HOME_BLOCK_CODES.get(str(exc), "other-or-unconfirmed")
 
 
+
+def safe_home_tab_band(x: int, y: int, width: int, height: int) -> str:
+    """Coarse fixed classification, never emit actual UI coordinates."""
+    if width <= 0 or height <= 0 or not (0 < x < width and 0 < y < height):
+        return "outside-screen"
+    if y < int(height * .40):
+        return "upper"
+    if y <= int(height * .70):
+        return "middle"
+    if y < int(height * .985):
+        return "lower"
+    return "bottom-edge"
+
+
+def safe_ime_category(raw: str) -> str:
+    """Read only known IME display flags from unsaved private dumpsys output."""
+    flags = re.findall(r"\bm(?:InputShown|IsInputViewShown)\s*=\s*(true|false)\b", raw)
+    if not flags:
+        return "unconfirmed"
+    if all(f == "true" for f in flags):
+        return "shown"
+    if all(f == "false" for f in flags):
+        return "hidden"
+    return "ambiguous"
+
+
+def safe_wm_override_category(raw: str, x: int, y: int) -> str:
+    """Classify overrides, never permit a gesture based on this diagnostic."""
+    physical = re.search(r"(?m)^Physical size:\s*(\d+)x(\d+)\s*$", raw)
+    override = re.search(r"(?m)^Override size:\s*(\d+)x(\d+)\s*$", raw)
+    if physical is None:
+        return "unconfirmed"
+    if override is None:
+        return "physical-only"
+    if physical.groups() == override.groups():
+        return "override-equal"
+    width, height = map(int, override.groups())
+    if width > 0 and height > 0 and 0 < x < width and (
+        int(height * .70) < y < int(height * .985)
+    ):
+        return "override-would-pass"
+    return "override-still-outside"
+
+
+def emit_home_geometry_diagnostic(x: int, y: int, width: int,
+                                  height: int) -> None:
+    """Passive categories only, never upload dumpsys, UI XML or exception."""
+    band = safe_home_tab_band(x, y, width, height)
+    ime = "unconfirmed"
+    viewport = "unconfirmed"
+    try:
+        ime = safe_ime_category(base.adb("shell", "dumpsys", "input_method",
+                                         timeout=8, check=False))
+    except Exception:
+        pass
+    try:
+        viewport = safe_wm_override_category(
+            base.adb("shell", "wm", "size", timeout=8, check=False), x, y
+        )
+    except Exception:
+        pass
+    print("ENV (LAB): home-position-band=" + band +
+          " ime=" + ime + " viewport=" + viewport, flush=True)
+
+
 def restore_home_tab_in_same_process(expected_pid: str) -> None:
     """Navigate to home through one exact bottom tab, without resetting app."""
     if observed_single_app_pid() != expected_pid:
@@ -83,6 +148,7 @@ def restore_home_tab_in_same_process(expected_pid: str) -> None:
     x, y = (x1 + x2) // 2, (y1 + y2) // 2
     if not (x2 > x1 and y2 > y1 and 0 < x < width
             and int(height * .70) < y < int(height * .985)):
+        emit_home_geometry_diagnostic(x, y, width, height)
         raise RuntimeError("same-process home tab outside bounded bottom bar")
     print("STAGE (LAB): same-process home tab target bounded", flush=True)
     base.adb("shell", "input", "tap", str(x), str(y), timeout=10)
