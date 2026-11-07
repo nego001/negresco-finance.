@@ -42,7 +42,7 @@ const py=[
 'try:p.instrument_module_source(module.replace("renderTask.render(","renderTask.other("))',
 'except ValueError:pass',
 'else:raise AssertionError("unexpected module source accepted")',
-'assert "native-module-entered" in p.DEX_REQUIRED[0].decode("ascii")',
+'assert b"native-module-entered" in p.DEX_REQUIRED',
 'print("PASS: allowlisted native phases, source patch refuses drift")',
 ].join('\n');
 
