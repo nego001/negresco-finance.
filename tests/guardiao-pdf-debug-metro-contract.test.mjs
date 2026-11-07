@@ -130,3 +130,16 @@ test('Debug-only native tab testIDs compare clickable target bounds without gest
   assert.equal(result.status,0,result.stderr);
   assert.match(result.stdout,/PASS: fixed native testID categories/);
 });
+
+
+test('isolated Debug-only tab bounds experiment leaves Release sizing untouched',()=>{
+  const app=readFileSync('apps/mobile/App.tsx','utf8');
+  assert.match(app,/<View style=\{\[s\.bottom,__DEV__&&s\.labBottomBounds\]\}>/);
+  assert.match(app,/style=\{\[s\.nav,__DEV__&&s\.labNavBounds,page===x\.name&&s\.navSelected\]\}/);
+  assert.match(app,/labBottomBounds:\{minHeight:76,flexShrink:0\}/);
+  assert.match(app,/labNavBounds:\{height:60,minHeight:60,flexShrink:0\}/);
+  // The original values remain unchanged for non-__DEV__ builds.
+  assert.match(app,/bottom:\{height:76,paddingHorizontal:12,paddingBottom:4,/);
+  assert.match(app,/nav:\{width:'31%',alignItems:'center',justifyContent:'center',borderRadius:18,marginVertical:6\}/);
+  assert.doesNotMatch(app,/onPress=\{\(\)=>nav\(x\.name as Page\)\}.*input\s+tap/);
+});
