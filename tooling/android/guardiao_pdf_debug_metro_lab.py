@@ -61,6 +61,59 @@ def safe_debug_home_geometry() -> tuple[str, str, str, str]:
                 "ancestor-unconfirmed", "siblings-unconfirmed")
 
 
+def safe_testid_matches(node: dict[str, str], ident: str) -> bool:
+    """Recognize exact baseline or strict categorical Debug-only suffix."""
+    raw = node.get("resource-id", "").rsplit("/", 1)[-1]
+    return raw == ident or re.fullmatch(
+        re.escape(ident) + r"-yoga-(regular|thin|unconfirmed)-bottom-(regular|thin|unconfirmed)",
+        raw,
+    ) is not None
+
+
+def safe_debug_testid_yoga_category() -> str:
+    """Read Yoga categories reflected in existing native tab testIDs.
+
+    No logs, coordinates, PIDs, UI values or raw resource IDs are released.
+    This is only a measurement, never an authorization to tap.
+    """
+    try:
+        nodes = base.xml_nodes()
+        names = ("negresco-lab-tab-home", "negresco-lab-tab-pix",
+                 "negresco-lab-tab-negresco")
+        yoga = []
+        parents = set()
+        packages = set()
+        for ident in names:
+            hits = [n for n in nodes if safe_testid_matches(n, ident)]
+            if len(hits) != 1:
+                return "testid-yoga-nodes-unconfirmed"
+            node = hits[0]
+            if node.get("enabled") != "true" or node.get("clickable") != "true":
+                return "testid-yoga-nodes-unconfirmed"
+            package = node.get("package", "")
+            if not package:
+                return "testid-yoga-nodes-unconfirmed"
+            packages.add(package)
+            match = re.fullmatch(
+                re.escape(ident) + r"-yoga-(regular|thin|unconfirmed)-bottom-(regular|thin|unconfirmed)",
+                node.get("resource-id", "").rsplit("/", 1)[-1],
+            )
+            if match is None:
+                return "testid-yoga-marker-unconfirmed"
+            yoga.append(match.group(1))
+            parents.add(match.group(2))
+        if len(packages) != 1 or len(parents) != 1:
+            return "testid-yoga-inconsistent"
+        all_statuses = yoga + list(parents)
+        if all(item == "regular" for item in all_statuses):
+            return "testid-yoga-all-regular"
+        if "thin" in all_statuses:
+            return "testid-yoga-some-thin"
+        return "testid-yoga-unconfirmed"
+    except Exception:
+        return "testid-yoga-collection-unconfirmed"
+
+
 def safe_debug_testid_nav_geometry() -> str:
     """Passive native tab testID comparison; never returns a touch target.
 
@@ -80,7 +133,7 @@ def safe_debug_testid_nav_geometry() -> str:
                       "negresco-lab-tab-negresco"):
             hits = [
                 n for n in nodes
-                if n.get("resource-id", "").rsplit("/", 1)[-1] == ident
+                if safe_testid_matches(n, ident)
             ]
             if len(hits) != 1:
                 return "testid-nodes-unconfirmed"
@@ -124,6 +177,7 @@ def observe_debug_home_geometry() -> None:
           + " ancestor=" + ancestor
           + " siblings=" + siblings, flush=True)
     print("ENV (LAB): Debug tab-testids=" + safe_debug_testid_nav_geometry(), flush=True)
+    print("ENV (LAB): Debug testid Yoga=" + safe_debug_testid_yoga_category(), flush=True)
 
 
 def debug_digest() -> str:
