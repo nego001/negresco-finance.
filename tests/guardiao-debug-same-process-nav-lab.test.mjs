@@ -57,3 +57,18 @@ test('Debug Yoga probe uses fixed onLayout categories without exposing dimension
  assert.match(runner,/if js_geometry != "js-layout-all-regular"/);
  assert.doesNotMatch(runner,/print\(raw\)|print\(.*logcat|upload-artifact/);
 });
+
+
+test('home PID is captured by the launch probe before the post-PDF guard checks it',()=>{
+  const stage=runner.split('    def pdf_then_navigate() -> None:')[1]?.split('\n    debug.observe_debug_home_geometry = home_probe')[0];
+  assert.ok(stage,'PDF-to-navigation stage must exist');
+  const run=stage.indexOf('original_run()  # One real PDF A');
+  const pid=stage.indexOf('if not pid_before:');
+  const receipt=stage.indexOf('if not semantic.REPORT.is_file():');
+  const navigation=stage.indexOf('navigate_after_verified_pdf(pid_before)');
+  assert.ok(run>=0 && run<pid && pid<receipt && receipt<navigation,
+    'launch/PID capture must precede guard, receipt validation and navigation');
+  assert.match(runner,/def home_probe\(\) -> None:/);
+  assert.match(runner,/debug\.observe_debug_home_geometry = home_probe/);
+  assert.match(runner,/semantic\.run_lab = pdf_then_navigate/);
+});

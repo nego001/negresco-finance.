@@ -167,9 +167,11 @@ def run() -> None:
 
     def pdf_then_navigate() -> None:
         nonlocal pdf_receipts
+        # The home_probe is invoked *within* original_run during app launch.
+        # Never require its PID before the probe actually executes.
+        original_run()  # One real PDF A; independent receiver and semantic receipt.
         if not pid_before:
             raise RuntimeError("initial-process-unconfirmed")
-        original_run()  # One real PDF A; independent receiver and semantic receipt.
         if not semantic.REPORT.is_file():
             raise RuntimeError("synthetic-pdf-a-receipt-missing")
         pdf_receipts += 1
