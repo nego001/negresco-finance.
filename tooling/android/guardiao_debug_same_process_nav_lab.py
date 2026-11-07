@@ -69,6 +69,33 @@ def safe_home_target(nodes: list[dict[str, str]], width: int,
     return cx, cy
 
 
+def safe_js_nav_layout_category() -> str:
+    """Read bounded ReactNativeJS logcat privately; emit only fixed categories.
+
+    Compares Yoga onLayout in dp to UIAutomator native testID bounds. Raw
+    logcat is never printed, uploaded, embedded or returned.
+    """
+    try:
+        raw = BASE.adb("logcat", "-d", "-t", "3500", "-s",
+                       "ReactNativeJS:I", "*:S", timeout=15, check=False)
+        if len(raw) > 2_500_000:
+            return "js-layout-log-unconfirmed"
+        seen = {}
+        for name, status in re.findall(
+                r"NEGRESCO_LAB_NAV_LAYOUT_(BOTTOM|HOME|PIX|NEGRESCO)_(REGULAR|THIN|UNCONFIRMED)",
+                raw):
+            seen[name] = status
+        if len(seen) != 4:
+            return "js-layout-log-unconfirmed"
+        if all(v == "REGULAR" for v in seen.values()):
+            return "js-layout-all-regular"
+        if any(v == "THIN" for v in seen.values()):
+            return "js-layout-at-least-one-thin"
+        return "js-layout-unconfirmed"
+    except Exception:
+        return "js-layout-log-unconfirmed"
+
+
 def assert_same_pid(expected: str) -> None:
     if not expected or geometry.observed_single_app_pid() != expected:
         raise RuntimeError("same-process-pid-unconfirmed")
@@ -88,7 +115,13 @@ def navigate_after_verified_pdf(before_pid: str) -> None:
         raise RuntimeError("app-focus-unconfirmed")
     if BASE.lookup("Seu dinheiro.") is not None:
         raise RuntimeError("already-on-home-unconfirmed")
-    if debug.safe_debug_testid_nav_geometry() != "testid-three-targets-bounded-readonly":
+    js_geometry = safe_js_nav_layout_category()
+    native_geometry = debug.safe_debug_testid_nav_geometry()
+    print("ENV (LAB): Debug Yoga layout=" + js_geometry, flush=True)
+    print("ENV (LAB): Debug native tab bounds=" + native_geometry, flush=True)
+    if js_geometry != "js-layout-all-regular":
+        raise RuntimeError("yoga-layout-unconfirmed")
+    if native_geometry != "testid-three-targets-bounded-readonly":
         raise RuntimeError("three-target-bounds-unconfirmed")
     width, height = BASE.screen_size()
     first = safe_home_target(BASE.xml_nodes(), width, height, BASE.PACKAGE)

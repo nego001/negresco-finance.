@@ -43,3 +43,17 @@ test('home touch target is rejected for thin, offscreen, duplicated or ambiguous
  assert.equal(result.status,0,result.stderr);
  assert.match(result.stdout,/PASS: strict one-tap Debug target gate/);
 });
+
+
+test('Debug Yoga probe uses fixed onLayout categories without exposing dimensions or logcat',()=>{
+ const app=readFileSync('apps/mobile/App.tsx','utf8');
+ assert.match(app,/NEGRESCO_LAB_NAV_LAYOUT_/);
+ assert.match(app,/recordLabLayout\('bottom',e\.nativeEvent\.layout\.height\)/);
+ assert.match(app,/recordLabLayout\(x\.name==='Início'\?'home'/);
+ assert.match(app,/if\(!__DEV__\)return/);
+ assert.match(runner,/def safe_js_nav_layout_category\(\) -> str:/);
+ assert.match(runner,/ReactNativeJS:I/);
+ assert.match(runner,/js-layout-all-regular/);
+ assert.match(runner,/if js_geometry != "js-layout-all-regular"/);
+ assert.doesNotMatch(runner,/print\(raw\)|print\(.*logcat|upload-artifact/);
+});

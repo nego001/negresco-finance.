@@ -63,6 +63,17 @@ function Notice({title,body}:{title:string;body:string}) {
 }
 export default function App() {
   const [page,setPage]=useState<Page>('Início');
+  // Categorical Debug-only Yoga onLayout telemetry; no dimensions or user data.
+  const labLayoutLast=useRef<Record<string,string>>({});
+  const recordLabLayout=(key:'bottom'|'home'|'pix'|'negresco',height:number)=>{
+    if(!__DEV__)return;
+    const category=!Number.isFinite(height)||height<=0?'unconfirmed'
+      :height>=(key==='bottom'?72:48)?'regular':'thin';
+    if(labLayoutLast.current[key]===category)return;
+    labLayoutLast.current[key]=category;
+    console.info('NEGRESCO_LAB_NAV_LAYOUT_'+key.toUpperCase()+'_'+category.toUpperCase());
+  };
+
   const localLock=useLocalAppLock();
   // Read the latest lock state from async PDF continuations, not a stale closure.
   const lockStatusRef=useRef(localLock.status);
@@ -446,7 +457,7 @@ export default function App() {
         <View style={s.visualFeature}><Text style={s.visualFeatureTitle}>Um painel preparado para você</Text><Text style={s.visualFeatureBody}>Visualização de informações, atalhos e indicadores ganhará vida quando você autorizar a conexão de dados.</Text></View><Text style={s.sectionTitle}>Explore também</Text><View style={s.grid}>{sections.filter(x=>x.name!==page).map(x=><Tap key={x.name} title={x.name} glyph={x.glyph} onPress={()=>nav(x.name)} style={{minHeight:115}}/>)}</View>
       </>}
     </ScrollView></Animated.View>
-    <View style={[s.bottom,__DEV__&&s.labBottomBounds]}>{[{name:'Início',glyph:'home'},{name:'Pix',glyph:'pix'},{name:'Negresco',glyph:'assistant'}].map(x=><TouchableOpacity key={x.name} accessibilityRole="tab" accessibilityState={{selected:page===x.name}} onPress={()=>nav(x.name as Page)} testID={__DEV__ ? ('negresco-lab-tab-' + (x.name==='Início' ? 'home' : x.name==='Pix' ? 'pix' : 'negresco')) : undefined} style={[s.nav,__DEV__&&s.labNavBounds,page===x.name&&s.navSelected]}><Icon name={x.glyph as IconName} size={23} color={page===x.name?blue:'#8898AD'}/><Text style={[s.navLabel,page===x.name&&{color:blue}]}>{x.name}</Text>{page===x.name&&<View style={[s.navMark,{backgroundColor:blue}]}/>}</TouchableOpacity>)}</View>
+    <View style={[s.bottom,__DEV__&&s.labBottomBounds]} onLayout={__DEV__?e=>recordLabLayout('bottom',e.nativeEvent.layout.height):undefined}>{[{name:'Início',glyph:'home'},{name:'Pix',glyph:'pix'},{name:'Negresco',glyph:'assistant'}].map(x=><TouchableOpacity key={x.name} accessibilityRole="tab" accessibilityState={{selected:page===x.name}} onPress={()=>nav(x.name as Page)} testID={__DEV__ ? ('negresco-lab-tab-' + (x.name==='Início' ? 'home' : x.name==='Pix' ? 'pix' : 'negresco')) : undefined} onLayout={__DEV__?e=>recordLabLayout(x.name==='Início'?'home':x.name==='Pix'?'pix':'negresco',e.nativeEvent.layout.height):undefined} style={[s.nav,__DEV__&&s.labNavBounds,page===x.name&&s.navSelected]}><Icon name={x.glyph as IconName} size={23} color={page===x.name?blue:'#8898AD'}/><Text style={[s.navLabel,page===x.name&&{color:blue}]}>{x.name}</Text>{page===x.name&&<View style={[s.navMark,{backgroundColor:blue}]}/>}</TouchableOpacity>)}</View>
     </>:<LocalLockScreen status={localLock.status} busy={localLock.busy} message={localLock.message} onUnlock={localLock.unlock} onRetry={localLock.retry}/>}
   </SafeAreaView>;
 }
