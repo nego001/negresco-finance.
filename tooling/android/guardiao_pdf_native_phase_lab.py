@@ -350,6 +350,51 @@ def collect_native_phase_progress() -> str:
         return "native-progress-unconfirmed"
 
 
+def classify_layout_write_order(raw: str | None) -> str:
+    """Classify observed first layout-finished vs first write-requested order.
+
+    A bounded log can miss lines; no category proves an unobserved event
+    never happened. Do not treat this diagnostic as PDF evidence or permission.
+    """
+    if not isinstance(raw, str) or len(raw) > MAX_CAPTURE:
+        return "layout-write-order-unconfirmed"
+    first_layout_finished = None
+    first_write_requested = None
+    for index, line in enumerate(raw.splitlines()):
+        match = MARKER_PATTERN.search(line)
+        if not match or match.group(1) not in MARKERS:
+            continue
+        phase = match.group(1)
+        if phase == "native-layout-finished" and first_layout_finished is None:
+            first_layout_finished = index
+        elif phase == "native-write-requested" and first_write_requested is None:
+            first_write_requested = index
+    if first_layout_finished is not None and first_write_requested is not None:
+        if first_write_requested < first_layout_finished:
+            return "write-before-layout-finished-observed"
+        return "layout-finished-before-write-observed"
+    if first_write_requested is not None:
+        return "write-observed-layout-finish-unconfirmed"
+    if first_layout_finished is not None:
+        return "layout-finished-write-unconfirmed"
+    return "layout-write-order-unconfirmed"
+
+
+def collect_layout_write_order() -> str:
+    """Fixed codes only from an allowlisted, bounded native Debug logcat."""
+    try:
+        result = subprocess.run(
+            ["adb", "logcat", "-d", "-v", "tag", "-t", "512",
+             "-s", TAG + ":I", "*:S"],
+            capture_output=True, text=True, timeout=12, check=False,
+        )
+        if result.returncode != 0:
+            return "layout-write-order-unconfirmed"
+        return classify_layout_write_order(result.stdout)
+    except (OSError, subprocess.TimeoutExpired, UnicodeError):
+        return "layout-write-order-unconfirmed"
+
+
 def classify_renderer_exit_log(raw: str | None) -> str:
     """Report only whether the fixed renderer-exit marker occurs in this window.
 

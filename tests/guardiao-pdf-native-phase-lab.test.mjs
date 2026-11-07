@@ -95,6 +95,34 @@ test('bounded native module progress distinguishes observed milestones, never in
  assert.doesNotMatch(source,/print\(result\.stdout\)/);
 });
 
+test('bounded native log distinguishes observed layout/write order but never invents absent phases',()=>{
+ const py=[
+  'import sys',
+  "sys.path.insert(0,'tooling/android')",
+  'import guardiao_pdf_native_phase_lab as x',
+  'line=lambda p:"I/NegrescoPdfPhaseLab: "+p',
+  'layout=line("native-layout-finished")',
+  'write=line("native-write-requested")',
+  'assert x.classify_layout_write_order(layout+"\\n"+write)=="layout-finished-before-write-observed"',
+  'assert x.classify_layout_write_order(write+"\\n"+layout)=="write-before-layout-finished-observed"',
+  'assert x.classify_layout_write_order(write)=="write-observed-layout-finish-unconfirmed"',
+  'assert x.classify_layout_write_order(layout)=="layout-finished-write-unconfirmed"',
+  'assert x.classify_layout_write_order(line("native-module-entered"))=="layout-write-order-unconfirmed"',
+  'assert x.classify_layout_write_order("E/NegrescoPdfPhaseLab: native-layout-finished\\n"+write)=="write-observed-layout-finish-unconfirmed"',
+  'assert x.classify_layout_write_order("I/OtherTag: native-layout-finished\\n"+write)=="write-observed-layout-finish-unconfirmed"',
+  'assert x.classify_layout_write_order("SECRET_URI")=="layout-write-order-unconfirmed"',
+  'assert x.classify_layout_write_order("x"*64001)=="layout-write-order-unconfirmed"',
+  'assert x.classify_layout_write_order(None)=="layout-write-order-unconfirmed"',
+  'print("PASS: bounded layout-write order categories")'
+ ].join('\n');
+ const result=spawnSync('python3',['-c',py],{encoding:'utf8',timeout:15000});
+ assert.equal(result.status,0,result.stderr);
+ assert.match(result.stdout,/PASS: bounded layout-write order categories/);
+ assert.match(source,/def collect_layout_write_order\(\) -> str:/);
+ assert.match(source,/return classify_layout_write_order\(result\.stdout\)/);
+ assert.doesNotMatch(source,/print\(result\.stdout\)/);
+});
+
 test('synthetic APK ZIP scan categorizes multidex including classes10 without exposing data',()=>{
  const code=[
   'import sys,zipfile,tempfile,pathlib',

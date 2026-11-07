@@ -32,6 +32,9 @@ test('three Debug cycles retain app state but require fresh native phase channel
  assert.match(runner,/native\.collect_renderer_exit_category\(\)/);
  assert.match(runner,/Debug retained-state phase progress on BLOCK/);
  assert.match(runner,/native\.collect_native_phase_progress\(\)/);
+ assert.match(runner,/Debug retained-state layout-write order cycle/);
+ assert.match(runner,/Debug retained-state layout-write order on BLOCK/);
+ assert.match(runner,/native\.collect_layout_write_order\(\)/);
  assert.match(runner,/Debug retained-state native diagnostic channel on BLOCK/);
  assert.match(runner,/cycle \+ " " \+ native\.verify_diagnostic_channel\(\)/);
  assert.match(runner,/except Exception:[\s\S]*?Debug retained-state native diagnostic channel on BLOCK[\s\S]*?\n\s*raise/);

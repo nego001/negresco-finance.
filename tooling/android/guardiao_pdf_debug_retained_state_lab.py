@@ -77,6 +77,9 @@ def retained_debug_cycles() -> None:
                 verify_synthetic_debug_receipt(semantic.REPORT, debug.debug_digest())
                 print("ENV (LAB): Debug retained-state native print phase cycle " +
                       cycle + " " + native.collect_last_phase(), flush=True)
+                print("ENV (LAB): Debug retained-state layout-write order cycle " +
+                      cycle + " " + native.collect_layout_write_order(),
+                      flush=True)
                 print("ENV (LAB): Debug retained-state renderer exit cycle " +
                       cycle + " " + native.collect_renderer_exit_category(), flush=True)
                 receipts_verified += 1
@@ -92,6 +95,9 @@ def retained_debug_cycles() -> None:
                       cycle + " " + native.collect_last_phase(), flush=True)
                 print("ENV (LAB): Debug retained-state phase progress on BLOCK " +
                       cycle + " " + native.collect_native_phase_progress(),
+                      flush=True)
+                print("ENV (LAB): Debug retained-state layout-write order on BLOCK " +
+                      cycle + " " + native.collect_layout_write_order(),
                       flush=True)
                 print("ENV (LAB): Debug retained-state renderer exit on BLOCK " +
                       cycle + " " + native.collect_renderer_exit_category(),
