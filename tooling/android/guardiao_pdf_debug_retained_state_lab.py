@@ -90,6 +90,12 @@ def retained_debug_cycles() -> None:
                 print("ENV (LAB): Debug retained-state renderer exit on BLOCK " +
                       cycle + " " + native.collect_renderer_exit_category(),
                       flush=True)
+                # A missing native phase is not proof that printToFileAsync
+                # did not enter Android unless the bounded logcat canary
+                # succeeds at the time of the failure, too.
+                print("ENV (LAB): Debug retained-state native diagnostic channel on BLOCK " +
+                      cycle + " " + native.verify_diagnostic_channel(),
+                      flush=True)
                 raise
         if not first_receipt_complete or not semantic.REPORT.is_file():
             raise RuntimeError("Debug retained-state receipt pair incomplete")
