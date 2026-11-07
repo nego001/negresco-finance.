@@ -221,6 +221,23 @@ def safe_environment_summary() -> dict[str, str | bool]:
         "webViewProvider": provider_category
     }
 
+def chooser_observation_delay_band(elapsed: float) -> str:
+    """Categorize ADB chooser observation time, NOT native PDF render latency.
+
+    This is read-only, synthetic-lab telemetry, derived from a monotonic clock.
+    Do not emit exact timings, UI contents or any native diagnostics.
+    """
+    if type(elapsed) not in (int, float) or not 0 <= elapsed < 3600:
+        return "unclassified"
+    if elapsed < 5:
+        return "under-5s"
+    if elapsed < 15:
+        return "5-to-15s"
+    if elapsed < 30:
+        return "15-to-30s"
+    return "30s-or-more"
+
+
 def pdf_timeout_category(visible: dict[str, bool],
                          environment: dict[str, str | bool]) -> str:
     """Observational only: UI cannot identify the pending native async stage."""
@@ -459,9 +476,13 @@ def run_smoke(after_receiver_install=None, after_verified_receipt=None) -> None:
     print("STAGE (LAB): synthetic analysis result visible, next checking PDF export button")
     pdf_button = wait_export_button()
     tap_node(pdf_button, prefer_label=True)
+    chooser_wait_started = time.monotonic()
     print("STAGE (LAB): one bounded PDF export tap dispatched", flush=True)
     for attempt in range(55):
         if chooser_present():
+            print("ENV (LAB): PDF chooser observation delay " +
+                  chooser_observation_delay_band(time.monotonic() - chooser_wait_started),
+                  flush=True)
             print("STAGE (LAB): real chooser observed; selecting isolated PDF receiver")
             if after_verified_receipt is None:
                 receive_from_chooser(api, digest)
@@ -495,6 +516,9 @@ def run_smoke(after_receiver_install=None, after_verified_receipt=None) -> None:
             if state["Compartilhamento de PDF indisponível neste dispositivo."]:
                 raise RuntimeError("Guardião reported Android PDF sharing unavailable")
         time.sleep(1)
+    # Delays classify only observed chooser visibility, never PDF callbacks.
+    print("ENV (LAB): PDF chooser observation delay not-observed-before-block",
+          flush=True)
     # Fail closed; emit fixed category only, never PDF, UI XML or native output.
     final_visible = stage_summary("PDF chooser timeout; no app status is treated as success")
     final_environment = safe_environment_summary()

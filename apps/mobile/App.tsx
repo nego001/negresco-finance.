@@ -8,6 +8,7 @@ import { createLocalReport, renderReportHtml } from './guardiao/report';
 import {exportPdfWithLifecycleGuard, type PdfExportFailurePhase, type PdfExportPendingPhase} from './guardiao/pdfExport';
 import {discardUnsharedPrintPdf,isOwnedPrintPdfUri} from './guardiao/pdfCache';
 import {probeMinimalPrintEngine,type MinimalPrintProbe} from './guardiao/pdfPrintProbe';
+import {createPdfNativeExportGate} from './guardiao/pdfSingleFlight';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
@@ -140,6 +141,13 @@ export default function App() {
   const [boletoLine,setBoletoLine]=useState('');
   const [boletoResult,setBoletoResult]=useState<ReturnType<typeof inspectBoleto>|null>(null);
   const [reportExportStatus,setReportExportStatus]=useState('');
+  const [reportPdfBusy,setReportPdfBusy]=useState(false);
+  // Do not release merely because navigation revoked a report token: the
+  // Android native print promise might still be running in the background.
+  const pdfNativeGate=useRef(createPdfNativeExportGate());
+  // Debug-only observation: this fixed code survives rapid native chooser
+  // transitions, unlike transient pending Text. No PDF/input/URI is retained.
+  const [labLastPdfStartedPhase,setLabLastPdfStartedPhase]=useState<PdfExportPendingPhase|null>(null);
   const [cnpj,setCnpj]=useState('');
   const [cnpjResult,setCnpjResult]=useState<CompanyResult|null>(null);
   const [cnpjLoading,setCnpjLoading]=useState(false);
@@ -157,8 +165,13 @@ export default function App() {
   const exportLocalPdf=async()=>{
     if(!boletoResult||AppState.currentState!=='active'||
        (localLock.status!=='off'&&localLock.status!=='unlocked'))return;
+    const releasePdfGate=pdfNativeGate.current.acquire();
+    if(!releasePdfGate)return;
+    setReportPdfBusy(true);
+    try{
     const requestId=++reportRequestId.current;
     const diagnosis:{phase:PdfExportFailurePhase|null;minimal:MinimalPrintProbe|null}={phase:null,minimal:null};
+    if(typeof __DEV__!=='undefined'&&__DEV__)setLabLastPdfStartedPhase(null);
     setReportExportStatus('Gerando PDF local...');
     const html=renderReportHtml(createLocalReport(boletoResult,new Date().toLocaleString('pt-BR'),cnpjResult));
     // Only debug builds display fixed, non-sensitive boundary labels. No
@@ -173,6 +186,7 @@ export default function App() {
         if(typeof __DEV__==='undefined'||!__DEV__)return;
         if(reportRequestId.current!==requestId||AppState.currentState!=='active'||
            (lockStatusRef.current!=='off'&&lockStatusRef.current!=='unlocked'))return;
+        setLabLastPdfStartedPhase(stage);
         setReportExportStatus(labPendingLabels[stage]);
       },
       html,
@@ -225,6 +239,12 @@ export default function App() {
       setReportExportStatus(diagnosis.phase?safePhaseLabels[diagnosis.phase]:'Não foi possível exportar o PDF.');
     }
     else setReportExportStatus('');
+    }finally{
+      // There is no safe JS-only cancellation of a stuck native renderer.
+      // Unlock only after the original export promise actually settles.
+      releasePdfGate();
+      setReportPdfBusy(false);
+    }
   };
   const [guardiaoHistory,setGuardiaoHistory]=useState<{id:string;date:string;kind:string;valid:boolean;digits:number}[]>([]);
   const [historyLoaded,setHistoryLoaded]=useState(false);
@@ -364,8 +384,13 @@ export default function App() {
           <Text style={s.visualFeatureBody}>O PDF reúne a análise matemática e, se você consultou um CNPJ, registra essa resposta como informação independente. Nenhuma consulta atribui automaticamente a cobrança à empresa.</Text>
           <Text style={s.visualFeatureBody}>O relatório não contém a linha digitável nem o CNPJ completo. Banco, beneficiário, contrato e Reclame Aqui permanecem sem verificação externa.</Text>
         </View>
-        {boletoResult&&<TouchableOpacity accessibilityRole="button" onPress={exportLocalPdf} style={[s.actionButton,{backgroundColor:blue,marginBottom:15}]}><Text style={s.actionText}>Gerar e compartilhar relatório PDF</Text></TouchableOpacity>}
+        {boletoResult&&<TouchableOpacity accessibilityRole="button" disabled={reportPdfBusy} onPress={exportLocalPdf} style={[s.actionButton,{backgroundColor:blue,marginBottom:15}]}><Text style={s.actionText}>Gerar e compartilhar relatório PDF</Text></TouchableOpacity>}
         {!!reportExportStatus&&<Text style={[s.visualFeatureBody,{marginBottom:12}]}>{reportExportStatus}</Text>}
+        {typeof __DEV__!=='undefined'&&__DEV__&&labLastPdfStartedPhase&&
+          <Text style={[s.visualFeatureBody,{marginBottom:12}]}
+            accessibilityLabel={`LAB: última etapa PDF iniciada: ${labLastPdfStartedPhase}`}>
+            {`LAB: última etapa PDF iniciada: ${labLastPdfStartedPhase}`}
+          </Text>}
         <View style={s.visualFeature}><Text style={s.visualFeatureTitle}>Histórico protegido</Text><Text style={s.visualFeatureBody}>Somente tipo, quantidade de dígitos e resultado estrutural. A linha digitável completa não é armazenada no histórico. Os registros ficam salvos no armazenamento seguro quando disponível.</Text><TextInput accessibilityLabel="Pesquisar histórico" style={s.input} value={historyQuery} onChangeText={setHistoryQuery} placeholder="Pesquisar data, tipo ou resultado" placeholderTextColor="#8195AE"/>{guardiaoHistory.length===0?<Text style={s.visualFeatureBody}>Nenhuma verificação salva.</Text>:guardiaoHistory.filter(item=>(item.date+' '+item.kind+' '+(item.valid?'confere':'não confere')).toLowerCase().includes(historyQuery.toLowerCase())).map(item=><View key={item.id} style={[s.rowBetween,{paddingTop:12}]}><Text style={{color:C.muted,fontSize:11,flex:1}}>{item.date} · {item.kind}</Text><Text style={{color:C.white,fontSize:11,fontWeight:'800'}}>{item.valid?'Dígitos conferem':'Não confere'}</Text></View>)}{guardiaoHistory.length>0&&<TouchableOpacity accessibilityRole="button" onPress={()=>{skipNextHistorySave.current=true;setGuardiaoHistory([]);historyQueue.current.clear().catch(()=>setHistoryStorageError('Falha ao apagar histórico seguro.'));}} style={[s.actionButton,{marginTop:14,backgroundColor:'#223A59'}]}><Text style={s.actionText}>Limpar histórico</Text></TouchableOpacity>}</View>
         {!!historyStorageError&&<Text style={s.visualFeatureBody}>{historyStorageError}</Text>}
         <View style={s.visualFeature}><Text style={s.visualFeatureTitle}>Consultar CNPJ</Text><Text style={s.visualFeatureBody}>Consulta opcional via BrasilAPI, serviço de terceiros. Ao tocar em Consultar cadastro, o CNPJ será enviado ao provedor. Cadastro ativo não garante boleto legítimo.</Text><TextInput accessibilityLabel="CNPJ" style={s.input} value={cnpj} onChangeText={v=>{cnpjRequestId.current++;reportRequestId.current++;setCnpj(v);setCnpjResult(null);setCnpjLoading(false);setReportExportStatus('');}} placeholder="Digite o CNPJ" placeholderTextColor="#8195AE" keyboardType="number-pad" maxLength={18}/><TouchableOpacity accessibilityRole="button" disabled={cnpjLoading} onPress={async()=>{const requestId=++cnpjRequestId.current;setCnpjLoading(true);try{const result=await consultCnpj(cnpj);if(cnpjRequestId.current===requestId){reportRequestId.current++;setCnpjResult(result);setReportExportStatus('');}}finally{if(cnpjRequestId.current===requestId)setCnpjLoading(false);}}} style={[s.actionButton,{backgroundColor:blue}]}><Text style={s.actionText}>{cnpjLoading?'Consultando...':'Consultar cadastro'}</Text></TouchableOpacity>{cnpjResult&&<Text style={s.visualFeatureBody}>{cnpjResult.status==='found'?'Empresa: '+cnpjResult.legalName+' | Situação: '+(cnpjResult.registration||'não informada'):cnpjResult.message||'Consulta indisponível'}{cnpjResult.source?' | Fonte: BrasilAPI (terceiros)':''}</Text>}</View>
