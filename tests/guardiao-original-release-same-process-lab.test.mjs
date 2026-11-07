@@ -180,7 +180,7 @@ test('receiver transfer categories never publish private exceptions and preserve
   'x.replay.run=lambda:x.base.receive_from_chooser(28,"PRIVATE_SHA")',
   'with contextlib.redirect_stdout(out):x.replay_with_receiver_stage()',
   'assert x.base.receive_from_chooser is success',
-  'assert out.getvalue().endswith("STAGE (LAB): PDF receiver verified\n")',
+  'assert out.getvalue().splitlines()[-1]=="STAGE (LAB): PDF receiver verified"',
   'print("PASS: receiver boundary preserves safety and hides private values")'
  ].join('\n');
  const run=spawnSync('python3',['-c',code],{encoding:'utf8',timeout:15000});
