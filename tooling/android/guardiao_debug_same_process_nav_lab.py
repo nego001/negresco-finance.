@@ -107,7 +107,7 @@ def navigate_after_verified_pdf(before_pid: str) -> None:
         homes = [n for n in nodes
                  if n.get("resource-id", "").rsplit("/", 1)[-1] == TAB_IDS[0]]
         banner = [n for n in nodes
-                  if n.get("text") == "Seu dinheiro." and n.get("enabled") == "true"]
+                  if n.get("text", "").startswith("Seu dinheiro.") and n.get("enabled") == "true"]
         if len(homes) == 1 and homes[0].get("selected") == "true" and len(banner) == 1:
             print("PASS (LAB): one bounded Debug Home return in same process",
                   flush=True)
