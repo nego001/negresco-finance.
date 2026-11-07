@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Disposable Debug Metro PDF phase comparison with retained app data (API28).
 
-Two fully verified synthetic PDFs, same emulator, same Debug APK, with a
+Three fully verified synthetic PDFs, same emulator, same Debug APK, with a
 force-stop of the app between cycles but NO pm clear. Native print event logs
 are cleared between cycles to prevent old success phases from masking failure.
 This does NOT instrument or replace the immutable original Release APK.
@@ -17,7 +17,7 @@ import guardiao_pdf_native_phase_lab as native
 import guardiao_debug_native_boot_categories as boot
 import guardiao_android_export_pdf_text_emulator_smoke as semantic
 
-CYCLES = ("a", "b")
+CYCLES = ("a", "b", "c")
 MAX_RECEIPT_BYTES = 16_000
 EXPECTED_FIXTURE = "synthetic-48-collection-reference-invalid"
 
@@ -42,14 +42,14 @@ def verify_synthetic_debug_receipt(path: Path, digest: str) -> None:
 
 
 def retained_debug_cycles() -> None:
-    """Run original Debug PDF flow twice while preserving only app's local data."""
+    """Run original Debug PDF flow three times while preserving only app's local data."""
     if len(sys.argv) != 1 or semantic.REPORT.exists():
-        raise RuntimeError("unsafe or stale Debug two-cycle lab")
+        raise RuntimeError("unsafe or stale Debug three-cycle lab")
     original = semantic.run_lab
-    first_receipt_complete = False
+    receipts_verified = 0
 
     def paired_replay() -> None:
-        nonlocal first_receipt_complete
+        nonlocal receipts_verified
         for index, cycle in enumerate(CYCLES):
             if semantic.REPORT.exists():
                 raise RuntimeError("stale Debug PDF evidence before cycle")
@@ -62,6 +62,9 @@ def retained_debug_cycles() -> None:
                                   timeout=10, check=False).strip():
                     raise RuntimeError("Debug retained-state app process still live")
                 boot.reset_native_window()
+                # No old successful print phase may count as next-cycle evidence.
+                if native.collect_last_phase() != "native-phase-unconfirmed":
+                    raise RuntimeError("Debug native phases not cleared after reset")
                 if native.verify_diagnostic_channel() != "native-logcat-probe-confirmed":
                     raise RuntimeError("Debug native log channel unconfirmed after reset")
                 print("STAGE (LAB): Debug local state retained after app force-stop",
@@ -76,9 +79,9 @@ def retained_debug_cycles() -> None:
                       cycle + " " + native.collect_last_phase(), flush=True)
                 print("ENV (LAB): Debug retained-state renderer exit cycle " +
                       cycle + " " + native.collect_renderer_exit_category(), flush=True)
-                if index == 0:
-                    first_receipt_complete = True
-                    # The second cycle MUST emit fresh receipt, not reuse A.
+                receipts_verified += 1
+                # Every later cycle must generate a fresh verified receipt.
+                if index < len(CYCLES) - 1:
                     semantic.REPORT.unlink()
                 print("PASS (LAB): Debug retained-state PDF receipt cycle " +
                       cycle + " verified", flush=True)
@@ -97,8 +100,8 @@ def retained_debug_cycles() -> None:
                       cycle + " " + native.verify_diagnostic_channel(),
                       flush=True)
                 raise
-        if not first_receipt_complete or not semantic.REPORT.is_file():
-            raise RuntimeError("Debug retained-state receipt pair incomplete")
+        if receipts_verified != len(CYCLES) or not semantic.REPORT.is_file():
+            raise RuntimeError("Debug retained-state receipt triple incomplete")
 
     semantic.run_lab = paired_replay
     try:
@@ -112,6 +115,6 @@ if __name__ == "__main__":
     try:
         retained_debug_cycles()
     except Exception:
-        print("BLOCK (LAB): Debug retained-state two-cycle PDF unverified",
+        print("BLOCK (LAB): Debug retained-state three-cycle PDF unverified",
               file=sys.stderr)
         raise SystemExit(1)

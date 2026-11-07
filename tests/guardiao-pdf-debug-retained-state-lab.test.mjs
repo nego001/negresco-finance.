@@ -6,7 +6,7 @@ const runner=readFileSync('tooling/android/guardiao_pdf_debug_retained_state_lab
 const workflow=readFileSync('.github/workflows/guardiao-android-debug-retained-state-lab.yml','utf8');
 const original=readFileSync('tooling/android/guardiao_pdf_debug_metro_lab.py','utf8');
 
-test('second Debug run retains app state but requires fresh native phase channel and real PDF',()=>{
+test('three Debug cycles retain app state but require fresh native phase channel and real PDFs',()=>{
  assert.match(workflow,/branches:\s*\n\s+- lab\/p01-guardiao-debug-metro-phase-v1/);
  assert.match(workflow,/name: Guardiao Android 9 Debug retained-state native PDF phases/);
  assert.match(workflow,/api-level: 28/);
@@ -16,13 +16,15 @@ test('second Debug run retains app state but requires fresh native phase channel
  assert.match(workflow,/sanitize_guardiao_debug_manifest\.py/);
  assert.match(workflow,/guardiao_debug_loopback_policy\.py verify-apk/);
  assert.doesNotMatch(workflow,/assembleRelease|workflow_dispatch|eas update|upload-artifact|secrets\./i);
- assert.match(runner,/CYCLES = \("a", "b"\)/);
+ assert.match(runner,/CYCLES = \("a", "b", "c"\)/);
  assert.match(runner,/semantic\.run_lab = paired_replay/);
  assert.match(runner,/debug\.run\(\)/);
  assert.match(runner,/finally:\s*\n\s*semantic\.run_lab = original/);
  assert.match(runner,/debug\.base\.adb\("shell", "am", "force-stop"/);
  assert.match(runner,/debug\.base\.adb\("shell", "pidof"/);
  assert.match(runner,/boot\.reset_native_window\(\)/);
+ assert.match(runner,/native\.collect_last_phase\(\) != "native-phase-unconfirmed"/);
+ assert.match(runner,/Debug native phases not cleared after reset/);
  assert.match(runner,/native\.verify_diagnostic_channel\(\) != "native-logcat-probe-confirmed"/);
  assert.match(runner,/semantic\.observed = None/);
  assert.match(runner,/verify_synthetic_debug_receipt\(semantic\.REPORT, debug\.debug_digest\(\)\)/);
@@ -67,7 +69,7 @@ test('synthetic-only Debug receipt gate rejects reused or incomplete evidence',(
  assert.match(run.stdout,/PASS: Debug retained-state receipt gate fails closed/);
 });
 
-test('Debug two-cycle pipeline checks process stop and cannot reuse prior receipt',()=>{
+test('Debug three-cycle pipeline checks process stop and cannot reuse prior receipt',()=>{
  const py=[
  'import json,sys,tempfile',
  'from pathlib import Path',
@@ -78,7 +80,8 @@ test('Debug two-cycle pipeline checks process stop and cannot reuse prior receip
  '  calls=[]',
  '  x.debug.debug_digest=lambda: "a"*64',
  '  x.native.verify_diagnostic_channel=lambda: "native-logcat-probe-confirmed"',
- '  x.native.collect_last_phase=lambda: "native-render-completed"',
+ '  phases=iter(["native-render-completed","native-phase-unconfirmed","native-render-completed","native-phase-unconfirmed","native-render-completed"])',
+ '  x.native.collect_last_phase=lambda: next(phases)',
  '  x.native.collect_renderer_exit_category=lambda: "native-renderer-exit-not-observed-in-window"',
  '  x.boot.reset_native_window=lambda: calls.append("reset-log")',
  '  def adb(*args,**kwargs):',
@@ -93,7 +96,8 @@ test('Debug two-cycle pipeline checks process stop and cannot reuse prior receip
  '  x.semantic.run_lab=semantic',
  '  x.debug.run=lambda: x.semantic.run_lab()',
  '  x.retained_debug_cycles()',
- '  assert calls.count("export")==2,calls',
+ '  assert calls.count("export")==3,calls',
+ '  assert calls.count("reset-log")==2,calls',
  '  assert ("shell","am","force-stop",x.debug.base.PACKAGE) in calls',
  '  assert "reset-log" in calls',
  '  assert not x.semantic.REPORT.exists()',
@@ -108,9 +112,9 @@ test('Debug two-cycle pipeline checks process stop and cannot reuse prior receip
  '  else:raise AssertionError("live process gate accepted")',
  '  assert calls.count("export")==1,calls',
  '  assert not x.semantic.REPORT.exists()',
- 'print("PASS: Debug retained-state two-cycle fail-closed gates")'
+ 'print("PASS: Debug retained-state three-cycle fail-closed gates")'
  ].join('\n');
  const out=spawnSync('python3',['-c',py],{encoding:'utf8',timeout:15000});
  assert.equal(out.status,0,out.stderr);
- assert.match(out.stdout,/PASS: Debug retained-state two-cycle fail-closed gates/);
+ assert.match(out.stdout,/PASS: Debug retained-state three-cycle fail-closed gates/);
 });

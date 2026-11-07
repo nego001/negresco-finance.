@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   android-debug-pdf:
-    name: Two Debug PDF exports with retained app data and native phases API28
+    name: Three Debug PDF exports with retained app data and native phases API28
     runs-on: ubuntu-22.04
     timeout-minutes: 55
     steps:
