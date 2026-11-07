@@ -46,6 +46,60 @@ def safe_home_block_category(exc: Exception) -> str:
 
 
 
+RECEIVER_BLOCK_CODES = {
+    "independent PDF receiver did not produce a verified receipt":
+        "receipt-not-observed",
+    "independent receiver rejected PDF integrity/rendering":
+        "receipt-invalid",
+    "receiver failed to remove temporary PDF from its cache":
+        "receiver-cache-not-cleared",
+    "receiver did not consume the one-shot private PDF gate":
+        "one-shot-proof-not-confirmed",
+    "captured Android document is not a bounded PDF":
+        "semantic-proof-invalid",
+    "captured bytes differ from independent receiver receipt":
+        "semantic-proof-mismatch",
+    "native Android PDF page count unavailable":
+        "semantic-pages-unconfirmed",
+    "received PDF page count differs from independent renderer":
+        "semantic-pages-invalid",
+    "native PDF has a blank or unextractable page":
+        "semantic-pages-empty",
+    "native PDF fails required synthetic semantic assertion":
+        "semantic-text-invalid",
+    "native PDF leaks fixture or falsely authenticates a charge":
+        "semantic-privacy-blocked",
+}
+
+
+def safe_receiver_block_category(error: Exception) -> str:
+    """Fixed local messages only, no exception text or private URI in logs."""
+    if type(error) is RuntimeError:
+        return RECEIVER_BLOCK_CODES.get(str(error), "other-or-unconfirmed")
+    return "other-or-unconfirmed"
+
+
+def replay_with_receiver_stage() -> None:
+    """Observe existing receiver boundary with no change to its behavior."""
+    original_receiver = base.receive_from_chooser
+
+    def categorized_receiver(*args, **kwargs):
+        try:
+            result = original_receiver(*args, **kwargs)
+        except Exception as error:
+            print("BLOCK STAGE (LAB): PDF receiver " +
+                  safe_receiver_block_category(error), flush=True)
+            raise
+        print("STAGE (LAB): PDF receiver verified", flush=True)
+        return result
+
+    base.receive_from_chooser = categorized_receiver
+    try:
+        replay.run()
+    finally:
+        base.receive_from_chooser = original_receiver
+
+
 def safe_home_tab_band(x: int, y: int, width: int, height: int) -> str:
     """Coarse fixed classification, never emit actual UI coordinates."""
     if width <= 0 or height <= 0 or not (0 < x < width and 0 < y < height):
@@ -650,7 +704,7 @@ def run() -> None:
             base.wait_visible = wait_with_initial_home_probe
             base.wait_export_button = wait_with_pre_export_geometry
             try:
-                replay.run()  # Unmodified SHA-pinned APK.
+                replay_with_receiver_stage()  # Unmodified SHA-pinned APK.
             finally:
                 base.wait_visible = original_wait_visible
                 base.wait_export_button = original_wait_export_button
@@ -710,7 +764,7 @@ def run() -> None:
             base.adb = keep_installed_app
             base.wait_visible = wait_with_home_gate
             try:
-                replay.run()
+                replay_with_receiver_stage()
             finally:
                 base.adb = real_adb
                 base.wait_visible = original_wait_visible

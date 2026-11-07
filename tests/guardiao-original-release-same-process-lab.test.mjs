@@ -145,6 +145,52 @@ test('disposable Expo compile only increases Gradle wrapper network timeout, nev
  assert.doesNotMatch(yaml,/continue-on-error:\s*true/);
 });
 
+test('receiver transfer categories never publish private exceptions and preserve original fail-closed flow',()=>{
+ const code=[
+  'import io,sys,contextlib',
+  "sys.path.insert(0,'tooling/android')",
+  'import guardiao_original_release_same_process_lab as x',
+  'expected={',
+  ' "independent PDF receiver did not produce a verified receipt":"receipt-not-observed",',
+  ' "independent receiver rejected PDF integrity/rendering":"receipt-invalid",',
+  ' "receiver failed to remove temporary PDF from its cache":"receiver-cache-not-cleared",',
+  ' "receiver did not consume the one-shot private PDF gate":"one-shot-proof-not-confirmed",',
+  ' "captured Android document is not a bounded PDF":"semantic-proof-invalid"}',
+  'for source,code in expected.items():',
+  ' assert x.safe_receiver_block_category(RuntimeError(source))==code',
+  'assert x.safe_receiver_block_category(RuntimeError("PRIVATE_URI"))=="other-or-unconfirmed"',
+  'assert x.safe_receiver_block_category(ValueError("PRIVATE_URI"))=="other-or-unconfirmed"',
+  'calls=[]',
+  'def original(*args,**kwargs):',
+  ' calls.append((args,kwargs))',
+  ' raise RuntimeError("independent PDF receiver did not produce a verified receipt")',
+  'x.base.receive_from_chooser=original',
+  'x.replay.run=lambda:x.base.receive_from_chooser(28,"PRIVATE_SHA",after_verified_receipt=None)',
+  'out=io.StringIO()',
+  'with contextlib.redirect_stdout(out):',
+  ' try:x.replay_with_receiver_stage()',
+  ' except RuntimeError as e:assert str(e)=="independent PDF receiver did not produce a verified receipt"',
+  ' else:raise AssertionError("receiver failure was swallowed")',
+  'assert x.base.receive_from_chooser is original',
+  'assert calls==[((28,"PRIVATE_SHA"),{"after_verified_receipt":None})],calls',
+  'assert out.getvalue().strip()=="BLOCK STAGE (LAB): PDF receiver receipt-not-observed"',
+  'assert "PRIVATE_SHA" not in out.getvalue()',
+  'x.base.receive_from_chooser=lambda *args,**kwargs:None',
+  'success=x.base.receive_from_chooser',
+  'x.replay.run=lambda:x.base.receive_from_chooser(28,"PRIVATE_SHA")',
+  'with contextlib.redirect_stdout(out):x.replay_with_receiver_stage()',
+  'assert x.base.receive_from_chooser is success',
+  'assert out.getvalue().endswith("STAGE (LAB): PDF receiver verified\n")',
+  'print("PASS: receiver boundary preserves safety and hides private values")'
+ ].join('\n');
+ const run=spawnSync('python3',['-c',code],{encoding:'utf8',timeout:15000});
+ assert.equal(run.status,0,run.stderr);
+ assert.match(run.stdout,/PASS: receiver boundary preserves safety and hides private values/);
+ assert.match(script,/replay_with_receiver_stage\(\)  # Unmodified SHA-pinned APK/);
+ assert.match(script,/try:\s*\n\s*replay_with_receiver_stage\(\)\s*\n\s*finally:\s*\n\s*base\.adb = real_adb/);
+ assert.doesNotMatch(script,/print\([^\n]*(?:str\(error\)|repr\(error\)|PRIVATE_URI)/);
+});
+
 test('home recovery needs exact accessible tab, safe lower bound, home banner and unchanged process',()=>{
  const code=[
   'import sys',
