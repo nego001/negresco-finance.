@@ -59,12 +59,17 @@ test('same-process flow accepts exactly one APK installation and rejects changed
   '      if observed_home[0]==2: assert ("home-restored",) in calls',
   '    return {}',
   '  x.base.wait_visible=wait_visible',
+  '  def wait_export_button():',
+  '    calls.append(("export-button-verified",))',
+  '    return {"bounds":"[100,650][300,700]"}',
+  '  x.base.wait_export_button=wait_export_button',
   '  x.base.screen_size=lambda: (1080,960)',
   '  x.base.xml_nodes=lambda: [{"text":"Início","class":"android.widget.TextView","enabled":"true","bounds":"[100,850][170,900]"}]',
   '  x.restore_home_tab_in_same_process=lambda expected: calls.append(("home-restored",))',
   '  def replay():',
   '    x.base.adb("install","-r",str(x.base.APK))',
   '    x.base.wait_visible("Seu universo")',
+  '    x.base.wait_export_button()',
   '    x.semantic.REPORT.write_text("{}")',
   '  x.base.adb=adb',
   '  x.replay.run=replay',
@@ -73,6 +78,8 @@ test('same-process flow accepts exactly one APK installation and rejects changed
   '  x.run()',
   '  assert sum(1 for call in calls if call[:2]==("install","-r"))==1,calls',
   '  assert x.base.wait_visible is wait_visible, "passive initial probe not restored"',
+  '  assert x.base.wait_export_button is wait_export_button, "pre-export probe not restored"',
+  '  assert calls.count(("export-button-verified",))==2,calls',
   '  assert (x.OUT/"cycle-a"/x.receipt.MEMBER).is_file()',
   '  assert (x.OUT/"cycle-b"/x.receipt.MEMBER).is_file()',
   '  x.OUT=Path("changed-pid")',
@@ -113,6 +120,28 @@ test('initial home geometry is only observed before first PDF, never used to tou
  assert.match(script,/finally:\s*\n\s*base\.wait_visible = original_wait_visible/);
  assert.match(script,/ENV \(LAB\): home-before-pdf=/);
  assert.match(script,/category = "initial-home-unavailable"/);
+});
+
+
+test('pre-export baseline records categories only after existing PDF button approval',()=>{
+ assert.match(script,/def wait_with_pre_export_geometry\(\):/);
+ assert.match(script,/button = original_wait_export_button\(\)/);
+ assert.match(script,/if not pre_export_probed:/);
+ assert.match(script,/category = safe_home_layout_snapshot_category\(/);
+ assert.match(script,/label, ancestor, siblings = safe_initial_home_detail\(/);
+ assert.match(script,/print\("ENV \(LAB\): home-before-export="/);
+ assert.match(script,/category = "pre-export-unavailable"/);
+ assert.match(script,/base\.wait_export_button = wait_with_pre_export_geometry/);
+ assert.match(script,/finally:\s*\n\s*base\.wait_visible = original_wait_visible\s*\n\s*base\.wait_export_button = original_wait_export_button/);
+ assert.doesNotMatch(script,/base\.adb\("shell", "input", "keyevent", "4"\)/);
+});
+
+test('disposable Expo compile only increases Gradle wrapper network timeout, never suppresses failures',()=>{
+ const yaml=readFileSync('.github/workflows/ci.yml','utf8');
+ assert.match(yaml,/name: Compile local diagnostic Kotlin module \(NO APK\)[\s\S]+?wrapper="android\/gradle\/wrapper\/gradle-wrapper\.properties"/);
+ assert.match(yaml,/grep -Fx 'networkTimeout=60000' "\$wrapper"/);
+ assert.match(yaml,/\.\/gradlew :negresco-finance-security:compileDebugKotlin :negresco-finance-security:compileDebugAndroidTestKotlin --no-daemon --stacktrace/);
+ assert.doesNotMatch(yaml,/continue-on-error:\s*true/);
 });
 
 test('home recovery needs exact accessible tab, safe lower bound, home banner and unchanged process',()=>{

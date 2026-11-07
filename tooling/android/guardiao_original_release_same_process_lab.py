@@ -616,11 +616,44 @@ def run() -> None:
                           " siblings=" + siblings, flush=True)
                 return selected
 
+            # Observe the same bottom navigation once more only after the
+            # existing PDF button is verified, immediately before its first
+            # export tap. No additional Android input commands or retry.
+            original_wait_export_button = base.wait_export_button
+            pre_export_probed = False
+
+            def wait_with_pre_export_geometry():
+                nonlocal pre_export_probed
+                button = original_wait_export_button()
+                if not pre_export_probed:
+                    pre_export_probed = True
+                    try:
+                        width, height = base.screen_size()
+                        pre_export_nodes = base.xml_nodes()
+                        category = safe_home_layout_snapshot_category(
+                            pre_export_nodes, width, height
+                        )
+                        label, ancestor, siblings = safe_initial_home_detail(
+                            pre_export_nodes, width, height
+                        )
+                    except Exception:
+                        category = "pre-export-unavailable"
+                        label, ancestor, siblings = (
+                            "label-unconfirmed", "ancestor-unconfirmed",
+                            "siblings-unconfirmed"
+                        )
+                    print("ENV (LAB): home-before-export=" + category +
+                          " label=" + label + " ancestor=" + ancestor +
+                          " siblings=" + siblings, flush=True)
+                return button
+
             base.wait_visible = wait_with_initial_home_probe
+            base.wait_export_button = wait_with_pre_export_geometry
             try:
                 replay.run()  # Unmodified SHA-pinned APK.
             finally:
                 base.wait_visible = original_wait_visible
+                base.wait_export_button = original_wait_export_button
             baseline_pid = observed_single_app_pid()
             if baseline_pid is None:
                 raise RuntimeError("same-process baseline not confirmed")
