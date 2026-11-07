@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {spawnSync} from 'node:child_process';
 
 const workflow=readFileSync('.github/workflows/guardiao-android-debug-metro-phase-lab.yml','utf8');
 const runner=readFileSync('tooling/android/guardiao_pdf_debug_metro_lab.py','utf8');
@@ -76,7 +77,7 @@ test('Debug home probe compares only allowlisted read-only geometry with origina
   'assert x.safe_debug_home_geometry()==("debug-home-geometry-unconfirmed","label-unconfirmed","ancestor-unconfirmed","siblings-unconfirmed")',
   'print("PASS: Debug home geometry read-only categories, no private dump")'
  ].join('\n');
- const {spawnSync}=await import('node:child_process');
+ 
  const result=spawnSync('python3',['-c',py],{encoding:'utf8',timeout:15000});
  assert.equal(result.status,0,result.stderr);
  assert.match(result.stdout,/PASS: Debug home geometry read-only categories/);
