@@ -61,12 +61,69 @@ def safe_debug_home_geometry() -> tuple[str, str, str, str]:
                 "ancestor-unconfirmed", "siblings-unconfirmed")
 
 
+def safe_debug_testid_nav_geometry() -> str:
+    """Passive native tab testID comparison; never returns a touch target.
+
+    Android's resource-id identifies the actual RN TouchableOpacity. It is
+    independent of text-label bounds or inherited _tap_bounds. A Debug-only
+    testID may be absent on an OS build: absence remains inconclusive.
+    """
+    try:
+        width, height = base.screen_size()
+        nodes = base.xml_nodes()
+        if width <= 0 or height <= 0:
+            return "testid-viewport-unconfirmed"
+        categories = []
+        rectangles = []
+        packages = set()
+        for ident in ("negresco-lab-tab-home", "negresco-lab-tab-pix",
+                      "negresco-lab-tab-negresco"):
+            hits = [
+                n for n in nodes
+                if n.get("resource-id", "").rsplit("/", 1)[-1] == ident
+            ]
+            if len(hits) != 1:
+                return "testid-nodes-unconfirmed"
+            item = hits[0]
+            if item.get("clickable") != "true" or item.get("enabled") != "true":
+                return "testid-clickability-unconfirmed"
+            package = item.get("package", "")
+            if not package:
+                return "testid-package-unconfirmed"
+            packages.add(package)
+            bounds = base.BOUNDS.fullmatch(item.get("bounds", ""))
+            if bounds is None:
+                return "testid-bounds-unconfirmed"
+            rect = tuple(map(int, bounds.groups()))
+            rectangles.append(rect)
+            categories.append(home_geometry.safe_ancestor_constraint_category(
+                item.get("bounds", ""), width, height
+            ))
+        if len(packages) != 1:
+            return "testid-package-mismatch"
+        if len(set(rectangles)) != 3:
+            return "testid-shared-target-region"
+        for i, a in enumerate(rectangles):
+            for b in rectangles[i + 1:]:
+                if a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]:
+                    return "testid-overlapping-targets"
+        if all(c == "geometry-eligible" for c in categories):
+            return "testid-three-targets-bounded-readonly"
+        if all(c == "height-too-small" for c in categories):
+            return "testid-three-targets-thin"
+        return "testid-targets-mixed-or-unsafe"
+    except Exception:
+        # Report categories only, not UI XML, coordinates, paths or exceptions.
+        return "testid-collection-unconfirmed"
+
+
 def observe_debug_home_geometry() -> None:
     overall, label, ancestor, siblings = safe_debug_home_geometry()
     print("ENV (LAB): Debug home-before-pdf=" + overall
           + " label=" + label
           + " ancestor=" + ancestor
           + " siblings=" + siblings, flush=True)
+    print("ENV (LAB): Debug tab-testids=" + safe_debug_testid_nav_geometry(), flush=True)
 
 
 def debug_digest() -> str:

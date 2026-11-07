@@ -95,3 +95,38 @@ test('prewarm never prints JS and preserves fail-closed local-only policy',()=>{
   assert.match(runner,/ENV \(LAB\): private Metro process/);
   assert.doesNotMatch(runner,/print\(.*response\.read|print\(.*content_type|urllib\.request|https:\/\/|logcat|screencap/i);
 });
+
+
+test('Debug-only native tab testIDs compare clickable target bounds without gesture authorization',()=>{
+  const app=readFileSync('apps/mobile/App.tsx','utf8');
+  assert.match(app,/testID=\{__DEV__ \? \('negresco-lab-tab-'/);
+  assert.match(runner,/def safe_debug_testid_nav_geometry\(\) -> str:/);
+  assert.match(runner,/ENV \(LAB\): Debug tab-testids=/);
+  assert.doesNotMatch(runner,/print\(.*rectangles|print\(.*nodes/);
+  const py=[
+    'import sys',
+    "sys.path.insert(0,'tooling/android')",
+    'import guardiao_pdf_debug_metro_lab as x',
+    'names=["home","pix","negresco"]',
+    'coords=["[0,800][310,900]","[320,800][650,900]","[660,800][1000,900]"]',
+    'nodes=[{"resource-id":"com.test:id/negresco-lab-tab-"+n,"bounds":b,"clickable":"true","enabled":"true","package":"com.test"} for n,b in zip(names,coords)]',
+    'x.base.screen_size=lambda:(1080,960)',
+    'x.base.xml_nodes=lambda:nodes',
+    'assert x.safe_debug_testid_nav_geometry()=="testid-three-targets-bounded-readonly"',
+    'thin=["[0,800][310,815]","[320,800][650,815]","[660,800][1000,815]"]',
+    'x.base.xml_nodes=lambda:[dict(n,bounds=b) for n,b in zip(nodes,thin)]',
+    'assert x.safe_debug_testid_nav_geometry()=="testid-three-targets-thin"',
+    'x.base.xml_nodes=lambda:nodes[:2]',
+    'assert x.safe_debug_testid_nav_geometry()=="testid-nodes-unconfirmed"',
+    'x.base.xml_nodes=lambda:nodes+[nodes[0]]',
+    'assert x.safe_debug_testid_nav_geometry()=="testid-nodes-unconfirmed"',
+    'x.base.xml_nodes=lambda:[dict(n,clickable="false") if i==0 else n for i,n in enumerate(nodes)]',
+    'assert x.safe_debug_testid_nav_geometry()=="testid-clickability-unconfirmed"',
+    'x.base.xml_nodes=lambda:(_ for _ in ()).throw(RuntimeError("PRIVATE_UI_XML"))',
+    'assert x.safe_debug_testid_nav_geometry()=="testid-collection-unconfirmed"',
+    'print("PASS: fixed native testID categories; no gestures or private dumps")'
+  ].join('\n');
+  const result=spawnSync('python3',['-c',py],{encoding:'utf8',timeout:15000});
+  assert.equal(result.status,0,result.stderr);
+  assert.match(result.stdout,/PASS: fixed native testID categories/);
+});

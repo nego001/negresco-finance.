@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - lab/p01-guardiao-debug-metro-phase-v1
+      - lab/p01-guardiao-debug-nav-testid-probe-v1
 permissions:
   contents: read
 concurrency:
