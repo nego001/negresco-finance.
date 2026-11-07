@@ -23,7 +23,7 @@ const py=[
 'assert p.classify_log("x"*64001)=="native-phase-unconfirmed"',
 'source="package expo.modules.print\\n    webView = WebView(context)\\n    override fun onPageFinished(view: WebView, url: String) {\\n      document.onLayout(null, printAttributes, null, object : PrintDocumentAdapterLayoutCallback() {}, null)\\n        document.onWrite(arrayOf(PageRange.ALL_PAGES), fileDescriptor, null, printDocumentWriteCallback)\\n    override fun onWriteFinished(pages: Array<PageRange>) {\\n      callbacks.onRenderFinished(document, outputFile, numberOfPages)\\n    override fun onWriteFailed(error: CharSequence?) {\\n      callbacks.onRenderError(PdfWriteException())\\n    }\\n"',
 'updated=p.instrument_source(source)',
-'assert all(updated.count(p.mark(phase))==1 for phase in p.MARKERS)',
+'assert all(updated.count(p.mark(phase))==1 for phase in p.RENDER_MARKERS)',
 'assert "override fun onLayoutFinished(info: android.print.PrintDocumentInfo" in updated',
 'try: p.instrument_source(updated)',
 'except ValueError: pass',
@@ -31,6 +31,18 @@ const py=[
 'try: p.instrument_source(source.replace("document.onWrite(","document.other("))',
 'except ValueError: pass',
 'else: raise AssertionError("unknown source accepted")',
+'module="package expo.modules.print\n  private suspend fun printToFile(options: PrintOptions): FilePrintResult? {\n    return withContext(Dispatchers.Main) {\n      return@withContext suspendCancellableCoroutine { continuation ->\n        val renderTask = PrintPDFRenderTask(context, options)\n        renderTask.render(\n"',
+'module_updated=p.instrument_module_source(module)',
+'assert all(module_updated.count(p.mark(phase))==1 for phase in p.MODULE_MARKERS)',
+'assert p.classify_log("I/NegrescoPdfPhaseLab: native-module-entered")=="native-module-entered"',
+'assert p.classify_log("I NegrescoPdfPhaseLab: native-module-render-dispatched")=="native-module-render-dispatched"',
+'try:p.instrument_module_source(module_updated)',
+'except ValueError:pass',
+'else:raise AssertionError("duplicate module patch accepted")',
+'try:p.instrument_module_source(module.replace("renderTask.render(","renderTask.other("))',
+'except ValueError:pass',
+'else:raise AssertionError("unexpected module source accepted")',
+'assert "native-module-entered" in p.DEX_REQUIRED[0].decode("ascii")',
 'print("PASS: allowlisted native phases, source patch refuses drift")',
 ].join('\n');
 
@@ -198,6 +210,10 @@ test('native instrumentation is installed only in disposable Debug build',()=>{
  assert.match(source,/def verify_debug_apk_dex\(path: Path\) -> bool:/);
  assert.match(source,/MAX_DEX_ENTRY_BYTES = 96 \* 1024 \* 1024/);
  assert.match(source,/native-render-completed/);
+ assert.match(source,/MODULE_TARGET = Path\("node_modules\/expo-print\/android\/src\/main\/java\/expo\/modules\/print\/PrintModule\.kt"\)/);
+ assert.match(source,/module_updated = instrument_module_source\(MODULE_TARGET\.read_text\(encoding="utf-8"\)\)/);
+ assert.match(source,/MODULE_TARGET\.write_text\(module_updated, encoding="utf-8"\)/);
+ assert.match(source,/native-module-render-dispatched/);
  assert.match(runner,/native_before_receiver: str \| None = None/);
  assert.match(runner,/if chooser_visible and native_before_receiver is None:/);
  assert.match(runner,/native_before_receiver = native_print_phase\.collect_last_phase\(\)/);
