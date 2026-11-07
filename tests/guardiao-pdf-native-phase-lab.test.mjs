@@ -31,7 +31,7 @@ const py=[
 'try: p.instrument_source(source.replace("document.onWrite(","document.other("))',
 'except ValueError: pass',
 'else: raise AssertionError("unknown source accepted")',
-'module="package expo.modules.print\n  private suspend fun printToFile(options: PrintOptions): FilePrintResult? {\n    return withContext(Dispatchers.Main) {\n      return@withContext suspendCancellableCoroutine { continuation ->\n        val renderTask = PrintPDFRenderTask(context, options)\n        renderTask.render(\n"',
+'module="package expo.modules.print\\n  private suspend fun printToFile(options: PrintOptions): FilePrintResult? {\\n    return withContext(Dispatchers.Main) {\\n      return@withContext suspendCancellableCoroutine { continuation ->\\n        val renderTask = PrintPDFRenderTask(context, options)\\n        renderTask.render(\\n"',
 'module_updated=p.instrument_module_source(module)',
 'assert all(module_updated.count(p.mark(phase))==1 for phase in p.MODULE_MARKERS)',
 'assert p.classify_log("I/NegrescoPdfPhaseLab: native-module-entered")=="native-module-entered"',
