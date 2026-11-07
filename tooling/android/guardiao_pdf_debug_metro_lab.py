@@ -458,9 +458,7 @@ def run() -> None:
             return original_wait_visible(needle, retries=retries, scroll=scroll, enabled=enabled)
         early = min(8, retries - 1)
         try:
-            home = original_wait_visible(
-                needle, retries=early, scroll=scroll, enabled=enabled
-            )
+            home = original_wait_visible(needle, retries=early, scroll=scroll, enabled=enabled)
             observe_debug_home_geometry()
             return home
         except RuntimeError:
