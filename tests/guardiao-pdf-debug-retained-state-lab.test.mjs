@@ -107,6 +107,7 @@ test('Debug three-cycle pipeline checks process stop and cannot reuse prior rece
  '    return "44" if args[:2]==("shell","pidof") else ""',
  '  x.debug.base.adb=blocked',
  '  x.semantic.run_lab=semantic',
+ '  x.native.collect_last_phase=lambda: "native-render-completed"',
  '  try:x.retained_debug_cycles()',
  '  except RuntimeError as e:assert str(e)=="Debug retained-state app process still live"',
  '  else:raise AssertionError("live process gate accepted")',
