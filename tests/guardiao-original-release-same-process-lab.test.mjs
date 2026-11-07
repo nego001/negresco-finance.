@@ -138,8 +138,9 @@ test('pre-export baseline records categories only after existing PDF button appr
 
 test('disposable Expo compile only increases Gradle wrapper network timeout, never suppresses failures',()=>{
  const yaml=readFileSync('.github/workflows/ci.yml','utf8');
- assert.match(yaml,/name: Compile local diagnostic Kotlin module \(NO APK\)[\s\S]+?wrapper="android\/gradle\/wrapper\/gradle-wrapper\.properties"/);
- assert.match(yaml,/grep -Fx 'networkTimeout=60000' "\$wrapper"/);
+ assert.match(yaml,/name: Compile local diagnostic Kotlin module \(NO APK\)[\s\S]+?test -f android\/gradle\/wrapper\/gradle-wrapper\.properties/);
+ assert.match(yaml,/sed -i '\/\^networkTimeout=\/d' android\/gradle\/wrapper\/gradle-wrapper\.properties/);
+ assert.match(yaml,/grep -Fx 'networkTimeout=60000' android\/gradle\/wrapper\/gradle-wrapper\.properties/);
  assert.match(yaml,/\.\/gradlew :negresco-finance-security:compileDebugKotlin :negresco-finance-security:compileDebugAndroidTestKotlin --no-daemon --stacktrace/);
  assert.doesNotMatch(yaml,/continue-on-error:\s*true/);
 });
