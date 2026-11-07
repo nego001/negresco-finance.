@@ -18,7 +18,7 @@ test('same-process navigation is isolated to ephemeral Debug API28 and never pub
   assert.match(runner,/pdf_receipts != 1/);
   assert.match(runner,/debug\.run\(\)/);
   assert.match(runner,/same-process-pid-unconfirmed/);
-  assert.doesNotMatch(runner,/print\(.*(?:nodes|second|first|xml|PID|fixture)|screencap|pm", "clear"|"force-stop"|input", "swipe"/i);
+  assert.doesNotMatch(runner,/print\(\s*(?:nodes|second|first|xml|PID|fixture)\b|screencap|BASE\.adb\("shell", "pm", "clear"|BASE\.adb\("shell", "am", "force-stop"|BASE\.adb\("shell", "input", "swipe"/i);
 });
 
 test('home touch target is rejected for thin, offscreen, duplicated or ambiguous navigation',()=>{

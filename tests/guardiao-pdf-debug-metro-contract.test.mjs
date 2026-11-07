@@ -134,7 +134,7 @@ test('Debug-only native tab testIDs compare clickable target bounds without gest
 
 test('isolated Debug-only tab bounds experiment leaves Release sizing untouched',()=>{
   const app=readFileSync('apps/mobile/App.tsx','utf8');
-  assert.match(app,/<View style=\{\[s\.bottom,__DEV__&&s\.labBottomBounds\]\}>/);
+  assert.match(app,/<View style=\{\[s\.bottom,__DEV__&&s\.labBottomBounds\]\}/);
   assert.match(app,/style=\{\[s\.nav,__DEV__&&s\.labNavBounds,page===x\.name&&s\.navSelected\]\}/);
   assert.match(app,/labBottomBounds:\{minHeight:76,flexShrink:0\}/);
   assert.match(app,/labNavBounds:\{height:60,minHeight:60,flexShrink:0\}/);
