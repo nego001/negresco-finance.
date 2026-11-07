@@ -49,6 +49,12 @@ jobs:
         run: |
           set -euo pipefail
           test -f modules/negresco-finance-security/expo-module.config.json
+          # Only in this ephemeral Expo prebuild: replace the short wrapper
+          # distribution-download timeout. Never bypass Gradle failures.
+          test -f android/gradle/wrapper/gradle-wrapper.properties
+          sed -i '/^networkTimeout=/d' android/gradle/wrapper/gradle-wrapper.properties
+          printf 'networkTimeout=60000\n' >> android/gradle/wrapper/gradle-wrapper.properties
+          grep -Fx 'networkTimeout=60000' android/gradle/wrapper/gradle-wrapper.properties
           chmod +x android/gradlew
           cat >> android/gradle.properties <<'EOF'
           org.gradle.jvmargs=-Xmx3g -XX:MaxMetaspaceSize=1536m -Dfile.encoding=UTF-8

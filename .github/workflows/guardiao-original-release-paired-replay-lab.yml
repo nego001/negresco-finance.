@@ -1,0 +1,106 @@
+name: Guardiao immutable Release API26 and API28 paired replay (synthetic lab only)
+on:
+  push:
+    branches:
+      - lab/p01-guardiao-debug-metro-phase-v1
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: guardiao-original-release-paired-replay-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  android-real-pdf-text:
+    name: Validate real APK PDF text with invalid synthetic 48-digit collection input on Android API ${{ matrix.api }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [26, 28]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Download immutable independently audited synthetic-only financial APK
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: negresco-finance-v313-security-preview
+          run-id: 40617164086
+          repository: nego001/negresco-finance.
+          github-token: ${{ github.token }}
+          path: test-apk
+      - name: Pin exact financial APK bytes; no rebuild of finance application
+        run: |
+          set -euo pipefail
+          # The original standalone Actions artifact expired. The other
+          # artifact of the SAME audited source run retained an exact APK
+          # copy. Verify those bytes before normalizing the original path.
+          test -f test-apk/Negresco-Finance-V3.1.3-preview.apk
+          test ! -L test-apk/Negresco-Finance-V3.1.3-preview.apk
+          echo '29e248742e365c4dd7a8c668a23153d43a89b8be02828620bbc5851775986b4a  test-apk/Negresco-Finance-V3.1.3-preview.apk' | sha256sum --check --strict
+          install -D -m 0600 test-apk/Negresco-Finance-V3.1.3-preview.apk test-apk/android/app/build/outputs/apk/release/app-release.apk
+          echo '29e248742e365c4dd7a8c668a23153d43a89b8be02828620bbc5851775986b4a  test-apk/android/app/build/outputs/apk/release/app-release.apk' | sha256sum --check --strict
+          test -s test-apk/android/app/build/outputs/apk/release/app-release.apk
+      - name: Setup Java 17 for test-only receiver and installed Android SDK
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Setup Android SDK tooling
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd
+        with:
+          packages: platform-tools
+      - name: Build disposable debuggable receiver with zero Android permissions
+        run: |
+          set -euo pipefail
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" >/dev/null
+          bash tooling/android/pdf-receiver-lab/build_receiving_apk.sh
+      - name: Ensure offline Poppler tools (do not print or upload PDF text)
+        run: |
+          set -euo pipefail
+          if ! command -v pdfinfo >/dev/null || ! command -v pdftotext >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq poppler-utils
+          fi
+      - name: Enable Android emulator acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-negresco-kvm.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Inspect semantic text from real Android shared PDF, synthetic data only
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
+        with:
+          api-level: ${{ matrix.api }}
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          emulator-boot-timeout: 600
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          script: python3 tooling/android/guardiao_original_release_input_replay_lab.py
+      - name: Fail closed on altered, unsafe or unbounded synthetic metadata receipt
+        run: python3 tooling/android/verify_collection48_receipt.py ${{ matrix.api }} guardiao-android-real-pdf-text-receipt.json
+      - name: Publish metadata only, never PDF, HTML, screenshot, logcat, app files or extracted text
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: guardiao-android-collection48-pdf-text-api-${{ matrix.api }}-unreviewed
+          path: guardiao-android-real-pdf-text-receipt.json
+          if-no-files-found: error
+          retention-days: 2
+  receipt-pair-gate:
+    name: Reopen both published Android receipts in an isolated lab job
+    needs: android-real-pdf-text
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Retrieve only API 26 and API 28 metadata from this workflow run
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: guardiao-android-collection48-pdf-text-api-*-unreviewed
+          path: receipt-pair
+          merge-multiple: false
+      - name: Reject missing, swapped or extra post-upload receipt files
+        run: python3 tooling/android/verify_collection48_receipt_pair.py receipt-pair
