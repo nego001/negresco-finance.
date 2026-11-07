@@ -90,6 +90,9 @@ def retained_debug_cycles() -> None:
                 # without printing native errors, logcat, HTML or PDFs.
                 print("ENV (LAB): Debug retained-state native phase on BLOCK " +
                       cycle + " " + native.collect_last_phase(), flush=True)
+                print("ENV (LAB): Debug retained-state phase progress on BLOCK " +
+                      cycle + " " + native.collect_native_phase_progress(),
+                      flush=True)
                 print("ENV (LAB): Debug retained-state renderer exit on BLOCK " +
                       cycle + " " + native.collect_renderer_exit_category(),
                       flush=True)

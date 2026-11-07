@@ -51,6 +51,50 @@ test('native phases and exact SDK54 anchors are synthetic and fail-closed',()=>{
  assert.equal(r.status,0,r.stderr);
  assert.equal(r.stdout.trim(),'PASS: allowlisted native phases, source patch refuses drift');
 });
+test('bounded native module progress distinguishes observed milestones, never infers missing callbacks',()=>{
+ const code=[
+  'import sys',
+  "sys.path.insert(0,'tooling/android')",
+  'import guardiao_pdf_native_phase_lab as x',
+  'line=lambda p:"I/NegrescoPdfPhaseLab: "+p',
+  'cases={',
+  ' "native-module-entered":"module-entered-observed",',
+  ' "native-module-io-ready":"module-io-ready-observed",',
+  ' "native-module-main-entered":"module-main-entered-observed",',
+  ' "native-module-render-dispatched":"module-render-dispatched-observed",',
+  ' "native-render-entered":"render-entered-observed",',
+  ' "native-webview-created":"webview-created-observed",',
+  ' "native-page-finished":"webview-page-finished-observed",',
+  ' "native-layout-requested":"layout-requested-observed",',
+  ' "native-layout-finished":"layout-finished-observed",',
+  ' "native-write-requested":"write-requested-observed",',
+  ' "native-write-finished":"write-finished-observed",',
+  ' "native-render-completed":"render-completed-observed",',
+  ' "native-render-process-gone":"renderer-exit-observed",',
+  ' "native-write-failed":"write-failure-observed",',
+  ' "native-write-cancelled":"write-cancelled-observed",',
+  ' "native-layout-failed":"layout-failure-observed",',
+  ' "native-layout-cancelled":"layout-cancelled-observed"}',
+  'for phase,expected in cases.items():',
+  ' assert x.classify_native_phase_progress(line(phase))==expected',
+  'assert x.classify_native_phase_progress(line("native-module-entered")+"\\n"+line("native-write-requested"))=="write-requested-observed"',
+  'assert x.classify_native_phase_progress(line("native-render-completed")+"\\n"+line("native-write-failed"))=="write-failure-observed"',
+  'assert x.classify_native_phase_progress("I/OtherTag: native-module-entered")=="native-progress-unconfirmed"',
+  'assert x.classify_native_phase_progress("E/NegrescoPdfPhaseLab: native-render-completed")=="native-progress-unconfirmed"',
+  'assert x.classify_native_phase_progress(line("native-invented")+" PRIVATE")=="native-progress-unconfirmed"',
+  'assert x.classify_native_phase_progress("PRIVATE_URI")=="native-progress-unconfirmed"',
+  'assert x.classify_native_phase_progress("x"*64001)=="native-progress-unconfirmed"',
+  'assert x.classify_native_phase_progress(None)=="native-progress-unconfirmed"',
+  'print("PASS: bounded native phase progress allowlist")'
+ ].join('\n');
+ const result=spawnSync('python3',['-c',code],{encoding:'utf8',timeout:15000});
+ assert.equal(result.status,0,result.stderr);
+ assert.match(result.stdout,/PASS: bounded native phase progress allowlist/);
+ assert.match(source,/def collect_native_phase_progress\(\) -> str:/);
+ assert.match(source,/return classify_native_phase_progress\(result\.stdout\)/);
+ assert.doesNotMatch(source,/print\(result\.stdout\)/);
+});
+
 test('synthetic APK ZIP scan categorizes multidex including classes10 without exposing data',()=>{
  const code=[
   'import sys,zipfile,tempfile,pathlib',

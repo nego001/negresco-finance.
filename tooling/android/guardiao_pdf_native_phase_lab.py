@@ -295,6 +295,61 @@ def classify_log(raw: str | None) -> str:
     return last or "native-phase-unconfirmed"
 
 
+def classify_native_phase_progress(raw: str | None) -> str:
+    """Highest allowlisted native milestone observed, not proof of a stuck state.
+
+    The caller clears logcat between synthetic Debug cycles. A bounded
+    snapshot may omit events; no category claims a callback did not happen.
+    """
+    if not isinstance(raw, str) or len(raw) > MAX_CAPTURE:
+        return "native-progress-unconfirmed"
+    observed = set()
+    for line in raw.splitlines():
+        match = MARKER_PATTERN.search(line)
+        if match and match.group(1) in MARKERS:
+            observed.add(match.group(1))
+    if not observed:
+        return "native-progress-unconfirmed"
+    priorities = (
+        ("native-render-process-gone", "renderer-exit-observed"),
+        ("native-write-failed", "write-failure-observed"),
+        ("native-write-cancelled", "write-cancelled-observed"),
+        ("native-layout-failed", "layout-failure-observed"),
+        ("native-layout-cancelled", "layout-cancelled-observed"),
+        ("native-render-completed", "render-completed-observed"),
+        ("native-write-finished", "write-finished-observed"),
+        ("native-write-requested", "write-requested-observed"),
+        ("native-layout-finished", "layout-finished-observed"),
+        ("native-layout-requested", "layout-requested-observed"),
+        ("native-page-finished", "webview-page-finished-observed"),
+        ("native-webview-created", "webview-created-observed"),
+        ("native-render-entered", "render-entered-observed"),
+        ("native-module-render-dispatched", "module-render-dispatched-observed"),
+        ("native-module-main-entered", "module-main-entered-observed"),
+        ("native-module-io-ready", "module-io-ready-observed"),
+        ("native-module-entered", "module-entered-observed"),
+    )
+    for event, category in priorities:
+        if event in observed:
+            return category
+    return "native-progress-unconfirmed"
+
+
+def collect_native_phase_progress() -> str:
+    """One read-only bounded tag-filtered snapshot; return fixed codes only."""
+    try:
+        result = subprocess.run(
+            ["adb", "logcat", "-d", "-v", "tag", "-t", "512",
+             "-s", TAG + ":I", "*:S"],
+            capture_output=True, text=True, timeout=12, check=False,
+        )
+        if result.returncode != 0:
+            return "native-progress-unconfirmed"
+        return classify_native_phase_progress(result.stdout)
+    except (OSError, subprocess.TimeoutExpired, UnicodeError):
+        return "native-progress-unconfirmed"
+
+
 def classify_renderer_exit_log(raw: str | None) -> str:
     """Report only whether the fixed renderer-exit marker occurs in this window.
 
