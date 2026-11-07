@@ -59,6 +59,34 @@ test('all diagnostics use fixed source categories and no external input data',()
   assert.doesNotMatch(runner,/\binput\(|\bargparse\b|sys\.argv\[1\]|\bimport requests\b|\brequests\.(?:get|post|put|delete|request)\(|HttpURLConnection/);
 });
 
+test('Debug home probe compares only allowlisted read-only geometry with original Release',()=>{
+ const py=[
+  'import sys',
+  "sys.path.insert(0,'tooling/android')",
+  'import guardiao_pdf_debug_metro_lab as x',
+  'home={"class":"android.widget.TextView","enabled":"true","package":"com.test","text":"Início","bounds":"[0,0][0,0]","_tap_bounds":"[0,800][310,815]"}',
+  'pix={"class":"android.widget.TextView","enabled":"true","package":"com.test","text":"Pix","bounds":"[0,0][0,0]","_tap_bounds":"[320,800][650,815]"}',
+  'neg={"class":"android.widget.TextView","enabled":"true","package":"com.test","text":"Negresco","bounds":"[0,0][0,0]","_tap_bounds":"[660,800][1000,815]"}',
+  'x.base.screen_size=lambda:(1080,960)',
+  'x.base.xml_nodes=lambda:[home,pix,neg]',
+  'assert x.safe_debug_home_geometry()==("three-tabs-thin","point-only","height-too-small","siblings-both-thin")',
+  'x.base.xml_nodes=lambda:[]',
+  'assert x.safe_debug_home_geometry()==("home-label-unconfirmed","label-unconfirmed","ancestor-unconfirmed","siblings-unconfirmed")',
+  'x.base.xml_nodes=lambda:(_ for _ in ()).throw(RuntimeError("PRIVATE_XML"))',
+  'assert x.safe_debug_home_geometry()==("debug-home-geometry-unconfirmed","label-unconfirmed","ancestor-unconfirmed","siblings-unconfirmed")',
+  'print("PASS: Debug home geometry read-only categories, no private dump")'
+ ].join('\n');
+ const {spawnSync}=await import('node:child_process');
+ const result=spawnSync('python3',['-c',py],{encoding:'utf8',timeout:15000});
+ assert.equal(result.status,0,result.stderr);
+ assert.match(result.stdout,/PASS: Debug home geometry read-only categories/);
+ assert.match(runner,/home_geometry\.safe_home_layout_snapshot_category\(/);
+ assert.match(runner,/home_geometry\.safe_initial_home_detail\(/);
+ assert.match(runner,/def observe_debug_home_geometry\(\) -> None:/);
+ assert.match(runner,/observe_debug_home_geometry\(\)\s+return home/);
+ assert.doesNotMatch(runner,/print\(nodes\)|print\(base\.xml_nodes|print\(.*PRIVATE_XML/);
+});
+
 test('prewarm never prints JS and preserves fail-closed local-only policy',()=>{
   assert.match(runner,/conn\.request\("GET", path, headers=\{"Host": "localhost"\}\)/);
   assert.match(runner,/print\("BLOCK STAGE \(LAB\): private Android JS bundle not served"/);

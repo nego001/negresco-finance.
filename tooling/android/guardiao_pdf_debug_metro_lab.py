@@ -27,6 +27,7 @@ import guardiao_debug_metro_transport_probe as transport
 import guardiao_debug_metro_host_routes as host_routes
 import guardiao_debug_metro_app_process_probe as shell_route_probe
 import guardiao_pdf_native_phase_lab as native_print_phase
+import guardiao_original_release_same_process_lab as home_geometry
 
 base = semantic.base
 APK = Path("apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk")
@@ -39,6 +40,33 @@ HINTS = {
     "Gerando PDF local... [LAB: disponibilidade pendente]": "lab-availability-pending",
     "Gerando PDF local... [LAB: compartilhamento pendente]": "lab-share-pending",
 }
+
+
+def safe_debug_home_geometry() -> tuple[str, str, str, str]:
+    """Read-only categories shared with original Release geometry analysis."""
+    try:
+        width, height = base.screen_size()
+        nodes = base.xml_nodes()
+        overall = home_geometry.safe_home_layout_snapshot_category(
+            nodes, width, height
+        )
+        label, ancestor, siblings = home_geometry.safe_initial_home_detail(
+            nodes, width, height
+        )
+        return overall, label, ancestor, siblings
+    except Exception:
+        # Diagnostic collection cannot turn a verified app home into PASS
+        # or BLOCK. Never publish XML, coordinates, labels or exceptions.
+        return ("debug-home-geometry-unconfirmed", "label-unconfirmed",
+                "ancestor-unconfirmed", "siblings-unconfirmed")
+
+
+def observe_debug_home_geometry() -> None:
+    overall, label, ancestor, siblings = safe_debug_home_geometry()
+    print("ENV (LAB): Debug home-before-pdf=" + overall
+          + " label=" + label
+          + " ancestor=" + ancestor
+          + " siblings=" + siblings, flush=True)
 
 
 def debug_digest() -> str:
@@ -430,14 +458,20 @@ def run() -> None:
             return original_wait_visible(needle, retries=retries, scroll=scroll, enabled=enabled)
         early = min(8, retries - 1)
         try:
-            return original_wait_visible(needle, retries=early, scroll=scroll, enabled=enabled)
+            home = original_wait_visible(
+                needle, retries=early, scroll=scroll, enabled=enabled
+            )
+            observe_debug_home_geometry()
+            return home
         except RuntimeError:
             # Fixed categories only, sampled soon after actual app launch.
             perm, native_phase = native_diagnosis.collect_categories()
             print("ENV (LAB): early Android network permission " + perm, flush=True)
             print("ENV (LAB): early Android Debug native startup " + native_phase, flush=True)
-        return original_wait_visible(needle, retries=retries - early,
+        home = original_wait_visible(needle, retries=retries - early,
                                      scroll=scroll, enabled=enabled)
+        observe_debug_home_geometry()
+        return home
 
     base.wait_visible = wait_home_with_early_native_checkpoint
     server = None
