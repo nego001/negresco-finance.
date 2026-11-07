@@ -17,15 +17,21 @@ from pathlib import Path
 # The installation step runs with working-directory: apps/mobile.
 # Runtime category collection only uses the tag and does not access TARGET.
 TARGET = Path("node_modules/expo-print/android/src/main/java/expo/modules/print/PrintPDFRenderTask.kt")
+MODULE_TARGET = Path("node_modules/expo-print/android/src/main/java/expo/modules/print/PrintModule.kt")
 PACKAGE_JSON = Path("package.json")
 TAG = "NegrescoPdfPhaseLab"
-MARKERS = (
+RENDER_MARKERS = (
     "native-render-entered", "native-webview-created", "native-page-finished",
     "native-render-process-gone",
     "native-layout-requested", "native-layout-finished", "native-layout-failed",
     "native-layout-cancelled", "native-write-requested", "native-write-finished",
     "native-write-failed", "native-write-cancelled", "native-render-completed",
 )
+MODULE_MARKERS = (
+    "native-module-entered", "native-module-io-ready",
+    "native-module-main-entered", "native-module-render-dispatched",
+)
+MARKERS = RENDER_MARKERS + MODULE_MARKERS
 # The -v tag format is deterministic. Also accept documented threadtime/brief
 # forms to avoid treating a formatting difference as absence of a callback.
 MARKER_PATTERN = re.compile(
@@ -113,8 +119,39 @@ def instrument_source(content: str) -> str:
         "      " + mark("native-write-cancelled") + "\n"
         "    }\n", 1,
     )
-    if any(updated.count(mark(phase)) != 1 for phase in MARKERS):
-        raise ValueError("missing fixed phase")
+    if any(updated.count(mark(phase)) != 1 for phase in RENDER_MARKERS):
+        raise ValueError("missing fixed render phase")
+    return updated
+
+
+def instrument_module_source(content: str) -> str:
+    """Mark bridge-to-module entry and scheduling in disposable SDK54 Debug."""
+    if (len(content) > 100_000 or not content.startswith("package expo.modules.print\n")
+            or TAG in content):
+        raise ValueError("unexpected native print module")
+    anchors = (
+        ("  private suspend fun printToFile(options: PrintOptions): FilePrintResult? {\n",
+         "  private suspend fun printToFile(options: PrintOptions): FilePrintResult? {\n"
+         "    " + mark("native-module-entered") + "\n"),
+        ("    return withContext(Dispatchers.Main) {\n"
+         "      return@withContext suspendCancellableCoroutine { continuation ->\n"
+         "        val renderTask = PrintPDFRenderTask(context, options)\n"
+         "        renderTask.render(\n",
+         "    " + mark("native-module-io-ready") + "\n"
+         "    return withContext(Dispatchers.Main) {\n"
+         "      " + mark("native-module-main-entered") + "\n"
+         "      return@withContext suspendCancellableCoroutine { continuation ->\n"
+         "        val renderTask = PrintPDFRenderTask(context, options)\n"
+         "        " + mark("native-module-render-dispatched") + "\n"
+         "        renderTask.render(\n"),
+    )
+    updated = content
+    for before, after in anchors:
+        if updated.count(before) != 1:
+            raise ValueError("unexpected SDK54 module anchor")
+        updated = updated.replace(before, after, 1)
+    if any(updated.count(mark(phase)) != 1 for phase in MODULE_MARKERS):
+        raise ValueError("missing fixed module phase")
     return updated
 
 
@@ -161,10 +198,15 @@ def configure_expo_print_from_source(path: Path = PACKAGE_JSON) -> None:
 
 
 def install() -> None:
-    if not TARGET.is_file() or TARGET.is_symlink():
+    if (not TARGET.is_file() or TARGET.is_symlink()
+            or not MODULE_TARGET.is_file() or MODULE_TARGET.is_symlink()):
         raise RuntimeError("generated expo-print source unavailable")
-    updated = instrument_source(TARGET.read_text(encoding="utf-8"))
-    TARGET.write_text(updated, encoding="utf-8")
+    # Check both files before writing either: never partially instrument an
+    # unexpected SDK. This affects only disposable Debug node_modules.
+    render_updated = instrument_source(TARGET.read_text(encoding="utf-8"))
+    module_updated = instrument_module_source(MODULE_TARGET.read_text(encoding="utf-8"))
+    TARGET.write_text(render_updated, encoding="utf-8")
+    MODULE_TARGET.write_text(module_updated, encoding="utf-8")
     print("PASS (LAB): fixed Debug native print phase hooks installed", flush=True)
 
 
@@ -177,6 +219,10 @@ MAX_DEX_FILES = 24
 # Strict literals from the fixed Debug-only Kotlin hooks. Never print DEX data.
 DEX_REQUIRED = (
     TAG.encode("ascii"),
+    b"native-module-entered",
+    b"native-module-io-ready",
+    b"native-module-main-entered",
+    b"native-module-render-dispatched",
     b"native-render-entered",
     b"native-render-process-gone",
     b"native-page-finished",
