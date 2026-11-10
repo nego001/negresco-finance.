@@ -65,7 +65,7 @@ def safe_testid_matches(node: dict[str, str], ident: str) -> bool:
     """Recognize exact baseline or strict categorical Debug-only suffix."""
     raw = node.get("resource-id", "").rsplit("/", 1)[-1]
     return raw == ident or re.fullmatch(
-        re.escape(ident) + r"-yoga-(regular|thin|unconfirmed)-bottom-(regular|thin|unconfirmed)",
+        re.escape(ident) + r"-yoga-(regular|thin|unconfirmed)-bottom-(regular|thin|unconfirmed)(?:-placement-(inside-root|overflows-root|above-root|unconfirmed))?",
         raw,
     ) is not None
 
@@ -95,7 +95,7 @@ def safe_debug_testid_yoga_category() -> str:
                 return "testid-yoga-nodes-unconfirmed"
             packages.add(package)
             match = re.fullmatch(
-                re.escape(ident) + r"-yoga-(regular|thin|unconfirmed)-bottom-(regular|thin|unconfirmed)",
+                re.escape(ident) + r"-yoga-(regular|thin|unconfirmed)-bottom-(regular|thin|unconfirmed)(?:-placement-(inside-root|overflows-root|above-root|unconfirmed))?",
                 node.get("resource-id", "").rsplit("/", 1)[-1],
             )
             if match is None:
@@ -112,6 +112,39 @@ def safe_debug_testid_yoga_category() -> str:
         return "testid-yoga-unconfirmed"
     except Exception:
         return "testid-yoga-collection-unconfirmed"
+
+
+def safe_debug_bottom_placement_category() -> str:
+    """Passive, fixed category only: vertical placement of bottom within app root."""
+    try:
+        nodes=base.xml_nodes()
+        statuses=[]
+        packages=set()
+        for ident in ("negresco-lab-tab-home","negresco-lab-tab-pix",
+                      "negresco-lab-tab-negresco"):
+            hits=[n for n in nodes if safe_testid_matches(n,ident)]
+            if len(hits)!=1:
+                return "testid-placement-nodes-unconfirmed"
+            node=hits[0]
+            if node.get("clickable")!="true" or node.get("enabled")!="true":
+                return "testid-placement-nodes-unconfirmed"
+            pkg=node.get("package","")
+            if not pkg:
+                return "testid-placement-nodes-unconfirmed"
+            packages.add(pkg)
+            match=re.fullmatch(
+                re.escape(ident)
+                + r"-yoga-(regular|thin|unconfirmed)-bottom-(regular|thin|unconfirmed)"
+                + r"-placement-(inside-root|overflows-root|above-root|unconfirmed)",
+                node.get("resource-id","").rsplit("/",1)[-1])
+            if match is None:
+                return "testid-placement-marker-unconfirmed"
+            statuses.append(match.group(3))
+        if len(packages)!=1 or len(set(statuses))!=1:
+            return "testid-placement-inconsistent"
+        return "testid-bottom-"+statuses[0]
+    except Exception:
+        return "testid-placement-collection-unconfirmed"
 
 
 def safe_debug_testid_nav_geometry() -> str:
@@ -178,6 +211,7 @@ def observe_debug_home_geometry() -> None:
           + " siblings=" + siblings, flush=True)
     print("ENV (LAB): Debug tab-testids=" + safe_debug_testid_nav_geometry(), flush=True)
     print("ENV (LAB): Debug testid Yoga=" + safe_debug_testid_yoga_category(), flush=True)
+    print("ENV (LAB): Debug root placement=" + safe_debug_bottom_placement_category(), flush=True)
 
 
 def debug_digest() -> str:

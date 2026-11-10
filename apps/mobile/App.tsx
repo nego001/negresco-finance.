@@ -66,6 +66,31 @@ export default function App() {
   // Categorical Debug-only Yoga onLayout telemetry; no dimensions or user data.
   const labLayoutLast=useRef<Record<string,string>>({});
   const [labYogaMeasured,setLabYogaMeasured]=useState<Record<string,string>>({});
+  // Debug-only relative position categories; numerical values never leave JS.
+  const labRootHeight=useRef<number|null>(null);
+  const labBottomRect=useRef<{y:number;height:number}|null>(null);
+  const [labBottomPlacement,setLabBottomPlacement]=useState('unconfirmed');
+  const updateLabPlacement=()=>{
+    if(!__DEV__)return;
+    const root=labRootHeight.current, box=labBottomRect.current;
+    let state='unconfirmed';
+    if(root!==null&&root>0&&box!==null&&Number.isFinite(box.y)&&Number.isFinite(box.height)&&box.height>0){
+      const gap=root-(box.y+box.height);
+      state=gap < -2?'overflows-root':gap>120?'above-root':'inside-root';
+    }
+    setLabBottomPlacement(prev=>prev===state?prev:state);
+  };
+  const recordLabRoot=(height:number)=>{
+    if(!__DEV__)return;
+    labRootHeight.current=Number.isFinite(height)&&height>0?height:null;
+    updateLabPlacement();
+  };
+  const recordLabBottom=(y:number,height:number)=>{
+    if(!__DEV__)return;
+    labBottomRect.current={y,height};
+    updateLabPlacement();
+  };
+
   const recordLabLayout=(key:'bottom'|'home'|'pix'|'negresco',height:number)=>{
     if(!__DEV__)return;
     const category=!Number.isFinite(height)||height<=0?'unconfirmed'
@@ -305,7 +330,7 @@ export default function App() {
   };
   const active=sections.find(x=>x.name===page);
   const evidenceReview=buildEvidenceReview(boletoResult,cnpjResult);
-  return <SafeAreaView style={[s.root,{paddingTop:Platform.OS==='android'?(StatusBar.currentHeight??24):0}]}>
+  return <SafeAreaView style={[s.root,{paddingTop:Platform.OS==='android'?(StatusBar.currentHeight??24):0}]} onLayout={__DEV__?e=>recordLabRoot(e.nativeEvent.layout.height):undefined}>
     {shouldProtectScreenCapture(page,localLock.status)&&<ProtectedScreenCapture/>}
     <StatusBar backgroundColor="#000000" barStyle="light-content"/>
     {localLock.status==='off'||localLock.status==='unlocked'?<>
@@ -460,7 +485,7 @@ export default function App() {
         <View style={s.visualFeature}><Text style={s.visualFeatureTitle}>Um painel preparado para você</Text><Text style={s.visualFeatureBody}>Visualização de informações, atalhos e indicadores ganhará vida quando você autorizar a conexão de dados.</Text></View><Text style={s.sectionTitle}>Explore também</Text><View style={s.grid}>{sections.filter(x=>x.name!==page).map(x=><Tap key={x.name} title={x.name} glyph={x.glyph} onPress={()=>nav(x.name)} style={{minHeight:115}}/>)}</View>
       </>}
     </ScrollView></Animated.View>
-    <View style={[s.bottom,__DEV__&&s.labBottomBounds]} onLayout={__DEV__?e=>recordLabLayout('bottom',e.nativeEvent.layout.height):undefined}>{[{name:'Início',glyph:'home'},{name:'Pix',glyph:'pix'},{name:'Negresco',glyph:'assistant'}].map(x=><TouchableOpacity key={x.name} accessibilityRole="tab" accessibilityState={{selected:page===x.name}} onPress={()=>nav(x.name as Page)} testID={__DEV__ ? ('negresco-lab-tab-' + (x.name==='Início' ? 'home' : x.name==='Pix' ? 'pix' : 'negresco') + '-yoga-' + (labYogaMeasured[x.name==='Início'?'home':x.name==='Pix'?'pix':'negresco']??'unconfirmed') + '-bottom-' + (labYogaMeasured.bottom??'unconfirmed')) : undefined} onLayout={__DEV__?e=>recordLabLayout(x.name==='Início'?'home':x.name==='Pix'?'pix':'negresco',e.nativeEvent.layout.height):undefined} style={[s.nav,__DEV__&&s.labNavBounds,page===x.name&&s.navSelected]}><Icon name={x.glyph as IconName} size={23} color={page===x.name?blue:'#8898AD'}/><Text style={[s.navLabel,page===x.name&&{color:blue}]}>{x.name}</Text>{page===x.name&&<View style={[s.navMark,{backgroundColor:blue}]}/>}</TouchableOpacity>)}</View>
+    <View style={[s.bottom,__DEV__&&s.labBottomBounds]} onLayout={__DEV__?e=>{recordLabLayout('bottom',e.nativeEvent.layout.height);recordLabBottom(e.nativeEvent.layout.y,e.nativeEvent.layout.height);}:undefined}>{[{name:'Início',glyph:'home'},{name:'Pix',glyph:'pix'},{name:'Negresco',glyph:'assistant'}].map(x=><TouchableOpacity key={x.name} accessibilityRole="tab" accessibilityState={{selected:page===x.name}} onPress={()=>nav(x.name as Page)} testID={__DEV__ ? ('negresco-lab-tab-' + (x.name==='Início' ? 'home' : x.name==='Pix' ? 'pix' : 'negresco') + '-yoga-' + (labYogaMeasured[x.name==='Início'?'home':x.name==='Pix'?'pix':'negresco']??'unconfirmed') + '-bottom-' + (labYogaMeasured.bottom??'unconfirmed') + '-placement-' + labBottomPlacement) : undefined} onLayout={__DEV__?e=>recordLabLayout(x.name==='Início'?'home':x.name==='Pix'?'pix':'negresco',e.nativeEvent.layout.height):undefined} style={[s.nav,__DEV__&&s.labNavBounds,page===x.name&&s.navSelected]}><Icon name={x.glyph as IconName} size={23} color={page===x.name?blue:'#8898AD'}/><Text style={[s.navLabel,page===x.name&&{color:blue}]}>{x.name}</Text>{page===x.name&&<View style={[s.navMark,{backgroundColor:blue}]}/>}</TouchableOpacity>)}</View>
     </>:<LocalLockScreen status={localLock.status} busy={localLock.busy} message={localLock.message} onUnlock={localLock.unlock} onRetry={localLock.retry}/>}
   </SafeAreaView>;
 }
