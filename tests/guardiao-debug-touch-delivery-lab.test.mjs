@@ -45,6 +45,14 @@ test('Android 9 emits only allowlisted categories and does not expand touch budg
  assert.match(dispatch,/scroll-ready/);
  assert.match(dispatch,/scroll-hit/);
  assert.match(dispatch,/scroll-clear/);
+ assert.match(dispatch,/negrescoLabPixTargetHit/);
+ assert.match(dispatch,/react_test_id/);
+ assert.match(dispatch,/negresco-lab-tab-pix-/);
+ assert.match(dispatch,/pix-ready/);
+ assert.match(dispatch,/pix-hit/);
+ assert.match(dispatch,/pix-miss/);
+ assert.match(runner,/Pix native testID hit preflight=/);
+ assert.match(runner,/Pix native testID hit after gesture=/);
  assert.match(runner,/Pix native scroll coverage preflight=/);
  assert.match(runner,/Pix native scroll coverage after gesture=/);
  assert.match(dispatch,/BuildConfig\.DEBUG/);
@@ -162,6 +170,12 @@ test('native Activity fixed-category dispatch probe installs only into disposabl
   'assert x.classify_scroll_state("scroll-unconfirmed")=="scroll-unconfirmed"',
   'assert x.classify_scroll_state("scroll-hit-secret")=="scroll-unconfirmed"',
   'assert x.classify_scroll_state(None)=="scroll-unconfirmed"',
+  'assert x.classify_pix_native_state("pix-ready")=="pix-ready"',
+  'assert x.classify_pix_native_state("pix-hit")=="pix-hit"',
+  'assert x.classify_pix_native_state("pix-miss")=="pix-miss"',
+  'assert x.classify_pix_native_state("pix-unconfirmed")=="pix-unconfirmed"',
+  'assert x.classify_pix_native_state("pix-hit-private")=="pix-unconfirmed"',
+  'assert x.classify_pix_native_state(None)=="pix-unconfirmed"',
   'assert x.classify_native_state("private-financial-content")=="activity-state-unconfirmed"',
   'assert x.classify_native_state("activity-ready\\nprivate")=="activity-state-unconfirmed"',
   'assert x.classify_native_state(None)=="activity-state-unconfirmed"',

@@ -15,6 +15,8 @@ MARKER = "NEGRESCO_LAB_NATIVE_ACTIVITY_DISPATCH_V1"
 FILE = "negresco_lab_activity_dispatch_category"
 SCROLL_FILE = "negresco_lab_native_scroll_coverage"
 SCROLL_ALLOWED = frozenset(("scroll-ready","scroll-hit","scroll-clear","scroll-unconfirmed"))
+PIX_FILE = "negresco_lab_native_pix_target"
+PIX_ALLOWED = frozenset(("pix-ready","pix-hit","pix-miss","pix-unconfirmed"))
 ALLOWED = frozenset((
     "activity-ready",
     "activity-down",
@@ -52,10 +54,22 @@ KOTLIN = r'''
     }
   }
 
+  private fun negrescoLabSetPixCategory(category: String) {
+    if (!BuildConfig.DEBUG) return
+    try {
+      openFileOutput("negresco_lab_native_pix_target", android.content.Context.MODE_PRIVATE).use {
+        it.write(category.toByteArray(Charsets.US_ASCII))
+      }
+    } catch (_: Exception) {
+      // Keep all native tag identifiers and event coordinates local.
+    }
+  }
+
   override fun onResume() {
     super.onResume()
     negrescoLabSetDispatchCategory("activity-ready")
     negrescoLabSetScrollCategory("scroll-ready")
+    negrescoLabSetPixCategory("pix-ready")
   }
 
 
@@ -139,6 +153,50 @@ KOTLIN = r'''
     }
   }
 
+
+  // Match the one exact Debug Pix native testID only. Categorical geometry
+  // is NOT proof of event handling, JS delivery or safe production navigation.
+  private fun negrescoLabPixTargetHit(event: android.view.MotionEvent): String {
+    if (!BuildConfig.DEBUG) return "pix-unconfirmed"
+    return try {
+      val px = event.getRawX()
+      val py = event.getRawY()
+      if (!px.isFinite() || !py.isFinite()) return "pix-unconfirmed"
+      var testTagId = resources.getIdentifier("react_test_id", "id", packageName)
+      if (testTagId == 0) {
+        testTagId = resources.getIdentifier("react_test_id", "id", "com.facebook.react")
+      }
+      if (testTagId == 0) return "pix-unconfirmed"
+      val pending = java.util.ArrayDeque<android.view.View>()
+      pending.add(window.decorView)
+      var visited = 0
+      var matches = 0
+      var hit = false
+      while (!pending.isEmpty() && visited < 2048) {
+        val node = pending.removeFirst()
+        visited += 1
+        if (!node.isShown) continue
+        val tag = node.getTag(testTagId)
+        if (tag is String && tag.startsWith("negresco-lab-tab-pix-")) {
+          matches += 1
+          if (node.width <= 0 || node.height <= 0) return "pix-unconfirmed"
+          val position = IntArray(2)
+          node.getLocationOnScreen(position)
+          hit = (px >= position[0] && py >= position[1]
+              && px < position[0] + node.width
+              && py < position[1] + node.height)
+        }
+        if (node is android.view.ViewGroup) {
+          for (i in 0 until node.childCount) pending.add(node.getChildAt(i))
+        }
+      }
+      if (visited >= 2048 || matches != 1) "pix-unconfirmed"
+      else if (hit) "pix-hit" else "pix-miss"
+    } catch (_: Exception) {
+      "pix-unconfirmed"
+    }
+  }
+
   override fun dispatchTouchEvent(event: android.view.MotionEvent): Boolean {
     if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN) {
       negrescoLabSetDispatchCategory("activity-down")
@@ -148,12 +206,15 @@ KOTLIN = r'''
       negrescoLabReactRootHitCategory(event) else "rn-unconfirmed"
     val scrollCoverage = if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN)
       negrescoLabScrollCoverage(event) else "scroll-unconfirmed"
+    val pixTarget = if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN)
+      negrescoLabPixTargetHit(event) else "pix-unconfirmed"
     val handled = super.dispatchTouchEvent(event)
     if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN) {
       negrescoLabSetDispatchCategory(
         (if (handled) "activity-down-consumed-" else "activity-down-unconsumed-") + rootHit
       )
       negrescoLabSetScrollCategory(scrollCoverage)
+      negrescoLabSetPixCategory(pixTarget)
     }
     return handled
   }
@@ -182,6 +243,23 @@ def read_debug_scroll_state(adb, package: str) -> str:
     except Exception:
         return "scroll-unconfirmed"
     return classify_scroll_state(raw if isinstance(raw,str) else None)
+
+
+def classify_pix_native_state(raw: str | None) -> str:
+    if not isinstance(raw,str) or len(raw)>64:
+        return "pix-unconfirmed"
+    return raw if raw in PIX_ALLOWED else "pix-unconfirmed"
+
+
+def read_debug_pix_state(adb, package: str) -> str:
+    """Read only fixed synthetic Pix testID hit category from private Debug."""
+    if not isinstance(package,str) or not re.fullmatch(r"[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+",package):
+        return "pix-unconfirmed"
+    try:
+        raw=adb("shell","run-as",package,"cat","files/"+PIX_FILE,timeout=15,check=False)
+    except Exception:
+        return "pix-unconfirmed"
+    return classify_pix_native_state(raw if isinstance(raw,str) else None)
 
 
 def install(root: Path) -> str:
