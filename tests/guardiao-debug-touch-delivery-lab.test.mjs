@@ -99,7 +99,7 @@ test('RN touch-start markers classify bottom and Pix independently, including no
   'assert f("NEGRESCO_LAB_NAV_BOTTOM_TOUCH_START")=="route-bottom-only"',
   'assert f("NEGRESCO_LAB_NAV_PIX_TOUCH_START")=="route-pix-only"',
   'assert f("NEGRESCO_LAB_NAV_BOTTOM_TOUCH_START NEGRESCO_LAB_NAV_PIX_TOUCH_START")=="route-bottom-and-pix"',
-  'assert f("NEGRESCO_LAB_NAV_PIX_TOUCH_START-not-trusted")=="route-pix-only"',
+  'assert f("NEGRESCO_LAB_NAV_PIX_TOUCH_START-not-trusted")=="route-no-rn-touch-observed"',
   'assert f("SECRET_PRIVATE_FINANCIAL_VALUE")=="route-no-rn-touch-observed"'
  ].join('\n');
  const r=spawnSync('python3',['-c',script],{encoding:'utf8',timeout:15000});
