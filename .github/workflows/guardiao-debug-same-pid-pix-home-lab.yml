@@ -49,6 +49,95 @@ jobs:
         run: |
           set -euo pipefail
           python3 tooling/android/guardiao_debug_loopback_policy.py install
+      - name: Validate pinned Android NDK before Gradle without fallback
+        run: |
+          set -euo pipefail
+          version=27.1.12297006
+          ndk="${ANDROID_HOME}/ndk/${version}"
+          valid_ndk() {
+            test -f "${ndk}/source.properties" &&
+            grep -Eq '^Pkg\.Revision[[:space:]]*=[[:space:]]*27\.1\.12297006[[:space:]]*
+        working-directory: apps/mobile
+        run: |
+          set -euo pipefail
+          sed -i '/^org.gradle.jvmargs=/d; /^org.gradle.parallel=/d; /^org.gradle.workers.max=/d; /^kotlin.compiler.execution.strategy=/d' android/gradle.properties
+          cat >> android/gradle.properties <<'EOF'
+          org.gradle.jvmargs=-Xmx3g -XX:MaxMetaspaceSize=1536m -Dfile.encoding=UTF-8
+          org.gradle.parallel=false
+          org.gradle.workers.max=2
+          kotlin.compiler.execution.strategy=in-process
+          EOF
+          chmod +x android/gradlew
+          cd android
+          ./gradlew :app:assembleDebug --no-daemon
+      - name: Validate unsigned-for-production debug APK, pin its SHA locally
+        run: |
+          set -euo pipefail
+          APK=apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          test ! -L "$APK"
+          test -x "$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK" >/dev/null
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | grep -Fq 'application-debuggable'
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump permissions "$APK" > /tmp/negresco-lab-debug-permissions
+          for denied in android.permission.SYSTEM_ALERT_WINDOW android.permission.WRITE_EXTERNAL_STORAGE android.permission.READ_EXTERNAL_STORAGE android.permission.READ_MEDIA_IMAGES; do
+            if grep -Fq "$denied" /tmp/negresco-lab-debug-permissions; then
+              printf 'BLOCK (LAB): forbidden Android permission present: %s\n' "$denied"
+              exit 1
+            fi
+          done
+          python3 tooling/android/guardiao_debug_loopback_policy.py verify-apk "$APK" "$ANDROID_HOME/build-tools/35.0.0/aapt"
+          sha256sum "$APK" > /tmp/negresco-debug-test-apk.sha256
+          echo 'PASS (LAB): disposable debuggable APK validated, SHA stored inside ephemeral runner'
+      - name: Verify compiled disposable Debug APK includes the native print hooks
+        run: |
+          set -euo pipefail
+          python3 tooling/android/guardiao_pdf_native_phase_lab.py verify-debug-apk
+      - name: Enable test emulator acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-negresco-kvm.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Verify two guarded Pix preview navigation gestures in same Android process
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
+        with:
+          api-level: 28
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          emulator-boot-timeout: 600
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          script: python3 tooling/android/guardiao_debug_same_pid_pix_home_lab.py
+      # Evidence stays on the ephemeral runner; nothing is uploaded or published.
+ "${ndk}/source.properties" &&
+            test -x "${ndk}/toolchains/llvm/prebuilt/linux-x86_64/bin/clang" &&
+            "${ndk}/toolchains/llvm/prebuilt/linux-x86_64/bin/clang" --version >/dev/null 2>&1
+          }
+          if valid_ndk; then
+            echo 'PASS (LAB): pinned Android NDK available and verified'
+          else
+            command -v sdkmanager >/dev/null || {
+              echo 'BLOCK (LAB): official Android SDK manager unavailable'
+              exit 1
+            }
+            for attempt in 1 2; do
+              # Restrict any cleanup to this exact NDK version in this
+              # disposable GitHub runner. No Gradle fallback or version drift.
+              if test -d "${ndk}" && ! valid_ndk; then
+                rm -rf -- "${ndk}"
+              fi
+              if timeout 540 sdkmanager --install "ndk;${version}" >/dev/null 2>&1 &&
+                 valid_ndk; then
+                echo 'PASS (LAB): pinned Android NDK installed and verified'
+                break
+              fi
+              echo "ENV (LAB): pinned Android NDK preparation attempt ${attempt} unconfirmed"
+            done
+            if ! valid_ndk; then
+              echo 'BLOCK (LAB): pinned Android NDK unavailable or invalid'
+              exit 1
+            fi
+          fi
       - name: Bound Gradle resources and assemble Android Debug, not Release
         working-directory: apps/mobile
         run: |

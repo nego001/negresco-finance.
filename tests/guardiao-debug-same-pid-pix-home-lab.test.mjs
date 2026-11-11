@@ -97,3 +97,19 @@ test('preflight categories are fixed and mirror the original strict target gates
  assert.equal(res.status,0,res.stderr);
  assert.match(res.stdout,/PASS: sanitised navigation categories/);
 });
+
+test('Android 9 navigation build requires exact NDK integrity before Gradle',()=>{
+ const preflight=workflow.indexOf('Validate pinned Android NDK before Gradle without fallback');
+ const build=workflow.indexOf('Bound Gradle resources and assemble Android Debug, not Release');
+ assert.ok(preflight>0 && build>preflight);
+ assert.match(workflow,/version=27\.1\.12297006/);
+ assert.match(workflow,/sdkmanager --install "ndk;\$\{version\}"/);
+ assert.match(workflow,/Pkg\\\.Revision/);
+ assert.match(workflow,/valid_ndk/);
+ assert.match(workflow,/toolchains\/llvm\/prebuilt\/linux-x86_64\/bin\/clang/);
+ assert.match(workflow,/if ! valid_ndk; then/);
+ assert.match(workflow,/BLOCK \(LAB\): pinned Android NDK unavailable or invalid/);
+ assert.match(workflow,/attempt in 1 2/);
+ assert.match(workflow,/timeout 540 sdkmanager/);
+ assert.doesNotMatch(workflow,/ndkVersion.*(?:latest|30\.|26\.)|assembleRelease|workflow_dispatch|upload-artifact/);
+});
