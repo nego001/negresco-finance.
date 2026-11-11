@@ -174,7 +174,7 @@ def safe_debug_window_measure_category() -> str:
                 + r"-yoga-(regular|thin|unconfirmed)-bottom-(regular|thin|unconfirmed)"
                 + r"-placement-(inside-root|overflows-root|above-root|unconfirmed)"
                 + r"-window-(regular-in-viewport|regular-below-viewport|regular-above-viewport|thin|unconfirmed)"
-                + r"-rootframe-(inside-root|above-root|below-root|side-root|unconfirmed)-edge-(inset-sized|beyond-inset|not-below|unconfirmed)",
+                + r"(?:-rootframe-(inside-root|above-root|below-root|side-root|unconfirmed)-edge-(inset-sized|beyond-inset|not-below|unconfirmed))?",
                 node.get("resource-id","").rsplit("/",1)[-1])
             if match is None:
                 return "window-marker-unconfirmed"
