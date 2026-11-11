@@ -8,11 +8,13 @@ const runner=readFileSync('tooling/android/guardiao_debug_touch_delivery_lab.py'
 const workflow=readFileSync('.github/workflows/guardiao-debug-touch-delivery-lab.yml','utf8');
 
 test('all marker generation is __DEV__ only and release navigation unchanged',()=>{
- assert.match(app,/onPressIn=\{__DEV__\?\(\)=>\{if\(x\.name==='Pix'\)console\.log\('NEGRESCO_LAB_NAV_TOUCHIN_PIX'\)/);
+ assert.match(app,/onPressIn=\{__DEV__\?\(\)=>\{if\(x\.name==='Pix'\)\{setLabPixPressIn\(true\);console\.log\('NEGRESCO_LAB_NAV_TOUCHIN_PIX'\)/);
  assert.match(app,/onPress=\{\(\)=>nav\(x\.name as Page\)\}/);
  assert.match(app,/if\(__DEV__&&\(p==='Pix'\|\|p==='Início'\)\)/);
  assert.match(app,/console\.log\('NEGRESCO_LAB_NAV_CALL_'/);
  assert.match(app,/console\.log\('NEGRESCO_LAB_NAV_PAGE_'/);
+ assert.match(app,/setLabPixNavCall\(true\)/);
+ assert.match(app,/collapsable=\{__DEV__\?false:undefined\} testID=\{__DEV__\?\('negresco-lab-rn-page-'/);
  assert.match(app,/accessibilityRole="tab"/);
  assert.match(app,/__DEV__&&Platform\.OS==='android'&&\{paddingBottom:/);
  assert.doesNotMatch(app,/NEGRESCO_LAB_NAV_.+\$\{.*account/);
@@ -29,6 +31,10 @@ test('Android 9 emits only allowlisted categories and does not expand touch budg
  assert.match(runner,/MAX_GESTURES = 2/);
  assert.match(runner,/def classify_pix_touch_delivery/);
  assert.match(runner,/def prepare_pix_touch_telemetry/);
+ assert.match(runner,/def classify_nav_native_state/);
+ assert.match(runner,/def observed_pix_logcat_category/);
+ assert.match(runner,/native-page-home-pressin-no-call-no/);
+ assert.match(runner,/native-page-pix-pressin-yes-call-yes/);
  assert.match(runner,/preview-telemetry-unconfirmed/);
  assert.match(runner,/BASE\.adb\("logcat","-c"/);
  assert.match(runner,/classify_pix_touch_delivery\(safe_lab_logcat\(\)\)/);
@@ -54,4 +60,27 @@ test('event categories distinguish input dispatch, onPress and page render, neve
  const r=spawnSync('python3',['-c',script],{encoding:'utf8',timeout:15000});
  assert.equal(r.status,0,r.stderr);
  assert.match(r.stdout,/PASS: fixed non-sensitive Debug touch delivery categories/);
+});
+
+test('native read-only JS delivery markers require one exact package-bound node',()=>{
+ const script=[
+  'import sys',"sys.path.insert(0,'tooling/android')",
+  'import guardiao_debug_touch_delivery_lab as x',
+  'def node(marker,package=None):return {"resource-id":"com.negresco:id/"+marker,"package":x.BASE.PACKAGE if package is None else package}',
+  'home="negresco-lab-rn-page-home-pressin-no-call-no"',
+  'pix="negresco-lab-rn-page-pix-pressin-yes-call-yes"',
+  'press="negresco-lab-rn-page-home-pressin-yes-call-no"',
+  'assert x.classify_nav_native_state([node(home)])=="native-page-home-pressin-no-call-no"',
+  'assert x.classify_nav_native_state([node(press)])=="native-page-home-pressin-yes-call-no"',
+  'assert x.classify_nav_native_state([node(pix)])=="native-page-pix-pressin-yes-call-yes"',
+  'assert x.classify_nav_native_state([])=="native-state-unconfirmed"',
+  'assert x.classify_nav_native_state([node(home),node(home)])=="native-state-unconfirmed"',
+  'assert x.classify_nav_native_state([node(home,"other.app")])=="native-state-unconfirmed"',
+  'assert x.classify_nav_native_state([node(home+"-private")])=="native-state-unconfirmed"',
+  'assert x.classify_nav_native_state([node("payment-details")])=="native-state-unconfirmed"',
+  'assert x.observed_pix_logcat_category(False)=="delivery-telemetry-unconfirmed"'
+ ].join('\n');
+ const r=spawnSync('python3',['-c',script],{encoding:'utf8',timeout:15000});
+ assert.equal(r.status,0,r.stderr);
+ assert.equal(r.stdout,'');
 });

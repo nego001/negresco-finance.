@@ -397,12 +397,51 @@ def classify_pix_touch_delivery(raw: str | None) -> str:
     return "delivery-no-pressin-or-handler-observed"
 
 
-def prepare_pix_touch_telemetry() -> None:
-    raw=safe_lab_logcat()
-    if raw is None or "NEGRESCO_LAB_NAV_PAGE_HOME" not in raw:
+# Native read-only proof does not depend on RN logcat transport.
+NATIVE_NAV_STATE = re.compile(
+    r"negresco-lab-rn-page-(home|pix|other)-pressin-(yes|no)-call-(yes|no)"
+)
+
+
+def classify_nav_native_state(nodes: list[dict[str,str]]) -> str:
+    """Only fixed Debug testID categories; fail closed on missing/duplicate/wrong app."""
+    if not isinstance(nodes,list) or not (0 < len(nodes) <= 3000):
+        return "native-state-unconfirmed"
+    matches=[]
+    for node in nodes:
+        if not isinstance(node,dict):
+            return "native-state-unconfirmed"
+        suffix=node.get("resource-id","").rsplit("/",1)[-1]
+        marker=NATIVE_NAV_STATE.fullmatch(suffix)
+        if marker is not None:
+            if node.get("package")!=BASE.PACKAGE:
+                return "native-state-unconfirmed"
+            matches.append(marker.groups())
+    if len(matches)!=1:
+        return "native-state-unconfirmed"
+    page,pressin,call=matches[0]
+    return "native-page-"+page+"-pressin-"+pressin+"-call-"+call
+
+
+def prepare_pix_touch_telemetry() -> bool:
+    native=classify_nav_native_state(BASE.xml_nodes())
+    print("ENV (LAB): Pix preflight native RN category="+native,flush=True)
+    if native!="native-page-home-pressin-no-call-no":
         raise RuntimeError("preview-telemetry-unconfirmed")
-    # Only this disposable emulator's log ring; no user data collected.
-    BASE.adb("logcat","-c",timeout=12)
+    # Logcat is supplemental and cannot veto a native marker with valid geometry.
+    raw=safe_lab_logcat()
+    ready=raw is not None and "NEGRESCO_LAB_NAV_PAGE_HOME" in raw
+    print("ENV (LAB): Pix logcat baseline="+
+          ("available" if ready else "unconfirmed"),flush=True)
+    if ready:
+        BASE.adb("logcat","-c",timeout=12,check=False)
+    return ready
+
+
+def observed_pix_logcat_category(ready: bool) -> str:
+    if not ready:
+        return "delivery-telemetry-unconfirmed"
+    return classify_pix_touch_delivery(safe_lab_logcat())
 
 
 def guarded_preview_navigation() -> None:
@@ -420,6 +459,7 @@ def guarded_preview_navigation() -> None:
         ("pix","home","Seu universo"),
     )
     completed=0
+    logcat_ready=False
     for current,target,expected_banner in transitions:
         mark_navigation_phase("before-target")
         assert_preview_pid(before)
@@ -443,7 +483,7 @@ def guarded_preview_navigation() -> None:
         mark_navigation_phase("before-gesture")
         assert_preview_pid(before)
         if completed==0 and current=="home" and target=="pix":
-            prepare_pix_touch_telemetry()
+            logcat_ready=prepare_pix_touch_telemetry()
         if completed>=MAX_GESTURES:
             raise RuntimeError("preview-gesture-budget-exhausted")
         BASE.adb("shell","input","tap",str(second[0]),str(second[1]),
@@ -482,14 +522,20 @@ def guarded_preview_navigation() -> None:
             print("ENV (LAB): Pix post-gesture native bounds="
                   +terminal_native,flush=True)
             if current=="home" and target=="pix":
-                print("ENV (LAB): Pix RN touch delivery="
-                      +classify_pix_touch_delivery(safe_lab_logcat()),
-                      flush=True)
+                print("ENV (LAB): Pix RN native touch delivery="
+                      +classify_nav_native_state(terminal_nodes),flush=True)
+                print("ENV (LAB): Pix RN logcat delivery="
+                      +observed_pix_logcat_category(logcat_ready),flush=True)
+            raise RuntimeError("preview-navigation-state-unconfirmed")
+        # A displayed screen and selected tabs alone cannot attest JS event delivery.
+        native_after=classify_nav_native_state(BASE.xml_nodes())
+        print("ENV (LAB): Pix RN native touch delivery="+native_after,flush=True)
+        if native_after!=("native-page-pix-pressin-yes-call-yes" if target=="pix"
+                         else "native-page-home-pressin-yes-call-yes"):
             raise RuntimeError("preview-navigation-state-unconfirmed")
         if target=="pix":
-            print("ENV (LAB): Pix RN touch delivery="
-                  +classify_pix_touch_delivery(safe_lab_logcat()),
-                  flush=True)
+            print("ENV (LAB): Pix RN logcat delivery="
+                  +observed_pix_logcat_category(logcat_ready),flush=True)
         print("PASS (LAB): Debug preview transition "+
               ("Home-to-Pix" if target=="pix" else "Pix-to-Home")
               +" in unchanged process",flush=True)
