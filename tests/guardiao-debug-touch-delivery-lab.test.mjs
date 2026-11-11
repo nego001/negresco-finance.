@@ -51,6 +51,13 @@ test('Android 9 emits only allowlisted categories and does not expand touch budg
  assert.match(dispatch,/pix-ready/);
  assert.match(dispatch,/pix-hit/);
  assert.match(dispatch,/pix-miss/);
+ assert.match(dispatch,/gesture-down-up-consumed/);
+ assert.match(dispatch,/gesture-down-up-unconsumed/);
+ assert.match(dispatch,/gesture-sequence-invalid/);
+ assert.match(dispatch,/ACTION_CANCEL/);
+ assert.match(dispatch,/negrescoLabGestureActive/);
+ assert.match(runner,/Pix native gesture lifecycle preflight=/);
+ assert.match(runner,/Pix native gesture lifecycle after gesture=/);
  assert.match(runner,/Pix native testID hit preflight=/);
  assert.match(runner,/Pix native testID hit after gesture=/);
  assert.match(runner,/Pix native scroll coverage preflight=/);
@@ -176,6 +183,16 @@ test('native Activity fixed-category dispatch probe installs only into disposabl
   'assert x.classify_pix_native_state("pix-unconfirmed")=="pix-unconfirmed"',
   'assert x.classify_pix_native_state("pix-hit-private")=="pix-unconfirmed"',
   'assert x.classify_pix_native_state(None)=="pix-unconfirmed"',
+  'assert x.classify_gesture_state("gesture-ready")=="gesture-ready"',
+  'assert x.classify_gesture_state("gesture-down")=="gesture-down"',
+  'assert x.classify_gesture_state("gesture-down-up-consumed")=="gesture-down-up-consumed"',
+  'assert x.classify_gesture_state("gesture-down-up-unconsumed")=="gesture-down-up-unconsumed"',
+  'assert x.classify_gesture_state("gesture-down-cancelled")=="gesture-down-cancelled"',
+  'assert x.classify_gesture_state("gesture-down-cancelled-unconsumed")=="gesture-down-cancelled-unconsumed"',
+  'assert x.classify_gesture_state("gesture-up-without-down")=="gesture-up-without-down"',
+  'assert x.classify_gesture_state("gesture-sequence-invalid")=="gesture-sequence-invalid"',
+  'assert x.classify_gesture_state("gesture-down-up-consumed-secret")=="gesture-unconfirmed"',
+  'assert x.classify_gesture_state(None)=="gesture-unconfirmed"',
   'assert x.classify_native_state("private-financial-content")=="activity-state-unconfirmed"',
   'assert x.classify_native_state("activity-ready\\nprivate")=="activity-state-unconfirmed"',
   'assert x.classify_native_state(None)=="activity-state-unconfirmed"',

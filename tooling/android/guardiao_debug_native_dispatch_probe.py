@@ -17,6 +17,19 @@ SCROLL_FILE = "negresco_lab_native_scroll_coverage"
 SCROLL_ALLOWED = frozenset(("scroll-ready","scroll-hit","scroll-clear","scroll-unconfirmed"))
 PIX_FILE = "negresco_lab_native_pix_target"
 PIX_ALLOWED = frozenset(("pix-ready","pix-hit","pix-miss","pix-unconfirmed"))
+GESTURE_FILE = "negresco_lab_native_gesture_phase"
+GESTURE_ALLOWED = frozenset((
+    "gesture-ready",
+    "gesture-down",
+    "gesture-down-up-consumed",
+    "gesture-down-up-unconsumed",
+    "gesture-down-cancelled",
+    "gesture-down-cancelled-unconsumed",
+    "gesture-up-without-down",
+    "gesture-cancel-without-down",
+    "gesture-sequence-invalid",
+    "gesture-unconfirmed",
+))
 ALLOWED = frozenset((
     "activity-ready",
     "activity-down",
@@ -65,11 +78,28 @@ KOTLIN = r'''
     }
   }
 
+  // Advisory only: native ACTION_DOWN/UP pairing, no timing or coordinates.
+  private var negrescoLabGestureActive = false
+  private var negrescoLabGestureInvalid = false
+  private fun negrescoLabSetGestureCategory(category: String) {
+    if (!BuildConfig.DEBUG) return
+    try {
+      openFileOutput("negresco_lab_native_gesture_phase", android.content.Context.MODE_PRIVATE).use {
+        it.write(category.toByteArray(Charsets.US_ASCII))
+      }
+    } catch (_: Exception) {
+      // Preserve the original dispatch result without exposing any event.
+    }
+  }
+
   override fun onResume() {
     super.onResume()
+    negrescoLabGestureActive = false
+    negrescoLabGestureInvalid = false
     negrescoLabSetDispatchCategory("activity-ready")
     negrescoLabSetScrollCategory("scroll-ready")
     negrescoLabSetPixCategory("pix-ready")
+    negrescoLabSetGestureCategory("gesture-ready")
   }
 
 
@@ -200,6 +230,10 @@ KOTLIN = r'''
   override fun dispatchTouchEvent(event: android.view.MotionEvent): Boolean {
     if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN) {
       negrescoLabSetDispatchCategory("activity-down")
+      if (negrescoLabGestureActive) negrescoLabGestureInvalid = true
+      negrescoLabGestureActive = true
+      negrescoLabSetGestureCategory(if (negrescoLabGestureInvalid)
+        "gesture-sequence-invalid" else "gesture-down")
     }
     // Keep the exact original dispatch semantics and return value.
     val rootHit = if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN)
@@ -215,6 +249,23 @@ KOTLIN = r'''
       )
       negrescoLabSetScrollCategory(scrollCoverage)
       negrescoLabSetPixCategory(pixTarget)
+    }
+    if (event.actionMasked == android.view.MotionEvent.ACTION_UP) {
+      negrescoLabSetGestureCategory(
+        if (negrescoLabGestureInvalid) "gesture-sequence-invalid"
+        else if (!negrescoLabGestureActive) "gesture-up-without-down"
+        else if (handled) "gesture-down-up-consumed"
+        else "gesture-down-up-unconsumed"
+      )
+      negrescoLabGestureActive = false
+    } else if (event.actionMasked == android.view.MotionEvent.ACTION_CANCEL) {
+      negrescoLabSetGestureCategory(
+        if (negrescoLabGestureInvalid) "gesture-sequence-invalid"
+        else if (!negrescoLabGestureActive) "gesture-cancel-without-down"
+        else if (handled) "gesture-down-cancelled"
+        else "gesture-down-cancelled-unconsumed"
+      )
+      negrescoLabGestureActive = false
     }
     return handled
   }
@@ -260,6 +311,24 @@ def read_debug_pix_state(adb, package: str) -> str:
     except Exception:
         return "pix-unconfirmed"
     return classify_pix_native_state(raw if isinstance(raw,str) else None)
+
+
+def classify_gesture_state(raw: str | None) -> str:
+    """Exact fixed native lifecycle category, never the raw MotionEvent."""
+    if not isinstance(raw,str) or len(raw)>64:
+        return "gesture-unconfirmed"
+    return raw if raw in GESTURE_ALLOWED else "gesture-unconfirmed"
+
+
+def read_debug_gesture_state(adb, package: str) -> str:
+    """Private app-owned one-token state; independent of ReactNativeJS logcat."""
+    if not isinstance(package,str) or not re.fullmatch(r"[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+",package):
+        return "gesture-unconfirmed"
+    try:
+        raw=adb("shell","run-as",package,"cat","files/"+GESTURE_FILE,timeout=15,check=False)
+    except Exception:
+        return "gesture-unconfirmed"
+    return classify_gesture_state(raw if isinstance(raw,str) else None)
 
 
 def install(root: Path) -> str:
