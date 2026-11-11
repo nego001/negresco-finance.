@@ -16,6 +16,7 @@ import xml.etree.ElementTree as ET
 
 import guardiao_pdf_debug_metro_lab as debug
 import guardiao_original_release_same_process_lab as same_process
+import guardiao_debug_native_dispatch_probe as native_dispatch
 
 BASE = debug.base
 TARGETS = (
@@ -461,6 +462,10 @@ def prepare_pix_touch_telemetry() -> bool:
     if (native!="native-page-home-pressin-no-call-no"
             or root_bottom!="route-native-root-no-bottom-no"):
         raise RuntimeError("preview-telemetry-unconfirmed")
+    dispatch_before=native_dispatch.read_debug_native_state(BASE.adb,BASE.PACKAGE)
+    print("ENV (LAB): Pix native Activity dispatch preflight="+dispatch_before,flush=True)
+    if dispatch_before!="activity-ready":
+        raise RuntimeError("preview-telemetry-unconfirmed")
     # Logcat is supplemental and cannot veto a native marker with valid geometry.
     raw=safe_lab_logcat()
     ready=raw is not None and "NEGRESCO_LAB_NAV_PAGE_HOME" in raw
@@ -554,6 +559,9 @@ def guarded_preview_navigation() -> None:
                   flush=True)
             print("ENV (LAB): Pix post-gesture native bounds="
                   +terminal_native,flush=True)
+            print("ENV (LAB): Pix native Activity dispatch after gesture="
+                  +native_dispatch.read_debug_native_state(BASE.adb,BASE.PACKAGE),
+                  flush=True)
             if current=="home" and target=="pix":
                 print("ENV (LAB): Pix RN native touch delivery="
                       +classify_nav_native_state(terminal_nodes),flush=True)
@@ -569,6 +577,9 @@ def guarded_preview_navigation() -> None:
         terminal_pass_nodes=BASE.xml_nodes()
         native_after=classify_nav_native_state(terminal_pass_nodes)
         print("ENV (LAB): Pix RN native touch delivery="+native_after,flush=True)
+        print("ENV (LAB): Pix native Activity dispatch after gesture="
+              +native_dispatch.read_debug_native_state(BASE.adb,BASE.PACKAGE),
+              flush=True)
         print("ENV (LAB): Pix RN native root/bottom route="
               +classify_native_touch_route(terminal_pass_nodes),flush=True)
         if native_after!=("native-page-pix-pressin-yes-call-yes" if target=="pix"

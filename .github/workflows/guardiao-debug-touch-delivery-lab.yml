@@ -41,6 +41,10 @@ jobs:
           python3 ../../tooling/android/guardiao_pdf_native_phase_lab.py source-build
           npx expo prebuild --platform android --non-interactive --no-install
           python3 ../../tooling/android/guardiao_pdf_native_phase_lab.py install
+      - name: Install fixed native Activity input dispatch probe in disposable Debug project
+        run: |
+          set -euo pipefail
+          python3 tooling/android/guardiao_debug_native_dispatch_probe.py install apps/mobile/android/app/src/main
       - name: Remove denied permissions from disposable Debug manifest overlay
         run: |
           set -euo pipefail

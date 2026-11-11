@@ -6,6 +6,7 @@ import {spawnSync} from 'node:child_process';
 const app=readFileSync('apps/mobile/App.tsx','utf8');
 const runner=readFileSync('tooling/android/guardiao_debug_touch_delivery_lab.py','utf8');
 const workflow=readFileSync('.github/workflows/guardiao-debug-touch-delivery-lab.yml','utf8');
+const dispatch=readFileSync('tooling/android/guardiao_debug_native_dispatch_probe.py','utf8');
 
 test('all marker generation is __DEV__ only and release navigation unchanged',()=>{
  assert.match(app,/onPressIn=\{__DEV__\?\(\)=>\{if\(x\.name==='Pix'\)\{setLabPixPressIn\(true\);console\.log\('NEGRESCO_LAB_NAV_TOUCHIN_PIX'\)/);
@@ -30,6 +31,14 @@ test('Android 9 emits only allowlisted categories and does not expand touch budg
  assert.match(workflow,/api-level: 28/);
  assert.match(workflow,/assembleDebug/);
  assert.match(workflow,/Validate pinned Android NDK before Gradle without fallback/);
+ assert.match(workflow,/Install fixed native Activity input dispatch probe in disposable Debug project/);
+ assert.match(workflow,/guardiao_debug_native_dispatch_probe\.py install apps\/mobile\/android\/app\/src\/main/);
+ assert.match(runner,/Pix native Activity dispatch preflight=/);
+ assert.match(runner,/Pix native Activity dispatch after gesture=/);
+ assert.match(dispatch,/override fun dispatchTouchEvent\(event: android\.view\.MotionEvent\)/);
+ assert.match(dispatch,/override fun onResume\(\)/);
+ assert.match(dispatch,/BuildConfig\.DEBUG/);
+ assert.doesNotMatch(dispatch,/event\.x|event\.y|event\.rawX|event\.rawY/);
  assert.match(workflow,/contents: read/);
  assert.match(workflow,/persist-credentials: false/);
  assert.doesNotMatch(workflow,/assembleRelease|workflow_dispatch|upload-artifact|contents: write|eas update|secrets\./);
@@ -119,4 +128,35 @@ test('RN logcat bottom touch-start marker remains advisory, including no signal'
  const r=spawnSync('python3',['-c',script],{encoding:'utf8',timeout:15000});
  assert.equal(r.status,0,r.stderr);
  assert.equal(r.stdout,'');
+});
+
+test('native Activity fixed-category dispatch probe installs only into disposable prebuild',()=>{
+ const script=[
+  'import sys,tempfile,pathlib',
+  "sys.path.insert(0,'tooling/android')",
+  'import guardiao_debug_native_dispatch_probe as x',
+  'from pathlib import Path',
+  'assert x.classify_native_state("activity-ready")=="activity-ready"',
+  'assert x.classify_native_state("activity-down-consumed")=="activity-down-consumed"',
+  'assert x.classify_native_state("activity-down-unconsumed")=="activity-down-unconsumed"',
+  'assert x.classify_native_state("activity-down")=="activity-down"',
+  'assert x.classify_native_state("private-financial-content")=="activity-state-unconfirmed"',
+  'assert x.classify_native_state("activity-ready\\nprivate")=="activity-state-unconfirmed"',
+  'assert x.classify_native_state(None)=="activity-state-unconfirmed"',
+  'with tempfile.TemporaryDirectory() as d:',
+  ' root=Path(d)',
+  ' f=root/"com"/"negresco"/"finance"/"MainActivity.kt"',
+  ' f.parent.mkdir(parents=True)',
+  ' f.write_text("package com.negresco.finance\\nclass MainActivity : ReactActivity() {\\n}\\n")',
+  ' assert x.install(root)=="activity-dispatch-debug-probe-installed"',
+  ' assert "override fun dispatchTouchEvent" in f.read_text()',
+  ' assert x.install(root)=="activity-dispatch-debug-probe-installed"',
+  ' f.write_text(f.read_text().replace("class MainActivity : ReactActivity() {","class OtherActivity : ReactActivity() {"))',
+  ' try: x.install(root); assert False',
+  ' except RuntimeError: pass',
+  'print("PASS: synthetic native Activity dispatch probe")'
+ ].join('\n');
+ const r=spawnSync('python3',['-c',script],{encoding:'utf8',timeout:15000});
+ assert.equal(r.status,0,r.stderr);
+ assert.match(r.stdout,/PASS: synthetic native Activity dispatch probe/);
 });
