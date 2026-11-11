@@ -50,8 +50,8 @@ KOTLIN = r'''
   private fun negrescoLabReactRootHitCategory(event: android.view.MotionEvent): String {
     if (!BuildConfig.DEBUG) return "rn-unconfirmed"
     return try {
-      val px = event.rawX
-      val py = event.rawY
+      val px = event.getRawX()
+      val py = event.getRawY()
       if (!px.isFinite() || !py.isFinite()) return "rn-unconfirmed"
       val pending = java.util.ArrayDeque<android.view.View>()
       pending.add(window.decorView)
