@@ -24,7 +24,7 @@ import {getOptionalNativeFinanceDiagnosticHost} from './modules/negresco-finance
 import * as LocalAuthentication from 'expo-local-authentication';
 import {LocalLockScreen} from './components/LocalLockScreen';
 import {ProtectedScreenCapture,shouldProtectScreenCapture} from './components/ProtectedScreenCapture';
-import { Animated, AppState, Easing, SafeAreaView, ScrollView, StatusBar, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Animated, AppState, Dimensions, Easing, SafeAreaView, ScrollView, StatusBar, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 type Page = 'Início' | 'Pix' | 'Contas' | 'Cartões' | 'Investimentos' | 'Metas' | 'Negresco' | 'Guardião' | 'Ajustes';
 const C = { bg:'#000000',panel:'#0D111A',raised:'#121A29',line:'#26354B',blue:'#78B5FF',muted:'#99A8BC',white:'#F7FAFF' };
@@ -101,6 +101,36 @@ export default function App() {
     setLabYogaMeasured(prev=>prev[key]===category?prev:{...prev,[key]:category});
     console.info('NEGRESCO_LAB_NAV_LAYOUT_'+key.toUpperCase()+'_'+category.toUpperCase());
   };
+
+  // Debug-only measureInWindow telemetry. No positions/sizes leave this process.
+  const labWindowRefs=useRef<Record<string,React.ElementRef<typeof TouchableOpacity>|null>>({});
+  const [labWindowMeasured,setLabWindowMeasured]=useState<Record<string,string>>({});
+  const recordLabWindow=(key:'home'|'pix'|'negresco')=>{
+    if(!__DEV__)return;
+    const native=labWindowRefs.current[key];
+    if(!native)return;
+    native.measureInWindow((x,y,width,height)=>{
+      const windowHeight=Dimensions.get('window').height;
+      let kind='unconfirmed';
+      if([x,y,width,height,windowHeight].every(Number.isFinite)&&width>0&&height>0&&windowHeight>0){
+        if(height<48)kind='thin';
+        else if(y < -2)kind='regular-above-viewport';
+        else if(y+height>windowHeight+8)kind='regular-below-viewport';
+        else kind='regular-in-viewport';
+      }
+      setLabWindowMeasured(prev=>prev[key]===kind?prev:{...prev,[key]:kind});
+    });
+  };
+  // A post-layout read catches the final transformed native window geometry.
+  useEffect(()=>{
+    if(!__DEV__)return;
+    const timer=setTimeout(()=>{
+      recordLabWindow('home');
+      recordLabWindow('pix');
+      recordLabWindow('negresco');
+    },650);
+    return ()=>clearTimeout(timer);
+  },[page,labBottomPlacement]);
 
   const localLock=useLocalAppLock();
   // Read the latest lock state from async PDF continuations, not a stale closure.
@@ -485,7 +515,7 @@ export default function App() {
         <View style={s.visualFeature}><Text style={s.visualFeatureTitle}>Um painel preparado para você</Text><Text style={s.visualFeatureBody}>Visualização de informações, atalhos e indicadores ganhará vida quando você autorizar a conexão de dados.</Text></View><Text style={s.sectionTitle}>Explore também</Text><View style={s.grid}>{sections.filter(x=>x.name!==page).map(x=><Tap key={x.name} title={x.name} glyph={x.glyph} onPress={()=>nav(x.name)} style={{minHeight:115}}/>)}</View>
       </>}
     </ScrollView></Animated.View>
-    <View style={[s.bottom,__DEV__&&s.labBottomBounds]} onLayout={__DEV__?e=>{recordLabLayout('bottom',e.nativeEvent.layout.height);recordLabBottom(e.nativeEvent.layout.y,e.nativeEvent.layout.height);}:undefined}>{[{name:'Início',glyph:'home'},{name:'Pix',glyph:'pix'},{name:'Negresco',glyph:'assistant'}].map(x=><TouchableOpacity key={x.name} accessibilityRole="tab" accessibilityState={{selected:page===x.name}} onPress={()=>nav(x.name as Page)} testID={__DEV__ ? ('negresco-lab-tab-' + (x.name==='Início' ? 'home' : x.name==='Pix' ? 'pix' : 'negresco') + '-yoga-' + (labYogaMeasured[x.name==='Início'?'home':x.name==='Pix'?'pix':'negresco']??'unconfirmed') + '-bottom-' + (labYogaMeasured.bottom??'unconfirmed') + '-placement-' + labBottomPlacement) : undefined} onLayout={__DEV__?e=>recordLabLayout(x.name==='Início'?'home':x.name==='Pix'?'pix':'negresco',e.nativeEvent.layout.height):undefined} style={[s.nav,__DEV__&&s.labNavBounds,page===x.name&&s.navSelected]}><Icon name={x.glyph as IconName} size={23} color={page===x.name?blue:'#8898AD'}/><Text style={[s.navLabel,page===x.name&&{color:blue}]}>{x.name}</Text>{page===x.name&&<View style={[s.navMark,{backgroundColor:blue}]}/>}</TouchableOpacity>)}</View>
+    <View style={[s.bottom,__DEV__&&s.labBottomBounds]} onLayout={__DEV__?e=>{recordLabLayout('bottom',e.nativeEvent.layout.height);recordLabBottom(e.nativeEvent.layout.y,e.nativeEvent.layout.height);}:undefined}>{[{name:'Início',glyph:'home'},{name:'Pix',glyph:'pix'},{name:'Negresco',glyph:'assistant'}].map(x=><TouchableOpacity key={x.name} accessibilityRole="tab" accessibilityState={{selected:page===x.name}} onPress={()=>nav(x.name as Page)} ref={__DEV__ ? node=>{labWindowRefs.current[x.name==='Início'?'home':x.name==='Pix'?'pix':'negresco']=node;} : undefined} testID={__DEV__ ? ('negresco-lab-tab-' + (x.name==='Início' ? 'home' : x.name==='Pix' ? 'pix' : 'negresco') + '-yoga-' + (labYogaMeasured[x.name==='Início'?'home':x.name==='Pix'?'pix':'negresco']??'unconfirmed') + '-bottom-' + (labYogaMeasured.bottom??'unconfirmed')  + '-placement-' + labBottomPlacement + '-window-' + (labWindowMeasured[x.name==='Início'?'home':x.name==='Pix'?'pix':'negresco']??'unconfirmed')) : undefined} onLayout={__DEV__?e=>{const key=x.name==='Início'?'home':x.name==='Pix'?'pix':'negresco';recordLabLayout(key,e.nativeEvent.layout.height);recordLabWindow(key);}:undefined} style={[s.nav,__DEV__&&s.labNavBounds,page===x.name&&s.navSelected]}><Icon name={x.glyph as IconName} size={23} color={page===x.name?blue:'#8898AD'}/><Text style={[s.navLabel,page===x.name&&{color:blue}]}>{x.name}</Text>{page===x.name&&<View style={[s.navMark,{backgroundColor:blue}]}/>}</TouchableOpacity>)}</View>
     </>:<LocalLockScreen status={localLock.status} busy={localLock.busy} message={localLock.message} onUnlock={localLock.unlock} onRetry={localLock.retry}/>}
   </SafeAreaView>;
 }

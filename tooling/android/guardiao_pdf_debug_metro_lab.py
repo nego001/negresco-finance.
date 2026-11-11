@@ -65,7 +65,7 @@ def safe_testid_matches(node: dict[str, str], ident: str) -> bool:
     """Recognize exact baseline or strict categorical Debug-only suffix."""
     raw = node.get("resource-id", "").rsplit("/", 1)[-1]
     return raw == ident or re.fullmatch(
-        re.escape(ident) + r"-yoga-(regular|thin|unconfirmed)-bottom-(regular|thin|unconfirmed)(?:-placement-(inside-root|overflows-root|above-root|unconfirmed))?",
+        re.escape(ident) + r"-yoga-(regular|thin|unconfirmed)-bottom-(regular|thin|unconfirmed)(?:-placement-(inside-root|overflows-root|above-root|unconfirmed))?(?:-window-(regular-in-viewport|regular-below-viewport|regular-above-viewport|thin|unconfirmed))?",
         raw,
     ) is not None
 
@@ -95,7 +95,7 @@ def safe_debug_testid_yoga_category() -> str:
                 return "testid-yoga-nodes-unconfirmed"
             packages.add(package)
             match = re.fullmatch(
-                re.escape(ident) + r"-yoga-(regular|thin|unconfirmed)-bottom-(regular|thin|unconfirmed)(?:-placement-(inside-root|overflows-root|above-root|unconfirmed))?",
+                re.escape(ident) + r"-yoga-(regular|thin|unconfirmed)-bottom-(regular|thin|unconfirmed)(?:-placement-(inside-root|overflows-root|above-root|unconfirmed))?(?:-window-(regular-in-viewport|regular-below-viewport|regular-above-viewport|thin|unconfirmed))?",
                 node.get("resource-id", "").rsplit("/", 1)[-1],
             )
             if match is None:
@@ -135,7 +135,8 @@ def safe_debug_bottom_placement_category() -> str:
             match=re.fullmatch(
                 re.escape(ident)
                 + r"-yoga-(regular|thin|unconfirmed)-bottom-(regular|thin|unconfirmed)"
-                + r"-placement-(inside-root|overflows-root|above-root|unconfirmed)",
+                + r"-placement-(inside-root|overflows-root|above-root|unconfirmed)"
+                + r"(?:-window-(regular-in-viewport|regular-below-viewport|regular-above-viewport|thin|unconfirmed))?",
                 node.get("resource-id","").rsplit("/",1)[-1])
             if match is None:
                 return "testid-placement-marker-unconfirmed"
@@ -145,6 +146,49 @@ def safe_debug_bottom_placement_category() -> str:
         return "testid-bottom-"+statuses[0]
     except Exception:
         return "testid-placement-collection-unconfirmed"
+
+
+def safe_debug_window_measure_category() -> str:
+    """Read fixed measureInWindow categories reflected in Debug testIDs.
+
+    Not a tap gate; no numeric geometry, raw XML or private UI data is emitted.
+    """
+    try:
+        states=[]
+        packages=set()
+        nodes=base.xml_nodes()
+        for ident in ("negresco-lab-tab-home","negresco-lab-tab-pix",
+                      "negresco-lab-tab-negresco"):
+            hits=[n for n in nodes if safe_testid_matches(n,ident)]
+            if len(hits)!=1:
+                return "window-targets-unconfirmed"
+            node=hits[0]
+            if node.get("clickable")!="true" or node.get("enabled")!="true":
+                return "window-targets-unconfirmed"
+            package=node.get("package","")
+            if not package:
+                return "window-targets-unconfirmed"
+            packages.add(package)
+            match=re.fullmatch(
+                re.escape(ident)
+                + r"-yoga-(regular|thin|unconfirmed)-bottom-(regular|thin|unconfirmed)"
+                + r"-placement-(inside-root|overflows-root|above-root|unconfirmed)"
+                + r"-window-(regular-in-viewport|regular-below-viewport|regular-above-viewport|thin|unconfirmed)",
+                node.get("resource-id","").rsplit("/",1)[-1])
+            if match is None:
+                return "window-marker-unconfirmed"
+            states.append(match.group(4))
+        if len(packages)!=1:
+            return "window-package-mismatch"
+        if all(s=="regular-in-viewport" for s in states):
+            return "window-three-regular-in-viewport"
+        if any(s=="thin" for s in states):
+            return "window-at-least-one-thin"
+        if any(s in ("regular-above-viewport","regular-below-viewport") for s in states):
+            return "window-at-least-one-outside"
+        return "window-category-unconfirmed"
+    except Exception:
+        return "window-collection-unconfirmed"
 
 
 def safe_debug_testid_nav_geometry() -> str:
@@ -212,6 +256,7 @@ def observe_debug_home_geometry() -> None:
     print("ENV (LAB): Debug tab-testids=" + safe_debug_testid_nav_geometry(), flush=True)
     print("ENV (LAB): Debug testid Yoga=" + safe_debug_testid_yoga_category(), flush=True)
     print("ENV (LAB): Debug root placement=" + safe_debug_bottom_placement_category(), flush=True)
+    print("ENV (LAB): Debug measureInWindow=" + safe_debug_window_measure_category(), flush=True)
 
 
 def debug_digest() -> str:
