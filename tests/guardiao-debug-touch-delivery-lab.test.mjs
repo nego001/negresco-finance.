@@ -79,7 +79,7 @@ test('native read-only JS delivery markers require one exact package-bound node'
   'def node(marker,package=None):return {"resource-id":"com.negresco:id/"+marker,"package":x.BASE.PACKAGE if package is None else package}',
   'home="negresco-lab-rn-page-home-pressin-no-call-no-rootstart-no-bottomstart-no"',
   'pix="negresco-lab-rn-page-pix-pressin-yes-call-yes-rootstart-yes-bottomstart-yes"',
-  'press="negresco-lab-rn-page-home-pressin-yes-call-no-rootstart-yes-bottomstart-yes"'
+  'press="negresco-lab-rn-page-home-pressin-yes-call-no-rootstart-yes-bottomstart-yes"',
   'assert x.classify_nav_native_state([node(home)])=="native-page-home-pressin-no-call-no"',
   'assert x.classify_nav_native_state([node(press)])=="native-page-home-pressin-yes-call-no"',
   'assert x.classify_native_touch_route([node(home)])=="route-native-root-no-bottom-no"',
