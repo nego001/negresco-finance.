@@ -59,6 +59,12 @@ test('Android 9 emits only allowlisted categories and does not expand touch budg
  assert.match(dispatch,/negrescoLabPixSiblingCategory/);
  assert.match(dispatch,/sibling-overlap/);
  assert.match(dispatch,/sibling-clear/);
+ assert.match(dispatch,/sibling-front-candidate/);
+ assert.match(dispatch,/sibling-behind-only/);
+ assert.match(dispatch,/sibling-mixed-order/);
+ assert.match(dispatch,/parent\.indexOfChild\(child\)/);
+ assert.match(dispatch,/other\.z > child\.z/);
+ assert.doesNotMatch(dispatch,/setZ\(|setElevation\(|bringToFront\(/);
  assert.match(runner,/Pix native sibling overlap preflight=/);
  assert.match(runner,/Pix native sibling overlap after gesture=/);
  assert.match(runner,/Pix native gesture lifecycle preflight=/);
@@ -200,6 +206,10 @@ test('native Activity fixed-category dispatch probe installs only into disposabl
   'assert x.classify_gesture_state(None)=="gesture-unconfirmed"',
   'assert x.classify_sibling_state("sibling-ready")=="sibling-ready"',
   'assert x.classify_sibling_state("sibling-overlap")=="sibling-overlap"',
+  'assert x.classify_sibling_state("sibling-front-candidate")=="sibling-front-candidate"',
+  'assert x.classify_sibling_state("sibling-behind-only")=="sibling-behind-only"',
+  'assert x.classify_sibling_state("sibling-mixed-order")=="sibling-mixed-order"',
+  'assert x.classify_sibling_state("sibling-front-candidate-private")=="sibling-unconfirmed"',
   'assert x.classify_sibling_state("sibling-clear")=="sibling-clear"',
   'assert x.classify_sibling_state("sibling-unconfirmed")=="sibling-unconfirmed"',
   'assert x.classify_sibling_state("sibling-overlap-private")=="sibling-unconfirmed"',

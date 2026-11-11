@@ -19,7 +19,11 @@ PIX_FILE = "negresco_lab_native_pix_target"
 PIX_ALLOWED = frozenset(("pix-ready","pix-hit","pix-miss","pix-unconfirmed"))
 GESTURE_FILE = "negresco_lab_native_gesture_phase"
 SIBLING_FILE = "negresco_lab_native_pix_siblings"
-SIBLING_ALLOWED = frozenset(("sibling-ready","sibling-overlap","sibling-clear","sibling-unconfirmed"))
+SIBLING_ALLOWED = frozenset((
+    "sibling-ready", "sibling-overlap", "sibling-clear",
+    "sibling-front-candidate", "sibling-behind-only",
+    "sibling-mixed-order", "sibling-unconfirmed",
+))
 GESTURE_ALLOWED = frozenset((
     "gesture-ready",
     "gesture-down",
@@ -243,8 +247,10 @@ KOTLIN = r'''
   }
 
 
-  // Detect direct siblings on the Pix ancestor chain that geometrically cover
-  // the same point. Overlap says NOTHING about draw order or interception.
+  // Classify visible native siblings overlapping the Pix ancestor chain.
+  // Android Z plus ordinary child index are only approximate draw-order clues:
+  // RN may implement custom drawing order and pointer/responder rules. Never
+  // claim that a front candidate actually intercepted a MotionEvent.
   private fun negrescoLabPixSiblingCategory(event: android.view.MotionEvent): String {
     if (!BuildConfig.DEBUG) return "sibling-unconfirmed"
     return try {
@@ -278,10 +284,15 @@ KOTLIN = r'''
       var child: android.view.View = pix
       var depth = 0
       var overlap = false
+      var frontCandidate = false
+      var behindCandidate = false
+      var orderUnconfirmed = false
       var reachedRoot = false
       while (depth < 64) {
         val parent = child.parent as? android.view.ViewGroup ?: break
         depth += 1
+        val childIndex = parent.indexOfChild(child)
+        if (childIndex < 0 || !child.z.isFinite()) return "sibling-unconfirmed"
         for (i in 0 until parent.childCount) {
           val other = parent.getChildAt(i)
           if (other === child || !other.isShown || other.alpha <= 0f) continue
@@ -291,6 +302,12 @@ KOTLIN = r'''
           if (px >= pos[0] && py >= pos[1]
               && px < pos[0] + other.width && py < pos[1] + other.height) {
             overlap = true
+            if (!other.z.isFinite()) orderUnconfirmed = true
+            else if (other.z > child.z || (other.z == child.z && i > childIndex)) {
+              frontCandidate = true
+            } else {
+              behindCandidate = true
+            }
           }
         }
         val kind = parent.javaClass.name
@@ -301,8 +318,12 @@ KOTLIN = r'''
         }
         child = parent
       }
-      if (!reachedRoot || depth >= 64) "sibling-unconfirmed"
-      else if (overlap) "sibling-overlap" else "sibling-clear"
+      if (!reachedRoot || depth >= 64 || orderUnconfirmed) "sibling-unconfirmed"
+      else if (!overlap) "sibling-clear"
+      else if (frontCandidate && behindCandidate) "sibling-mixed-order"
+      else if (frontCandidate) "sibling-front-candidate"
+      else if (behindCandidate) "sibling-behind-only"
+      else "sibling-unconfirmed"
     } catch (_: Exception) {
       "sibling-unconfirmed"
     }
