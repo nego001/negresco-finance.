@@ -388,7 +388,7 @@ export default function App() {
   };
   const active=sections.find(x=>x.name===page);
   const evidenceReview=buildEvidenceReview(boletoResult,cnpjResult);
-  return <SafeAreaView ref={__DEV__?labWindowRoot:undefined} style={[s.root,{paddingTop:Platform.OS==='android'?(StatusBar.currentHeight??24):0}]} onLayout={__DEV__?e=>recordLabRoot(e.nativeEvent.layout.height):undefined}>
+  return <SafeAreaView ref={__DEV__?labWindowRoot:undefined} style={[s.root,{paddingTop:Platform.OS==='android'?(StatusBar.currentHeight??24):0},__DEV__&&Platform.OS==='android'&&{paddingBottom:(StatusBar.currentHeight??24)}]} onLayout={__DEV__?e=>recordLabRoot(e.nativeEvent.layout.height):undefined}>
     {shouldProtectScreenCapture(page,localLock.status)&&<ProtectedScreenCapture/>}
     <StatusBar backgroundColor="#000000" barStyle="light-content"/>
     {localLock.status==='off'||localLock.status==='unlocked'?<>
