@@ -13,6 +13,8 @@ from pathlib import Path
 
 MARKER = "NEGRESCO_LAB_NATIVE_ACTIVITY_DISPATCH_V1"
 FILE = "negresco_lab_activity_dispatch_category"
+SCROLL_FILE = "negresco_lab_native_scroll_coverage"
+SCROLL_ALLOWED = frozenset(("scroll-ready","scroll-hit","scroll-clear","scroll-unconfirmed"))
 ALLOWED = frozenset((
     "activity-ready",
     "activity-down",
@@ -39,9 +41,21 @@ KOTLIN = r'''
     }
   }
 
+  private fun negrescoLabSetScrollCategory(category: String) {
+    if (!BuildConfig.DEBUG) return
+    try {
+      openFileOutput("negresco_lab_native_scroll_coverage", android.content.Context.MODE_PRIVATE).use {
+        it.write(category.toByteArray(Charsets.US_ASCII))
+      }
+    } catch (_: Exception) {
+      // No logs or raw native geometry leave app private storage.
+    }
+  }
+
   override fun onResume() {
     super.onResume()
     negrescoLabSetDispatchCategory("activity-ready")
+    negrescoLabSetScrollCategory("scroll-ready")
   }
 
 
@@ -84,6 +98,47 @@ KOTLIN = r'''
     }
   }
 
+  // Passive overlap probe: a visible ReactScrollView under the same raw
+  // screen point is geometric context, NOT proof of interception/dispatch.
+  private fun negrescoLabScrollCoverage(event: android.view.MotionEvent): String {
+    if (!BuildConfig.DEBUG) return "scroll-unconfirmed"
+    return try {
+      val px = event.getRawX()
+      val py = event.getRawY()
+      if (!px.isFinite() || !py.isFinite()) return "scroll-unconfirmed"
+      val pending = java.util.ArrayDeque<android.view.View>()
+      pending.add(window.decorView)
+      var visited = 0
+      var roots = 0
+      var scrollHit = false
+      while (!pending.isEmpty() && visited < 2048) {
+        val node = pending.removeFirst()
+        visited += 1
+        if (!node.isShown) continue
+        val name = node.javaClass.name
+        if (name == "com.facebook.react.ReactRootView"
+            || name.endsWith(".ReactSurfaceView")) roots += 1
+        if (name == "com.facebook.react.views.scroll.ReactScrollView"
+            || name == "com.facebook.react.views.scroll.ReactHorizontalScrollView") {
+          if (node.width <= 0 || node.height <= 0) return "scroll-unconfirmed"
+          val p = IntArray(2)
+          node.getLocationOnScreen(p)
+          if (px >= p[0] && py >= p[1]
+              && px < p[0] + node.width && py < p[1] + node.height) {
+            scrollHit = true
+          }
+        }
+        if (node is android.view.ViewGroup) {
+          for (i in 0 until node.childCount) pending.add(node.getChildAt(i))
+        }
+      }
+      if (visited >= 2048 || roots != 1) "scroll-unconfirmed"
+      else if (scrollHit) "scroll-hit" else "scroll-clear"
+    } catch (_: Exception) {
+      "scroll-unconfirmed"
+    }
+  }
+
   override fun dispatchTouchEvent(event: android.view.MotionEvent): Boolean {
     if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN) {
       negrescoLabSetDispatchCategory("activity-down")
@@ -91,11 +146,14 @@ KOTLIN = r'''
     // Keep the exact original dispatch semantics and return value.
     val rootHit = if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN)
       negrescoLabReactRootHitCategory(event) else "rn-unconfirmed"
+    val scrollCoverage = if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN)
+      negrescoLabScrollCoverage(event) else "scroll-unconfirmed"
     val handled = super.dispatchTouchEvent(event)
     if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN) {
       negrescoLabSetDispatchCategory(
         (if (handled) "activity-down-consumed-" else "activity-down-unconsumed-") + rootHit
       )
+      negrescoLabSetScrollCategory(scrollCoverage)
     }
     return handled
   }
@@ -107,6 +165,23 @@ def classify_native_state(raw: str | None) -> str:
     if not isinstance(raw,str) or len(raw)>80:
         return "activity-state-unconfirmed"
     return raw if raw in ALLOWED else "activity-state-unconfirmed"
+
+
+def classify_scroll_state(raw: str | None) -> str:
+    if not isinstance(raw,str) or len(raw)>64:
+        return "scroll-unconfirmed"
+    return raw if raw in SCROLL_ALLOWED else "scroll-unconfirmed"
+
+
+def read_debug_scroll_state(adb, package: str) -> str:
+    """Private app-only allowlisted summary; no XML, coordinate, UI text."""
+    if not isinstance(package,str) or not re.fullmatch(r"[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+",package):
+        return "scroll-unconfirmed"
+    try:
+        raw=adb("shell","run-as",package,"cat","files/"+SCROLL_FILE,timeout=15,check=False)
+    except Exception:
+        return "scroll-unconfirmed"
+    return classify_scroll_state(raw if isinstance(raw,str) else None)
 
 
 def install(root: Path) -> str:

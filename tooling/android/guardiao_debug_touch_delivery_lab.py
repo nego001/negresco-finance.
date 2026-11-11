@@ -464,7 +464,9 @@ def prepare_pix_touch_telemetry() -> bool:
         raise RuntimeError("preview-telemetry-unconfirmed")
     dispatch_before=native_dispatch.read_debug_native_state(BASE.adb,BASE.PACKAGE)
     print("ENV (LAB): Pix native Activity dispatch preflight="+dispatch_before,flush=True)
-    if dispatch_before!="activity-ready":
+    scroll_before=native_dispatch.read_debug_scroll_state(BASE.adb,BASE.PACKAGE)
+    print("ENV (LAB): Pix native scroll coverage preflight="+scroll_before,flush=True)
+    if dispatch_before!="activity-ready" or scroll_before!="scroll-ready":
         raise RuntimeError("preview-telemetry-unconfirmed")
     # Logcat is supplemental and cannot veto a native marker with valid geometry.
     raw=safe_lab_logcat()
@@ -562,6 +564,9 @@ def guarded_preview_navigation() -> None:
             print("ENV (LAB): Pix native Activity dispatch after gesture="
                   +native_dispatch.read_debug_native_state(BASE.adb,BASE.PACKAGE),
                   flush=True)
+            print("ENV (LAB): Pix native scroll coverage after gesture="
+                  +native_dispatch.read_debug_scroll_state(BASE.adb,BASE.PACKAGE),
+                  flush=True)
             if current=="home" and target=="pix":
                 print("ENV (LAB): Pix RN native touch delivery="
                       +classify_nav_native_state(terminal_nodes),flush=True)
@@ -579,6 +584,9 @@ def guarded_preview_navigation() -> None:
         print("ENV (LAB): Pix RN native touch delivery="+native_after,flush=True)
         print("ENV (LAB): Pix native Activity dispatch after gesture="
               +native_dispatch.read_debug_native_state(BASE.adb,BASE.PACKAGE),
+              flush=True)
+        print("ENV (LAB): Pix native scroll coverage after gesture="
+              +native_dispatch.read_debug_scroll_state(BASE.adb,BASE.PACKAGE),
               flush=True)
         print("ENV (LAB): Pix RN native root/bottom route="
               +classify_native_touch_route(terminal_pass_nodes),flush=True)

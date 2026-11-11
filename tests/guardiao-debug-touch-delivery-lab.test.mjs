@@ -41,6 +41,12 @@ test('Android 9 emits only allowlisted categories and does not expand touch budg
  assert.match(dispatch,/rn-unconfirmed/);
  assert.match(dispatch,/activity-down-consumed-rn-hit/);
  assert.match(dispatch,/getLocationOnScreen/);
+ assert.match(dispatch,/negrescoLabScrollCoverage/);
+ assert.match(dispatch,/scroll-ready/);
+ assert.match(dispatch,/scroll-hit/);
+ assert.match(dispatch,/scroll-clear/);
+ assert.match(runner,/Pix native scroll coverage preflight=/);
+ assert.match(runner,/Pix native scroll coverage after gesture=/);
  assert.match(dispatch,/BuildConfig\.DEBUG/);
  assert.doesNotMatch(dispatch,/event\.x|event\.y|event\.rawX|event\.rawY/);
  assert.match(workflow,/contents: read/);
@@ -150,6 +156,12 @@ test('native Activity fixed-category dispatch probe installs only into disposabl
   'assert x.classify_native_state("activity-down-unconsumed-rn-hit")=="activity-down-unconsumed-rn-hit"',
   'assert x.classify_native_state("activity-down-unconsumed-rn-miss")=="activity-down-unconsumed-rn-miss"',
   'assert x.classify_native_state("activity-down-consumed-rn-hit-secret")=="activity-state-unconfirmed"',
+  'assert x.classify_scroll_state("scroll-ready")=="scroll-ready"',
+  'assert x.classify_scroll_state("scroll-hit")=="scroll-hit"',
+  'assert x.classify_scroll_state("scroll-clear")=="scroll-clear"',
+  'assert x.classify_scroll_state("scroll-unconfirmed")=="scroll-unconfirmed"',
+  'assert x.classify_scroll_state("scroll-hit-secret")=="scroll-unconfirmed"',
+  'assert x.classify_scroll_state(None)=="scroll-unconfirmed"',
   'assert x.classify_native_state("private-financial-content")=="activity-state-unconfirmed"',
   'assert x.classify_native_state("activity-ready\\nprivate")=="activity-state-unconfirmed"',
   'assert x.classify_native_state(None)=="activity-state-unconfirmed"',
