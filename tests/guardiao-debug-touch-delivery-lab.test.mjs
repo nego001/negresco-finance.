@@ -14,6 +14,8 @@ test('all marker generation is __DEV__ only and release navigation unchanged',()
  assert.match(app,/console\.log\('NEGRESCO_LAB_NAV_CALL_'/);
  assert.match(app,/console\.log\('NEGRESCO_LAB_NAV_PAGE_'/);
  assert.match(app,/setLabPixNavCall\(true\)/);
+ assert.match(app,/onTouchStart=\{__DEV__\?\(\)=>console\.log\('NEGRESCO_LAB_NAV_BOTTOM_TOUCH_START'\)/);
+ assert.match(app,/onTouchStart=\{__DEV__\?\(\)=>\{if\(x\.name==='Pix'\)console\.log\('NEGRESCO_LAB_NAV_PIX_TOUCH_START'\)/);
  assert.match(app,/collapsable=\{__DEV__\?false:undefined\} testID=\{__DEV__\?\('negresco-lab-rn-page-'/);
  assert.match(app,/accessibilityRole="tab"/);
  assert.match(app,/__DEV__&&Platform\.OS==='android'&&\{paddingBottom:/);
@@ -33,6 +35,8 @@ test('Android 9 emits only allowlisted categories and does not expand touch budg
  assert.match(runner,/def prepare_pix_touch_telemetry/);
  assert.match(runner,/def classify_nav_native_state/);
  assert.match(runner,/def observed_pix_logcat_category/);
+ assert.match(runner,/def classify_pix_touch_path/);
+ assert.match(runner,/Pix RN touch route=/);
  assert.match(runner,/native-page-home-pressin-no-call-no/);
  assert.match(runner,/native-page-pix-pressin-yes-call-yes/);
  assert.match(runner,/preview-telemetry-unconfirmed/);
@@ -79,6 +83,24 @@ test('native read-only JS delivery markers require one exact package-bound node'
   'assert x.classify_nav_native_state([node(home+"-private")])=="native-state-unconfirmed"',
   'assert x.classify_nav_native_state([node("payment-details")])=="native-state-unconfirmed"',
   'assert x.observed_pix_logcat_category(False)=="delivery-telemetry-unconfirmed"'
+ ].join('\n');
+ const r=spawnSync('python3',['-c',script],{encoding:'utf8',timeout:15000});
+ assert.equal(r.status,0,r.stderr);
+ assert.equal(r.stdout,'');
+});
+
+test('RN touch-start markers classify bottom and Pix independently, including no signal',()=>{
+ const script=[
+  'import sys',"sys.path.insert(0,'tooling/android')",
+  'import guardiao_debug_touch_delivery_lab as x',
+  'f=x.classify_pix_touch_path',
+  'assert f(None)=="route-telemetry-unconfirmed"',
+  'assert f("no app events")=="route-no-rn-touch-observed"',
+  'assert f("NEGRESCO_LAB_NAV_BOTTOM_TOUCH_START")=="route-bottom-only"',
+  'assert f("NEGRESCO_LAB_NAV_PIX_TOUCH_START")=="route-pix-only"',
+  'assert f("NEGRESCO_LAB_NAV_BOTTOM_TOUCH_START NEGRESCO_LAB_NAV_PIX_TOUCH_START")=="route-bottom-and-pix"',
+  'assert f("NEGRESCO_LAB_NAV_PIX_TOUCH_START-not-trusted")=="route-pix-only"',
+  'assert f("SECRET_PRIVATE_FINANCIAL_VALUE")=="route-no-rn-touch-observed"'
  ].join('\n');
  const r=spawnSync('python3',['-c',script],{encoding:'utf8',timeout:15000});
  assert.equal(r.status,0,r.stderr);

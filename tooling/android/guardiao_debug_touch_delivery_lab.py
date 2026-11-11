@@ -365,6 +365,8 @@ LAB_LOG_MARKERS = frozenset((
     "NEGRESCO_LAB_NAV_PAGE_PIX",
     "NEGRESCO_LAB_NAV_TOUCHIN_PIX",
     "NEGRESCO_LAB_NAV_CALL_PIX",
+    "NEGRESCO_LAB_NAV_BOTTOM_TOUCH_START",
+    "NEGRESCO_LAB_NAV_PIX_TOUCH_START",
 ))
 
 
@@ -421,6 +423,23 @@ def classify_nav_native_state(nodes: list[dict[str,str]]) -> str:
         return "native-state-unconfirmed"
     page,pressin,call=matches[0]
     return "native-page-"+page+"-pressin-"+pressin+"-call-"+call
+
+
+def classify_pix_touch_path(raw: str | None) -> str:
+    """Which Debug RN touch listeners observed the single guarded gesture?"""
+    if raw is None:
+        return "route-telemetry-unconfirmed"
+    markers=set(re.findall(
+        r"NEGRESCO_LAB_NAV_(?:BOTTOM_TOUCH_START|PIX_TOUCH_START)",raw))
+    bottom="NEGRESCO_LAB_NAV_BOTTOM_TOUCH_START" in markers
+    pix="NEGRESCO_LAB_NAV_PIX_TOUCH_START" in markers
+    if bottom and pix:
+        return "route-bottom-and-pix"
+    if bottom:
+        return "route-bottom-only"
+    if pix:
+        return "route-pix-only"
+    return "route-no-rn-touch-observed"
 
 
 def prepare_pix_touch_telemetry() -> bool:
@@ -524,8 +543,11 @@ def guarded_preview_navigation() -> None:
             if current=="home" and target=="pix":
                 print("ENV (LAB): Pix RN native touch delivery="
                       +classify_nav_native_state(terminal_nodes),flush=True)
+                raw_touch_log=safe_lab_logcat() if logcat_ready else None
+                print("ENV (LAB): Pix RN touch route="
+                      +classify_pix_touch_path(raw_touch_log),flush=True)
                 print("ENV (LAB): Pix RN logcat delivery="
-                      +observed_pix_logcat_category(logcat_ready),flush=True)
+                      +classify_pix_touch_delivery(raw_touch_log),flush=True)
             raise RuntimeError("preview-navigation-state-unconfirmed")
         # A displayed screen and selected tabs alone cannot attest JS event delivery.
         native_after=classify_nav_native_state(BASE.xml_nodes())
@@ -534,8 +556,11 @@ def guarded_preview_navigation() -> None:
                          else "native-page-home-pressin-yes-call-yes"):
             raise RuntimeError("preview-navigation-state-unconfirmed")
         if target=="pix":
+            raw_touch_log=safe_lab_logcat() if logcat_ready else None
+            print("ENV (LAB): Pix RN touch route="
+                  +classify_pix_touch_path(raw_touch_log),flush=True)
             print("ENV (LAB): Pix RN logcat delivery="
-                  +observed_pix_logcat_category(logcat_ready),flush=True)
+                  +classify_pix_touch_delivery(raw_touch_log),flush=True)
         print("PASS (LAB): Debug preview transition "+
               ("Home-to-Pix" if target=="pix" else "Pix-to-Home")
               +" in unchanged process",flush=True)
