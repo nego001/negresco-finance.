@@ -49,7 +49,8 @@ test('Debug Yoga probe uses fixed onLayout categories without exposing dimension
  const app=readFileSync('apps/mobile/App.tsx','utf8');
  assert.match(app,/NEGRESCO_LAB_NAV_LAYOUT_/);
  assert.match(app,/recordLabLayout\('bottom',e\.nativeEvent\.layout\.height\)/);
- assert.match(app,/recordLabLayout\(x\.name==='Início'\?'home'/);
+ assert.match(app,/const key=x\.name==='Início'\?'home':x\.name==='Pix'\?'pix':'negresco'/);
+ assert.match(app,/recordLabLayout\(key,e\.nativeEvent\.layout\.height\)/);
  assert.match(app,/if\(!__DEV__\)return/);
  assert.match(runner,/def safe_js_nav_layout_category\(\) -> str:/);
  assert.match(runner,/ReactNativeJS:I/);
