@@ -113,6 +113,21 @@ def collect_native_tree(w: int, h: int) -> str:
         BASE.adb("shell", "rm", "-f", PRIVATE_DEVICE_XML, timeout=12, check=False)
 
 
+def bounded_native_window_proof(native: str, window: str, frame: str) -> bool:
+    """Only categorically valid, fully visible non-overlapping targets qualify.
+
+    No gestures are authorized by this function. It is not navigation QA.
+    """
+    return (
+        native == "testid-three-targets-bounded-readonly"
+        and window == "window-three-regular-in-viewport"
+        and frame in (
+            "rootframe-all-inside-window-not-below",
+            "rootframe-all-inside-window-inset-sized",
+        )
+    )
+
+
 def run() -> None:
     if len(sys.argv) != 1:
         raise RuntimeError("unexpected native ancestor lab argument")
@@ -153,7 +168,6 @@ def run() -> None:
         native_allowed = (
             "testid-three-targets-thin",
             "testid-three-targets-bounded-readonly",
-            "testid-targets-mixed-or-unsafe",
         )
         if native_first != native_second or native_second not in native_allowed:
             raise RuntimeError("stable inset-offset bounds unconfirmed")
@@ -180,19 +194,32 @@ def run() -> None:
             "window-at-least-one-outside",
         ):
             raise RuntimeError("stable window-measure evidence unconfirmed")
-        w, h = BASE.screen_size()
-        first = collect_native_tree(w, h)
-        time.sleep(.35)
-        second = collect_native_tree(w, h)
-        print("ENV (LAB): Debug bottom native ancestor category=" + second, flush=True)
-        allow = (
-            "native-target-not-thin",
-            "native-three-thin-with-taller-bottom-ancestors",
-            "native-three-thin-no-taller-bottom-ancestors",
-            "native-three-thin-mixed-ancestors",
-        )
-        if first != second or second not in allow:
-            raise RuntimeError("stable native ancestor evidence unconfirmed")
+        if native_second == "testid-three-targets-bounded-readonly":
+            # Thin-ancestor classifier is purposely inapplicable once native
+            # targets are adequately bounded. Still require the independent
+            # window and root containment proof; DO NOT authorize a tap.
+            if not bounded_native_window_proof(
+                native_second, window_second, root_second
+            ):
+                raise RuntimeError("bounded native target window proof rejected")
+            print("ENV (LAB): Debug bottom native ancestor category="
+                  "not-applicable-target-bounded", flush=True)
+        else:
+            # Preserve the strict original diagnostic for genuinely thin
+            # targets. A missing/ambiguous native XML snapshot blocks.
+            w, h = BASE.screen_size()
+            first = collect_native_tree(w, h)
+            time.sleep(.35)
+            second = collect_native_tree(w, h)
+            print("ENV (LAB): Debug bottom native ancestor category=" + second,
+                  flush=True)
+            allow = (
+                "native-three-thin-with-taller-bottom-ancestors",
+                "native-three-thin-no-taller-bottom-ancestors",
+                "native-three-thin-mixed-ancestors",
+            )
+            if first != second or second not in allow:
+                raise RuntimeError("stable thin ancestor evidence unconfirmed")
         if BASE.lookup("Gerar e compartilhar relatório PDF") is not None:
             raise RuntimeError("unexpected PDF action on home")
         print("PASS (LAB): Debug inset-offset A/B measured; NO navigation or tap approval", flush=True)

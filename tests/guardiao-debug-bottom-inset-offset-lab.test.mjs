@@ -27,7 +27,9 @@ test('A/B captures both success and failure, never interprets size as navigation
  assert.match(runner,/Debug bottom-inset native target bounds=/);
  assert.match(runner,/testid-three-targets-thin/);
  assert.match(runner,/testid-three-targets-bounded-readonly/);
- assert.match(runner,/native-target-not-thin/);
+ assert.match(runner,/not-applicable-target-bounded/);
+ assert.match(runner,/stable thin ancestor evidence unconfirmed/);
+ assert.match(runner,/bounded native target window proof rejected/);
  assert.match(runner,/NO navigation or tap approval/);
  assert.doesNotMatch(runner,/BASE\.adb\("shell", "input"|BASE\.tap_node|BASE\.scroll_forward|BASE\.scroll_backward|screencap|print\(raw\)|force-stop|pm", "clear"/);
 });
@@ -55,4 +57,27 @@ test('categorical parser still rejects incomplete or malformed native evidence',
  const r=spawnSync('python3',['-c',script],{encoding:'utf8',timeout:15000});
  assert.equal(r.status,0,r.stderr);
  assert.match(r.stdout,/PASS: strict inset A\/B classifications/);
+});
+
+test('bounded targets bypass obsolete thin ancestry, but only when window/root are safe',()=>{
+ const script=[
+ 'import sys',"sys.path.insert(0,'tooling/android')",
+ 'import guardiao_debug_bottom_inset_offset_lab as lab',
+ 'good="testid-three-targets-bounded-readonly"',
+ 'thin="testid-three-targets-thin"',
+ 'visible="window-three-regular-in-viewport"',
+ 'root="rootframe-all-inside-window-not-below"',
+ 'assert lab.bounded_native_window_proof(good,visible,root)',
+ 'assert lab.bounded_native_window_proof(good,visible,"rootframe-all-inside-window-inset-sized")',
+ 'for invalid in (thin,"testid-targets-mixed-or-unsafe","testid-nodes-unconfirmed"):',
+ ' assert not lab.bounded_native_window_proof(invalid,visible,root)',
+ 'for invalid in ("window-at-least-one-outside","window-at-least-one-thin","window-category-unconfirmed"):',
+ ' assert not lab.bounded_native_window_proof(good,invalid,root)',
+ 'for invalid in ("rootframe-at-least-one-below","rootframe-at-least-one-above","rootframe-at-least-one-side","rootframe-incomplete"):',
+ ' assert not lab.bounded_native_window_proof(good,visible,invalid)',
+ 'print("PASS: bounded native proof is strict and has no gesture")'
+ ].join('\n');
+ const r=spawnSync('python3',['-c',script],{encoding:'utf8',timeout:15000});
+ assert.equal(r.status,0,r.stderr);
+ assert.match(r.stdout,/PASS: bounded native proof is strict and has no gesture/);
 });
