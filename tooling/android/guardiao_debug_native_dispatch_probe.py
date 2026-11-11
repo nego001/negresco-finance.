@@ -18,6 +18,12 @@ ALLOWED = frozenset((
     "activity-down",
     "activity-down-consumed",
     "activity-down-unconsumed",
+    "activity-down-consumed-rn-hit",
+    "activity-down-consumed-rn-miss",
+    "activity-down-consumed-rn-unconfirmed",
+    "activity-down-unconsumed-rn-hit",
+    "activity-down-unconsumed-rn-miss",
+    "activity-down-unconsumed-rn-unconfirmed",
 ))
 
 KOTLIN = r'''
@@ -38,13 +44,58 @@ KOTLIN = r'''
     negrescoLabSetDispatchCategory("activity-ready")
   }
 
+
+  // Read-only native geometric check. Neither event coordinates nor view
+  // structure are retained or emitted. Do not infer actual JS delivery.
+  private fun negrescoLabReactRootHitCategory(event: android.view.MotionEvent): String {
+    if (!BuildConfig.DEBUG) return "rn-unconfirmed"
+    return try {
+      val px = event.rawX
+      val py = event.rawY
+      if (!px.isFinite() || !py.isFinite()) return "rn-unconfirmed"
+      val pending = java.util.ArrayDeque<android.view.View>()
+      pending.add(window.decorView)
+      var visited = 0
+      var matches = 0
+      var hit = false
+      while (!pending.isEmpty() && visited < 2048) {
+        val node = pending.removeFirst()
+        visited += 1
+        if (!node.isShown) continue
+        val cls = node.javaClass.name
+        if (cls == "com.facebook.react.ReactRootView"
+            || cls.endsWith(".ReactSurfaceView")) {
+          matches += 1
+          if (node.width <= 0 || node.height <= 0) return "rn-unconfirmed"
+          val position = IntArray(2)
+          node.getLocationOnScreen(position)
+          hit = (px >= position[0] && py >= position[1]
+              && px < position[0] + node.width
+              && py < position[1] + node.height)
+        }
+        if (node is android.view.ViewGroup) {
+          for (i in 0 until node.childCount) pending.add(node.getChildAt(i))
+        }
+      }
+      if (visited >= 2048 || matches != 1) "rn-unconfirmed"
+      else if (hit) "rn-hit" else "rn-miss"
+    } catch (_: Exception) {
+      "rn-unconfirmed"
+    }
+  }
+
   override fun dispatchTouchEvent(event: android.view.MotionEvent): Boolean {
     if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN) {
       negrescoLabSetDispatchCategory("activity-down")
     }
+    // Keep the exact original dispatch semantics and return value.
+    val rootHit = if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN)
+      negrescoLabReactRootHitCategory(event) else "rn-unconfirmed"
     val handled = super.dispatchTouchEvent(event)
     if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN) {
-      negrescoLabSetDispatchCategory(if (handled) "activity-down-consumed" else "activity-down-unconsumed")
+      negrescoLabSetDispatchCategory(
+        (if (handled) "activity-down-consumed-" else "activity-down-unconsumed-") + rootHit
+      )
     }
     return handled
   }

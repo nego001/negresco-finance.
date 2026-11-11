@@ -37,6 +37,10 @@ test('Android 9 emits only allowlisted categories and does not expand touch budg
  assert.match(runner,/Pix native Activity dispatch after gesture=/);
  assert.match(dispatch,/override fun dispatchTouchEvent\(event: android\.view\.MotionEvent\)/);
  assert.match(dispatch,/override fun onResume\(\)/);
+ assert.match(dispatch,/negrescoLabReactRootHitCategory/);
+ assert.match(dispatch,/rn-unconfirmed/);
+ assert.match(dispatch,/activity-down-consumed-rn-hit/);
+ assert.match(dispatch,/getLocationOnScreen/);
  assert.match(dispatch,/BuildConfig\.DEBUG/);
  assert.doesNotMatch(dispatch,/event\.x|event\.y|event\.rawX|event\.rawY/);
  assert.match(workflow,/contents: read/);
@@ -140,6 +144,12 @@ test('native Activity fixed-category dispatch probe installs only into disposabl
   'assert x.classify_native_state("activity-down-consumed")=="activity-down-consumed"',
   'assert x.classify_native_state("activity-down-unconsumed")=="activity-down-unconsumed"',
   'assert x.classify_native_state("activity-down")=="activity-down"',
+  'assert x.classify_native_state("activity-down-consumed-rn-hit")=="activity-down-consumed-rn-hit"',
+  'assert x.classify_native_state("activity-down-consumed-rn-miss")=="activity-down-consumed-rn-miss"',
+  'assert x.classify_native_state("activity-down-consumed-rn-unconfirmed")=="activity-down-consumed-rn-unconfirmed"',
+  'assert x.classify_native_state("activity-down-unconsumed-rn-hit")=="activity-down-unconsumed-rn-hit"',
+  'assert x.classify_native_state("activity-down-unconsumed-rn-miss")=="activity-down-unconsumed-rn-miss"',
+  'assert x.classify_native_state("activity-down-consumed-rn-hit-secret")=="activity-state-unconfirmed"',
   'assert x.classify_native_state("private-financial-content")=="activity-state-unconfirmed"',
   'assert x.classify_native_state("activity-ready\\nprivate")=="activity-state-unconfirmed"',
   'assert x.classify_native_state(None)=="activity-state-unconfirmed"',
