@@ -470,8 +470,11 @@ def prepare_pix_touch_telemetry() -> bool:
     print("ENV (LAB): Pix native testID hit preflight="+pix_before,flush=True)
     lifecycle_before=native_dispatch.read_debug_gesture_state(BASE.adb,BASE.PACKAGE)
     print("ENV (LAB): Pix native gesture lifecycle preflight="+lifecycle_before,flush=True)
+    siblings_before=native_dispatch.read_debug_sibling_state(BASE.adb,BASE.PACKAGE)
+    print("ENV (LAB): Pix native sibling overlap preflight="+siblings_before,flush=True)
     if (dispatch_before!="activity-ready" or scroll_before!="scroll-ready"
-            or pix_before!="pix-ready" or lifecycle_before!="gesture-ready"):
+            or pix_before!="pix-ready" or lifecycle_before!="gesture-ready"
+            or siblings_before!="sibling-ready"):
         raise RuntimeError("preview-telemetry-unconfirmed")
     # Logcat is supplemental and cannot veto a native marker with valid geometry.
     raw=safe_lab_logcat()
@@ -578,6 +581,9 @@ def guarded_preview_navigation() -> None:
             print("ENV (LAB): Pix native gesture lifecycle after gesture="
                   +native_dispatch.read_debug_gesture_state(BASE.adb,BASE.PACKAGE),
                   flush=True)
+            print("ENV (LAB): Pix native sibling overlap after gesture="
+                  +native_dispatch.read_debug_sibling_state(BASE.adb,BASE.PACKAGE),
+                  flush=True)
             if current=="home" and target=="pix":
                 print("ENV (LAB): Pix RN native touch delivery="
                       +classify_nav_native_state(terminal_nodes),flush=True)
@@ -604,6 +610,9 @@ def guarded_preview_navigation() -> None:
               flush=True)
         print("ENV (LAB): Pix native gesture lifecycle after gesture="
               +native_dispatch.read_debug_gesture_state(BASE.adb,BASE.PACKAGE),
+              flush=True)
+        print("ENV (LAB): Pix native sibling overlap after gesture="
+              +native_dispatch.read_debug_sibling_state(BASE.adb,BASE.PACKAGE),
               flush=True)
         print("ENV (LAB): Pix RN native root/bottom route="
               +classify_native_touch_route(terminal_pass_nodes),flush=True)

@@ -56,6 +56,11 @@ test('Android 9 emits only allowlisted categories and does not expand touch budg
  assert.match(dispatch,/gesture-sequence-invalid/);
  assert.match(dispatch,/ACTION_CANCEL/);
  assert.match(dispatch,/negrescoLabGestureActive/);
+ assert.match(dispatch,/negrescoLabPixSiblingCategory/);
+ assert.match(dispatch,/sibling-overlap/);
+ assert.match(dispatch,/sibling-clear/);
+ assert.match(runner,/Pix native sibling overlap preflight=/);
+ assert.match(runner,/Pix native sibling overlap after gesture=/);
  assert.match(runner,/Pix native gesture lifecycle preflight=/);
  assert.match(runner,/Pix native gesture lifecycle after gesture=/);
  assert.match(runner,/Pix native testID hit preflight=/);
@@ -193,6 +198,12 @@ test('native Activity fixed-category dispatch probe installs only into disposabl
   'assert x.classify_gesture_state("gesture-sequence-invalid")=="gesture-sequence-invalid"',
   'assert x.classify_gesture_state("gesture-down-up-consumed-secret")=="gesture-unconfirmed"',
   'assert x.classify_gesture_state(None)=="gesture-unconfirmed"',
+  'assert x.classify_sibling_state("sibling-ready")=="sibling-ready"',
+  'assert x.classify_sibling_state("sibling-overlap")=="sibling-overlap"',
+  'assert x.classify_sibling_state("sibling-clear")=="sibling-clear"',
+  'assert x.classify_sibling_state("sibling-unconfirmed")=="sibling-unconfirmed"',
+  'assert x.classify_sibling_state("sibling-overlap-private")=="sibling-unconfirmed"',
+  'assert x.classify_sibling_state(None)=="sibling-unconfirmed"',
   'assert x.classify_native_state("private-financial-content")=="activity-state-unconfirmed"',
   'assert x.classify_native_state("activity-ready\\nprivate")=="activity-state-unconfirmed"',
   'assert x.classify_native_state(None)=="activity-state-unconfirmed"',

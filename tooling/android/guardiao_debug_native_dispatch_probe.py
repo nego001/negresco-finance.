@@ -18,6 +18,8 @@ SCROLL_ALLOWED = frozenset(("scroll-ready","scroll-hit","scroll-clear","scroll-u
 PIX_FILE = "negresco_lab_native_pix_target"
 PIX_ALLOWED = frozenset(("pix-ready","pix-hit","pix-miss","pix-unconfirmed"))
 GESTURE_FILE = "negresco_lab_native_gesture_phase"
+SIBLING_FILE = "negresco_lab_native_pix_siblings"
+SIBLING_ALLOWED = frozenset(("sibling-ready","sibling-overlap","sibling-clear","sibling-unconfirmed"))
 GESTURE_ALLOWED = frozenset((
     "gesture-ready",
     "gesture-down",
@@ -78,6 +80,18 @@ KOTLIN = r'''
     }
   }
 
+  // Passive sibling geometry; never changes View properties or dispatch order.
+  private fun negrescoLabSetSiblingCategory(category: String) {
+    if (!BuildConfig.DEBUG) return
+    try {
+      openFileOutput("negresco_lab_native_pix_siblings", android.content.Context.MODE_PRIVATE).use {
+        it.write(category.toByteArray(Charsets.US_ASCII))
+      }
+    } catch (_: Exception) {
+      // No event, coordinates, view names or hierarchy are persisted.
+    }
+  }
+
   // Advisory only: native ACTION_DOWN/UP pairing, no timing or coordinates.
   private var negrescoLabGestureActive = false
   private var negrescoLabGestureInvalid = false
@@ -100,6 +114,7 @@ KOTLIN = r'''
     negrescoLabSetScrollCategory("scroll-ready")
     negrescoLabSetPixCategory("pix-ready")
     negrescoLabSetGestureCategory("gesture-ready")
+    negrescoLabSetSiblingCategory("sibling-ready")
   }
 
 
@@ -227,6 +242,72 @@ KOTLIN = r'''
     }
   }
 
+
+  // Detect direct siblings on the Pix ancestor chain that geometrically cover
+  // the same point. Overlap says NOTHING about draw order or interception.
+  private fun negrescoLabPixSiblingCategory(event: android.view.MotionEvent): String {
+    if (!BuildConfig.DEBUG) return "sibling-unconfirmed"
+    return try {
+      val px = event.getRawX()
+      val py = event.getRawY()
+      if (!px.isFinite() || !py.isFinite()) return "sibling-unconfirmed"
+      var testTagId = resources.getIdentifier("react_test_id", "id", packageName)
+      if (testTagId == 0) {
+        testTagId = resources.getIdentifier("react_test_id", "id", "com.facebook.react")
+      }
+      if (testTagId == 0) return "sibling-unconfirmed"
+      val pending = java.util.ArrayDeque<android.view.View>()
+      pending.add(window.decorView)
+      var visited = 0
+      var matches = 0
+      var pix: android.view.View? = null
+      while (!pending.isEmpty() && visited < 2048) {
+        val node = pending.removeFirst()
+        visited += 1
+        if (!node.isShown) continue
+        val tag = node.getTag(testTagId)
+        if (tag is String && tag.startsWith("negresco-lab-tab-pix-")) {
+          matches += 1
+          pix = node
+        }
+        if (node is android.view.ViewGroup) {
+          for (i in 0 until node.childCount) pending.add(node.getChildAt(i))
+        }
+      }
+      if (visited >= 2048 || matches != 1 || pix == null) return "sibling-unconfirmed"
+      var child: android.view.View = pix
+      var depth = 0
+      var overlap = false
+      var reachedRoot = false
+      while (depth < 64) {
+        val parent = child.parent as? android.view.ViewGroup ?: break
+        depth += 1
+        for (i in 0 until parent.childCount) {
+          val other = parent.getChildAt(i)
+          if (other === child || !other.isShown || other.alpha <= 0f) continue
+          if (other.width <= 0 || other.height <= 0) continue
+          val pos = IntArray(2)
+          other.getLocationOnScreen(pos)
+          if (px >= pos[0] && py >= pos[1]
+              && px < pos[0] + other.width && py < pos[1] + other.height) {
+            overlap = true
+          }
+        }
+        val kind = parent.javaClass.name
+        if (kind == "com.facebook.react.ReactRootView"
+            || kind.endsWith(".ReactSurfaceView")) {
+          reachedRoot = true
+          break
+        }
+        child = parent
+      }
+      if (!reachedRoot || depth >= 64) "sibling-unconfirmed"
+      else if (overlap) "sibling-overlap" else "sibling-clear"
+    } catch (_: Exception) {
+      "sibling-unconfirmed"
+    }
+  }
+
   override fun dispatchTouchEvent(event: android.view.MotionEvent): Boolean {
     if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN) {
       negrescoLabSetDispatchCategory("activity-down")
@@ -242,6 +323,8 @@ KOTLIN = r'''
       negrescoLabScrollCoverage(event) else "scroll-unconfirmed"
     val pixTarget = if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN)
       negrescoLabPixTargetHit(event) else "pix-unconfirmed"
+    val siblings = if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN)
+      negrescoLabPixSiblingCategory(event) else "sibling-unconfirmed"
     val handled = super.dispatchTouchEvent(event)
     if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN) {
       negrescoLabSetDispatchCategory(
@@ -249,6 +332,7 @@ KOTLIN = r'''
       )
       negrescoLabSetScrollCategory(scrollCoverage)
       negrescoLabSetPixCategory(pixTarget)
+      negrescoLabSetSiblingCategory(siblings)
     }
     if (event.actionMasked == android.view.MotionEvent.ACTION_UP) {
       negrescoLabSetGestureCategory(
@@ -329,6 +413,24 @@ def read_debug_gesture_state(adb, package: str) -> str:
     except Exception:
         return "gesture-unconfirmed"
     return classify_gesture_state(raw if isinstance(raw,str) else None)
+
+
+def classify_sibling_state(raw: str | None) -> str:
+    """A fixed category only; never expose the inspected tree."""
+    if not isinstance(raw,str) or len(raw)>64:
+        return "sibling-unconfirmed"
+    return raw if raw in SIBLING_ALLOWED else "sibling-unconfirmed"
+
+
+def read_debug_sibling_state(adb, package: str) -> str:
+    """Run-as reads only a Debug private category, not native view data."""
+    if not isinstance(package,str) or not re.fullmatch(r"[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+",package):
+        return "sibling-unconfirmed"
+    try:
+        raw=adb("shell","run-as",package,"cat","files/"+SIBLING_FILE,timeout=15,check=False)
+    except Exception:
+        return "sibling-unconfirmed"
+    return classify_sibling_state(raw if isinstance(raw,str) else None)
 
 
 def install(root: Path) -> str:
