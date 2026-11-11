@@ -117,3 +117,47 @@ test('pinned NDK preflight preserves valid workflow step order and exact package
  assert.match(workflow.slice(build,apk),/working-directory: apps\/mobile[\s\S]*\.\/gradlew :app:assembleDebug --no-daemon/);
  assert.doesNotMatch(workflow,/assembleRelease|workflow_dispatch|upload-artifact|secrets\./);
 });
+
+test('post-gesture diagnostic distinguishes screen navigation, selection and geometry safely',()=>{
+ assert.match(runner,/def safe_postgesture_category/);
+ assert.match(runner,/post-source-screen-retained/);
+ assert.match(runner,/post-expected-screen-unconfirmed/);
+ assert.match(runner,/post-screen-visible-selection-attribute-missing/);
+ assert.match(runner,/post-screen-visible-selection-mismatch/);
+ assert.match(runner,/post-screen-selected-bounds-unconfirmed/);
+ assert.match(runner,/post-screen-selected-geometry-consistent/);
+ assert.match(runner,/Pix post-gesture screen category=/);
+ assert.match(runner,/Pix post-gesture native bounds=/);
+ assert.match(runner,/raise RuntimeError\("preview-navigation-state-unconfirmed"\)/);
+ assert.doesNotMatch(runner,/print\(terminal_nodes\)|print\(banner\)|print\(exc\)|print\(raw\)|screencap/);
+});
+test('post-gesture category handles absent text, changed screen, selected and bounds without raw data',()=>{
+ const script=[
+ 'import sys',"sys.path.insert(0,'tooling/android')",
+ 'import guardiao_debug_same_pid_pix_home_lab as x',
+ 'x.BASE.PACKAGE="pkg"',
+ 'ids=["home","pix","negresco"]',
+ 'def nodes(screen="pix",selection="pix",missing=False):',
+ ' a=[{"resource-id":"pkg:id/negresco-lab-tab-"+name+"-yoga-regular-bottom-regular-placement-inside-root-window-regular-in-viewport-rootframe-inside-root-edge-not-below","package":"pkg","clickable":"true","enabled":"true","selected":("true" if name==selection else "false")} for name in ids]',
+ ' if missing:del a[1]["selected"]',
+ ' title="Pix do seu jeito." if screen=="pix" else ("Seu universo" if screen=="home" else "nonmatching")',
+ ' a.append({"package":"pkg","enabled":"true","text":title})',
+ ' return a',
+ 'safe="testid-three-targets-bounded-readonly"',
+ 'def cat(ns, native=safe):return x.safe_postgesture_category(ns,"home","pix","Pix do seu jeito.",native)',
+ 'assert cat(nodes())=="post-screen-selected-geometry-consistent"',
+ 'assert cat(nodes(screen="home",selection="home"))=="post-source-screen-retained"',
+ 'assert cat(nodes(screen="unknown"))=="post-expected-screen-unconfirmed"',
+ 'assert cat(nodes(selection="home"))=="post-screen-visible-selection-mismatch"',
+ 'assert cat(nodes(missing=True))=="post-screen-visible-selection-attribute-missing"',
+ 'assert cat(nodes(), "testid-three-targets-thin")=="post-screen-selected-bounds-unconfirmed"',
+ 'assert cat(nodes()[:2])=="post-screen-visible-target-ids-unconfirmed"',
+ 'assert cat(nodes()+[nodes()[1]])=="post-screen-visible-target-ids-unconfirmed"',
+ 'assert x.safe_postgesture_category(nodes(),"pix","home","Pix do seu jeito.",safe)=="post-snapshot-unconfirmed"',
+ 'assert x.safe_postgesture_category(nodes("home","home"),"pix","home","Seu universo",safe)=="post-screen-selected-geometry-consistent"',
+ 'print("PASS: fixed Pix post-gesture categories")',
+ ].join('\n');
+ const res=spawnSync('python3',['-c',script],{encoding:'utf8',timeout:15000});
+ assert.equal(res.status,0,res.stderr);
+ assert.match(res.stdout,/PASS: fixed Pix post-gesture categories/);
+});

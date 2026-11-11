@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """API28 Debug-only guarded navigation Pix preview to Home in one process.
 
-No PDF action, synthetic input, taps, swipes, screenshots, raw UI XML/logcat
-publication, release change, account data, approval, or external network.
+Exactly two permitted geometry-gated preview taps; no PDF, real payment,
+swipes, screenshots, raw XML/logcat publication, or release change.
 """
 from __future__ import annotations
 
@@ -307,6 +307,57 @@ def require_geometry_for_navigation() -> None:
         raise RuntimeError("preview-navigation-geometry-unconfirmed")
 
 
+def safe_postgesture_category(
+    nodes: list[dict[str,str]], current: str, target: str,
+    banner: str, native_category: str
+) -> str:
+    """Categorize a failed preview transition using only allowlisted strings.
+
+    Does not authorize a retry or a further gesture. Never returns UI data.
+    """
+    try:
+        if (not isinstance(nodes,list) or not nodes or len(nodes)>3000
+                or (current,target,banner) not in (
+                    ("home","pix","Pix do seu jeito."),
+                    ("pix","home","Seu universo"),
+                )):
+            return "post-snapshot-unconfirmed"
+        def visible(text: str) -> bool:
+            return any(
+                n.get("package")==BASE.PACKAGE
+                and n.get("enabled")=="true"
+                and any(text.casefold() in n.get(field,"").casefold()
+                        for field in ("text","content-desc"))
+                for n in nodes
+            )
+        if not visible(banner):
+            source_banner=("Seu universo" if current=="home"
+                           else "Pix do seu jeito.")
+            return ("post-source-screen-retained" if visible(source_banner)
+                    else "post-expected-screen-unconfirmed")
+        found={}
+        for key,ident in TAB_IDS.items():
+            hits=[n for n in nodes if debug.safe_testid_matches(n,ident)]
+            if len(hits)!=1:
+                return "post-screen-visible-target-ids-unconfirmed"
+            found[key]=hits[0]
+        if any(n.get("package")!=BASE.PACKAGE
+               or n.get("clickable")!="true"
+               or n.get("enabled")!="true" for n in found.values()):
+            return "post-screen-visible-target-state-unconfirmed"
+        states=[node.get("selected") for node in found.values()]
+        if any(state not in ("true","false") for state in states):
+            return "post-screen-visible-selection-attribute-missing"
+        if any(node.get("selected")!=("true" if key==target else "false")
+               for key,node in found.items()):
+            return "post-screen-visible-selection-mismatch"
+        if native_category!="testid-three-targets-bounded-readonly":
+            return "post-screen-selected-bounds-unconfirmed"
+        return "post-screen-selected-geometry-consistent"
+    except Exception:
+        return "post-snapshot-unconfirmed"
+
+
 def guarded_preview_navigation() -> None:
     """Only Pix DEMO then Home; 2 validated gestures, same PID throughout."""
     mark_navigation_phase("before-pid")
@@ -368,6 +419,19 @@ def guarded_preview_navigation() -> None:
                     break
             time.sleep(.65)
         if not reached:
+            # Extra read-only observation only after the original gate blocks.
+            # Never retry a gesture or relax the banner/selection check.
+            try:
+                terminal_nodes=BASE.xml_nodes()
+            except Exception:
+                terminal_nodes=[]
+            terminal_native=debug.safe_debug_testid_nav_geometry()
+            detail=safe_postgesture_category(
+                terminal_nodes,current,target,expected_banner,terminal_native)
+            print("ENV (LAB): Pix post-gesture screen category="+detail,
+                  flush=True)
+            print("ENV (LAB): Pix post-gesture native bounds="
+                  +terminal_native,flush=True)
             raise RuntimeError("preview-navigation-state-unconfirmed")
         print("PASS (LAB): Debug preview transition "+
               ("Home-to-Pix" if target=="pix" else "Pix-to-Home")
