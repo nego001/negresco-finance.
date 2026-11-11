@@ -15,7 +15,7 @@ test('all marker generation is __DEV__ only and release navigation unchanged',()
  assert.match(app,/console\.log\('NEGRESCO_LAB_NAV_PAGE_'/);
  assert.match(app,/setLabPixNavCall\(true\)/);
  assert.match(app,/onTouchStart=\{__DEV__\?\(\)=>console\.log\('NEGRESCO_LAB_NAV_BOTTOM_TOUCH_START'\)/);
- assert.match(app,/onTouchStart=\{__DEV__\?\(\)=>\{if\(x\.name==='Pix'\)console\.log\('NEGRESCO_LAB_NAV_PIX_TOUCH_START'\)/);
+ assert.doesNotMatch(app,/onTouchStart=\{__DEV__\?\(\)=>\{if\(x\.name==='Pix'/);
  assert.match(app,/collapsable=\{__DEV__\?false:undefined\} testID=\{__DEV__\?\('negresco-lab-rn-page-'/);
  assert.match(app,/accessibilityRole="tab"/);
  assert.match(app,/__DEV__&&Platform\.OS==='android'&&\{paddingBottom:/);
@@ -96,10 +96,10 @@ test('RN touch-start markers classify bottom and Pix independently, including no
   'f=x.classify_pix_touch_path',
   'assert f(None)=="route-telemetry-unconfirmed"',
   'assert f("no app events")=="route-no-rn-touch-observed"',
-  'assert f("NEGRESCO_LAB_NAV_BOTTOM_TOUCH_START")=="route-bottom-only"',
-  'assert f("NEGRESCO_LAB_NAV_PIX_TOUCH_START")=="route-pix-only"',
-  'assert f("NEGRESCO_LAB_NAV_BOTTOM_TOUCH_START NEGRESCO_LAB_NAV_PIX_TOUCH_START")=="route-bottom-and-pix"',
-  'assert f("NEGRESCO_LAB_NAV_PIX_TOUCH_START-not-trusted")=="route-no-rn-touch-observed"',
+  'assert f("NEGRESCO_LAB_NAV_BOTTOM_TOUCH_START")=="route-bottom-touch-observed"',
+  'assert f("NEGRESCO_LAB_NAV_PIX_TOUCH_START")=="route-no-rn-touch-observed"',
+  'assert f("NEGRESCO_LAB_NAV_BOTTOM_TOUCH_START NEGRESCO_LAB_NAV_PIX_TOUCH_START")=="route-bottom-touch-observed"',
+  'assert f("NEGRESCO_LAB_NAV_BOTTOM_TOUCH_START-not-trusted")=="route-no-rn-touch-observed"',
   'assert f("SECRET_PRIVATE_FINANCIAL_VALUE")=="route-no-rn-touch-observed"'
  ].join('\n');
  const r=spawnSync('python3',['-c',script],{encoding:'utf8',timeout:15000});

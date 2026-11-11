@@ -366,7 +366,6 @@ LAB_LOG_MARKERS = frozenset((
     "NEGRESCO_LAB_NAV_TOUCHIN_PIX",
     "NEGRESCO_LAB_NAV_CALL_PIX",
     "NEGRESCO_LAB_NAV_BOTTOM_TOUCH_START",
-    "NEGRESCO_LAB_NAV_PIX_TOUCH_START",
 ))
 
 
@@ -426,20 +425,15 @@ def classify_nav_native_state(nodes: list[dict[str,str]]) -> str:
 
 
 def classify_pix_touch_path(raw: str | None) -> str:
-    """Which Debug RN touch listeners observed the single guarded gesture?"""
+    """Categorical Debug listener on the bottom View, never a touch authorization."""
     if raw is None:
         return "route-telemetry-unconfirmed"
-    markers=set(re.findall(
-        r"(?<![A-Za-z0-9_-])NEGRESCO_LAB_NAV_(?:BOTTOM_TOUCH_START|PIX_TOUCH_START)(?![A-Za-z0-9_-])",raw))
-    bottom="NEGRESCO_LAB_NAV_BOTTOM_TOUCH_START" in markers
-    pix="NEGRESCO_LAB_NAV_PIX_TOUCH_START" in markers
-    if bottom and pix:
-        return "route-bottom-and-pix"
-    if bottom:
-        return "route-bottom-only"
-    if pix:
-        return "route-pix-only"
-    return "route-no-rn-touch-observed"
+    observed=re.search(
+        r"(?<![A-Za-z0-9_-])NEGRESCO_LAB_NAV_BOTTOM_TOUCH_START(?![A-Za-z0-9_-])",
+        raw,
+    ) is not None
+    return ("route-bottom-touch-observed" if observed
+            else "route-no-rn-touch-observed")
 
 
 def prepare_pix_touch_telemetry() -> bool:
