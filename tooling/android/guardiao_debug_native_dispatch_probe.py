@@ -23,6 +23,8 @@ SIBLING_ALLOWED = frozenset((
     "sibling-ready", "sibling-overlap", "sibling-clear",
     "sibling-front-candidate", "sibling-behind-only",
     "sibling-mixed-order", "sibling-unconfirmed",
+    "sibling-front-direct", "sibling-front-parent",
+    "sibling-front-ancestor", "sibling-front-multilevel",
 ))
 GESTURE_ALLOWED = frozenset((
     "gesture-ready",
@@ -286,6 +288,8 @@ KOTLIN = r'''
       var overlap = false
       var frontCandidate = false
       var behindCandidate = false
+      var minFrontDepth = 65
+      var maxFrontDepth = 0
       var orderUnconfirmed = false
       var reachedRoot = false
       while (depth < 64) {
@@ -305,6 +309,8 @@ KOTLIN = r'''
             if (!other.z.isFinite()) orderUnconfirmed = true
             else if (other.z > child.z || (other.z == child.z && i > childIndex)) {
               frontCandidate = true
+              if (depth < minFrontDepth) minFrontDepth = depth
+              if (depth > maxFrontDepth) maxFrontDepth = depth
             } else {
               behindCandidate = true
             }
@@ -321,7 +327,10 @@ KOTLIN = r'''
       if (!reachedRoot || depth >= 64 || orderUnconfirmed) "sibling-unconfirmed"
       else if (!overlap) "sibling-clear"
       else if (frontCandidate && behindCandidate) "sibling-mixed-order"
-      else if (frontCandidate) "sibling-front-candidate"
+      else if (frontCandidate && minFrontDepth != maxFrontDepth) "sibling-front-multilevel"
+      else if (frontCandidate && minFrontDepth == 1) "sibling-front-direct"
+      else if (frontCandidate && minFrontDepth == 2) "sibling-front-parent"
+      else if (frontCandidate && minFrontDepth in 3..63) "sibling-front-ancestor"
       else if (behindCandidate) "sibling-behind-only"
       else "sibling-unconfirmed"
     } catch (_: Exception) {
