@@ -53,3 +53,47 @@ test('native safe target rejects overlapping, duplicate, thin, unselected, wrong
  assert.equal(r.status,0,r.stderr);
  assert.match(r.stdout,/PASS: only unique, safe, selected Preview targets/);
 });
+
+test('navigation reports only allowlisted phase, block and target categories',()=>{
+ assert.match(runner,/NAV_PHASES = frozenset/);
+ assert.match(runner,/safe_navigation_block_reason/);
+ assert.match(runner,/safe_tab_preflight_category/);
+ assert.match(runner,/target-selected-attribute-missing/);
+ assert.match(runner,/target-selected-state-mismatch/);
+ assert.match(runner,/other-clickable-covers-target/);
+ assert.match(runner,/phase="\+phase\+/);
+ assert.match(runner,/reason="\+reason/);
+ assert.match(runner,/mark_navigation_phase\("before-gesture"\)/);
+ assert.match(runner,/mark_navigation_phase\("post-gesture-state"\)/);
+ assert.doesNotMatch(runner,/print\(exc\)|str\(exc\).*print|print\((?:nodes_first|nodes_second|before|first|second)\)/);
+});
+test('preflight categories are fixed and mirror the original strict target gates',()=>{
+ const script=[
+ 'import sys',"sys.path.insert(0,'tooling/android')",
+ 'import guardiao_debug_same_pid_pix_home_lab as x',
+ 'names=["home","pix","negresco"]',
+ 'bounds=["[10,805][290,865]","[365,805][645,865]","[720,805][1000,865]"]',
+ 'def nodes(current="home"):',
+ ' return [{"resource-id":"pkg:id/negresco-lab-tab-"+n+"-yoga-regular-bottom-regular-placement-inside-root-window-regular-in-viewport-rootframe-inside-root-edge-not-below","bounds":b,"package":"pkg","clickable":"true","enabled":"true","selected":("true" if n==current else "false")} for n,b in zip(names,bounds)]',
+ 'def cat(v):return x.safe_tab_preflight_category(v,1080,960,"pkg","home","pix")',
+ 'assert cat(nodes())=="target-preflight-eligible"',
+ 'v=nodes();del v[0]["selected"]',
+ 'assert cat(v)=="target-selected-attribute-missing"',
+ 'assert cat(nodes("pix"))=="target-selected-state-mismatch"',
+ 'v=nodes();v[1]["bounds"]="[365,805][645,808]"',
+ 'assert cat(v)=="target-geometry-not-eligible"',
+ 'v=nodes();v[2]["package"]="other"',
+ 'assert cat(v)=="target-package-or-clickability"',
+ 'v=nodes();v.append(v[1])',
+ 'assert cat(v)=="target-ids-unconfirmed"',
+ 'v=nodes();v.append(dict(v[1],**{"resource-id":"pkg:id/clickable-other"}))',
+ 'assert cat(v)=="other-clickable-covers-target"',
+ 'assert x.safe_navigation_block_reason(RuntimeError("preview-process-or-focus-unconfirmed"))=="process-or-focus-unconfirmed"',
+ 'assert x.safe_navigation_block_reason(RuntimeError("PRIVATE_ACCOUNT_VALUE"))=="other-or-unconfirmed"',
+ 'assert x.safe_navigation_block_reason(ValueError("PRIVATE_ACCOUNT_VALUE"))=="other-or-unconfirmed"',
+ 'print("PASS: sanitised navigation categories")'
+ ].join('\n');
+ const res=spawnSync('python3',['-c',script],{encoding:'utf8',timeout:15000});
+ assert.equal(res.status,0,res.stderr);
+ assert.match(res.stdout,/PASS: sanitised navigation categories/);
+});

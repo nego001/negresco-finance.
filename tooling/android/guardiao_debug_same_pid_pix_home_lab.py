@@ -192,6 +192,101 @@ def safe_tab_point(nodes: list[dict[str,str]], width: int, height: int,
     return point
 
 
+# Log only allowlisted phase and result categories, never private Android state.
+NAV_PHASE = "not-started"
+NAV_PHASES = frozenset((
+    "before-pid", "initial-home", "initial-geometry",
+    "before-target", "target-snapshots", "before-gesture",
+    "post-gesture-state", "roundtrip-final",
+))
+NAV_BLOCK_CODES = {
+    "preview-process-or-focus-unconfirmed": "process-or-focus-unconfirmed",
+    "preview-initial-home-unconfirmed": "initial-home-unconfirmed",
+    "preview-navigation-geometry-unconfirmed": "geometry-unconfirmed",
+    "preview-target-not-unique-stable-safe": "target-safety-unconfirmed",
+    "preview-gesture-budget-exhausted": "gesture-budget-exhausted",
+    "preview-navigation-state-unconfirmed": "navigation-state-unconfirmed",
+    "preview-navigation-count-unconfirmed": "navigation-count-unconfirmed",
+    "stable inset-offset bounds unconfirmed": "native-bounds-unconfirmed",
+    "stable window-measure evidence unconfirmed": "window-unconfirmed",
+    "root/window independent frame category unconfirmed": "root-frame-unconfirmed",
+    "bounded native target window proof rejected": "bounds-or-frame-rejected",
+}
+
+
+def mark_navigation_phase(category: str) -> None:
+    global NAV_PHASE
+    if category not in NAV_PHASES:
+        raise RuntimeError("unrecognized navigation phase")
+    NAV_PHASE = category
+    print("STAGE (LAB): preview-navigation-" + category, flush=True)
+
+
+def safe_navigation_block_reason(exc: BaseException) -> str:
+    if type(exc) is not RuntimeError:
+        return "other-or-unconfirmed"
+    return NAV_BLOCK_CODES.get(str(exc), "other-or-unconfirmed")
+
+
+def safe_tab_preflight_category(
+    nodes: list[dict[str,str]], width: int, height: int,
+    package: str, current: str, target: str
+) -> str:
+    """Passive category for the exact safe_tab_point gates; no targets emitted."""
+    try:
+        if (not isinstance(nodes,list) or len(nodes)>3000
+                or current not in ("home","pix") or target not in ("home","pix")
+                or target==current or width<=0 or height<=0 or not package):
+            return "preflight-input-unconfirmed"
+        seen={}
+        rects={}
+        for key,ident in TAB_IDS.items():
+            matches=[n for n in nodes if debug.safe_testid_matches(n,ident)]
+            if len(matches)!=1:
+                return "target-ids-unconfirmed"
+            node=matches[0]
+            if (node.get("package")!=package or node.get("clickable")!="true"
+                    or node.get("enabled")!="true"):
+                return "target-package-or-clickability"
+            if node.get("selected") not in ("true","false"):
+                return "target-selected-attribute-missing"
+            if node.get("selected")!=("true" if key==current else "false"):
+                return "target-selected-state-mismatch"
+            if same_process.safe_ancestor_constraint_category(
+                    node.get("bounds",""),width,height)!="geometry-eligible":
+                return "target-geometry-not-eligible"
+            match=BASE.BOUNDS.fullmatch(node.get("bounds",""))
+            if match is None:
+                return "target-bounds-unconfirmed"
+            seen[key]=node
+            rects[key]=tuple(map(int,match.groups()))
+        if len(set(rects.values()))!=3:
+            return "targets-shared-region"
+        for i,key in enumerate(TAB_IDS):
+            a=rects[key]
+            for other in list(TAB_IDS)[i+1:]:
+                b=rects[other]
+                if a[0]<b[2] and b[0]<a[2] and a[1]<b[3] and b[1]<a[3]:
+                    return "targets-overlap"
+        target_rect=rects[target]
+        cx=(target_rect[0]+target_rect[2])//2
+        cy=(target_rect[1]+target_rect[3])//2
+        for node in nodes:
+            if (node is seen[target] or node.get("package")!=package
+                    or node.get("clickable")!="true"
+                    or node.get("enabled")!="true"):
+                continue
+            match=BASE.BOUNDS.fullmatch(node.get("bounds",""))
+            if match is None:
+                return "other-clickable-bounds-unconfirmed"
+            x1,y1,x2,y2=map(int,match.groups())
+            if x1<=cx<=x2 and y1<=cy<=y2:
+                return "other-clickable-covers-target"
+        return "target-preflight-eligible"
+    except Exception:
+        return "target-preflight-unconfirmed"
+
+
 def assert_preview_pid(expected: str) -> None:
     """App focus and stable PID must hold at every gesture and observation."""
     if (not expected or same_process.observed_single_app_pid()!=expected
@@ -214,10 +309,13 @@ def require_geometry_for_navigation() -> None:
 
 def guarded_preview_navigation() -> None:
     """Only Pix DEMO then Home; 2 validated gestures, same PID throughout."""
+    mark_navigation_phase("before-pid")
     before=same_process.observed_single_app_pid()
     assert_preview_pid(before)
+    mark_navigation_phase("initial-home")
     if BASE.lookup("Seu universo") is None:
         raise RuntimeError("preview-initial-home-unconfirmed")
+    mark_navigation_phase("initial-geometry")
     require_geometry_for_navigation()
     transitions=(
         ("home","pix","Pix do seu jeito."),
@@ -225,22 +323,33 @@ def guarded_preview_navigation() -> None:
     )
     completed=0
     for current,target,expected_banner in transitions:
+        mark_navigation_phase("before-target")
         assert_preview_pid(before)
         require_geometry_for_navigation()
+        mark_navigation_phase("target-snapshots")
         width,height=BASE.screen_size()
-        first=safe_tab_point(BASE.xml_nodes(),width,height,BASE.PACKAGE,
-                             current,target)
+        nodes_first=BASE.xml_nodes()
+        first=safe_tab_point(nodes_first,width,height,BASE.PACKAGE,current,target)
         time.sleep(.35)
-        second=safe_tab_point(BASE.xml_nodes(),width,height,BASE.PACKAGE,
-                              current,target)
+        nodes_second=BASE.xml_nodes()
+        second=safe_tab_point(nodes_second,width,height,BASE.PACKAGE,current,target)
         if first is None or second is None or first!=second:
+            print("ENV (LAB): Preview safe-target first="
+                  +safe_tab_preflight_category(
+                      nodes_first,width,height,BASE.PACKAGE,current,target)
+                  +" second="
+                  +safe_tab_preflight_category(
+                      nodes_second,width,height,BASE.PACKAGE,current,target),
+                  flush=True)
             raise RuntimeError("preview-target-not-unique-stable-safe")
+        mark_navigation_phase("before-gesture")
         assert_preview_pid(before)
         if completed>=MAX_GESTURES:
             raise RuntimeError("preview-gesture-budget-exhausted")
         BASE.adb("shell","input","tap",str(second[0]),str(second[1]),
                  timeout=10)
         completed+=1
+        mark_navigation_phase("post-gesture-state")
         reached=False
         for _ in range(8):
             assert_preview_pid(before)
@@ -263,6 +372,7 @@ def guarded_preview_navigation() -> None:
         print("PASS (LAB): Debug preview transition "+
               ("Home-to-Pix" if target=="pix" else "Pix-to-Home")
               +" in unchanged process",flush=True)
+    mark_navigation_phase("roundtrip-final")
     assert_preview_pid(before)
     if completed!=MAX_GESTURES:
         raise RuntimeError("preview-navigation-count-unconfirmed")
@@ -384,7 +494,10 @@ def run() -> None:
 if __name__ == "__main__":
     try:
         run()
-    except Exception:
-        print("BLOCK (LAB): native ancestor geometry proof incomplete",
-              file=sys.stderr)
+    except Exception as exc:
+        # Never reveal raw exceptions, focus state, PID, UI text or coordinates.
+        phase=NAV_PHASE if NAV_PHASE in NAV_PHASES else "pre-navigation"
+        reason=safe_navigation_block_reason(exc)
+        print("BLOCK (LAB): Pix preview guarded navigation phase="+phase+
+              " reason="+reason,file=sys.stderr)
         raise SystemExit(1)
