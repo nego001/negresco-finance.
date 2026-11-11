@@ -63,6 +63,12 @@ function Notice({title,body}:{title:string;body:string}) {
 }
 export default function App() {
   const [page,setPage]=useState<Page>('Início');
+  // Debug-only fixed navigation markers; no page values, account data or coordinates.
+  useEffect(()=>{
+    if(__DEV__){
+      console.log('NEGRESCO_LAB_NAV_PAGE_'+(page==='Pix'?'PIX':page==='Início'?'HOME':'OTHER'));
+    }
+  },[page]);
   // Categorical Debug-only Yoga onLayout telemetry; no dimensions or user data.
   const labLayoutLast=useRef<Record<string,string>>({});
   const [labYogaMeasured,setLabYogaMeasured]=useState<Record<string,string>>({});
@@ -380,6 +386,9 @@ export default function App() {
   useEffect(()=>{enter.setValue(0);Animated.timing(enter,{toValue:1,duration:reducedMotion?0:380,easing:Easing.out(Easing.cubic),useNativeDriver:true}).start();},[page,enter,reducedMotion]);
   const blue=accent?'#A28BFF':C.blue;
   const nav=(p:Page)=>{
+    if(__DEV__&&(p==='Pix'||p==='Início')){
+      console.log('NEGRESCO_LAB_NAV_CALL_'+(p==='Pix'?'PIX':'HOME'));
+    }
     if(shouldClearSensitiveOnNavigation(page,p)){
       if(page==='Guardião')clearCurrentAnalysis();
       if(page==='Negresco')clearAssistantPreview();
@@ -543,7 +552,7 @@ export default function App() {
         <View style={s.visualFeature}><Text style={s.visualFeatureTitle}>Um painel preparado para você</Text><Text style={s.visualFeatureBody}>Visualização de informações, atalhos e indicadores ganhará vida quando você autorizar a conexão de dados.</Text></View><Text style={s.sectionTitle}>Explore também</Text><View style={s.grid}>{sections.filter(x=>x.name!==page).map(x=><Tap key={x.name} title={x.name} glyph={x.glyph} onPress={()=>nav(x.name)} style={{minHeight:115}}/>)}</View>
       </>}
     </ScrollView></Animated.View>
-    <View style={[s.bottom,__DEV__&&s.labBottomBounds]} onLayout={__DEV__?e=>{recordLabLayout('bottom',e.nativeEvent.layout.height);recordLabBottom(e.nativeEvent.layout.y,e.nativeEvent.layout.height);}:undefined}>{[{name:'Início',glyph:'home'},{name:'Pix',glyph:'pix'},{name:'Negresco',glyph:'assistant'}].map(x=><TouchableOpacity key={x.name} accessibilityRole="tab" accessibilityState={{selected:page===x.name}} onPress={()=>nav(x.name as Page)} ref={__DEV__ ? node=>{labWindowRefs.current[x.name==='Início'?'home':x.name==='Pix'?'pix':'negresco']=node;} : undefined} testID={__DEV__ ? ('negresco-lab-tab-' + (x.name==='Início' ? 'home' : x.name==='Pix' ? 'pix' : 'negresco') + '-yoga-' + (labYogaMeasured[x.name==='Início'?'home':x.name==='Pix'?'pix':'negresco']??'unconfirmed') + '-bottom-' + (labYogaMeasured.bottom??'unconfirmed')  + '-placement-' + labBottomPlacement + '-window-' + (labWindowMeasured[x.name==='Início'?'home':x.name==='Pix'?'pix':'negresco']??'unconfirmed') + '-rootframe-' + (labWindowRootFrame[x.name==='Início'?'home':x.name==='Pix'?'pix':'negresco']??'unconfirmed') + '-edge-' + (labWindowEdgeGap[x.name==='Início'?'home':x.name==='Pix'?'pix':'negresco']??'unconfirmed')) : undefined} onLayout={__DEV__?e=>{const key=x.name==='Início'?'home':x.name==='Pix'?'pix':'negresco';recordLabLayout(key,e.nativeEvent.layout.height);recordLabWindow(key);}:undefined} style={[s.nav,__DEV__&&s.labNavBounds,page===x.name&&s.navSelected]}><Icon name={x.glyph as IconName} size={23} color={page===x.name?blue:'#8898AD'}/><Text style={[s.navLabel,page===x.name&&{color:blue}]}>{x.name}</Text>{page===x.name&&<View style={[s.navMark,{backgroundColor:blue}]}/>}</TouchableOpacity>)}</View>
+    <View style={[s.bottom,__DEV__&&s.labBottomBounds]} onLayout={__DEV__?e=>{recordLabLayout('bottom',e.nativeEvent.layout.height);recordLabBottom(e.nativeEvent.layout.y,e.nativeEvent.layout.height);}:undefined}>{[{name:'Início',glyph:'home'},{name:'Pix',glyph:'pix'},{name:'Negresco',glyph:'assistant'}].map(x=><TouchableOpacity key={x.name} accessibilityRole="tab" accessibilityState={{selected:page===x.name}} onPressIn={__DEV__?()=>{if(x.name==='Pix')console.log('NEGRESCO_LAB_NAV_TOUCHIN_PIX');}:undefined} onPress={()=>nav(x.name as Page)} ref={__DEV__ ? node=>{labWindowRefs.current[x.name==='Início'?'home':x.name==='Pix'?'pix':'negresco']=node;} : undefined} testID={__DEV__ ? ('negresco-lab-tab-' + (x.name==='Início' ? 'home' : x.name==='Pix' ? 'pix' : 'negresco') + '-yoga-' + (labYogaMeasured[x.name==='Início'?'home':x.name==='Pix'?'pix':'negresco']??'unconfirmed') + '-bottom-' + (labYogaMeasured.bottom??'unconfirmed')  + '-placement-' + labBottomPlacement + '-window-' + (labWindowMeasured[x.name==='Início'?'home':x.name==='Pix'?'pix':'negresco']??'unconfirmed') + '-rootframe-' + (labWindowRootFrame[x.name==='Início'?'home':x.name==='Pix'?'pix':'negresco']??'unconfirmed') + '-edge-' + (labWindowEdgeGap[x.name==='Início'?'home':x.name==='Pix'?'pix':'negresco']??'unconfirmed')) : undefined} onLayout={__DEV__?e=>{const key=x.name==='Início'?'home':x.name==='Pix'?'pix':'negresco';recordLabLayout(key,e.nativeEvent.layout.height);recordLabWindow(key);}:undefined} style={[s.nav,__DEV__&&s.labNavBounds,page===x.name&&s.navSelected]}><Icon name={x.glyph as IconName} size={23} color={page===x.name?blue:'#8898AD'}/><Text style={[s.navLabel,page===x.name&&{color:blue}]}>{x.name}</Text>{page===x.name&&<View style={[s.navMark,{backgroundColor:blue}]}/>}</TouchableOpacity>)}</View>
     </>:<LocalLockScreen status={localLock.status} busy={localLock.busy} message={localLock.message} onUnlock={localLock.unlock} onRetry={localLock.retry}/>}
   </SafeAreaView>;
 }

@@ -1,0 +1,57 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {spawnSync} from 'node:child_process';
+
+const app=readFileSync('apps/mobile/App.tsx','utf8');
+const runner=readFileSync('tooling/android/guardiao_debug_touch_delivery_lab.py','utf8');
+const workflow=readFileSync('.github/workflows/guardiao-debug-touch-delivery-lab.yml','utf8');
+
+test('all marker generation is __DEV__ only and release navigation unchanged',()=>{
+ assert.match(app,/onPressIn=\{__DEV__\?\(\)=>\{if\(x\.name==='Pix'\)console\.log\('NEGRESCO_LAB_NAV_TOUCHIN_PIX'\)/);
+ assert.match(app,/onPress=\{\(\)=>nav\(x\.name as Page\)\}/);
+ assert.match(app,/if\(__DEV__&&\(p==='Pix'\|\|p==='Início'\)\)/);
+ assert.match(app,/console\.log\('NEGRESCO_LAB_NAV_CALL_'/);
+ assert.match(app,/console\.log\('NEGRESCO_LAB_NAV_PAGE_'/);
+ assert.match(app,/accessibilityRole="tab"/);
+ assert.match(app,/__DEV__&&Platform\.OS==='android'&&\{paddingBottom:/);
+ assert.doesNotMatch(app,/NEGRESCO_LAB_NAV_.+\$\{.*account/);
+});
+test('Android 9 emits only allowlisted categories and does not expand touch budget',()=>{
+ assert.match(workflow,/lab\/p01-guardiao-debug-touch-delivery-v1/);
+ assert.match(workflow,/script: python3 tooling\/android\/guardiao_debug_touch_delivery_lab.py/);
+ assert.match(workflow,/api-level: 28/);
+ assert.match(workflow,/assembleDebug/);
+ assert.match(workflow,/Validate pinned Android NDK before Gradle without fallback/);
+ assert.match(workflow,/contents: read/);
+ assert.match(workflow,/persist-credentials: false/);
+ assert.doesNotMatch(workflow,/assembleRelease|workflow_dispatch|upload-artifact|contents: write|eas update|secrets\./);
+ assert.match(runner,/MAX_GESTURES = 2/);
+ assert.match(runner,/def classify_pix_touch_delivery/);
+ assert.match(runner,/def prepare_pix_touch_telemetry/);
+ assert.match(runner,/preview-telemetry-unconfirmed/);
+ assert.match(runner,/BASE\.adb\("logcat","-c"/);
+ assert.match(runner,/classify_pix_touch_delivery\(safe_lab_logcat\(\)\)/);
+ assert.doesNotMatch(runner,/print\(raw\)|print\(exc\)|screencap|force-stop|pm", "clear"/);
+});
+test('event categories distinguish input dispatch, onPress and page render, never expose log contents',()=>{
+ const script=[
+ 'import sys',"sys.path.insert(0,'tooling/android')",
+ 'import guardiao_debug_touch_delivery_lab as x',
+ 'def cat(s):return x.classify_pix_touch_delivery(s)',
+ 'assert cat(None)=="delivery-telemetry-unconfirmed"',
+ 'assert cat("no lab events")=="delivery-no-pressin-or-handler-observed"',
+ 'assert cat("NEGRESCO_LAB_NAV_TOUCHIN_PIX")=="delivery-pressin-without-handler"',
+ 'assert cat("NEGRESCO_LAB_NAV_CALL_PIX")=="delivery-handler-without-pix-render"',
+ 'assert cat("NEGRESCO_LAB_NAV_TOUCHIN_PIX NEGRESCO_LAB_NAV_CALL_PIX")=="delivery-handler-without-pix-render"',
+ 'assert cat("NEGRESCO_LAB_NAV_PAGE_PIX")=="delivery-pix-render-without-call"',
+ 'assert cat("NEGRESCO_LAB_NAV_CALL_PIX NEGRESCO_LAB_NAV_PAGE_PIX")=="delivery-call-and-pix-render-without-pressin"',
+ 'assert cat("NEGRESCO_LAB_NAV_TOUCHIN_PIX NEGRESCO_LAB_NAV_CALL_PIX NEGRESCO_LAB_NAV_PAGE_PIX")=="delivery-pressin-call-and-pix-render"',
+ 'assert cat("SECRET_PRIVATE_VALUE")=="delivery-no-pressin-or-handler-observed"',
+ 'assert x.safe_navigation_block_reason(RuntimeError("preview-telemetry-unconfirmed"))=="telemetry-unconfirmed"',
+ 'print("PASS: fixed non-sensitive Debug touch delivery categories")',
+ ].join('\n');
+ const r=spawnSync('python3',['-c',script],{encoding:'utf8',timeout:15000});
+ assert.equal(r.status,0,r.stderr);
+ assert.match(r.stdout,/PASS: fixed non-sensitive Debug touch delivery categories/);
+});
