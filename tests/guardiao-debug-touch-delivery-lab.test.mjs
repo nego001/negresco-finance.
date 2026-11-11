@@ -14,7 +14,10 @@ test('all marker generation is __DEV__ only and release navigation unchanged',()
  assert.match(app,/console\.log\('NEGRESCO_LAB_NAV_CALL_'/);
  assert.match(app,/console\.log\('NEGRESCO_LAB_NAV_PAGE_'/);
  assert.match(app,/setLabPixNavCall\(true\)/);
- assert.match(app,/onTouchStart=\{__DEV__\?\(\)=>console\.log\('NEGRESCO_LAB_NAV_BOTTOM_TOUCH_START'\)/);
+ assert.match(app,/onTouchStart=\{__DEV__\?\(\)=>\{setLabBottomTouchStart\(true\);console\.log\('NEGRESCO_LAB_NAV_BOTTOM_TOUCH_START'\)/);
+ assert.match(app,/onTouchStart=\{__DEV__\?\(\)=>setLabRootTouchStart\(true\)/);
+ assert.match(app,/'-rootstart-'\+\(labRootTouchStart\?'yes':'no'\)/);
+ assert.match(app,/'-bottomstart-'\+\(labBottomTouchStart\?'yes':'no'\)/);
  assert.doesNotMatch(app,/onTouchStart=\{__DEV__\?\(\)=>\{if\(x\.name==='Pix'/);
  assert.match(app,/collapsable=\{__DEV__\?false:undefined\} testID=\{__DEV__\?\('negresco-lab-rn-page-'/);
  assert.match(app,/accessibilityRole="tab"/);
@@ -34,6 +37,9 @@ test('Android 9 emits only allowlisted categories and does not expand touch budg
  assert.match(runner,/def classify_pix_touch_delivery/);
  assert.match(runner,/def prepare_pix_touch_telemetry/);
  assert.match(runner,/def classify_nav_native_state/);
+ assert.match(runner,/def classify_native_touch_route/);
+ assert.match(runner,/route-native-root-no-bottom-no/);
+ assert.match(runner,/Pix RN native root\/bottom route=/);
  assert.match(runner,/def observed_pix_logcat_category/);
  assert.match(runner,/def classify_pix_touch_path/);
  assert.match(runner,/Pix RN touch route=/);
@@ -71,11 +77,19 @@ test('native read-only JS delivery markers require one exact package-bound node'
   'import sys',"sys.path.insert(0,'tooling/android')",
   'import guardiao_debug_touch_delivery_lab as x',
   'def node(marker,package=None):return {"resource-id":"com.negresco:id/"+marker,"package":x.BASE.PACKAGE if package is None else package}',
-  'home="negresco-lab-rn-page-home-pressin-no-call-no"',
-  'pix="negresco-lab-rn-page-pix-pressin-yes-call-yes"',
-  'press="negresco-lab-rn-page-home-pressin-yes-call-no"',
+  'home="negresco-lab-rn-page-home-pressin-no-call-no-rootstart-no-bottomstart-no"',
+  'pix="negresco-lab-rn-page-pix-pressin-yes-call-yes-rootstart-yes-bottomstart-yes"',
+  'press="negresco-lab-rn-page-home-pressin-yes-call-no-rootstart-yes-bottomstart-yes"'
   'assert x.classify_nav_native_state([node(home)])=="native-page-home-pressin-no-call-no"',
   'assert x.classify_nav_native_state([node(press)])=="native-page-home-pressin-yes-call-no"',
+  'assert x.classify_native_touch_route([node(home)])=="route-native-root-no-bottom-no"',
+  'assert x.classify_native_touch_route([node(pix)])=="route-native-root-yes-bottom-yes"',
+  'assert x.classify_native_touch_route([node(press)])=="route-native-root-yes-bottom-yes"',
+  'assert x.classify_native_touch_route([node("negresco-lab-rn-page-home-pressin-no-call-no-rootstart-yes-bottomstart-no")])=="route-native-root-yes-bottom-no"',
+  'assert x.classify_native_touch_route([node("negresco-lab-rn-page-home-pressin-no-call-no-rootstart-no-bottomstart-yes")])=="route-native-root-no-bottom-yes"',
+  'assert x.classify_native_touch_route([node("negresco-lab-rn-page-home-pressin-no-call-no-rootstart-x-bottomstart-no")])=="route-native-unconfirmed"',
+  'assert x.classify_native_touch_route([node(home),node(home)])=="route-native-unconfirmed"',
+  'assert x.classify_native_touch_route([node(home,"other.app")])=="route-native-unconfirmed"',
   'assert x.classify_nav_native_state([node(pix)])=="native-page-pix-pressin-yes-call-yes"',
   'assert x.classify_nav_native_state([])=="native-state-unconfirmed"',
   'assert x.classify_nav_native_state([node(home),node(home)])=="native-state-unconfirmed"',
@@ -89,7 +103,7 @@ test('native read-only JS delivery markers require one exact package-bound node'
  assert.equal(r.stdout,'');
 });
 
-test('RN touch-start markers classify bottom and Pix independently, including no signal',()=>{
+test('RN logcat bottom touch-start marker remains advisory, including no signal',()=>{
  const script=[
   'import sys',"sys.path.insert(0,'tooling/android')",
   'import guardiao_debug_touch_delivery_lab as x',

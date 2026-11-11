@@ -401,27 +401,43 @@ def classify_pix_touch_delivery(raw: str | None) -> str:
 # Native read-only proof does not depend on RN logcat transport.
 NATIVE_NAV_STATE = re.compile(
     r"negresco-lab-rn-page-(home|pix|other)-pressin-(yes|no)-call-(yes|no)"
+    r"-rootstart-(yes|no)-bottomstart-(yes|no)"
 )
 
 
-def classify_nav_native_state(nodes: list[dict[str,str]]) -> str:
-    """Only fixed Debug testID categories; fail closed on missing/duplicate/wrong app."""
+def native_nav_marker(nodes: list[dict[str,str]]) -> tuple[str,str,str,str,str] | None:
+    """Return only allowlisted categories for one exact Debug node and package."""
     if not isinstance(nodes,list) or not (0 < len(nodes) <= 3000):
-        return "native-state-unconfirmed"
+        return None
     matches=[]
     for node in nodes:
         if not isinstance(node,dict):
-            return "native-state-unconfirmed"
+            return None
         suffix=node.get("resource-id","").rsplit("/",1)[-1]
         marker=NATIVE_NAV_STATE.fullmatch(suffix)
         if marker is not None:
             if node.get("package")!=BASE.PACKAGE:
-                return "native-state-unconfirmed"
+                return None
             matches.append(marker.groups())
-    if len(matches)!=1:
+    return matches[0] if len(matches)==1 else None
+
+
+def classify_nav_native_state(nodes: list[dict[str,str]]) -> str:
+    """Existing navigation proof; root/bottom are independent, passive evidence."""
+    marker=native_nav_marker(nodes)
+    if marker is None:
         return "native-state-unconfirmed"
-    page,pressin,call=matches[0]
+    page,pressin,call,_,_=marker
     return "native-page-"+page+"-pressin-"+pressin+"-call-"+call
+
+
+def classify_native_touch_route(nodes: list[dict[str,str]]) -> str:
+    """Separate Root/Bottom listeners, no coordinates or user content."""
+    marker=native_nav_marker(nodes)
+    if marker is None:
+        return "route-native-unconfirmed"
+    _,_,_,root,bottom=marker
+    return "route-native-root-"+root+"-bottom-"+bottom
 
 
 def classify_pix_touch_path(raw: str | None) -> str:
@@ -437,9 +453,13 @@ def classify_pix_touch_path(raw: str | None) -> str:
 
 
 def prepare_pix_touch_telemetry() -> bool:
-    native=classify_nav_native_state(BASE.xml_nodes())
+    initial=BASE.xml_nodes()
+    native=classify_nav_native_state(initial)
+    root_bottom=classify_native_touch_route(initial)
     print("ENV (LAB): Pix preflight native RN category="+native,flush=True)
-    if native!="native-page-home-pressin-no-call-no":
+    print("ENV (LAB): Pix preflight native touch route="+root_bottom,flush=True)
+    if (native!="native-page-home-pressin-no-call-no"
+            or root_bottom!="route-native-root-no-bottom-no"):
         raise RuntimeError("preview-telemetry-unconfirmed")
     # Logcat is supplemental and cannot veto a native marker with valid geometry.
     raw=safe_lab_logcat()
@@ -537,6 +557,8 @@ def guarded_preview_navigation() -> None:
             if current=="home" and target=="pix":
                 print("ENV (LAB): Pix RN native touch delivery="
                       +classify_nav_native_state(terminal_nodes),flush=True)
+                print("ENV (LAB): Pix RN native root/bottom route="
+                      +classify_native_touch_route(terminal_nodes),flush=True)
                 raw_touch_log=safe_lab_logcat() if logcat_ready else None
                 print("ENV (LAB): Pix RN touch route="
                       +classify_pix_touch_path(raw_touch_log),flush=True)
@@ -544,8 +566,11 @@ def guarded_preview_navigation() -> None:
                       +classify_pix_touch_delivery(raw_touch_log),flush=True)
             raise RuntimeError("preview-navigation-state-unconfirmed")
         # A displayed screen and selected tabs alone cannot attest JS event delivery.
-        native_after=classify_nav_native_state(BASE.xml_nodes())
+        terminal_pass_nodes=BASE.xml_nodes()
+        native_after=classify_nav_native_state(terminal_pass_nodes)
         print("ENV (LAB): Pix RN native touch delivery="+native_after,flush=True)
+        print("ENV (LAB): Pix RN native root/bottom route="
+              +classify_native_touch_route(terminal_pass_nodes),flush=True)
         if native_after!=("native-page-pix-pressin-yes-call-yes" if target=="pix"
                          else "native-page-home-pressin-yes-call-yes"):
             raise RuntimeError("preview-navigation-state-unconfirmed")
