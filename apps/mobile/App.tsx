@@ -104,6 +104,9 @@ export default function App() {
 
   // Debug-only measureInWindow telemetry. No positions/sizes leave this process.
   const labWindowRefs=useRef<Record<string,React.ElementRef<typeof TouchableOpacity>|null>>({});
+  const labWindowRoot=useRef<React.ElementRef<typeof SafeAreaView>|null>(null);
+  const [labWindowRootFrame,setLabWindowRootFrame]=useState<Record<string,string>>({});
+  const [labWindowEdgeGap,setLabWindowEdgeGap]=useState<Record<string,string>>({});
   const [labWindowMeasured,setLabWindowMeasured]=useState<Record<string,string>>({});
   const recordLabWindow=(key:'home'|'pix'|'negresco')=>{
     if(!__DEV__)return;
@@ -119,6 +122,31 @@ export default function App() {
         else kind='regular-in-viewport';
       }
       setLabWindowMeasured(prev=>prev[key]===kind?prev:{...prev,[key]:kind});
+      // Compare ONLY measurements from measureInWindow, never Yoga-local Y to
+      // a screen coordinate. Categorize any Window inset gap before logging.
+      let edge='unconfirmed';
+      if(kind==='regular-in-viewport'||kind==='regular-above-viewport'||kind==='thin'){
+        edge='not-below';
+      }else if(kind==='regular-below-viewport'){
+        const overflow=y+height-windowHeight;
+        const statusInset=StatusBar.currentHeight??0;
+        edge=Number.isFinite(statusInset)&&statusInset>=0
+          ?overflow<=statusInset+8?'inset-sized':'beyond-inset'
+          :'unconfirmed';
+      }
+      setLabWindowEdgeGap(prev=>prev[key]===edge?prev:{...prev,[key]:edge});
+      const root=labWindowRoot.current;
+      if(!root)return;
+      root.measureInWindow((rx,ry,rw,rh)=>{
+        let relation='unconfirmed';
+        if([rx,ry,rw,rh,x,y,width,height].every(Number.isFinite)&&rw>0&&rh>0&&width>0&&height>0){
+          if(y < ry-2)relation='above-root';
+          else if(y+height > ry+rh+2)relation='below-root';
+          else if(x < rx-2||x+width > rx+rw+2)relation='side-root';
+          else relation='inside-root';
+        }
+        setLabWindowRootFrame(prev=>prev[key]===relation?prev:{...prev,[key]:relation});
+      });
     });
   };
   // A post-layout read catches the final transformed native window geometry.
@@ -360,7 +388,7 @@ export default function App() {
   };
   const active=sections.find(x=>x.name===page);
   const evidenceReview=buildEvidenceReview(boletoResult,cnpjResult);
-  return <SafeAreaView style={[s.root,{paddingTop:Platform.OS==='android'?(StatusBar.currentHeight??24):0}]} onLayout={__DEV__?e=>recordLabRoot(e.nativeEvent.layout.height):undefined}>
+  return <SafeAreaView ref={__DEV__?labWindowRoot:undefined} style={[s.root,{paddingTop:Platform.OS==='android'?(StatusBar.currentHeight??24):0}]} onLayout={__DEV__?e=>recordLabRoot(e.nativeEvent.layout.height):undefined}>
     {shouldProtectScreenCapture(page,localLock.status)&&<ProtectedScreenCapture/>}
     <StatusBar backgroundColor="#000000" barStyle="light-content"/>
     {localLock.status==='off'||localLock.status==='unlocked'?<>
@@ -515,7 +543,7 @@ export default function App() {
         <View style={s.visualFeature}><Text style={s.visualFeatureTitle}>Um painel preparado para você</Text><Text style={s.visualFeatureBody}>Visualização de informações, atalhos e indicadores ganhará vida quando você autorizar a conexão de dados.</Text></View><Text style={s.sectionTitle}>Explore também</Text><View style={s.grid}>{sections.filter(x=>x.name!==page).map(x=><Tap key={x.name} title={x.name} glyph={x.glyph} onPress={()=>nav(x.name)} style={{minHeight:115}}/>)}</View>
       </>}
     </ScrollView></Animated.View>
-    <View style={[s.bottom,__DEV__&&s.labBottomBounds]} onLayout={__DEV__?e=>{recordLabLayout('bottom',e.nativeEvent.layout.height);recordLabBottom(e.nativeEvent.layout.y,e.nativeEvent.layout.height);}:undefined}>{[{name:'Início',glyph:'home'},{name:'Pix',glyph:'pix'},{name:'Negresco',glyph:'assistant'}].map(x=><TouchableOpacity key={x.name} accessibilityRole="tab" accessibilityState={{selected:page===x.name}} onPress={()=>nav(x.name as Page)} ref={__DEV__ ? node=>{labWindowRefs.current[x.name==='Início'?'home':x.name==='Pix'?'pix':'negresco']=node;} : undefined} testID={__DEV__ ? ('negresco-lab-tab-' + (x.name==='Início' ? 'home' : x.name==='Pix' ? 'pix' : 'negresco') + '-yoga-' + (labYogaMeasured[x.name==='Início'?'home':x.name==='Pix'?'pix':'negresco']??'unconfirmed') + '-bottom-' + (labYogaMeasured.bottom??'unconfirmed')  + '-placement-' + labBottomPlacement + '-window-' + (labWindowMeasured[x.name==='Início'?'home':x.name==='Pix'?'pix':'negresco']??'unconfirmed')) : undefined} onLayout={__DEV__?e=>{const key=x.name==='Início'?'home':x.name==='Pix'?'pix':'negresco';recordLabLayout(key,e.nativeEvent.layout.height);recordLabWindow(key);}:undefined} style={[s.nav,__DEV__&&s.labNavBounds,page===x.name&&s.navSelected]}><Icon name={x.glyph as IconName} size={23} color={page===x.name?blue:'#8898AD'}/><Text style={[s.navLabel,page===x.name&&{color:blue}]}>{x.name}</Text>{page===x.name&&<View style={[s.navMark,{backgroundColor:blue}]}/>}</TouchableOpacity>)}</View>
+    <View style={[s.bottom,__DEV__&&s.labBottomBounds]} onLayout={__DEV__?e=>{recordLabLayout('bottom',e.nativeEvent.layout.height);recordLabBottom(e.nativeEvent.layout.y,e.nativeEvent.layout.height);}:undefined}>{[{name:'Início',glyph:'home'},{name:'Pix',glyph:'pix'},{name:'Negresco',glyph:'assistant'}].map(x=><TouchableOpacity key={x.name} accessibilityRole="tab" accessibilityState={{selected:page===x.name}} onPress={()=>nav(x.name as Page)} ref={__DEV__ ? node=>{labWindowRefs.current[x.name==='Início'?'home':x.name==='Pix'?'pix':'negresco']=node;} : undefined} testID={__DEV__ ? ('negresco-lab-tab-' + (x.name==='Início' ? 'home' : x.name==='Pix' ? 'pix' : 'negresco') + '-yoga-' + (labYogaMeasured[x.name==='Início'?'home':x.name==='Pix'?'pix':'negresco']??'unconfirmed') + '-bottom-' + (labYogaMeasured.bottom??'unconfirmed')  + '-placement-' + labBottomPlacement + '-window-' + (labWindowMeasured[x.name==='Início'?'home':x.name==='Pix'?'pix':'negresco']??'unconfirmed') + '-rootframe-' + (labWindowRootFrame[x.name==='Início'?'home':x.name==='Pix'?'pix':'negresco']??'unconfirmed') + '-edge-' + (labWindowEdgeGap[x.name==='Início'?'home':x.name==='Pix'?'pix':'negresco']??'unconfirmed')) : undefined} onLayout={__DEV__?e=>{const key=x.name==='Início'?'home':x.name==='Pix'?'pix':'negresco';recordLabLayout(key,e.nativeEvent.layout.height);recordLabWindow(key);}:undefined} style={[s.nav,__DEV__&&s.labNavBounds,page===x.name&&s.navSelected]}><Icon name={x.glyph as IconName} size={23} color={page===x.name?blue:'#8898AD'}/><Text style={[s.navLabel,page===x.name&&{color:blue}]}>{x.name}</Text>{page===x.name&&<View style={[s.navMark,{backgroundColor:blue}]}/>}</TouchableOpacity>)}</View>
     </>:<LocalLockScreen status={localLock.status} busy={localLock.busy} message={localLock.message} onUnlock={localLock.unlock} onRetry={localLock.retry}/>}
   </SafeAreaView>;
 }

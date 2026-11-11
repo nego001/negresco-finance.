@@ -65,7 +65,7 @@ def safe_testid_matches(node: dict[str, str], ident: str) -> bool:
     """Recognize exact baseline or strict categorical Debug-only suffix."""
     raw = node.get("resource-id", "").rsplit("/", 1)[-1]
     return raw == ident or re.fullmatch(
-        re.escape(ident) + r"-yoga-(regular|thin|unconfirmed)-bottom-(regular|thin|unconfirmed)(?:-placement-(inside-root|overflows-root|above-root|unconfirmed))?(?:-window-(regular-in-viewport|regular-below-viewport|regular-above-viewport|thin|unconfirmed))?",
+        re.escape(ident) + r"-yoga-(regular|thin|unconfirmed)-bottom-(regular|thin|unconfirmed)(?:-placement-(inside-root|overflows-root|above-root|unconfirmed))?(?:-window-(regular-in-viewport|regular-below-viewport|regular-above-viewport|thin|unconfirmed))?(?:-rootframe-(inside-root|above-root|below-root|side-root|unconfirmed)-edge-(inset-sized|beyond-inset|not-below|unconfirmed))?",
         raw,
     ) is not None
 
@@ -95,7 +95,7 @@ def safe_debug_testid_yoga_category() -> str:
                 return "testid-yoga-nodes-unconfirmed"
             packages.add(package)
             match = re.fullmatch(
-                re.escape(ident) + r"-yoga-(regular|thin|unconfirmed)-bottom-(regular|thin|unconfirmed)(?:-placement-(inside-root|overflows-root|above-root|unconfirmed))?(?:-window-(regular-in-viewport|regular-below-viewport|regular-above-viewport|thin|unconfirmed))?",
+                re.escape(ident) + r"-yoga-(regular|thin|unconfirmed)-bottom-(regular|thin|unconfirmed)(?:-placement-(inside-root|overflows-root|above-root|unconfirmed))?(?:-window-(regular-in-viewport|regular-below-viewport|regular-above-viewport|thin|unconfirmed))?(?:-rootframe-(inside-root|above-root|below-root|side-root|unconfirmed)-edge-(inset-sized|beyond-inset|not-below|unconfirmed))?",
                 node.get("resource-id", "").rsplit("/", 1)[-1],
             )
             if match is None:
@@ -136,7 +136,7 @@ def safe_debug_bottom_placement_category() -> str:
                 re.escape(ident)
                 + r"-yoga-(regular|thin|unconfirmed)-bottom-(regular|thin|unconfirmed)"
                 + r"-placement-(inside-root|overflows-root|above-root|unconfirmed)"
-                + r"(?:-window-(regular-in-viewport|regular-below-viewport|regular-above-viewport|thin|unconfirmed))?",
+                + r"(?:-window-(regular-in-viewport|regular-below-viewport|regular-above-viewport|thin|unconfirmed))?(?:-rootframe-(inside-root|above-root|below-root|side-root|unconfirmed)-edge-(inset-sized|beyond-inset|not-below|unconfirmed))?",
                 node.get("resource-id","").rsplit("/",1)[-1])
             if match is None:
                 return "testid-placement-marker-unconfirmed"
@@ -173,7 +173,8 @@ def safe_debug_window_measure_category() -> str:
                 re.escape(ident)
                 + r"-yoga-(regular|thin|unconfirmed)-bottom-(regular|thin|unconfirmed)"
                 + r"-placement-(inside-root|overflows-root|above-root|unconfirmed)"
-                + r"-window-(regular-in-viewport|regular-below-viewport|regular-above-viewport|thin|unconfirmed)",
+                + r"-window-(regular-in-viewport|regular-below-viewport|regular-above-viewport|thin|unconfirmed)"
+                + r"-rootframe-(inside-root|above-root|below-root|side-root|unconfirmed)-edge-(inset-sized|beyond-inset|not-below|unconfirmed)",
                 node.get("resource-id","").rsplit("/",1)[-1])
             if match is None:
                 return "window-marker-unconfirmed"
@@ -189,6 +190,58 @@ def safe_debug_window_measure_category() -> str:
         return "window-category-unconfirmed"
     except Exception:
         return "window-collection-unconfirmed"
+
+
+def safe_debug_window_root_frame_category() -> str:
+    """Read only categorical independent root/window frame relation and edge gap."""
+    try:
+        nodes=base.xml_nodes()
+        frames=[]
+        edges=[]
+        packages=set()
+        for ident in ("negresco-lab-tab-home","negresco-lab-tab-pix",
+                      "negresco-lab-tab-negresco"):
+            hits=[n for n in nodes if safe_testid_matches(n,ident)]
+            if len(hits)!=1:
+                return "rootframe-targets-unconfirmed"
+            node=hits[0]
+            if node.get("clickable")!="true" or node.get("enabled")!="true":
+                return "rootframe-targets-unconfirmed"
+            package=node.get("package","")
+            if not package:
+                return "rootframe-targets-unconfirmed"
+            packages.add(package)
+            marker=re.fullmatch(
+                re.escape(ident)
+                + r"-yoga-(regular|thin|unconfirmed)-bottom-(regular|thin|unconfirmed)"
+                + r"-placement-(inside-root|overflows-root|above-root|unconfirmed)"
+                + r"-window-(regular-in-viewport|regular-below-viewport|regular-above-viewport|thin|unconfirmed)"
+                + r"-rootframe-(inside-root|above-root|below-root|side-root|unconfirmed)"
+                + r"-edge-(inset-sized|beyond-inset|not-below|unconfirmed)",
+                node.get("resource-id","").rsplit("/",1)[-1])
+            if marker is None:
+                return "rootframe-marker-unconfirmed"
+            frames.append(marker.group(5))
+            edges.append(marker.group(6))
+        if len(packages)!=1:
+            return "rootframe-package-mismatch"
+        if "unconfirmed" in frames or "unconfirmed" in edges:
+            return "rootframe-incomplete"
+        if "below-root" in frames:
+            return "rootframe-at-least-one-below"
+        if "above-root" in frames:
+            return "rootframe-at-least-one-above"
+        if "side-root" in frames:
+            return "rootframe-at-least-one-side"
+        if all(s=="inside-root" for s in frames):
+            if "beyond-inset" in edges:
+                return "rootframe-all-inside-window-beyond-inset"
+            if "inset-sized" in edges:
+                return "rootframe-all-inside-window-inset-sized"
+            return "rootframe-all-inside-window-not-below"
+        return "rootframe-unclassified"
+    except Exception:
+        return "rootframe-collection-unconfirmed"
 
 
 def safe_debug_testid_nav_geometry() -> str:
