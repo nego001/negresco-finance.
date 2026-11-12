@@ -19,6 +19,12 @@ PIX_FILE = "negresco_lab_native_pix_target"
 PIX_ALLOWED = frozenset(("pix-ready","pix-hit","pix-miss","pix-unconfirmed"))
 GESTURE_FILE = "negresco_lab_native_gesture_phase"
 SIBLING_FILE = "negresco_lab_native_pix_siblings"
+ROOT_PEER_FILE = "negresco_lab_native_pix_root_peer"
+ROOT_PEER_ALLOWED = frozenset((
+    "root-peer-ready", "root-peer-clear", "root-peer-devsupport",
+    "root-peer-expo", "root-peer-react", "root-peer-platform",
+    "root-peer-other", "root-peer-mixed", "root-peer-unconfirmed",
+))
 SIBLING_ALLOWED = frozenset((
     "sibling-ready", "sibling-overlap", "sibling-clear",
     "sibling-front-candidate", "sibling-behind-only",
@@ -88,6 +94,17 @@ KOTLIN = r'''
     }
   }
 
+  private fun negrescoLabSetRootPeerCategory(category: String) {
+    if (!BuildConfig.DEBUG) return
+    try {
+      openFileOutput("negresco_lab_native_pix_root_peer", android.content.Context.MODE_PRIVATE).use {
+        it.write(category.toByteArray(Charsets.US_ASCII))
+      }
+    } catch (_: Exception) {
+      // Only fixed categories, no names, event details or hierarchy.
+    }
+  }
+
   // Passive sibling geometry; never changes View properties or dispatch order.
   private fun negrescoLabSetSiblingCategory(category: String) {
     if (!BuildConfig.DEBUG) return
@@ -123,6 +140,7 @@ KOTLIN = r'''
     negrescoLabSetPixCategory("pix-ready")
     negrescoLabSetGestureCategory("gesture-ready")
     negrescoLabSetSiblingCategory("sibling-ready")
+    negrescoLabSetRootPeerCategory("root-peer-ready")
   }
 
 
@@ -356,6 +374,87 @@ KOTLIN = r'''
     }
   }
 
+
+  // Debug-only read-only root peer class-family classification. This is NOT
+  // proof of input interception, drawing order or event target ownership.
+  private fun negrescoLabPixRootPeerCategory(event: android.view.MotionEvent): String {
+    if (!BuildConfig.DEBUG) return "root-peer-unconfirmed"
+    return try {
+      val px = event.getRawX()
+      val py = event.getRawY()
+      if (!px.isFinite() || !py.isFinite()) return "root-peer-unconfirmed"
+      var tagId = resources.getIdentifier("react_test_id", "id", packageName)
+      if (tagId == 0) {
+        tagId = resources.getIdentifier("react_test_id", "id", "com.facebook.react")
+      }
+      if (tagId == 0) return "root-peer-unconfirmed"
+      val pending = java.util.ArrayDeque<android.view.View>()
+      pending.add(window.decorView)
+      var visited = 0
+      var matches = 0
+      var pix: android.view.View? = null
+      while (!pending.isEmpty() && visited < 2048) {
+        val node = pending.removeFirst()
+        visited += 1
+        if (!node.isShown) continue
+        val tag = node.getTag(tagId)
+        if (tag is String && tag.startsWith("negresco-lab-tab-pix-")) {
+          matches += 1
+          pix = node
+        }
+        if (node is android.view.ViewGroup) {
+          for (i in 0 until node.childCount) pending.add(node.getChildAt(i))
+        }
+      }
+      if (visited >= 2048 || matches != 1 || pix == null) {
+        return "root-peer-unconfirmed"
+      }
+      var child: android.view.View = pix
+      var depth = 0
+      var root: android.view.ViewGroup? = null
+      while (depth < 64) {
+        val parent = child.parent as? android.view.ViewGroup ?: break
+        depth += 1
+        val name = parent.javaClass.name
+        if (name == "com.facebook.react.ReactRootView"
+            || name.endsWith(".ReactSurfaceView")) {
+          root = parent
+          break
+        }
+        child = parent
+      }
+      if (root == null || depth >= 64) return "root-peer-unconfirmed"
+      val childIndex = root.indexOfChild(child)
+      if (childIndex < 0 || !child.z.isFinite()) return "root-peer-unconfirmed"
+      var candidateCount = 0
+      var category = "root-peer-clear"
+      for (i in 0 until root.childCount) {
+        val other = root.getChildAt(i)
+        if (other === child || !other.isShown || other.alpha <= 0f) continue
+        if (other.width <= 0 || other.height <= 0 || !other.z.isFinite()) continue
+        if (!(other.z > child.z || (other.z == child.z && i > childIndex))) continue
+        val pos = IntArray(2)
+        other.getLocationOnScreen(pos)
+        if (!(px >= pos[0] && py >= pos[1]
+              && px < pos[0] + other.width && py < pos[1] + other.height)) continue
+        candidateCount += 1
+        val cls = other.javaClass.name
+        val kind = when {
+          cls.startsWith("com.facebook.react.devsupport.") -> "root-peer-devsupport"
+          cls.startsWith("expo.") -> "root-peer-expo"
+          cls.startsWith("com.facebook.react.") -> "root-peer-react"
+          cls.startsWith("android.") || cls.startsWith("androidx.") -> "root-peer-platform"
+          else -> "root-peer-other"
+        }
+        if (candidateCount == 1) category = kind
+        else if (category != kind) category = "root-peer-mixed"
+      }
+      if (candidateCount == 0) "root-peer-clear" else category
+    } catch (_: Exception) {
+      "root-peer-unconfirmed"
+    }
+  }
+
   override fun dispatchTouchEvent(event: android.view.MotionEvent): Boolean {
     if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN) {
       negrescoLabSetDispatchCategory("activity-down")
@@ -373,6 +472,8 @@ KOTLIN = r'''
       negrescoLabPixTargetHit(event) else "pix-unconfirmed"
     val siblings = if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN)
       negrescoLabPixSiblingCategory(event) else "sibling-unconfirmed"
+    val rootPeer = if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN)
+      negrescoLabPixRootPeerCategory(event) else "root-peer-unconfirmed"
     val handled = super.dispatchTouchEvent(event)
     if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN) {
       negrescoLabSetDispatchCategory(
@@ -381,6 +482,7 @@ KOTLIN = r'''
       negrescoLabSetScrollCategory(scrollCoverage)
       negrescoLabSetPixCategory(pixTarget)
       negrescoLabSetSiblingCategory(siblings)
+      negrescoLabSetRootPeerCategory(rootPeer)
     }
     if (event.actionMasked == android.view.MotionEvent.ACTION_UP) {
       negrescoLabSetGestureCategory(
@@ -479,6 +581,23 @@ def read_debug_sibling_state(adb, package: str) -> str:
     except Exception:
         return "sibling-unconfirmed"
     return classify_sibling_state(raw if isinstance(raw,str) else None)
+
+
+def classify_root_peer_state(raw: str | None) -> str:
+    """Accept only a fixed class-family code, never a Java View class name."""
+    if not isinstance(raw,str) or len(raw)>64:
+        return "root-peer-unconfirmed"
+    return raw if raw in ROOT_PEER_ALLOWED else "root-peer-unconfirmed"
+
+
+def read_debug_root_peer_state(adb, package: str) -> str:
+    if not isinstance(package,str) or not re.fullmatch(r"[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+",package):
+        return "root-peer-unconfirmed"
+    try:
+        raw=adb("shell","run-as",package,"cat","files/"+ROOT_PEER_FILE,timeout=15,check=False)
+    except Exception:
+        return "root-peer-unconfirmed"
+    return classify_root_peer_state(raw if isinstance(raw,str) else None)
 
 
 def install(root: Path) -> str:

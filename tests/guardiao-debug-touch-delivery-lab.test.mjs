@@ -71,6 +71,14 @@ test('Android 9 emits only allowlisted categories and does not expand touch budg
  assert.match(dispatch,/sibling-front-root-and-inner/);
  assert.match(dispatch,/frontAtReactRoot/);
  assert.match(dispatch,/frontBelowReactRoot/);
+ assert.match(dispatch,/negrescoLabPixRootPeerCategory/);
+ assert.match(dispatch,/root-peer-devsupport/);
+ assert.match(dispatch,/root-peer-expo/);
+ assert.match(dispatch,/root-peer-react/);
+ assert.match(dispatch,/root-peer-platform/);
+ assert.match(dispatch,/root-peer-mixed/);
+ assert.match(runner,/Pix native root peer preflight=/);
+ assert.match(runner,/Pix native root peer after gesture=/);
  assert.match(dispatch,/minFrontDepth/);
  assert.match(dispatch,/maxFrontDepth/);
  assert.match(dispatch,/parent\.indexOfChild\(child\)/);
@@ -234,6 +242,16 @@ test('native Activity fixed-category dispatch probe installs only into disposabl
   'assert x.classify_sibling_state("sibling-unconfirmed")=="sibling-unconfirmed"',
   'assert x.classify_sibling_state("sibling-overlap-private")=="sibling-unconfirmed"',
   'assert x.classify_sibling_state(None)=="sibling-unconfirmed"',
+  'assert x.classify_root_peer_state("root-peer-ready")=="root-peer-ready"',
+  'assert x.classify_root_peer_state("root-peer-clear")=="root-peer-clear"',
+  'assert x.classify_root_peer_state("root-peer-devsupport")=="root-peer-devsupport"',
+  'assert x.classify_root_peer_state("root-peer-expo")=="root-peer-expo"',
+  'assert x.classify_root_peer_state("root-peer-react")=="root-peer-react"',
+  'assert x.classify_root_peer_state("root-peer-platform")=="root-peer-platform"',
+  'assert x.classify_root_peer_state("root-peer-other")=="root-peer-other"',
+  'assert x.classify_root_peer_state("root-peer-mixed")=="root-peer-mixed"',
+  'assert x.classify_root_peer_state("root-peer-react-secret")=="root-peer-unconfirmed"',
+  'assert x.classify_root_peer_state(None)=="root-peer-unconfirmed"',
   'assert x.classify_native_state("private-financial-content")=="activity-state-unconfirmed"',
   'assert x.classify_native_state("activity-ready\\nprivate")=="activity-state-unconfirmed"',
   'assert x.classify_native_state(None)=="activity-state-unconfirmed"',
