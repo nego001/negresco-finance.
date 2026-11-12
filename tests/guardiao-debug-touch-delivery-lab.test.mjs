@@ -66,6 +66,11 @@ test('Android 9 emits only allowlisted categories and does not expand touch budg
  assert.match(dispatch,/sibling-front-parent/);
  assert.match(dispatch,/sibling-front-ancestor/);
  assert.match(dispatch,/sibling-front-multilevel/);
+ assert.match(dispatch,/sibling-front-root-level/);
+ assert.match(dispatch,/sibling-front-inner-level/);
+ assert.match(dispatch,/sibling-front-root-and-inner/);
+ assert.match(dispatch,/frontAtReactRoot/);
+ assert.match(dispatch,/frontBelowReactRoot/);
  assert.match(dispatch,/minFrontDepth/);
  assert.match(dispatch,/maxFrontDepth/);
  assert.match(dispatch,/parent\.indexOfChild\(child\)/);
@@ -219,6 +224,10 @@ test('native Activity fixed-category dispatch probe installs only into disposabl
   'assert x.classify_sibling_state("sibling-front-parent")=="sibling-front-parent"',
   'assert x.classify_sibling_state("sibling-front-ancestor")=="sibling-front-ancestor"',
   'assert x.classify_sibling_state("sibling-front-multilevel")=="sibling-front-multilevel"',
+  'assert x.classify_sibling_state("sibling-front-root-level")=="sibling-front-root-level"',
+  'assert x.classify_sibling_state("sibling-front-inner-level")=="sibling-front-inner-level"',
+  'assert x.classify_sibling_state("sibling-front-root-and-inner")=="sibling-front-root-and-inner"',
+  'assert x.classify_sibling_state("sibling-front-root-level-secret")=="sibling-unconfirmed"',
   'assert x.classify_sibling_state("sibling-front-deep-private")=="sibling-unconfirmed"',
   'assert x.classify_sibling_state("sibling-front-candidate-private")=="sibling-unconfirmed"',
   'assert x.classify_sibling_state("sibling-clear")=="sibling-clear"',

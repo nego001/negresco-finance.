@@ -25,6 +25,8 @@ SIBLING_ALLOWED = frozenset((
     "sibling-mixed-order", "sibling-unconfirmed",
     "sibling-front-direct", "sibling-front-parent",
     "sibling-front-ancestor", "sibling-front-multilevel",
+    "sibling-front-root-level", "sibling-front-inner-level",
+    "sibling-front-root-and-inner",
 ))
 GESTURE_ALLOWED = frozenset((
     "gesture-ready",
@@ -290,6 +292,8 @@ KOTLIN = r'''
       var behindCandidate = false
       var minFrontDepth = 65
       var maxFrontDepth = 0
+      var frontAtReactRoot = false
+      var frontBelowReactRoot = false
       var orderUnconfirmed = false
       var reachedRoot = false
       while (depth < 64) {
@@ -311,6 +315,13 @@ KOTLIN = r'''
               frontCandidate = true
               if (depth < minFrontDepth) minFrontDepth = depth
               if (depth > maxFrontDepth) maxFrontDepth = depth
+              val parentClass = parent.javaClass.name
+              if (parentClass == "com.facebook.react.ReactRootView"
+                  || parentClass.endsWith(".ReactSurfaceView")) {
+                frontAtReactRoot = true
+              } else {
+                frontBelowReactRoot = true
+              }
             } else {
               behindCandidate = true
             }
@@ -327,9 +338,16 @@ KOTLIN = r'''
       if (!reachedRoot || depth >= 64 || orderUnconfirmed) "sibling-unconfirmed"
       else if (!overlap) "sibling-clear"
       else if (frontCandidate && behindCandidate) "sibling-mixed-order"
-      else if (frontCandidate && minFrontDepth != maxFrontDepth) "sibling-front-multilevel"
+      else if (frontCandidate && frontAtReactRoot && frontBelowReactRoot)
+        "sibling-front-root-and-inner"
+      else if (frontCandidate && minFrontDepth != maxFrontDepth)
+        "sibling-front-multilevel"
       else if (frontCandidate && minFrontDepth == 1) "sibling-front-direct"
       else if (frontCandidate && minFrontDepth == 2) "sibling-front-parent"
+      else if (frontCandidate && minFrontDepth in 3..63 && frontAtReactRoot)
+        "sibling-front-root-level"
+      else if (frontCandidate && minFrontDepth in 3..63 && frontBelowReactRoot)
+        "sibling-front-inner-level"
       else if (frontCandidate && minFrontDepth in 3..63) "sibling-front-ancestor"
       else if (behindCandidate) "sibling-behind-only"
       else "sibling-unconfirmed"
