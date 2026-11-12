@@ -77,6 +77,15 @@ test('Android 9 emits only allowlisted categories and does not expand touch budg
  assert.match(dispatch,/root-peer-react/);
  assert.match(dispatch,/root-peer-platform/);
  assert.match(dispatch,/root-peer-mixed/);
+ assert.match(dispatch,/negrescoLabPixRootPointerCategory/);
+ assert.match(dispatch,/getPointerEvents/);
+ assert.match(dispatch,/root-pointer-auto/);
+ assert.match(dispatch,/root-pointer-none/);
+ assert.match(dispatch,/root-pointer-box-only/);
+ assert.match(dispatch,/root-pointer-box-none/);
+ assert.match(dispatch,/root-pointer-unconfirmed/);
+ assert.match(runner,/Pix native root pointer preflight=/);
+ assert.match(runner,/Pix native root pointer after gesture=/);
  assert.match(runner,/Pix native root peer preflight=/);
  assert.match(runner,/Pix native root peer after gesture=/);
  assert.match(dispatch,/minFrontDepth/);
@@ -252,6 +261,15 @@ test('native Activity fixed-category dispatch probe installs only into disposabl
   'assert x.classify_root_peer_state("root-peer-mixed")=="root-peer-mixed"',
   'assert x.classify_root_peer_state("root-peer-react-secret")=="root-peer-unconfirmed"',
   'assert x.classify_root_peer_state(None)=="root-peer-unconfirmed"',
+  'assert x.classify_root_pointer_state("root-pointer-ready")=="root-pointer-ready"',
+  'assert x.classify_root_pointer_state("root-pointer-clear")=="root-pointer-clear"',
+  'assert x.classify_root_pointer_state("root-pointer-auto")=="root-pointer-auto"',
+  'assert x.classify_root_pointer_state("root-pointer-none")=="root-pointer-none"',
+  'assert x.classify_root_pointer_state("root-pointer-box-only")=="root-pointer-box-only"',
+  'assert x.classify_root_pointer_state("root-pointer-box-none")=="root-pointer-box-none"',
+  'assert x.classify_root_pointer_state("root-pointer-mixed")=="root-pointer-mixed"',
+  'assert x.classify_root_pointer_state("root-pointer-auto-hidden")=="root-pointer-unconfirmed"',
+  'assert x.classify_root_pointer_state(None)=="root-pointer-unconfirmed"',
   'assert x.classify_native_state("private-financial-content")=="activity-state-unconfirmed"',
   'assert x.classify_native_state("activity-ready\\nprivate")=="activity-state-unconfirmed"',
   'assert x.classify_native_state(None)=="activity-state-unconfirmed"',

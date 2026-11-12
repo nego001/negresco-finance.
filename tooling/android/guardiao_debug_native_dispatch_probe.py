@@ -20,6 +20,13 @@ PIX_ALLOWED = frozenset(("pix-ready","pix-hit","pix-miss","pix-unconfirmed"))
 GESTURE_FILE = "negresco_lab_native_gesture_phase"
 SIBLING_FILE = "negresco_lab_native_pix_siblings"
 ROOT_PEER_FILE = "negresco_lab_native_pix_root_peer"
+ROOT_POINTER_FILE = "negresco_lab_native_pix_root_pointer"
+ROOT_POINTER_ALLOWED = frozenset((
+    "root-pointer-ready", "root-pointer-clear",
+    "root-pointer-auto", "root-pointer-none",
+    "root-pointer-box-only", "root-pointer-box-none",
+    "root-pointer-mixed", "root-pointer-unconfirmed",
+))
 ROOT_PEER_ALLOWED = frozenset((
     "root-peer-ready", "root-peer-clear", "root-peer-devsupport",
     "root-peer-expo", "root-peer-react", "root-peer-platform",
@@ -105,6 +112,17 @@ KOTLIN = r'''
     }
   }
 
+  private fun negrescoLabSetRootPointerCategory(category: String) {
+    if (!BuildConfig.DEBUG) return
+    try {
+      openFileOutput("negresco_lab_native_pix_root_pointer", android.content.Context.MODE_PRIVATE).use {
+        it.write(category.toByteArray(Charsets.US_ASCII))
+      }
+    } catch (_: Exception) {
+      // Fixed codes only; no class name, hierarchy or touch details.
+    }
+  }
+
   // Passive sibling geometry; never changes View properties or dispatch order.
   private fun negrescoLabSetSiblingCategory(category: String) {
     if (!BuildConfig.DEBUG) return
@@ -141,6 +159,7 @@ KOTLIN = r'''
     negrescoLabSetGestureCategory("gesture-ready")
     negrescoLabSetSiblingCategory("sibling-ready")
     negrescoLabSetRootPeerCategory("root-peer-ready")
+    negrescoLabSetRootPointerCategory("root-pointer-ready")
   }
 
 
@@ -455,6 +474,91 @@ KOTLIN = r'''
     }
   }
 
+
+  // Advisory read-only property of the same geometrically front root peers.
+  // Reflection is used because the generated Expo/RN Debug class may expose
+  // getPointerEvents() differently across versions; no mutation or raw output.
+  // This neither proves interception nor changes hit-testing.
+  private fun negrescoLabPixRootPointerCategory(event: android.view.MotionEvent): String {
+    if (!BuildConfig.DEBUG) return "root-pointer-unconfirmed"
+    return try {
+      val px = event.getRawX()
+      val py = event.getRawY()
+      if (!px.isFinite() || !py.isFinite()) return "root-pointer-unconfirmed"
+      var tagId = resources.getIdentifier("react_test_id", "id", packageName)
+      if (tagId == 0) {
+        tagId = resources.getIdentifier("react_test_id", "id", "com.facebook.react")
+      }
+      if (tagId == 0) return "root-pointer-unconfirmed"
+      val pending = java.util.ArrayDeque<android.view.View>()
+      pending.add(window.decorView)
+      var seen = 0
+      var matches = 0
+      var pix: android.view.View? = null
+      while (!pending.isEmpty() && seen < 2048) {
+        val node = pending.removeFirst()
+        seen += 1
+        if (!node.isShown) continue
+        val tag = node.getTag(tagId)
+        if (tag is String && tag.startsWith("negresco-lab-tab-pix-")) {
+          matches += 1
+          pix = node
+        }
+        if (node is android.view.ViewGroup) {
+          for (i in 0 until node.childCount) pending.add(node.getChildAt(i))
+        }
+      }
+      if (seen >= 2048 || matches != 1 || pix == null) return "root-pointer-unconfirmed"
+      var child: android.view.View = pix
+      var root: android.view.ViewGroup? = null
+      var depth = 0
+      while (depth < 64) {
+        val parent = child.parent as? android.view.ViewGroup ?: break
+        depth += 1
+        val name = parent.javaClass.name
+        if (name == "com.facebook.react.ReactRootView"
+            || name.endsWith(".ReactSurfaceView")) {
+          root = parent
+          break
+        }
+        child = parent
+      }
+      if (root == null || depth >= 64) return "root-pointer-unconfirmed"
+      val childIndex = root.indexOfChild(child)
+      if (childIndex < 0 || !child.z.isFinite()) return "root-pointer-unconfirmed"
+      var candidates = 0
+      var result = "root-pointer-clear"
+      for (i in 0 until root.childCount) {
+        val other = root.getChildAt(i)
+        if (other === child || !other.isShown || other.alpha <= 0f) continue
+        if (other.width <= 0 || other.height <= 0 || !other.z.isFinite()) continue
+        if (!(other.z > child.z || (other.z == child.z && i > childIndex))) continue
+        val p = IntArray(2)
+        other.getLocationOnScreen(p)
+        if (px < p[0] || py < p[1]
+            || px >= p[0] + other.width || py >= p[1] + other.height) continue
+        candidates += 1
+        val method = other.javaClass.methods.firstOrNull {
+          it.name == "getPointerEvents" && it.parameterTypes.isEmpty()
+        }
+        val mode = if (method == null) "root-pointer-unconfirmed" else {
+          when (method.invoke(other)?.toString()?.lowercase(java.util.Locale.ROOT)) {
+            "auto" -> "root-pointer-auto"
+            "none" -> "root-pointer-none"
+            "box_only", "box-only" -> "root-pointer-box-only"
+            "box_none", "box-none" -> "root-pointer-box-none"
+            else -> "root-pointer-unconfirmed"
+          }
+        }
+        if (candidates == 1) result = mode
+        else if (result != mode) result = "root-pointer-mixed"
+      }
+      if (candidates == 0) "root-pointer-clear" else result
+    } catch (_: Exception) {
+      "root-pointer-unconfirmed"
+    }
+  }
+
   override fun dispatchTouchEvent(event: android.view.MotionEvent): Boolean {
     if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN) {
       negrescoLabSetDispatchCategory("activity-down")
@@ -474,6 +578,8 @@ KOTLIN = r'''
       negrescoLabPixSiblingCategory(event) else "sibling-unconfirmed"
     val rootPeer = if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN)
       negrescoLabPixRootPeerCategory(event) else "root-peer-unconfirmed"
+    val rootPointer = if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN)
+      negrescoLabPixRootPointerCategory(event) else "root-pointer-unconfirmed"
     val handled = super.dispatchTouchEvent(event)
     if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN) {
       negrescoLabSetDispatchCategory(
@@ -483,6 +589,7 @@ KOTLIN = r'''
       negrescoLabSetPixCategory(pixTarget)
       negrescoLabSetSiblingCategory(siblings)
       negrescoLabSetRootPeerCategory(rootPeer)
+      negrescoLabSetRootPointerCategory(rootPointer)
     }
     if (event.actionMasked == android.view.MotionEvent.ACTION_UP) {
       negrescoLabSetGestureCategory(
@@ -598,6 +705,23 @@ def read_debug_root_peer_state(adb, package: str) -> str:
     except Exception:
         return "root-peer-unconfirmed"
     return classify_root_peer_state(raw if isinstance(raw,str) else None)
+
+
+def classify_root_pointer_state(raw: str | None) -> str:
+    """Read only allowed pointer-events mode code from private Debug."""
+    if not isinstance(raw,str) or len(raw)>64:
+        return "root-pointer-unconfirmed"
+    return raw if raw in ROOT_POINTER_ALLOWED else "root-pointer-unconfirmed"
+
+
+def read_debug_root_pointer_state(adb, package: str) -> str:
+    if not isinstance(package,str) or not re.fullmatch(r"[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+",package):
+        return "root-pointer-unconfirmed"
+    try:
+        raw=adb("shell","run-as",package,"cat","files/"+ROOT_POINTER_FILE,timeout=15,check=False)
+    except Exception:
+        return "root-pointer-unconfirmed"
+    return classify_root_pointer_state(raw if isinstance(raw,str) else None)
 
 
 def install(root: Path) -> str:
