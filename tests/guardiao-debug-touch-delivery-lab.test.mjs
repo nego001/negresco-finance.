@@ -84,6 +84,14 @@ test('Android 9 emits only allowlisted categories and does not expand touch budg
  assert.match(dispatch,/root-pointer-box-only/);
  assert.match(dispatch,/root-pointer-box-none/);
  assert.match(dispatch,/root-pointer-unconfirmed/);
+ assert.match(dispatch,/root-pointer-mixed-self-eligible/);
+ assert.match(dispatch,/root-pointer-mixed-self-unconfirmed/);
+ assert.match(dispatch,/root-pointer-mixed-child-eligible/);
+ assert.match(dispatch,/root-pointer-mixed-child-unconfirmed/);
+ assert.match(dispatch,/root-pointer-mixed-none-unconfirmed/);
+ assert.match(dispatch,/selfEligible/);
+ assert.match(dispatch,/childEligible/);
+ assert.match(dispatch,/unknownMode/);
  assert.match(runner,/Pix native root pointer preflight=/);
  assert.match(runner,/Pix native root pointer after gesture=/);
  assert.match(runner,/Pix native root peer preflight=/);
@@ -268,6 +276,12 @@ test('native Activity fixed-category dispatch probe installs only into disposabl
   'assert x.classify_root_pointer_state("root-pointer-box-only")=="root-pointer-box-only"',
   'assert x.classify_root_pointer_state("root-pointer-box-none")=="root-pointer-box-none"',
   'assert x.classify_root_pointer_state("root-pointer-mixed")=="root-pointer-mixed"',
+  'assert x.classify_root_pointer_state("root-pointer-mixed-self-eligible")=="root-pointer-mixed-self-eligible"',
+  'assert x.classify_root_pointer_state("root-pointer-mixed-self-unconfirmed")=="root-pointer-mixed-self-unconfirmed"',
+  'assert x.classify_root_pointer_state("root-pointer-mixed-child-eligible")=="root-pointer-mixed-child-eligible"',
+  'assert x.classify_root_pointer_state("root-pointer-mixed-child-unconfirmed")=="root-pointer-mixed-child-unconfirmed"',
+  'assert x.classify_root_pointer_state("root-pointer-mixed-none-unconfirmed")=="root-pointer-mixed-none-unconfirmed"',
+  'assert x.classify_root_pointer_state("root-pointer-mixed-self-eligible-private")=="root-pointer-unconfirmed"',
   'assert x.classify_root_pointer_state("root-pointer-auto-hidden")=="root-pointer-unconfirmed"',
   'assert x.classify_root_pointer_state(None)=="root-pointer-unconfirmed"',
   'assert x.classify_native_state("private-financial-content")=="activity-state-unconfirmed"',

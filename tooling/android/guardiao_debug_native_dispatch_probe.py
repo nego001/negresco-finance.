@@ -26,6 +26,11 @@ ROOT_POINTER_ALLOWED = frozenset((
     "root-pointer-auto", "root-pointer-none",
     "root-pointer-box-only", "root-pointer-box-none",
     "root-pointer-mixed", "root-pointer-unconfirmed",
+    "root-pointer-mixed-self-eligible",
+    "root-pointer-mixed-self-unconfirmed",
+    "root-pointer-mixed-child-eligible",
+    "root-pointer-mixed-child-unconfirmed",
+    "root-pointer-mixed-none-unconfirmed",
 ))
 ROOT_PEER_ALLOWED = frozenset((
     "root-peer-ready", "root-peer-clear", "root-peer-devsupport",
@@ -528,6 +533,9 @@ KOTLIN = r'''
       if (childIndex < 0 || !child.z.isFinite()) return "root-pointer-unconfirmed"
       var candidates = 0
       var result = "root-pointer-clear"
+      var selfEligible = false
+      var childEligible = false
+      var unknownMode = false
       for (i in 0 until root.childCount) {
         val other = root.getChildAt(i)
         if (other === child || !other.isShown || other.alpha <= 0f) continue
@@ -550,10 +558,23 @@ KOTLIN = r'''
             else -> "root-pointer-unconfirmed"
           }
         }
+        if (mode == "root-pointer-auto" || mode == "root-pointer-box-only") {
+          selfEligible = true
+        } else if (mode == "root-pointer-box-none") {
+          childEligible = true
+        } else if (mode == "root-pointer-unconfirmed") {
+          unknownMode = true
+        }
         if (candidates == 1) result = mode
         else if (result != mode) result = "root-pointer-mixed"
       }
-      if (candidates == 0) "root-pointer-clear" else result
+      if (candidates == 0) "root-pointer-clear"
+      else if (result != "root-pointer-mixed") result
+      else if (selfEligible && unknownMode) "root-pointer-mixed-self-unconfirmed"
+      else if (selfEligible) "root-pointer-mixed-self-eligible"
+      else if (childEligible && unknownMode) "root-pointer-mixed-child-unconfirmed"
+      else if (childEligible) "root-pointer-mixed-child-eligible"
+      else "root-pointer-mixed-none-unconfirmed"
     } catch (_: Exception) {
       "root-pointer-unconfirmed"
     }
