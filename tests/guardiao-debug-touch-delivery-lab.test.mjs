@@ -29,7 +29,10 @@ test('SafeAreaView front children are classified by bounds without mutation',()=
  assert.match(dispatch,/countFront < 2048/);
  assert.match(dispatch,/var eligibleElsewhere = false/);
  assert.match(dispatch,/eligibleElsewhere = true/);
- assert.match(dispatch,/rn-safearea-pixhome-child-bounds-away/);
+ assert.match(dispatch,/rn-safearea-pixhome-self-visible-hit-child-away/);
+ assert.match(dispatch,/rn-safearea-pixhome-self-visible-miss-child-away/);
+ assert.match(dispatch,/rn-safearea-pixhome-self-visible-unconfirmed/);
+ assert.match(dispatch,/targetRootBranch\.getGlobalVisibleRect\(visibleRect\)/);
  assert.match(dispatch,/rn-safearea-pixhome-child-bounds-none-eligible/);
  assert.match(dispatch,/if \(!descendants\.isEmpty\(\)\)/);
  assert.doesNotMatch(dispatch,/\.setPointerEvents\(|\.setVisibility\(|\.setAlpha\(|\.performClick\(/);
@@ -135,7 +138,10 @@ test('Android 9 emits only allowlisted categories and does not expand touch budg
  assert.match(dispatch,/rn-safearea-pix-home-only/);
  assert.match(dispatch,/rn-safearea-pixhome-front-empty/);
  assert.match(dispatch,/rn-safearea-pixhome-child-bounds-cover/);
- assert.match(dispatch,/rn-safearea-pixhome-child-bounds-away/);
+ assert.match(dispatch,/rn-safearea-pixhome-self-visible-hit-child-away/);
+ assert.match(dispatch,/rn-safearea-pixhome-self-visible-miss-child-away/);
+ assert.match(dispatch,/rn-safearea-pixhome-self-visible-unconfirmed/);
+ assert.match(dispatch,/targetRootBranch\.getGlobalVisibleRect\(visibleRect\)/);
  assert.match(dispatch,/rn-safearea-pixhome-child-bounds-none-eligible/);
  assert.match(dispatch,/rn-safearea-pixhome-structure-unconfirmed/);
  assert.match(dispatch,/branchChild\.getLocationOnScreen\(childPosition\)/);
@@ -412,7 +418,10 @@ test('native Activity fixed-category dispatch probe installs only into disposabl
   'assert x.classify_resolved_target_state("rn-safearea-pix-home-only")=="rn-safearea-pix-home-only"',
   'assert x.classify_resolved_target_state("rn-safearea-pixhome-front-empty")=="rn-safearea-pixhome-front-empty"',
   'assert x.classify_resolved_target_state("rn-safearea-pixhome-child-bounds-cover")=="rn-safearea-pixhome-child-bounds-cover"',
-  'assert x.classify_resolved_target_state("rn-safearea-pixhome-child-bounds-away")=="rn-safearea-pixhome-child-bounds-away"',
+  'assert x.classify_resolved_target_state("rn-safearea-pixhome-self-visible-hit-child-away")=="rn-safearea-pixhome-self-visible-hit-child-away"',
+  'assert x.classify_resolved_target_state("rn-safearea-pixhome-self-visible-miss-child-away")=="rn-safearea-pixhome-self-visible-miss-child-away"',
+  'assert x.classify_resolved_target_state("rn-safearea-pixhome-self-visible-unconfirmed")=="rn-safearea-pixhome-self-visible-unconfirmed"',
+  'assert x.classify_resolved_target_state("rn-safearea-pixhome-child-bounds-away")=="rn-target-unconfirmed"',
   'assert x.classify_resolved_target_state("rn-safearea-pixhome-child-bounds-none-eligible")=="rn-safearea-pixhome-child-bounds-none-eligible"',
   'assert x.classify_resolved_target_state("rn-safearea-pixhome-child-bounds-clear")=="rn-target-unconfirmed"',
   'assert x.classify_resolved_target_state("rn-safearea-pixhome-structure-unconfirmed")=="rn-safearea-pixhome-structure-unconfirmed"',

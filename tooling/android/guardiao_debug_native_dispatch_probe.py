@@ -52,7 +52,9 @@ RN_TARGET_ALLOWED = frozenset((
     "rn-safearea-pix-home-only",
     "rn-safearea-pixhome-front-empty",
     "rn-safearea-pixhome-child-bounds-cover",
-    "rn-safearea-pixhome-child-bounds-away",
+    "rn-safearea-pixhome-self-visible-hit-child-away",
+    "rn-safearea-pixhome-self-visible-miss-child-away",
+    "rn-safearea-pixhome-self-visible-unconfirmed",
     "rn-safearea-pixhome-child-bounds-none-eligible",
     "rn-safearea-pixhome-structure-unconfirmed",
     "rn-safearea-both-home",
@@ -885,7 +887,20 @@ KOTLIN = r'''
                             } else if (covered) {
                               "rn-safearea-pixhome-child-bounds-cover"
                             } else if (eligibleElsewhere) {
-                              "rn-safearea-pixhome-child-bounds-away"
+                              // Visible footprint is read-only geometry, not
+                              // proof of native event interception or JS routing.
+                              val visibleRect = android.graphics.Rect()
+                              if (!targetRootBranch.isShown || targetRootBranch.alpha <= 0f
+                                  || targetRootBranch.width <= 0 || targetRootBranch.height <= 0
+                                  || !targetRootBranch.getGlobalVisibleRect(visibleRect)
+                                  || visibleRect.isEmpty) {
+                                "rn-safearea-pixhome-self-visible-unconfirmed"
+                              } else if (px >= visibleRect.left && px < visibleRect.right
+                                  && py >= visibleRect.top && py < visibleRect.bottom) {
+                                "rn-safearea-pixhome-self-visible-hit-child-away"
+                              } else {
+                                "rn-safearea-pixhome-self-visible-miss-child-away"
+                              }
                             } else {
                               "rn-safearea-pixhome-child-bounds-none-eligible"
                             }
