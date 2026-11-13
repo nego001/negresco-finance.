@@ -52,7 +52,11 @@ RN_TARGET_ALLOWED = frozenset((
     "rn-safearea-pix-home-only",
     "rn-safearea-pixhome-front-empty",
     "rn-safearea-pixhome-child-bounds-cover",
-    "rn-safearea-pixhome-self-visible-hit-child-away",
+    "rn-safearea-pixhome-hit-index-higher",
+    "rn-safearea-pixhome-hit-index-lower",
+    "rn-safearea-pixhome-hit-mapped-higher",
+    "rn-safearea-pixhome-hit-mapped-lower",
+    "rn-safearea-pixhome-hit-order-unconfirmed",
     "rn-safearea-pixhome-self-visible-miss-child-away",
     "rn-safearea-pixhome-self-visible-unconfirmed",
     "rn-safearea-pixhome-child-bounds-none-eligible",
@@ -649,6 +653,63 @@ KOTLIN = r'''
   // Passive query to React Native's own touch-target resolver. It does NOT
   // dispatch, replay or consume an event. Reflection fails closed for
   // incompatible Fabric/RN builds. Never persist the returned integer tag.
+  // Read-only sibling rank classifier. Does not infer actual ACTION_DOWN
+  // routing, visual occlusion, interception or React/JS callback delivery.
+  // Uses React Native's drawing-order mapping when the root supports it.
+  private fun negrescoLabRootSiblingOrderCategory(
+      root: android.view.ViewGroup,
+      pixBranch: android.view.View,
+      selectedBranch: android.view.View): String {
+    if (!BuildConfig.DEBUG) return "rn-safearea-pixhome-hit-order-unconfirmed"
+    return try {
+      val size = root.childCount
+      val pixIndex = root.indexOfChild(pixBranch)
+      val selectedIndex = root.indexOfChild(selectedBranch)
+      if (size < 2 || size > 2048 || pixIndex < 0
+          || selectedIndex < 0 || pixIndex == selectedIndex) {
+        "rn-safearea-pixhome-hit-order-unconfirmed"
+      } else {
+        val zInterface = try {
+          Class.forName("com.facebook.react.uimanager.ReactZIndexedViewGroup")
+        } catch (_: ClassNotFoundException) {
+          null
+        }
+        if (zInterface == null || !zInterface.isInstance(root)) {
+          // Index ordering ONLY, not equivalent to transformed hit-testing,
+          // Android elevation, or real event delivery.
+          if (selectedIndex > pixIndex) "rn-safearea-pixhome-hit-index-higher"
+          else "rn-safearea-pixhome-hit-index-lower"
+        } else {
+          val getter = zInterface.getMethod("getZIndexMappedChildIndex", java.lang.Integer.TYPE)
+          val visited = BooleanArray(size)
+          var pixRank = -1
+          var selectedRank = -1
+          var mappingValid = true
+          for (rank in 0 until size) {
+            val nativeIndex = getter.invoke(root, rank) as? Int
+            if (nativeIndex == null || nativeIndex < 0 || nativeIndex >= size
+                || visited[nativeIndex]) {
+              mappingValid = false
+              break
+            }
+            visited[nativeIndex] = true
+            if (nativeIndex == pixIndex) pixRank = rank
+            if (nativeIndex == selectedIndex) selectedRank = rank
+          }
+          if (!mappingValid || pixRank < 0 || selectedRank < 0) {
+            "rn-safearea-pixhome-hit-order-unconfirmed"
+          } else if (selectedRank > pixRank) {
+            "rn-safearea-pixhome-hit-mapped-higher"
+          } else {
+            "rn-safearea-pixhome-hit-mapped-lower"
+          }
+        }
+      }
+    } catch (_: Exception) {
+      "rn-safearea-pixhome-hit-order-unconfirmed"
+    }
+  }
+
   private fun negrescoLabResolvedTargetCategory(event: android.view.MotionEvent): String {
     if (!BuildConfig.DEBUG) return "rn-target-unconfirmed"
     return try {
@@ -912,7 +973,7 @@ KOTLIN = r'''
                                     "rn-safearea-pixhome-self-visible-unconfirmed"
                                   } else if (rootLocalX >= visibleRect.left && rootLocalX < visibleRect.right
                                       && rootLocalY >= visibleRect.top && rootLocalY < visibleRect.bottom) {
-                                    "rn-safearea-pixhome-self-visible-hit-child-away"
+                                    negrescoLabRootSiblingOrderCategory(root, pixRootBranch, targetRootBranch)
                                   } else {
                                     "rn-safearea-pixhome-self-visible-miss-child-away"
                                   }

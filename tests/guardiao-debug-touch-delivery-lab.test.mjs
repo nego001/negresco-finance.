@@ -29,10 +29,19 @@ test('SafeAreaView front children are classified by bounds without mutation',()=
  assert.match(dispatch,/countFront < 2048/);
  assert.match(dispatch,/var eligibleElsewhere = false/);
  assert.match(dispatch,/eligibleElsewhere = true/);
- assert.match(dispatch,/rn-safearea-pixhome-self-visible-hit-child-away/);
+ assert.match(dispatch,/rn-safearea-pixhome-hit-index-higher/);
+ assert.match(dispatch,/rn-safearea-pixhome-hit-index-lower/);
+ assert.match(dispatch,/rn-safearea-pixhome-hit-mapped-higher/);
+ assert.match(dispatch,/rn-safearea-pixhome-hit-mapped-lower/);
+ assert.match(dispatch,/rn-safearea-pixhome-hit-order-unconfirmed/);
  assert.match(dispatch,/rn-safearea-pixhome-self-visible-miss-child-away/);
  assert.match(dispatch,/rn-safearea-pixhome-self-visible-unconfirmed/);
  assert.match(dispatch,/targetRootBranch\.getGlobalVisibleRect\(visibleRect\)/);
+ assert.match(dispatch,/negrescoLabRootSiblingOrderCategory\(root, pixRootBranch, targetRootBranch\)/);
+ assert.match(dispatch,/ReactZIndexedViewGroup/);
+ assert.match(dispatch,/getZIndexMappedChildIndex/);
+ assert.match(dispatch,/val visited = BooleanArray\(size\)/);
+ assert.match(dispatch,/mappingValid = false/);
  assert.match(dispatch,/val rootView = targetRootBranch\.rootView/);
  assert.match(dispatch,/rootView\.getLocationOnScreen\(rootOrigin\)/);
  assert.match(dispatch,/val rootLocalX = px - rootOrigin\[0\]/);
@@ -145,10 +154,19 @@ test('Android 9 emits only allowlisted categories and does not expand touch budg
  assert.match(dispatch,/rn-safearea-pix-home-only/);
  assert.match(dispatch,/rn-safearea-pixhome-front-empty/);
  assert.match(dispatch,/rn-safearea-pixhome-child-bounds-cover/);
- assert.match(dispatch,/rn-safearea-pixhome-self-visible-hit-child-away/);
+ assert.match(dispatch,/rn-safearea-pixhome-hit-index-higher/);
+ assert.match(dispatch,/rn-safearea-pixhome-hit-index-lower/);
+ assert.match(dispatch,/rn-safearea-pixhome-hit-mapped-higher/);
+ assert.match(dispatch,/rn-safearea-pixhome-hit-mapped-lower/);
+ assert.match(dispatch,/rn-safearea-pixhome-hit-order-unconfirmed/);
  assert.match(dispatch,/rn-safearea-pixhome-self-visible-miss-child-away/);
  assert.match(dispatch,/rn-safearea-pixhome-self-visible-unconfirmed/);
  assert.match(dispatch,/targetRootBranch\.getGlobalVisibleRect\(visibleRect\)/);
+ assert.match(dispatch,/negrescoLabRootSiblingOrderCategory\(root, pixRootBranch, targetRootBranch\)/);
+ assert.match(dispatch,/ReactZIndexedViewGroup/);
+ assert.match(dispatch,/getZIndexMappedChildIndex/);
+ assert.match(dispatch,/val visited = BooleanArray\(size\)/);
+ assert.match(dispatch,/mappingValid = false/);
  assert.match(dispatch,/val rootView = targetRootBranch\.rootView/);
  assert.match(dispatch,/rootView\.getLocationOnScreen\(rootOrigin\)/);
  assert.match(dispatch,/val rootLocalX = px - rootOrigin\[0\]/);
@@ -432,7 +450,12 @@ test('native Activity fixed-category dispatch probe installs only into disposabl
   'assert x.classify_resolved_target_state("rn-safearea-pix-home-only")=="rn-safearea-pix-home-only"',
   'assert x.classify_resolved_target_state("rn-safearea-pixhome-front-empty")=="rn-safearea-pixhome-front-empty"',
   'assert x.classify_resolved_target_state("rn-safearea-pixhome-child-bounds-cover")=="rn-safearea-pixhome-child-bounds-cover"',
-  'assert x.classify_resolved_target_state("rn-safearea-pixhome-self-visible-hit-child-away")=="rn-safearea-pixhome-self-visible-hit-child-away"',
+  'assert x.classify_resolved_target_state("rn-safearea-pixhome-hit-index-higher")=="rn-safearea-pixhome-hit-index-higher"',
+  'assert x.classify_resolved_target_state("rn-safearea-pixhome-hit-index-lower")=="rn-safearea-pixhome-hit-index-lower"',
+  'assert x.classify_resolved_target_state("rn-safearea-pixhome-hit-mapped-higher")=="rn-safearea-pixhome-hit-mapped-higher"',
+  'assert x.classify_resolved_target_state("rn-safearea-pixhome-hit-mapped-lower")=="rn-safearea-pixhome-hit-mapped-lower"',
+  'assert x.classify_resolved_target_state("rn-safearea-pixhome-hit-order-unconfirmed")=="rn-safearea-pixhome-hit-order-unconfirmed"',
+  'assert x.classify_resolved_target_state("rn-safearea-pixhome-self-visible-hit-child-away")=="rn-target-unconfirmed"',
   'assert x.classify_resolved_target_state("rn-safearea-pixhome-self-visible-miss-child-away")=="rn-safearea-pixhome-self-visible-miss-child-away"',
   'assert x.classify_resolved_target_state("rn-safearea-pixhome-self-visible-unconfirmed")=="rn-safearea-pixhome-self-visible-unconfirmed"',
   'assert x.classify_resolved_target_state("rn-safearea-pixhome-child-bounds-away")=="rn-target-unconfirmed"',
