@@ -38,6 +38,14 @@ RN_TARGET_ALLOWED = frozenset((
     "rn-front-surface-clickable", "rn-front-surface-passive",
     "rn-front-devsupport-clickable", "rn-front-devsupport-passive",
     "rn-front-view-clickable", "rn-front-view-passive",
+    "rn-front-text-clickable", "rn-front-text-passive",
+    "rn-front-textinput-clickable", "rn-front-textinput-passive",
+    "rn-front-image-clickable", "rn-front-image-passive",
+    "rn-front-viewgroup-clickable", "rn-front-viewgroup-passive",
+    "rn-front-scroll-clickable", "rn-front-scroll-passive",
+    "rn-front-modal-clickable", "rn-front-modal-passive",
+    "rn-front-control-clickable", "rn-front-control-passive",
+    "rn-front-miscview-clickable", "rn-front-miscview-passive",
     "rn-front-reactother-clickable", "rn-front-reactother-passive",
     "rn-front-expo-clickable", "rn-front-expo-passive",
     "rn-front-other-clickable", "rn-front-other-passive",
@@ -764,7 +772,17 @@ KOTLIN = r'''
                       owner == "com.facebook.react.ReactRootView" -> "root"
                       owner.endsWith(".ReactSurfaceView") -> "surface"
                       owner.startsWith("com.facebook.react.devsupport.") -> "devsupport"
-                      owner.startsWith("com.facebook.react.views.") -> "view"
+                      owner.startsWith("com.facebook.react.views.textinput.") -> "textinput"
+                      owner.startsWith("com.facebook.react.views.text.") -> "text"
+                      owner.startsWith("com.facebook.react.views.image.") -> "image"
+                      owner.startsWith("com.facebook.react.views.view.") -> "viewgroup"
+                      owner.startsWith("com.facebook.react.views.scroll.") -> "scroll"
+                      owner.startsWith("com.facebook.react.views.modal.") -> "modal"
+                      owner.startsWith("com.facebook.react.views.switchview.")
+                        || owner.startsWith("com.facebook.react.views.checkbox.")
+                        || owner.startsWith("com.facebook.react.views.slider.")
+                        || owner.startsWith("com.facebook.react.views.progressbar.") -> "control"
+                      owner.startsWith("com.facebook.react.views.") -> "miscview"
                       owner.startsWith("com.facebook.react.") -> "reactother"
                       owner.startsWith("expo.") -> "expo"
                       else -> "other"
