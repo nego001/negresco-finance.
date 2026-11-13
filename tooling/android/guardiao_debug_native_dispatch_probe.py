@@ -29,6 +29,10 @@ RN_TARGET_ALLOWED = frozenset((
     "rn-target-other-root-front", "rn-target-other-root-behind",
     "rn-target-other-same-nav", "rn-target-other-same-app",
     "rn-target-other-order-unconfirmed",
+    "rn-target-front-branch-auto", "rn-target-front-branch-none",
+    "rn-target-front-branch-box-only", "rn-target-front-branch-box-none",
+    "rn-target-front-branch-no-interface",
+    "rn-target-front-branch-unconfirmed",
     "rn-target-virtual-unconfirmed", "rn-target-unconfirmed",
 ))
 ROOT_POINTER_ALLOWED = frozenset((
@@ -721,9 +725,32 @@ KOTLIN = r'''
                 || !targetRootBranch.z.isFinite()) {
               return "rn-target-other-order-unconfirmed"
             }
-            return if (targetRootBranch.z > pixRootBranch.z
-                || (targetRootBranch.z == pixRootBranch.z && targetIndex > pixIndex))
-              "rn-target-other-root-front" else "rn-target-other-root-behind"
+            val front = targetRootBranch.z > pixRootBranch.z
+              || (targetRootBranch.z == pixRootBranch.z && targetIndex > pixIndex)
+            if (!front) return "rn-target-other-root-behind"
+            // Inspect ONLY the selected front root branch. React Native's
+            // TouchTargetHelper treats Views without ReactPointerEventsView
+            // differently from explicit NONE/BOX_NONE; do not conflate them.
+            // No method/property mutations, no raw class names in output.
+            return try {
+              val iface = Class.forName(
+                "com.facebook.react.uimanager.ReactPointerEventsView")
+              if (!iface.isInstance(targetRootBranch)) {
+                "rn-target-front-branch-no-interface"
+              } else {
+                val getter = iface.getMethod("getPointerEvents")
+                when (getter.invoke(targetRootBranch)?.toString()
+                    ?.lowercase(java.util.Locale.ROOT)) {
+                  "auto" -> "rn-target-front-branch-auto"
+                  "none" -> "rn-target-front-branch-none"
+                  "box_only", "box-only" -> "rn-target-front-branch-box-only"
+                  "box_none", "box-none" -> "rn-target-front-branch-box-none"
+                  else -> "rn-target-front-branch-unconfirmed"
+                }
+              }
+            } catch (_: Exception) {
+              "rn-target-front-branch-unconfirmed"
+            }
           }
           // Both Views share the same direct ReactRootView branch. Determine
           // whether the selected View is under another nav button, not Pix.
