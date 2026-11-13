@@ -121,6 +121,15 @@ test('Android 9 emits only allowlisted categories and does not expand touch budg
  assert.match(dispatch,/rn-front-control-clickable/);
  assert.match(dispatch,/rn-front-miscview-clickable/);
  assert.match(dispatch,/rn-front-safearea-clickable/);
+ assert.match(dispatch,/rn-safearea-front-empty/);
+ assert.match(dispatch,/rn-safearea-front-home-only/);
+ assert.match(dispatch,/rn-safearea-pix-home-only/);
+ assert.match(dispatch,/rn-safearea-both-home/);
+ assert.match(dispatch,/rn-safearea-neither-home/);
+ assert.match(dispatch,/rn-safearea-markers-unconfirmed/);
+ assert.match(dispatch,/rootsToCheck = arrayOf\(targetRootBranch, pixRootBranch\)/);
+ assert.match(dispatch,/negresco-lab-rn-page-home-/);
+ assert.match(dispatch,/scanQueue\.isEmpty\(\)/);
  assert.match(dispatch,/rn-front-refresh-clickable/);
  assert.match(dispatch,/rn-front-drawer-clickable/);
  assert.match(dispatch,/rn-front-viewpager-clickable/);
@@ -381,6 +390,13 @@ test('native Activity fixed-category dispatch probe installs only into disposabl
   'assert x.classify_resolved_target_state("rn-front-miscview-passive")=="rn-front-miscview-passive"',
   'assert x.classify_resolved_target_state("rn-front-safearea-clickable")=="rn-front-safearea-clickable"',
   'assert x.classify_resolved_target_state("rn-front-safearea-passive")=="rn-front-safearea-passive"',
+  'assert x.classify_resolved_target_state("rn-safearea-front-empty")=="rn-safearea-front-empty"',
+  'assert x.classify_resolved_target_state("rn-safearea-front-home-only")=="rn-safearea-front-home-only"',
+  'assert x.classify_resolved_target_state("rn-safearea-pix-home-only")=="rn-safearea-pix-home-only"',
+  'assert x.classify_resolved_target_state("rn-safearea-both-home")=="rn-safearea-both-home"',
+  'assert x.classify_resolved_target_state("rn-safearea-neither-home")=="rn-safearea-neither-home"',
+  'assert x.classify_resolved_target_state("rn-safearea-markers-unconfirmed")=="rn-safearea-markers-unconfirmed"',
+  'assert x.classify_resolved_target_state("rn-safearea-front-home-only-raw")=="rn-target-unconfirmed"',
   'assert x.classify_resolved_target_state("rn-front-refresh-clickable")=="rn-front-refresh-clickable"',
   'assert x.classify_resolved_target_state("rn-front-refresh-passive")=="rn-front-refresh-passive"',
   'assert x.classify_resolved_target_state("rn-front-drawer-clickable")=="rn-front-drawer-clickable"',

@@ -47,6 +47,12 @@ RN_TARGET_ALLOWED = frozenset((
     "rn-front-control-clickable", "rn-front-control-passive",
     "rn-front-miscview-clickable", "rn-front-miscview-passive",
     "rn-front-safearea-clickable", "rn-front-safearea-passive",
+    "rn-safearea-front-empty",
+    "rn-safearea-front-home-only",
+    "rn-safearea-pix-home-only",
+    "rn-safearea-both-home",
+    "rn-safearea-neither-home",
+    "rn-safearea-markers-unconfirmed",
     "rn-front-refresh-clickable", "rn-front-refresh-passive",
     "rn-front-drawer-clickable", "rn-front-drawer-passive",
     "rn-front-viewpager-clickable", "rn-front-viewpager-passive",
@@ -804,7 +810,45 @@ KOTLIN = r'''
                       else -> "other"
                     }
                     val mode = if (targetRootBranch.isClickable) "clickable" else "passive"
-                    "rn-front-" + group + "-" + mode
+
+                    if (group == "safearea" && mode == "passive") {
+                      // Scan exactly the two selected root branches in memory.
+                      // Fixed synthetic Dev marker only; no class names, texts,
+                      // coordinates, IDs, raw hierarchy or contents are logged.
+                      var homeMask = 0
+                      val rootsToCheck = arrayOf(targetRootBranch, pixRootBranch)
+                      for (rootIndex in rootsToCheck.indices) {
+                        val scanQueue = java.util.ArrayDeque<android.view.View>()
+                        scanQueue.add(rootsToCheck[rootIndex])
+                        var inspected = 0
+                        while (!scanQueue.isEmpty() && inspected < 2048) {
+                          val candidate = scanQueue.removeFirst()
+                          inspected += 1
+                          val marker = candidate.getTag(tagId)
+                          if (marker is String &&
+                              marker.startsWith("negresco-lab-rn-page-home-")) {
+                            homeMask = homeMask or (1 shl rootIndex)
+                          }
+                          if (candidate is android.view.ViewGroup) {
+                            for (childIndex in 0 until candidate.childCount) {
+                              scanQueue.add(candidate.getChildAt(childIndex))
+                            }
+                          }
+                        }
+                        if (!scanQueue.isEmpty()) return "rn-safearea-markers-unconfirmed"
+                      }
+                      when (homeMask) {
+                        1 -> "rn-safearea-front-home-only"
+                        2 -> "rn-safearea-pix-home-only"
+                        3 -> "rn-safearea-both-home"
+                        else -> {
+                          val frontGroup = targetRootBranch as? android.view.ViewGroup
+                          if (frontGroup != null && frontGroup.childCount == 0)
+                            "rn-safearea-front-empty"
+                          else "rn-safearea-neither-home"
+                        }
+                      }
+                    } else "rn-front-" + group + "-" + mode
                   }
                   branchEnabled && !selectedDirectly ->
                     "rn-front-noiface-enabled-descendant"
