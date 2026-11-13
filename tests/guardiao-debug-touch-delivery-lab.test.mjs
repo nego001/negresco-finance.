@@ -33,6 +33,13 @@ test('SafeAreaView front children are classified by bounds without mutation',()=
  assert.match(dispatch,/rn-safearea-pixhome-self-visible-miss-child-away/);
  assert.match(dispatch,/rn-safearea-pixhome-self-visible-unconfirmed/);
  assert.match(dispatch,/targetRootBranch\.getGlobalVisibleRect\(visibleRect\)/);
+ assert.match(dispatch,/val rootView = targetRootBranch\.rootView/);
+ assert.match(dispatch,/rootView\.getLocationOnScreen\(rootOrigin\)/);
+ assert.match(dispatch,/val rootLocalX = px - rootOrigin\[0\]/);
+ assert.match(dispatch,/val rootLocalY = py - rootOrigin\[1\]/);
+ assert.match(dispatch,/rootLocalX >= visibleRect\.left/);
+ assert.match(dispatch,/rootLocalY >= visibleRect\.top/);
+ assert.doesNotMatch(dispatch,/else if \(px >= visibleRect\.left/);
  assert.match(dispatch,/rn-safearea-pixhome-child-bounds-none-eligible/);
  assert.match(dispatch,/if \(!descendants\.isEmpty\(\)\)/);
  assert.doesNotMatch(dispatch,/\.setPointerEvents\(|\.setVisibility\(|\.setAlpha\(|\.performClick\(/);
@@ -142,6 +149,13 @@ test('Android 9 emits only allowlisted categories and does not expand touch budg
  assert.match(dispatch,/rn-safearea-pixhome-self-visible-miss-child-away/);
  assert.match(dispatch,/rn-safearea-pixhome-self-visible-unconfirmed/);
  assert.match(dispatch,/targetRootBranch\.getGlobalVisibleRect\(visibleRect\)/);
+ assert.match(dispatch,/val rootView = targetRootBranch\.rootView/);
+ assert.match(dispatch,/rootView\.getLocationOnScreen\(rootOrigin\)/);
+ assert.match(dispatch,/val rootLocalX = px - rootOrigin\[0\]/);
+ assert.match(dispatch,/val rootLocalY = py - rootOrigin\[1\]/);
+ assert.match(dispatch,/rootLocalX >= visibleRect\.left/);
+ assert.match(dispatch,/rootLocalY >= visibleRect\.top/);
+ assert.doesNotMatch(dispatch,/else if \(px >= visibleRect\.left/);
  assert.match(dispatch,/rn-safearea-pixhome-child-bounds-none-eligible/);
  assert.match(dispatch,/rn-safearea-pixhome-structure-unconfirmed/);
  assert.match(dispatch,/branchChild\.getLocationOnScreen\(childPosition\)/);

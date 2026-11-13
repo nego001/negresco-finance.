@@ -895,11 +895,28 @@ KOTLIN = r'''
                                   || !targetRootBranch.getGlobalVisibleRect(visibleRect)
                                   || visibleRect.isEmpty) {
                                 "rn-safearea-pixhome-self-visible-unconfirmed"
-                              } else if (px >= visibleRect.left && px < visibleRect.right
-                                  && py >= visibleRect.top && py < visibleRect.bottom) {
-                                "rn-safearea-pixhome-self-visible-hit-child-away"
                               } else {
-                                "rn-safearea-pixhome-self-visible-miss-child-away"
+                                // getGlobalVisibleRect is in root-view coordinates,
+                                // while MotionEvent rawX/rawY use screen coordinates.
+                                // Convert the touch into the same root-view space.
+                                // Read-only: no touch dispatch or View mutation.
+                                val rootView = targetRootBranch.rootView
+                                if (!rootView.isAttachedToWindow || !rootView.isShown) {
+                                  "rn-safearea-pixhome-self-visible-unconfirmed"
+                                } else {
+                                  val rootOrigin = IntArray(2)
+                                  rootView.getLocationOnScreen(rootOrigin)
+                                  val rootLocalX = px - rootOrigin[0]
+                                  val rootLocalY = py - rootOrigin[1]
+                                  if (!rootLocalX.isFinite() || !rootLocalY.isFinite()) {
+                                    "rn-safearea-pixhome-self-visible-unconfirmed"
+                                  } else if (rootLocalX >= visibleRect.left && rootLocalX < visibleRect.right
+                                      && rootLocalY >= visibleRect.top && rootLocalY < visibleRect.bottom) {
+                                    "rn-safearea-pixhome-self-visible-hit-child-away"
+                                  } else {
+                                    "rn-safearea-pixhome-self-visible-miss-child-away"
+                                  }
+                                }
                               }
                             } else {
                               "rn-safearea-pixhome-child-bounds-none-eligible"
