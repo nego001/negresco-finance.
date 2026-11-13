@@ -50,6 +50,10 @@ RN_TARGET_ALLOWED = frozenset((
     "rn-safearea-front-empty",
     "rn-safearea-front-home-only",
     "rn-safearea-pix-home-only",
+    "rn-safearea-pixhome-front-empty",
+    "rn-safearea-pixhome-child-bounds-cover",
+    "rn-safearea-pixhome-child-bounds-clear",
+    "rn-safearea-pixhome-structure-unconfirmed",
     "rn-safearea-both-home",
     "rn-safearea-neither-home",
     "rn-safearea-markers-unconfirmed",
@@ -839,7 +843,49 @@ KOTLIN = r'''
                       }
                       when (homeMask) {
                         1 -> "rn-safearea-front-home-only"
-                        2 -> "rn-safearea-pix-home-only"
+                        2 -> {
+                          val frontGroup = targetRootBranch as? android.view.ViewGroup
+                            ?: return "rn-safearea-pixhome-structure-unconfirmed"
+                          if (frontGroup.childCount == 0) {
+                            "rn-safearea-pixhome-front-empty"
+                          } else {
+                            // Bounds-only: does not dispatch, replay touch,
+                            // call pointer handlers or mutate any native View.
+                            // Never persist raw coordinates, child IDs or counts.
+                            val descendants = java.util.ArrayDeque<android.view.View>()
+                            for (childIndex in 0 until frontGroup.childCount) {
+                              descendants.add(frontGroup.getChildAt(childIndex))
+                            }
+                            var countFront = 0
+                            var covered = false
+                            while (!descendants.isEmpty() && countFront < 2048) {
+                              val branchChild = descendants.removeFirst()
+                              countFront += 1
+                              if (branchChild.isShown && branchChild.alpha > 0f
+                                  && branchChild.width > 0 && branchChild.height > 0) {
+                                val childPosition = IntArray(2)
+                                branchChild.getLocationOnScreen(childPosition)
+                                if (px >= childPosition[0] && py >= childPosition[1]
+                                    && px < childPosition[0] + branchChild.width
+                                    && py < childPosition[1] + branchChild.height) {
+                                  covered = true
+                                }
+                              }
+                              if (branchChild is android.view.ViewGroup) {
+                                for (childIndex in 0 until branchChild.childCount) {
+                                  descendants.add(branchChild.getChildAt(childIndex))
+                                }
+                              }
+                            }
+                            if (!descendants.isEmpty()) {
+                              "rn-safearea-pixhome-structure-unconfirmed"
+                            } else if (covered) {
+                              "rn-safearea-pixhome-child-bounds-cover"
+                            } else {
+                              "rn-safearea-pixhome-child-bounds-clear"
+                            }
+                          }
+                        }
                         3 -> "rn-safearea-both-home"
                         else -> {
                           val frontGroup = targetRootBranch as? android.view.ViewGroup
