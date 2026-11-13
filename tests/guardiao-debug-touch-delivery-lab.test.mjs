@@ -99,6 +99,13 @@ test('Android 9 emits only allowlisted categories and does not expand touch budg
  assert.match(dispatch,/rn-target-pix-descendant/);
  assert.match(dispatch,/rn-target-pix-ancestor/);
  assert.match(dispatch,/rn-target-other/);
+ assert.match(dispatch,/rn-target-other-root-front/);
+ assert.match(dispatch,/rn-target-other-root-behind/);
+ assert.match(dispatch,/rn-target-other-same-nav/);
+ assert.match(dispatch,/rn-target-other-same-app/);
+ assert.match(dispatch,/rn-target-other-order-unconfirmed/);
+ assert.match(dispatch,/targetRootBranch/);
+ assert.match(dispatch,/pixRootBranch/);
  assert.match(dispatch,/rn-target-root-fallback/);
  assert.match(runner,/Pix RN resolver preflight=/);
  assert.match(runner,/Pix RN resolver after gesture=/);
@@ -299,6 +306,12 @@ test('native Activity fixed-category dispatch probe installs only into disposabl
   'assert x.classify_resolved_target_state("rn-target-pix-descendant")=="rn-target-pix-descendant"',
   'assert x.classify_resolved_target_state("rn-target-pix-ancestor")=="rn-target-pix-ancestor"',
   'assert x.classify_resolved_target_state("rn-target-other")=="rn-target-other"',
+  'assert x.classify_resolved_target_state("rn-target-other-root-front")=="rn-target-other-root-front"',
+  'assert x.classify_resolved_target_state("rn-target-other-root-behind")=="rn-target-other-root-behind"',
+  'assert x.classify_resolved_target_state("rn-target-other-same-nav")=="rn-target-other-same-nav"',
+  'assert x.classify_resolved_target_state("rn-target-other-same-app")=="rn-target-other-same-app"',
+  'assert x.classify_resolved_target_state("rn-target-other-order-unconfirmed")=="rn-target-other-order-unconfirmed"',
+  'assert x.classify_resolved_target_state("rn-target-other-root-front-private")=="rn-target-unconfirmed"',
   'assert x.classify_resolved_target_state("rn-target-root-fallback")=="rn-target-root-fallback"',
   'assert x.classify_resolved_target_state("rn-target-virtual-unconfirmed")=="rn-target-virtual-unconfirmed"',
   'assert x.classify_resolved_target_state("rn-target-pix-direct-private")=="rn-target-unconfirmed"',

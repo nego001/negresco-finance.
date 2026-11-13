@@ -26,6 +26,9 @@ RN_TARGET_ALLOWED = frozenset((
     "rn-target-ready", "rn-target-pix-direct",
     "rn-target-pix-descendant", "rn-target-pix-ancestor",
     "rn-target-other", "rn-target-root-fallback",
+    "rn-target-other-root-front", "rn-target-other-root-behind",
+    "rn-target-other-same-nav", "rn-target-other-same-app",
+    "rn-target-other-order-unconfirmed",
     "rn-target-virtual-unconfirmed", "rn-target-unconfirmed",
 ))
 ROOT_POINTER_ALLOWED = frozenset((
@@ -688,7 +691,52 @@ KOTLIN = r'''
       while (!fullTree.isEmpty() && count < 2048) {
         val node = fullTree.removeFirst()
         count += 1
-        if (node.id == chosen) return "rn-target-other"
+        if (node.id == chosen) {
+          // Prove only structural relation to Pix, without View names or tags.
+          // This is the resolver's chosen native View, not proof of JS delivery.
+          val nav = pix.parent as? android.view.ViewGroup
+            ?: return "rn-target-unconfirmed"
+          var pixRootBranch: android.view.View = pix
+          var targetRootBranch: android.view.View = node
+          var pDepth = 0
+          var tDepth = 0
+          while (pixRootBranch.parent !== root && pDepth < 64) {
+            pixRootBranch = pixRootBranch.parent as? android.view.View
+              ?: return "rn-target-unconfirmed"
+            pDepth += 1
+          }
+          while (targetRootBranch.parent !== root && tDepth < 64) {
+            targetRootBranch = targetRootBranch.parent as? android.view.View
+              ?: return "rn-target-unconfirmed"
+            tDepth += 1
+          }
+          if (pDepth >= 64 || tDepth >= 64
+              || pixRootBranch.parent !== root
+              || targetRootBranch.parent !== root) return "rn-target-unconfirmed"
+          if (pixRootBranch !== targetRootBranch) {
+            val pixIndex = root.indexOfChild(pixRootBranch)
+            val targetIndex = root.indexOfChild(targetRootBranch)
+            if (pixIndex < 0 || targetIndex < 0
+                || !pixRootBranch.z.isFinite()
+                || !targetRootBranch.z.isFinite()) {
+              return "rn-target-other-order-unconfirmed"
+            }
+            return if (targetRootBranch.z > pixRootBranch.z
+                || (targetRootBranch.z == pixRootBranch.z && targetIndex > pixIndex))
+              "rn-target-other-root-front" else "rn-target-other-root-behind"
+          }
+          // Both Views share the same direct ReactRootView branch. Determine
+          // whether the selected View is under another nav button, not Pix.
+          var targetAncestor: android.view.View? = node
+          var navDepth = 0
+          while (targetAncestor != null && targetAncestor !== root && navDepth < 64) {
+            if (targetAncestor === nav) return "rn-target-other-same-nav"
+            targetAncestor = targetAncestor.parent as? android.view.View
+            navDepth += 1
+          }
+          return if (navDepth >= 64) "rn-target-unconfirmed"
+            else "rn-target-other-same-app"
+        }
         if (node is android.view.ViewGroup) {
           for (i in 0 until node.childCount) fullTree.add(node.getChildAt(i))
         }
