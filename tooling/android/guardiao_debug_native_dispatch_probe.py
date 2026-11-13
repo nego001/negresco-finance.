@@ -34,6 +34,13 @@ RN_TARGET_ALLOWED = frozenset((
     "rn-target-front-branch-no-interface",
     "rn-target-front-branch-unconfirmed",
     "rn-front-noiface-enabled-direct",
+    "rn-front-root-clickable", "rn-front-root-passive",
+    "rn-front-surface-clickable", "rn-front-surface-passive",
+    "rn-front-devsupport-clickable", "rn-front-devsupport-passive",
+    "rn-front-view-clickable", "rn-front-view-passive",
+    "rn-front-reactother-clickable", "rn-front-reactother-passive",
+    "rn-front-expo-clickable", "rn-front-expo-passive",
+    "rn-front-other-clickable", "rn-front-other-passive",
     "rn-front-noiface-enabled-descendant",
     "rn-front-noiface-disabled-direct",
     "rn-front-noiface-disabled-descendant",
@@ -747,8 +754,24 @@ KOTLIN = r'''
                 val branchEnabled = targetRootBranch.isEnabled
                 val selectedDirectly = node === targetRootBranch
                 when {
-                  branchEnabled && selectedDirectly ->
-                    "rn-front-noiface-enabled-direct"
+                  branchEnabled && selectedDirectly -> {
+                    // Inspect a fixed native class-family bucket and whether
+                    // this View advertises Android clickability. Neither the
+                    // class name nor any actual View identifier is stored.
+                    // Clickability is NOT a proxy for dispatch/JS delivery.
+                    val owner = targetRootBranch.javaClass.name
+                    val group = when {
+                      owner == "com.facebook.react.ReactRootView" -> "root"
+                      owner.endsWith(".ReactSurfaceView") -> "surface"
+                      owner.startsWith("com.facebook.react.devsupport.") -> "devsupport"
+                      owner.startsWith("com.facebook.react.views.") -> "view"
+                      owner.startsWith("com.facebook.react.") -> "reactother"
+                      owner.startsWith("expo.") -> "expo"
+                      else -> "other"
+                    }
+                    val mode = if (targetRootBranch.isClickable) "clickable" else "passive"
+                    "rn-front-" + group + "-" + mode
+                  }
                   branchEnabled && !selectedDirectly ->
                     "rn-front-noiface-enabled-descendant"
                   !branchEnabled && selectedDirectly ->

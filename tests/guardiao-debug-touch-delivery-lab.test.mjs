@@ -108,6 +108,15 @@ test('Android 9 emits only allowlisted categories and does not expand touch budg
  assert.match(dispatch,/rn-target-front-branch-no-interface/);
  assert.match(dispatch,/rn-target-front-branch-unconfirmed/);
  assert.match(dispatch,/rn-front-noiface-enabled-direct/);
+ assert.match(dispatch,/rn-front-root-clickable/);
+ assert.match(dispatch,/rn-front-surface-clickable/);
+ assert.match(dispatch,/rn-front-devsupport-clickable/);
+ assert.match(dispatch,/rn-front-view-clickable/);
+ assert.match(dispatch,/rn-front-reactother-clickable/);
+ assert.match(dispatch,/rn-front-expo-clickable/);
+ assert.match(dispatch,/rn-front-other-clickable/);
+ assert.match(dispatch,/targetRootBranch\.isClickable/);
+ assert.match(dispatch,/javaClass\.name/);
  assert.match(dispatch,/rn-front-noiface-enabled-descendant/);
  assert.match(dispatch,/rn-front-noiface-disabled-direct/);
  assert.match(dispatch,/rn-front-noiface-disabled-descendant/);
@@ -328,6 +337,21 @@ test('native Activity fixed-category dispatch probe installs only into disposabl
   'assert x.classify_resolved_target_state("rn-target-front-branch-box-none")=="rn-target-front-branch-box-none"',
   'assert x.classify_resolved_target_state("rn-target-front-branch-no-interface")=="rn-target-front-branch-no-interface"',
   'assert x.classify_resolved_target_state("rn-front-noiface-enabled-direct")=="rn-front-noiface-enabled-direct"',
+  'assert x.classify_resolved_target_state("rn-front-root-clickable")=="rn-front-root-clickable"',
+  'assert x.classify_resolved_target_state("rn-front-root-passive")=="rn-front-root-passive"',
+  'assert x.classify_resolved_target_state("rn-front-surface-clickable")=="rn-front-surface-clickable"',
+  'assert x.classify_resolved_target_state("rn-front-surface-passive")=="rn-front-surface-passive"',
+  'assert x.classify_resolved_target_state("rn-front-devsupport-clickable")=="rn-front-devsupport-clickable"',
+  'assert x.classify_resolved_target_state("rn-front-devsupport-passive")=="rn-front-devsupport-passive"',
+  'assert x.classify_resolved_target_state("rn-front-view-clickable")=="rn-front-view-clickable"',
+  'assert x.classify_resolved_target_state("rn-front-view-passive")=="rn-front-view-passive"',
+  'assert x.classify_resolved_target_state("rn-front-reactother-clickable")=="rn-front-reactother-clickable"',
+  'assert x.classify_resolved_target_state("rn-front-reactother-passive")=="rn-front-reactother-passive"',
+  'assert x.classify_resolved_target_state("rn-front-expo-clickable")=="rn-front-expo-clickable"',
+  'assert x.classify_resolved_target_state("rn-front-expo-passive")=="rn-front-expo-passive"',
+  'assert x.classify_resolved_target_state("rn-front-other-clickable")=="rn-front-other-clickable"',
+  'assert x.classify_resolved_target_state("rn-front-other-passive")=="rn-front-other-passive"',
+  'assert x.classify_resolved_target_state("rn-front-root-clickable-leak")=="rn-target-unconfirmed"',
   'assert x.classify_resolved_target_state("rn-front-noiface-enabled-descendant")=="rn-front-noiface-enabled-descendant"',
   'assert x.classify_resolved_target_state("rn-front-noiface-disabled-direct")=="rn-front-noiface-disabled-direct"',
   'assert x.classify_resolved_target_state("rn-front-noiface-disabled-descendant")=="rn-front-noiface-disabled-descendant"',
