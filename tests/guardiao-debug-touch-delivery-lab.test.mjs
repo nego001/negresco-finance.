@@ -92,6 +92,16 @@ test('Android 9 emits only allowlisted categories and does not expand touch budg
  assert.match(dispatch,/selfEligible/);
  assert.match(dispatch,/childEligible/);
  assert.match(dispatch,/unknownMode/);
+ assert.match(dispatch,/negrescoLabResolvedTargetCategory/);
+ assert.match(dispatch,/com\.facebook\.react\.uimanager\.TouchTargetHelper/);
+ assert.match(dispatch,/findTargetTagForTouch/);
+ assert.match(dispatch,/rn-target-pix-direct/);
+ assert.match(dispatch,/rn-target-pix-descendant/);
+ assert.match(dispatch,/rn-target-pix-ancestor/);
+ assert.match(dispatch,/rn-target-other/);
+ assert.match(dispatch,/rn-target-root-fallback/);
+ assert.match(runner,/Pix RN resolver preflight=/);
+ assert.match(runner,/Pix RN resolver after gesture=/);
  assert.match(runner,/Pix native root pointer preflight=/);
  assert.match(runner,/Pix native root pointer after gesture=/);
  assert.match(runner,/Pix native root peer preflight=/);
@@ -284,6 +294,15 @@ test('native Activity fixed-category dispatch probe installs only into disposabl
   'assert x.classify_root_pointer_state("root-pointer-mixed-self-eligible-private")=="root-pointer-unconfirmed"',
   'assert x.classify_root_pointer_state("root-pointer-auto-hidden")=="root-pointer-unconfirmed"',
   'assert x.classify_root_pointer_state(None)=="root-pointer-unconfirmed"',
+  'assert x.classify_resolved_target_state("rn-target-ready")=="rn-target-ready"',
+  'assert x.classify_resolved_target_state("rn-target-pix-direct")=="rn-target-pix-direct"',
+  'assert x.classify_resolved_target_state("rn-target-pix-descendant")=="rn-target-pix-descendant"',
+  'assert x.classify_resolved_target_state("rn-target-pix-ancestor")=="rn-target-pix-ancestor"',
+  'assert x.classify_resolved_target_state("rn-target-other")=="rn-target-other"',
+  'assert x.classify_resolved_target_state("rn-target-root-fallback")=="rn-target-root-fallback"',
+  'assert x.classify_resolved_target_state("rn-target-virtual-unconfirmed")=="rn-target-virtual-unconfirmed"',
+  'assert x.classify_resolved_target_state("rn-target-pix-direct-private")=="rn-target-unconfirmed"',
+  'assert x.classify_resolved_target_state(None)=="rn-target-unconfirmed"',
   'assert x.classify_native_state("private-financial-content")=="activity-state-unconfirmed"',
   'assert x.classify_native_state("activity-ready\\nprivate")=="activity-state-unconfirmed"',
   'assert x.classify_native_state(None)=="activity-state-unconfirmed"',

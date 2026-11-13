@@ -21,6 +21,13 @@ GESTURE_FILE = "negresco_lab_native_gesture_phase"
 SIBLING_FILE = "negresco_lab_native_pix_siblings"
 ROOT_PEER_FILE = "negresco_lab_native_pix_root_peer"
 ROOT_POINTER_FILE = "negresco_lab_native_pix_root_pointer"
+RN_TARGET_FILE = "negresco_lab_native_rn_resolved_target"
+RN_TARGET_ALLOWED = frozenset((
+    "rn-target-ready", "rn-target-pix-direct",
+    "rn-target-pix-descendant", "rn-target-pix-ancestor",
+    "rn-target-other", "rn-target-root-fallback",
+    "rn-target-virtual-unconfirmed", "rn-target-unconfirmed",
+))
 ROOT_POINTER_ALLOWED = frozenset((
     "root-pointer-ready", "root-pointer-clear",
     "root-pointer-auto", "root-pointer-none",
@@ -128,6 +135,17 @@ KOTLIN = r'''
     }
   }
 
+  private fun negrescoLabSetResolvedTargetCategory(category: String) {
+    if (!BuildConfig.DEBUG) return
+    try {
+      openFileOutput("negresco_lab_native_rn_resolved_target", android.content.Context.MODE_PRIVATE).use {
+        it.write(category.toByteArray(Charsets.US_ASCII))
+      }
+    } catch (_: Exception) {
+      // Never store raw React tags, view hierarchy, coordinates or input details.
+    }
+  }
+
   // Passive sibling geometry; never changes View properties or dispatch order.
   private fun negrescoLabSetSiblingCategory(category: String) {
     if (!BuildConfig.DEBUG) return
@@ -165,6 +183,7 @@ KOTLIN = r'''
     negrescoLabSetSiblingCategory("sibling-ready")
     negrescoLabSetRootPeerCategory("root-peer-ready")
     negrescoLabSetRootPointerCategory("root-pointer-ready")
+    negrescoLabSetResolvedTargetCategory("rn-target-ready")
   }
 
 
@@ -580,6 +599,107 @@ KOTLIN = r'''
     }
   }
 
+
+  // Passive query to React Native's own touch-target resolver. It does NOT
+  // dispatch, replay or consume an event. Reflection fails closed for
+  // incompatible Fabric/RN builds. Never persist the returned integer tag.
+  private fun negrescoLabResolvedTargetCategory(event: android.view.MotionEvent): String {
+    if (!BuildConfig.DEBUG) return "rn-target-unconfirmed"
+    return try {
+      val px = event.getRawX()
+      val py = event.getRawY()
+      if (!px.isFinite() || !py.isFinite()) return "rn-target-unconfirmed"
+      var tagId = resources.getIdentifier("react_test_id", "id", packageName)
+      if (tagId == 0) tagId =
+        resources.getIdentifier("react_test_id", "id", "com.facebook.react")
+      if (tagId == 0) return "rn-target-unconfirmed"
+      val pending = java.util.ArrayDeque<android.view.View>()
+      pending.add(window.decorView)
+      var seen = 0
+      var matches = 0
+      var pix: android.view.View? = null
+      while (!pending.isEmpty() && seen < 2048) {
+        val node = pending.removeFirst()
+        seen += 1
+        if (!node.isShown) continue
+        val tag = node.getTag(tagId)
+        if (tag is String && tag.startsWith("negresco-lab-tab-pix-")) {
+          pix = node
+          matches += 1
+        }
+        if (node is android.view.ViewGroup) {
+          for (i in 0 until node.childCount) pending.add(node.getChildAt(i))
+        }
+      }
+      if (seen >= 2048 || matches != 1 || pix == null || pix.id <= 0) {
+        return "rn-target-unconfirmed"
+      }
+      var child: android.view.View = pix
+      var root: android.view.ViewGroup? = null
+      var depth = 0
+      while (depth < 64) {
+        val parent = child.parent as? android.view.ViewGroup ?: break
+        depth += 1
+        val kind = parent.javaClass.name
+        if (kind == "com.facebook.react.ReactRootView"
+            || kind.endsWith(".ReactSurfaceView")) {
+          root = parent
+          break
+        }
+        child = parent
+      }
+      if (root == null || depth >= 64 || root.id <= 0) return "rn-target-unconfirmed"
+      val origin = IntArray(2)
+      root.getLocationOnScreen(origin)
+      val localX = px - origin[0]
+      val localY = py - origin[1]
+      if (localX < 0 || localY < 0 || localX >= root.width
+          || localY >= root.height) return "rn-target-unconfirmed"
+      val targetMethod = Class.forName("com.facebook.react.uimanager.TouchTargetHelper")
+        .getMethod("findTargetTagForTouch",
+          java.lang.Float.TYPE, java.lang.Float.TYPE, android.view.ViewGroup::class.java)
+      val chosen = targetMethod.invoke(null, localX, localY, root) as? Int
+        ?: return "rn-target-unconfirmed"
+      if (chosen <= 0) return "rn-target-unconfirmed"
+      if (chosen == pix.id) return "rn-target-pix-direct"
+      if (chosen == root.id) return "rn-target-root-fallback"
+      var ancestor = pix.parent as? android.view.View
+      var ancestorDepth = 0
+      while (ancestor != null && ancestor !== root && ancestorDepth < 64) {
+        if (ancestor.id == chosen) return "rn-target-pix-ancestor"
+        ancestor = ancestor.parent as? android.view.View
+        ancestorDepth += 1
+      }
+      val descendants = java.util.ArrayDeque<android.view.View>()
+      descendants.add(pix)
+      var count = 0
+      while (!descendants.isEmpty() && count < 2048) {
+        val node = descendants.removeFirst()
+        count += 1
+        if (node !== pix && node.id == chosen) return "rn-target-pix-descendant"
+        if (node is android.view.ViewGroup) {
+          for (i in 0 until node.childCount) descendants.add(node.getChildAt(i))
+        }
+      }
+      if (count >= 2048) return "rn-target-unconfirmed"
+      val fullTree = java.util.ArrayDeque<android.view.View>()
+      fullTree.add(root)
+      count = 0
+      while (!fullTree.isEmpty() && count < 2048) {
+        val node = fullTree.removeFirst()
+        count += 1
+        if (node.id == chosen) return "rn-target-other"
+        if (node is android.view.ViewGroup) {
+          for (i in 0 until node.childCount) fullTree.add(node.getChildAt(i))
+        }
+      }
+      if (count >= 2048) "rn-target-unconfirmed"
+      else "rn-target-virtual-unconfirmed"
+    } catch (_: Exception) {
+      "rn-target-unconfirmed"
+    }
+  }
+
   override fun dispatchTouchEvent(event: android.view.MotionEvent): Boolean {
     if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN) {
       negrescoLabSetDispatchCategory("activity-down")
@@ -601,6 +721,8 @@ KOTLIN = r'''
       negrescoLabPixRootPeerCategory(event) else "root-peer-unconfirmed"
     val rootPointer = if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN)
       negrescoLabPixRootPointerCategory(event) else "root-pointer-unconfirmed"
+    val resolved = if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN)
+      negrescoLabResolvedTargetCategory(event) else "rn-target-unconfirmed"
     val handled = super.dispatchTouchEvent(event)
     if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN) {
       negrescoLabSetDispatchCategory(
@@ -611,6 +733,7 @@ KOTLIN = r'''
       negrescoLabSetSiblingCategory(siblings)
       negrescoLabSetRootPeerCategory(rootPeer)
       negrescoLabSetRootPointerCategory(rootPointer)
+      negrescoLabSetResolvedTargetCategory(resolved)
     }
     if (event.actionMasked == android.view.MotionEvent.ACTION_UP) {
       negrescoLabSetGestureCategory(
@@ -743,6 +866,23 @@ def read_debug_root_pointer_state(adb, package: str) -> str:
     except Exception:
         return "root-pointer-unconfirmed"
     return classify_root_pointer_state(raw if isinstance(raw,str) else None)
+
+
+def classify_resolved_target_state(raw: str | None) -> str:
+    """Only exact native touch-target codes are allowed to leave app private storage."""
+    if not isinstance(raw,str) or len(raw)>64:
+        return "rn-target-unconfirmed"
+    return raw if raw in RN_TARGET_ALLOWED else "rn-target-unconfirmed"
+
+
+def read_debug_resolved_target_state(adb, package: str) -> str:
+    if not isinstance(package,str) or not re.fullmatch(r"[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+",package):
+        return "rn-target-unconfirmed"
+    try:
+        raw=adb("shell","run-as",package,"cat","files/"+RN_TARGET_FILE,timeout=15,check=False)
+    except Exception:
+        return "rn-target-unconfirmed"
+    return classify_resolved_target_state(raw if isinstance(raw,str) else None)
 
 
 def install(root: Path) -> str:

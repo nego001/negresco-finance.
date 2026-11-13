@@ -476,10 +476,12 @@ def prepare_pix_touch_telemetry() -> bool:
     print("ENV (LAB): Pix native root peer preflight="+peer_before,flush=True)
     pointer_before=native_dispatch.read_debug_root_pointer_state(BASE.adb,BASE.PACKAGE)
     print("ENV (LAB): Pix native root pointer preflight="+pointer_before,flush=True)
+    resolved_before=native_dispatch.read_debug_resolved_target_state(BASE.adb,BASE.PACKAGE)
+    print("ENV (LAB): Pix RN resolver preflight="+resolved_before,flush=True)
     if (dispatch_before!="activity-ready" or scroll_before!="scroll-ready"
             or pix_before!="pix-ready" or lifecycle_before!="gesture-ready"
             or siblings_before!="sibling-ready" or peer_before!="root-peer-ready"
-            or pointer_before!="root-pointer-ready"):
+            or pointer_before!="root-pointer-ready" or resolved_before!="rn-target-ready"):
         raise RuntimeError("preview-telemetry-unconfirmed")
     # Logcat is supplemental and cannot veto a native marker with valid geometry.
     raw=safe_lab_logcat()
@@ -595,6 +597,9 @@ def guarded_preview_navigation() -> None:
             print("ENV (LAB): Pix native root pointer after gesture="
                   +native_dispatch.read_debug_root_pointer_state(BASE.adb,BASE.PACKAGE),
                   flush=True)
+            print("ENV (LAB): Pix RN resolver after gesture="
+                  +native_dispatch.read_debug_resolved_target_state(BASE.adb,BASE.PACKAGE),
+                  flush=True)
             if current=="home" and target=="pix":
                 print("ENV (LAB): Pix RN native touch delivery="
                       +classify_nav_native_state(terminal_nodes),flush=True)
@@ -630,6 +635,9 @@ def guarded_preview_navigation() -> None:
               flush=True)
         print("ENV (LAB): Pix native root pointer after gesture="
               +native_dispatch.read_debug_root_pointer_state(BASE.adb,BASE.PACKAGE),
+              flush=True)
+        print("ENV (LAB): Pix RN resolver after gesture="
+              +native_dispatch.read_debug_resolved_target_state(BASE.adb,BASE.PACKAGE),
               flush=True)
         print("ENV (LAB): Pix RN native root/bottom route="
               +classify_native_touch_route(terminal_pass_nodes),flush=True)
