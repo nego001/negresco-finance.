@@ -120,6 +120,14 @@ test('Android 9 emits only allowlisted categories and does not expand touch budg
  assert.match(dispatch,/rn-front-modal-clickable/);
  assert.match(dispatch,/rn-front-control-clickable/);
  assert.match(dispatch,/rn-front-miscview-clickable/);
+ assert.match(dispatch,/rn-front-safearea-clickable/);
+ assert.match(dispatch,/rn-front-refresh-clickable/);
+ assert.match(dispatch,/rn-front-drawer-clickable/);
+ assert.match(dispatch,/rn-front-viewpager-clickable/);
+ assert.match(dispatch,/rn-front-accessibility-clickable/);
+ assert.match(dispatch,/rn-front-unimplemented-clickable/);
+ assert.match(dispatch,/rn-front-miscother-clickable/);
+ assert.match(dispatch,/owner\.startsWith\("com\.facebook\.react\.views\.safeareaview\."\)/);
  assert.match(dispatch,/owner\.startsWith\("com\.facebook\.react\.views\.text\."\)/);
  assert.match(dispatch,/owner\.startsWith\("com\.facebook\.react\.views\.image\."\)/);
  assert.match(dispatch,/rn-front-reactother-clickable/);
@@ -371,6 +379,21 @@ test('native Activity fixed-category dispatch probe installs only into disposabl
   'assert x.classify_resolved_target_state("rn-front-control-passive")=="rn-front-control-passive"',
   'assert x.classify_resolved_target_state("rn-front-miscview-clickable")=="rn-front-miscview-clickable"',
   'assert x.classify_resolved_target_state("rn-front-miscview-passive")=="rn-front-miscview-passive"',
+  'assert x.classify_resolved_target_state("rn-front-safearea-clickable")=="rn-front-safearea-clickable"',
+  'assert x.classify_resolved_target_state("rn-front-safearea-passive")=="rn-front-safearea-passive"',
+  'assert x.classify_resolved_target_state("rn-front-refresh-clickable")=="rn-front-refresh-clickable"',
+  'assert x.classify_resolved_target_state("rn-front-refresh-passive")=="rn-front-refresh-passive"',
+  'assert x.classify_resolved_target_state("rn-front-drawer-clickable")=="rn-front-drawer-clickable"',
+  'assert x.classify_resolved_target_state("rn-front-drawer-passive")=="rn-front-drawer-passive"',
+  'assert x.classify_resolved_target_state("rn-front-viewpager-clickable")=="rn-front-viewpager-clickable"',
+  'assert x.classify_resolved_target_state("rn-front-viewpager-passive")=="rn-front-viewpager-passive"',
+  'assert x.classify_resolved_target_state("rn-front-accessibility-clickable")=="rn-front-accessibility-clickable"',
+  'assert x.classify_resolved_target_state("rn-front-accessibility-passive")=="rn-front-accessibility-passive"',
+  'assert x.classify_resolved_target_state("rn-front-unimplemented-clickable")=="rn-front-unimplemented-clickable"',
+  'assert x.classify_resolved_target_state("rn-front-unimplemented-passive")=="rn-front-unimplemented-passive"',
+  'assert x.classify_resolved_target_state("rn-front-miscother-clickable")=="rn-front-miscother-clickable"',
+  'assert x.classify_resolved_target_state("rn-front-miscother-passive")=="rn-front-miscother-passive"',
+  'assert x.classify_resolved_target_state("rn-front-safearea-passive-private")=="rn-target-unconfirmed"',
   'assert x.classify_resolved_target_state("rn-front-text-passive-view-id")=="rn-target-unconfirmed"',
   'assert x.classify_resolved_target_state("rn-front-reactother-clickable")=="rn-front-reactother-clickable"',
   'assert x.classify_resolved_target_state("rn-front-reactother-passive")=="rn-front-reactother-passive"',

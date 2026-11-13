@@ -46,6 +46,13 @@ RN_TARGET_ALLOWED = frozenset((
     "rn-front-modal-clickable", "rn-front-modal-passive",
     "rn-front-control-clickable", "rn-front-control-passive",
     "rn-front-miscview-clickable", "rn-front-miscview-passive",
+    "rn-front-safearea-clickable", "rn-front-safearea-passive",
+    "rn-front-refresh-clickable", "rn-front-refresh-passive",
+    "rn-front-drawer-clickable", "rn-front-drawer-passive",
+    "rn-front-viewpager-clickable", "rn-front-viewpager-passive",
+    "rn-front-accessibility-clickable", "rn-front-accessibility-passive",
+    "rn-front-unimplemented-clickable", "rn-front-unimplemented-passive",
+    "rn-front-miscother-clickable", "rn-front-miscother-passive",
     "rn-front-reactother-clickable", "rn-front-reactother-passive",
     "rn-front-expo-clickable", "rn-front-expo-passive",
     "rn-front-other-clickable", "rn-front-other-passive",
@@ -782,7 +789,16 @@ KOTLIN = r'''
                         || owner.startsWith("com.facebook.react.views.checkbox.")
                         || owner.startsWith("com.facebook.react.views.slider.")
                         || owner.startsWith("com.facebook.react.views.progressbar.") -> "control"
-                      owner.startsWith("com.facebook.react.views.") -> "miscview"
+                      // Only this native family prefix is classified.
+                      // This read-only operation must never emit owner itself.
+                      owner.startsWith("com.facebook.react.views.safeareaview.") -> "safearea"
+                      owner.startsWith("com.facebook.react.views.swiperefresh.")
+                        || owner.startsWith("com.facebook.react.views.refresh.") -> "refresh"
+                      owner.startsWith("com.facebook.react.views.drawer.") -> "drawer"
+                      owner.startsWith("com.facebook.react.views.viewpager.") -> "viewpager"
+                      owner.startsWith("com.facebook.react.views.accessibility.") -> "accessibility"
+                      owner.startsWith("com.facebook.react.views.unimplementedview.") -> "unimplemented"
+                      owner.startsWith("com.facebook.react.views.") -> "miscother"
                       owner.startsWith("com.facebook.react.") -> "reactother"
                       owner.startsWith("expo.") -> "expo"
                       else -> "other"
