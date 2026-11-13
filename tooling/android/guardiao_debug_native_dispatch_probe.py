@@ -52,7 +52,8 @@ RN_TARGET_ALLOWED = frozenset((
     "rn-safearea-pix-home-only",
     "rn-safearea-pixhome-front-empty",
     "rn-safearea-pixhome-child-bounds-cover",
-    "rn-safearea-pixhome-child-bounds-clear",
+    "rn-safearea-pixhome-child-bounds-away",
+    "rn-safearea-pixhome-child-bounds-none-eligible",
     "rn-safearea-pixhome-structure-unconfirmed",
     "rn-safearea-both-home",
     "rn-safearea-neither-home",
@@ -858,11 +859,13 @@ KOTLIN = r'''
                             }
                             var countFront = 0
                             var covered = false
+                            var eligibleElsewhere = false
                             while (!descendants.isEmpty() && countFront < 2048) {
                               val branchChild = descendants.removeFirst()
                               countFront += 1
                               if (branchChild.isShown && branchChild.alpha > 0f
                                   && branchChild.width > 0 && branchChild.height > 0) {
+                                eligibleElsewhere = true
                                 val childPosition = IntArray(2)
                                 branchChild.getLocationOnScreen(childPosition)
                                 if (px >= childPosition[0] && py >= childPosition[1]
@@ -881,8 +884,10 @@ KOTLIN = r'''
                               "rn-safearea-pixhome-structure-unconfirmed"
                             } else if (covered) {
                               "rn-safearea-pixhome-child-bounds-cover"
+                            } else if (eligibleElsewhere) {
+                              "rn-safearea-pixhome-child-bounds-away"
                             } else {
-                              "rn-safearea-pixhome-child-bounds-clear"
+                              "rn-safearea-pixhome-child-bounds-none-eligible"
                             }
                           }
                         }
