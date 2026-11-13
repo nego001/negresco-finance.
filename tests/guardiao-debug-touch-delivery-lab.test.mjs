@@ -107,6 +107,12 @@ test('Android 9 emits only allowlisted categories and does not expand touch budg
  assert.match(dispatch,/rn-target-front-branch-box-none/);
  assert.match(dispatch,/rn-target-front-branch-no-interface/);
  assert.match(dispatch,/rn-target-front-branch-unconfirmed/);
+ assert.match(dispatch,/rn-front-noiface-enabled-direct/);
+ assert.match(dispatch,/rn-front-noiface-enabled-descendant/);
+ assert.match(dispatch,/rn-front-noiface-disabled-direct/);
+ assert.match(dispatch,/rn-front-noiface-disabled-descendant/);
+ assert.match(dispatch,/val branchEnabled = targetRootBranch\.isEnabled/);
+ assert.match(dispatch,/val selectedDirectly = node === targetRootBranch/);
  assert.match(dispatch,/ReactPointerEventsView/);
  assert.match(dispatch,/iface\.isInstance\(targetRootBranch\)/);
  assert.doesNotMatch(dispatch,/setPointerEvents\(|\.setPointerEvents\(/);
@@ -321,6 +327,11 @@ test('native Activity fixed-category dispatch probe installs only into disposabl
   'assert x.classify_resolved_target_state("rn-target-front-branch-box-only")=="rn-target-front-branch-box-only"',
   'assert x.classify_resolved_target_state("rn-target-front-branch-box-none")=="rn-target-front-branch-box-none"',
   'assert x.classify_resolved_target_state("rn-target-front-branch-no-interface")=="rn-target-front-branch-no-interface"',
+  'assert x.classify_resolved_target_state("rn-front-noiface-enabled-direct")=="rn-front-noiface-enabled-direct"',
+  'assert x.classify_resolved_target_state("rn-front-noiface-enabled-descendant")=="rn-front-noiface-enabled-descendant"',
+  'assert x.classify_resolved_target_state("rn-front-noiface-disabled-direct")=="rn-front-noiface-disabled-direct"',
+  'assert x.classify_resolved_target_state("rn-front-noiface-disabled-descendant")=="rn-front-noiface-disabled-descendant"',
+  'assert x.classify_resolved_target_state("rn-front-noiface-enabled-direct-private")=="rn-target-unconfirmed"',
   'assert x.classify_resolved_target_state("rn-target-front-branch-unconfirmed")=="rn-target-front-branch-unconfirmed"',
   'assert x.classify_resolved_target_state("rn-target-front-branch-auto-private")=="rn-target-unconfirmed"',
   'assert x.classify_resolved_target_state("rn-target-other-root-behind")=="rn-target-other-root-behind"',

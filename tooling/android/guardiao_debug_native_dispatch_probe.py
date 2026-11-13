@@ -33,6 +33,10 @@ RN_TARGET_ALLOWED = frozenset((
     "rn-target-front-branch-box-only", "rn-target-front-branch-box-none",
     "rn-target-front-branch-no-interface",
     "rn-target-front-branch-unconfirmed",
+    "rn-front-noiface-enabled-direct",
+    "rn-front-noiface-enabled-descendant",
+    "rn-front-noiface-disabled-direct",
+    "rn-front-noiface-disabled-descendant",
     "rn-target-virtual-unconfirmed", "rn-target-unconfirmed",
 ))
 ROOT_POINTER_ALLOWED = frozenset((
@@ -736,7 +740,21 @@ KOTLIN = r'''
               val iface = Class.forName(
                 "com.facebook.react.uimanager.ReactPointerEventsView")
               if (!iface.isInstance(targetRootBranch)) {
-                "rn-target-front-branch-no-interface"
+                // A branch without ReactPointerEventsView has no explicit
+                // pointer policy. This read-only discriminator never claims
+                // which View actually consumed the native ACTION_DOWN.
+                // The selected node was already found inside this root branch.
+                val branchEnabled = targetRootBranch.isEnabled
+                val selectedDirectly = node === targetRootBranch
+                when {
+                  branchEnabled && selectedDirectly ->
+                    "rn-front-noiface-enabled-direct"
+                  branchEnabled && !selectedDirectly ->
+                    "rn-front-noiface-enabled-descendant"
+                  !branchEnabled && selectedDirectly ->
+                    "rn-front-noiface-disabled-direct"
+                  else -> "rn-front-noiface-disabled-descendant"
+                }
               } else {
                 val getter = iface.getMethod("getPointerEvents")
                 when (getter.invoke(targetRootBranch)?.toString()
