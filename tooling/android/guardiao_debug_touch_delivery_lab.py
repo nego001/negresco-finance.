@@ -704,6 +704,31 @@ def quick_pix_hierarchy_nodes() -> list[dict[str,str]]:
             pass
 
 
+def quick_pix_peer_relationship_category(target: dict[str,str],
+                                         peer: dict[str,str],
+                                         target_bounds: tuple[int,int,int,int],
+                                         peer_bounds: tuple[int,int,int,int]) -> str:
+    """Constant category for a rejected overlapping clickable peer, not authorization.
+
+    Paths are private ephemeral UIA ancestry data and are never published.
+    """
+    t=target.get("_quick_path","")
+    p=peer.get("_quick_path","")
+    valid=r"[0-9]{1,4}(?:/[0-9]{1,4}){0,63}"
+    if (not isinstance(t,str) or not isinstance(p,str)
+            or re.fullmatch(valid,t) is None or re.fullmatch(valid,p) is None):
+        return "quick-peer-path-unconfirmed"
+    if p==t:
+        return "quick-peer-duplicate-path"
+    if t.startswith(p+"/"):
+        return "quick-peer-ancestor-bounds-conflict"
+    if p.startswith(t+"/"):
+        return "quick-peer-clickable-descendant"
+    if t.rsplit("/",1)[0]==p.rsplit("/",1)[0]:
+        return "quick-peer-clickable-sibling"
+    return "quick-peer-unrelated"
+
+
 def quick_pix_peer_is_proven_ancestor(target: dict[str,str],
                                      peer: dict[str,str],
                                      target_bounds: tuple[int,int,int,int],
@@ -787,7 +812,7 @@ def quick_pix_target_gate_category(nodes: list[dict[str,str]], width: int,
                 if ancestor_count>8:
                     return "quick-too-many-ancestors"
                 continue
-            return "quick-overlap-peer"
+            return quick_pix_peer_relationship_category(target,node,bounds,other)
     return ("quick-target-eligible-ancestor" if ancestor_count
             else "quick-target-eligible")
 
