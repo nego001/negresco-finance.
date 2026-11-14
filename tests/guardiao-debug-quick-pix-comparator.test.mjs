@@ -137,8 +137,8 @@ test('Quick Pix Debug reports only fixed layout/window/viewport geometry categor
  const out=spawnSync('python3',['-I','-S','-B','-c',script],{encoding:'utf8',timeout:30000});
  assert.equal(out.status,0,'quick debug category synthetic contract failed');
  assert.match(out.stdout,/quick-debug-category-contract-pass/);
- const gate=runner.split('def safe_quick_pix_point(')[1].split('\n\ndef quick_pix_debug_geometry_category(')[0];
- assert.match(gate,/if dx<40 or dy<40 or len\(nodes\)>3000:/);
+ const alternate=runner.split('def quick_pix_alternate_clear_point(')[1].split('\n\ndef quick_pix_alternate_block_category(')[0];
+ assert.match(alternate,/if dx<40 or dy<40 or len\(nodes\)>3000:/);
 });
 
 test('passive alternate blocker categories do not authorize gestures',()=>{

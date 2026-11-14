@@ -191,7 +191,10 @@ export default function App() {
       const valid=[x,y,width,height].every(Number.isFinite)&&width>0&&height>0;
       const category=!valid?'unconfirmed':height<48?'thin':'regular';
       setLabQuickWindow(previous=>previous===category?previous:category);
-      scroll.measureInWindow((sx,sy,sw,sh)=>{
+      // ScrollView is a composite. Measure its actual native host in window space.
+      const nativeScroll=scroll.getNativeScrollRef();
+      if(!nativeScroll)return;
+      nativeScroll.measureInWindow((sx:number,sy:number,sw:number,sh:number)=>{
         let viewport='unconfirmed';
         if(valid&&[sx,sy,sw,sh].every(Number.isFinite)&&sw>0&&sh>0){
           const bottom=sy+sh;
