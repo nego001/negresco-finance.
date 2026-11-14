@@ -668,6 +668,54 @@ def guarded_preview_navigation() -> None:
         raise RuntimeError("preview-navigation-count-unconfirmed")
 
 
+def quick_pix_target_gate_category(nodes: list[dict[str,str]], width: int,
+                                   height: int, package: str) -> str:
+    """Passive explanation of the exact single-tap gates; no authorization.
+
+    Return fixed categories only. Never expose Android nodes, class names,
+    user text, raw bounds, coordinates or identifying values in logs.
+    """
+    if (not isinstance(nodes,list) or len(nodes)>3000
+            or width<=200 or height<=400 or not package):
+        return "quick-input-unconfirmed"
+    matches=[n for n in nodes if n.get("content-desc")=="Abrir Pix"
+             and n.get("package")==package]
+    if not matches:
+        return "quick-label-absent"
+    if len(matches)!=1:
+        return "quick-label-ambiguous"
+    target=matches[0]
+    if target.get("clickable")!="true" or target.get("enabled")!="true":
+        return "quick-target-not-interactive"
+    bounds=rect(target,width,height)
+    if bounds is None:
+        return "quick-target-bounds-unconfirmed"
+    x1,y1,x2,y2=bounds
+    if not (y1>=int(height*.08) and y2<int(height*.78)
+            and x2-x1>=20 and y2-y1>=20):
+        return "quick-target-outside-safe-band"
+    point=((x1+x2)//2,(y1+y2)//2)
+    for ident in TAB_IDS.values():
+        selected=[n for n in nodes if debug.safe_testid_matches(n,ident)]
+        if len(selected)!=1 or selected[0].get("package")!=package:
+            return "quick-tabs-not-unique"
+        bar=rect(selected[0],width,height)
+        if bar is None:
+            return "quick-tabs-bounds-unconfirmed"
+        if bar[0]<=point[0]<bar[2] and bar[1]<=point[1]<bar[3]:
+            return "quick-overlap-bottom-tab"
+    for node in nodes:
+        if (node is target or node.get("package")!=package
+                or node.get("clickable")!="true" or node.get("enabled")!="true"):
+            continue
+        other=rect(node,width,height)
+        if other is None:
+            return "quick-peer-bounds-unconfirmed"
+        if other[0]<=point[0]<other[2] and other[1]<=point[1]<other[3]:
+            return "quick-overlap-peer"
+    return "quick-target-eligible"
+
+
 def safe_quick_pix_point(nodes: list[dict[str,str]], width: int, height: int,
                          package: str) -> tuple[int,int] | None:
     """Unique, enabled demo shortcut in the Home content, not the bottom tab.
@@ -723,10 +771,16 @@ def quick_pix_comparator() -> None:
         raise RuntimeError("preview-initial-home-unconfirmed")
     mark_navigation_phase("before-target")
     w,h=BASE.screen_size()
-    first=safe_quick_pix_point(BASE.xml_nodes(),w,h,BASE.PACKAGE)
+    first_nodes=BASE.xml_nodes()
+    first=safe_quick_pix_point(first_nodes,w,h,BASE.PACKAGE)
     time.sleep(.35)
-    second=safe_quick_pix_point(BASE.xml_nodes(),w,h,BASE.PACKAGE)
+    second_nodes=BASE.xml_nodes()
+    second=safe_quick_pix_point(second_nodes,w,h,BASE.PACKAGE)
     if first is None or first!=second:
+        first_gate=quick_pix_target_gate_category(first_nodes,w,h,BASE.PACKAGE)
+        second_gate=quick_pix_target_gate_category(second_nodes,w,h,BASE.PACKAGE)
+        print("ENV (LAB): Quick Pix preflight first="+first_gate+
+              " second="+second_gate,flush=True)
         print("ENV (LAB): Quick Pix comparator=target-unconfirmed",flush=True)
         raise RuntimeError("preview-target-not-unique-stable-safe")
     mark_navigation_phase("before-gesture")

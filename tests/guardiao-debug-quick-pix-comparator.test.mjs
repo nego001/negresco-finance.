@@ -20,6 +20,19 @@ test('isolated Android API28 comparator cannot become Release or change original
 test('quick Pix comparison is a single fail-closed demo shortcut gesture',()=>{
  assert.match(app,/accessibilityLabel=\{'Abrir '\+x\.name\}/);
  assert.match(runner,/def safe_quick_pix_point\(/);
+ assert.match(runner,/def quick_pix_target_gate_category\(/);
+ assert.match(runner,/Quick Pix preflight first=/);
+ assert.match(runner,/quick-label-absent/);
+ assert.match(runner,/quick-label-ambiguous/);
+ assert.match(runner,/quick-target-not-interactive/);
+ assert.match(runner,/quick-target-bounds-unconfirmed/);
+ assert.match(runner,/quick-target-outside-safe-band/);
+ assert.match(runner,/quick-tabs-not-unique/);
+ assert.match(runner,/quick-tabs-bounds-unconfirmed/);
+ assert.match(runner,/quick-overlap-bottom-tab/);
+ assert.match(runner,/quick-peer-bounds-unconfirmed/);
+ assert.match(runner,/quick-overlap-peer/);
+ assert.match(runner,/quick-target-eligible/);
  assert.match(runner,/def quick_pix_comparator\(/);
  assert.match(runner,/n\.get\("content-desc"\)=="Abrir Pix"/);
  assert.match(runner,/len\(matches\)!=1/);
