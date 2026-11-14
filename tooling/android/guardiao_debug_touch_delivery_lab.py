@@ -691,10 +691,13 @@ def quick_pix_target_gate_category(nodes: list[dict[str,str]], width: int,
     if bounds is None:
         return "quick-target-bounds-unconfirmed"
     x1,y1,x2,y2=bounds
-    if not (y1>=int(height*.08) and y2<int(height*.78)
+    # Screen and status-bar envelope, not an arbitrary 78% cutoff.
+    # The actual lower boundary comes from the three confirmed nav tabs.
+    if not (y1>=max(8,int(height*.035)) and y2<height-8
             and x2-x1>=20 and y2-y1>=20):
-        return "quick-target-outside-safe-band"
+        return "quick-target-outside-window-band"
     point=((x1+x2)//2,(y1+y2)//2)
+    nav_top=height
     for ident in TAB_IDS.values():
         selected=[n for n in nodes if debug.safe_testid_matches(n,ident)]
         if len(selected)!=1 or selected[0].get("package")!=package:
@@ -704,6 +707,13 @@ def quick_pix_target_gate_category(nodes: list[dict[str,str]], width: int,
             return "quick-tabs-bounds-unconfirmed"
         if bar[0]<=point[0]<bar[2] and bar[1]<=point[1]<bar[3]:
             return "quick-overlap-bottom-tab"
+        nav_top=min(nav_top,bar[1])
+    # A visibly bounded target must be wholly ABOVE the measured bottom tabs.
+    # A suspiciously high nav bar is not permission to tap other content.
+    if nav_top<int(height*.60):
+        return "quick-tabs-placement-unconfirmed"
+    if y2>=nav_top-8:
+        return "quick-target-near-bottom-nav"
     for node in nodes:
         if (node is target or node.get("package")!=package
                 or node.get("clickable")!="true" or node.get("enabled")!="true"):
@@ -736,10 +746,13 @@ def safe_quick_pix_point(nodes: list[dict[str,str]], width: int, height: int,
     if bounds is None:
         return None
     x1,y1,x2,y2=bounds
-    if not (y1>=int(height*.08) and y2<int(height*.78)
+    # Screen and status-bar envelope, not an arbitrary 78% cutoff.
+    # The actual lower boundary comes from the three confirmed nav tabs.
+    if not (y1>=max(8,int(height*.035)) and y2<height-8
             and x2-x1>=20 and y2-y1>=20):
         return None
     point=((x1+x2)//2,(y1+y2)//2)
+    nav_top=height
     for ident in TAB_IDS.values():
         selected=[n for n in nodes if debug.safe_testid_matches(n,ident)]
         if len(selected)!=1 or selected[0].get("package")!=package:
@@ -749,6 +762,9 @@ def safe_quick_pix_point(nodes: list[dict[str,str]], width: int, height: int,
             return None
         if bar[0]<=point[0]<bar[2] and bar[1]<=point[1]<bar[3]:
             return None
+        nav_top=min(nav_top,bar[1])
+    if nav_top<int(height*.60) or y2>=nav_top-8:
+        return None
     for node in nodes:
         if (node is target or node.get("package")!=package
                 or node.get("clickable")!="true" or node.get("enabled")!="true"):

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {spawnSync} from 'node:child_process';
 const runner=readFileSync('tooling/android/guardiao_debug_touch_delivery_lab.py','utf8');
 const workflow=readFileSync('.github/workflows/guardiao-debug-quick-pix-comparator.yml','utf8');
 const primary=readFileSync('.github/workflows/guardiao-debug-touch-delivery-lab.yml','utf8');
@@ -26,7 +27,9 @@ test('quick Pix comparison is a single fail-closed demo shortcut gesture',()=>{
  assert.match(runner,/quick-label-ambiguous/);
  assert.match(runner,/quick-target-not-interactive/);
  assert.match(runner,/quick-target-bounds-unconfirmed/);
- assert.match(runner,/quick-target-outside-safe-band/);
+ assert.match(runner,/quick-target-outside-window-band/);
+ assert.match(runner,/quick-target-near-bottom-nav/);
+ assert.match(runner,/quick-tabs-placement-unconfirmed/);
  assert.match(runner,/quick-tabs-not-unique/);
  assert.match(runner,/quick-tabs-bounds-unconfirmed/);
  assert.match(runner,/quick-overlap-bottom-tab/);
@@ -36,7 +39,11 @@ test('quick Pix comparison is a single fail-closed demo shortcut gesture',()=>{
  assert.match(runner,/def quick_pix_comparator\(/);
  assert.match(runner,/n\.get\("content-desc"\)=="Abrir Pix"/);
  assert.match(runner,/len\(matches\)!=1/);
- assert.match(runner,/y2<int\(height\*\.78\)/);
+ assert.doesNotMatch(runner,/y2<int\(height\*\.78\)/);
+ assert.match(runner,/nav_top=min\(nav_top,bar\[1\]\)/);
+ assert.match(runner,/if nav_top<int\(height\*\.60\):/);
+ assert.match(runner,/if y2>=nav_top-8:/);
+ assert.match(runner,/if nav_top<int\(height\*\.60\) or y2>=nav_top-8:/);
  assert.match(runner,/first is None or first!=second/);
  assert.match(runner,/mode==\("--quick-pix-comparator",\)/);
  assert.match(runner,/native=="native-page-pix-pressin-no-call-yes"/);
@@ -45,4 +52,11 @@ test('quick Pix comparison is a single fail-closed demo shortcut gesture',()=>{
  const quick=runner.split('def quick_pix_comparator() -> None:')[1].split('\n\ndef run() -> None:')[0];
  assert.equal((quick.match(/"input","tap"/g)||[]).length,1);
  assert.doesNotMatch(quick,/swipe|exportLocalPdf|performClick|reportPdf/);
+});
+
+test('synthetic safe-band contract tests actual tab boundary and rejects offscreen/overlap',()=>{
+ const script="import sys\nsys.path.insert(0,'tooling/android')\nimport guardiao_debug_touch_delivery_lab as t\np='com.negresco.finance'\ndef node(label,box,rid='',click='true'):\n return {'content-desc':label,'package':p,'bounds':box,'resource-id':rid,'clickable':click,'enabled':'true'}\ntabs=[node('',f'[{i*100},890][{(i+1)*100},960]','negresco-lab-tab-'+name) for i,name in enumerate(('home','pix','negresco'))]\ngood=node('Abrir Pix','[120,720][180,770]')\nnodes=[good,*tabs]\nassert t.quick_pix_target_gate_category(nodes,400,1000,p)=='quick-target-eligible'\nassert t.safe_quick_pix_point(nodes,400,1000,p)==(150,745)\nbottom=node('Abrir Pix','[120,850][180,900]')\nassert t.quick_pix_target_gate_category([bottom,*tabs],400,1000,p)=='quick-target-near-bottom-nav'\nassert t.safe_quick_pix_point([bottom,*tabs],400,1000,p) is None\ntop=node('Abrir Pix','[120,3][180,60]')\nassert t.quick_pix_target_gate_category([top,*tabs],400,1000,p)=='quick-target-outside-window-band'\nassert t.safe_quick_pix_point([top,*tabs],400,1000,p) is None\noverlap=node('Other','[145,710][190,765]')\nassert t.quick_pix_target_gate_category([good,overlap,*tabs],400,1000,p)=='quick-overlap-peer'\nassert t.safe_quick_pix_point([good,overlap,*tabs],400,1000,p) is None\nassert t.safe_quick_pix_point([good,good,*tabs],400,1000,p) is None\nassert t.quick_pix_target_gate_category([good,good,*tabs],400,1000,p)=='quick-label-ambiguous'\nprint('safe-dynamic-band-contract-pass')";
+ const r=spawnSync('python3',['-I','-S','-B','-c',script],{encoding:'utf8',timeout:30000});
+ assert.equal(r.status,0,'synthetic safe-band contract failed');
+ assert.match(r.stdout,/safe-dynamic-band-contract-pass/);
 });
