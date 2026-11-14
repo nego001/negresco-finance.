@@ -53,6 +53,12 @@ RN_TARGET_ALLOWED = frozenset((
     "rn-safearea-pixhome-front-empty",
     "rn-safearea-pixhome-child-bounds-cover",
     "rn-safearea-pixhome-hit-index-higher",
+    "rn-safearea-isolated-pix-direct",
+    "rn-safearea-isolated-pix-descendant",
+    "rn-safearea-isolated-pix-ancestor",
+    "rn-safearea-isolated-root-fallback",
+    "rn-safearea-isolated-other",
+    "rn-safearea-isolated-unconfirmed",
     "rn-safearea-pixhome-hit-index-lower",
     "rn-safearea-pixhome-hit-mapped-higher",
     "rn-safearea-pixhome-hit-mapped-lower",
@@ -710,6 +716,76 @@ KOTLIN = r'''
     }
   }
 
+  // Counterfactual hit-test: run React Native's existing resolver on ONLY
+  // the Pix-containing root branch. This does not dispatch/replay/consume
+  // ACTION_DOWN, change pointerEvents, or predict JS callback delivery.
+  // Output only fixed category strings; never log native tags or coordinates.
+  private fun negrescoLabIsolatedPixTargetCategory(
+      pix: android.view.View, pixBranch: android.view.View,
+      px: Float, py: Float): String {
+    if (!BuildConfig.DEBUG) return "rn-safearea-isolated-unconfirmed"
+    return try {
+      val group = pixBranch as? android.view.ViewGroup
+        ?: return "rn-safearea-isolated-unconfirmed"
+      if (!group.isAttachedToWindow || !group.isShown || group.width <= 0
+          || group.height <= 0 || pix.id <= 0 || !px.isFinite() || !py.isFinite()) {
+        return "rn-safearea-isolated-unconfirmed"
+      }
+      val branchOrigin = IntArray(2)
+      group.getLocationOnScreen(branchOrigin)
+      val x = px - branchOrigin[0]
+      val y = py - branchOrigin[1]
+      if (!x.isFinite() || !y.isFinite() || x < 0f || y < 0f
+          || x >= group.width || y >= group.height) {
+        return "rn-safearea-isolated-unconfirmed"
+      }
+      val resolver = Class.forName("com.facebook.react.uimanager.TouchTargetHelper")
+        .getMethod("findTargetTagForTouch", java.lang.Float.TYPE,
+          java.lang.Float.TYPE, android.view.ViewGroup::class.java)
+      val chosen = resolver.invoke(null, x, y, group) as? Int
+        ?: return "rn-safearea-isolated-unconfirmed"
+      if (chosen <= 0) return "rn-safearea-isolated-unconfirmed"
+      if (chosen == pix.id) return "rn-safearea-isolated-pix-direct"
+      if (chosen == group.id) return "rn-safearea-isolated-root-fallback"
+      var parent = pix.parent as? android.view.View
+      var depth = 0
+      while (parent != null && parent !== group && depth < 64) {
+        if (parent.id == chosen) return "rn-safearea-isolated-pix-ancestor"
+        parent = parent.parent as? android.view.View
+        depth += 1
+      }
+      if (depth >= 64 || parent !== group) return "rn-safearea-isolated-unconfirmed"
+      val pixChildren = java.util.ArrayDeque<android.view.View>()
+      pixChildren.add(pix)
+      var inspected = 0
+      while (!pixChildren.isEmpty() && inspected < 2048) {
+        val child = pixChildren.removeFirst()
+        inspected += 1
+        if (child !== pix && child.id == chosen) {
+          return "rn-safearea-isolated-pix-descendant"
+        }
+        if (child is android.view.ViewGroup) {
+          for (index in 0 until child.childCount) pixChildren.add(child.getChildAt(index))
+        }
+      }
+      if (!pixChildren.isEmpty()) return "rn-safearea-isolated-unconfirmed"
+      val branchChildren = java.util.ArrayDeque<android.view.View>()
+      branchChildren.add(group)
+      inspected = 0
+      while (!branchChildren.isEmpty() && inspected < 2048) {
+        val child = branchChildren.removeFirst()
+        inspected += 1
+        if (child.id == chosen) return "rn-safearea-isolated-other"
+        if (child is android.view.ViewGroup) {
+          for (index in 0 until child.childCount) branchChildren.add(child.getChildAt(index))
+        }
+      }
+      "rn-safearea-isolated-unconfirmed"
+    } catch (_: Exception) {
+      "rn-safearea-isolated-unconfirmed"
+    }
+  }
+
   private fun negrescoLabResolvedTargetCategory(event: android.view.MotionEvent): String {
     if (!BuildConfig.DEBUG) return "rn-target-unconfirmed"
     return try {
@@ -973,7 +1049,13 @@ KOTLIN = r'''
                                     "rn-safearea-pixhome-self-visible-unconfirmed"
                                   } else if (rootLocalX >= visibleRect.left && rootLocalX < visibleRect.right
                                       && rootLocalY >= visibleRect.top && rootLocalY < visibleRect.bottom) {
-                                    negrescoLabRootSiblingOrderCategory(root, pixRootBranch, targetRootBranch)
+                                    val siblingOrder = negrescoLabRootSiblingOrderCategory(
+                                      root, pixRootBranch, targetRootBranch)
+                                    if (siblingOrder == "rn-safearea-pixhome-hit-index-higher"
+                                        || siblingOrder == "rn-safearea-pixhome-hit-mapped-higher") {
+                                      negrescoLabIsolatedPixTargetCategory(
+                                        pix, pixRootBranch, px, py)
+                                    } else siblingOrder
                                   } else {
                                     "rn-safearea-pixhome-self-visible-miss-child-away"
                                   }

@@ -30,6 +30,12 @@ test('SafeAreaView front children are classified by bounds without mutation',()=
  assert.match(dispatch,/var eligibleElsewhere = false/);
  assert.match(dispatch,/eligibleElsewhere = true/);
  assert.match(dispatch,/rn-safearea-pixhome-hit-index-higher/);
+ assert.match(dispatch,/rn-safearea-isolated-pix-direct/);
+ assert.match(dispatch,/rn-safearea-isolated-pix-descendant/);
+ assert.match(dispatch,/rn-safearea-isolated-pix-ancestor/);
+ assert.match(dispatch,/rn-safearea-isolated-root-fallback/);
+ assert.match(dispatch,/rn-safearea-isolated-other/);
+ assert.match(dispatch,/rn-safearea-isolated-unconfirmed/);
  assert.match(dispatch,/rn-safearea-pixhome-hit-index-lower/);
  assert.match(dispatch,/rn-safearea-pixhome-hit-mapped-higher/);
  assert.match(dispatch,/rn-safearea-pixhome-hit-mapped-lower/);
@@ -37,9 +43,15 @@ test('SafeAreaView front children are classified by bounds without mutation',()=
  assert.match(dispatch,/rn-safearea-pixhome-self-visible-miss-child-away/);
  assert.match(dispatch,/rn-safearea-pixhome-self-visible-unconfirmed/);
  assert.match(dispatch,/targetRootBranch\.getGlobalVisibleRect\(visibleRect\)/);
- assert.match(dispatch,/negrescoLabRootSiblingOrderCategory\(root, pixRootBranch, targetRootBranch\)/);
+ assert.match(dispatch,/negrescoLabRootSiblingOrderCategory\(\s*root,\s*pixRootBranch,\s*targetRootBranch\)/);
  assert.match(dispatch,/ReactZIndexedViewGroup/);
  assert.match(dispatch,/getZIndexMappedChildIndex/);
+ assert.match(dispatch,/negrescoLabIsolatedPixTargetCategory\(\s*pix,\s*pixRootBranch,\s*px,\s*py\)/);
+ assert.match(dispatch,/val group = pixBranch as\? android\.view\.ViewGroup/);
+ assert.match(dispatch,/group\.getLocationOnScreen\(branchOrigin\)/);
+ assert.match(dispatch,/resolver\.invoke\(null, x, y, group\)/);
+ assert.match(dispatch,/while \(!pixChildren\.isEmpty\(\) && inspected < 2048\)/);
+ assert.doesNotMatch(dispatch,/\.setPointerEvents\(|\.setVisibility\(|\.setAlpha\(|\.performClick\(/);
  assert.match(dispatch,/val visited = BooleanArray\(size\)/);
  assert.match(dispatch,/mappingValid = false/);
  assert.match(dispatch,/val rootView = targetRootBranch\.rootView/);
@@ -155,6 +167,12 @@ test('Android 9 emits only allowlisted categories and does not expand touch budg
  assert.match(dispatch,/rn-safearea-pixhome-front-empty/);
  assert.match(dispatch,/rn-safearea-pixhome-child-bounds-cover/);
  assert.match(dispatch,/rn-safearea-pixhome-hit-index-higher/);
+ assert.match(dispatch,/rn-safearea-isolated-pix-direct/);
+ assert.match(dispatch,/rn-safearea-isolated-pix-descendant/);
+ assert.match(dispatch,/rn-safearea-isolated-pix-ancestor/);
+ assert.match(dispatch,/rn-safearea-isolated-root-fallback/);
+ assert.match(dispatch,/rn-safearea-isolated-other/);
+ assert.match(dispatch,/rn-safearea-isolated-unconfirmed/);
  assert.match(dispatch,/rn-safearea-pixhome-hit-index-lower/);
  assert.match(dispatch,/rn-safearea-pixhome-hit-mapped-higher/);
  assert.match(dispatch,/rn-safearea-pixhome-hit-mapped-lower/);
@@ -162,9 +180,15 @@ test('Android 9 emits only allowlisted categories and does not expand touch budg
  assert.match(dispatch,/rn-safearea-pixhome-self-visible-miss-child-away/);
  assert.match(dispatch,/rn-safearea-pixhome-self-visible-unconfirmed/);
  assert.match(dispatch,/targetRootBranch\.getGlobalVisibleRect\(visibleRect\)/);
- assert.match(dispatch,/negrescoLabRootSiblingOrderCategory\(root, pixRootBranch, targetRootBranch\)/);
+ assert.match(dispatch,/negrescoLabRootSiblingOrderCategory\(\s*root,\s*pixRootBranch,\s*targetRootBranch\)/);
  assert.match(dispatch,/ReactZIndexedViewGroup/);
  assert.match(dispatch,/getZIndexMappedChildIndex/);
+ assert.match(dispatch,/negrescoLabIsolatedPixTargetCategory\(\s*pix,\s*pixRootBranch,\s*px,\s*py\)/);
+ assert.match(dispatch,/val group = pixBranch as\? android\.view\.ViewGroup/);
+ assert.match(dispatch,/group\.getLocationOnScreen\(branchOrigin\)/);
+ assert.match(dispatch,/resolver\.invoke\(null, x, y, group\)/);
+ assert.match(dispatch,/while \(!pixChildren\.isEmpty\(\) && inspected < 2048\)/);
+ assert.doesNotMatch(dispatch,/\.setPointerEvents\(|\.setVisibility\(|\.setAlpha\(|\.performClick\(/);
  assert.match(dispatch,/val visited = BooleanArray\(size\)/);
  assert.match(dispatch,/mappingValid = false/);
  assert.match(dispatch,/val rootView = targetRootBranch\.rootView/);
@@ -451,6 +475,12 @@ test('native Activity fixed-category dispatch probe installs only into disposabl
   'assert x.classify_resolved_target_state("rn-safearea-pixhome-front-empty")=="rn-safearea-pixhome-front-empty"',
   'assert x.classify_resolved_target_state("rn-safearea-pixhome-child-bounds-cover")=="rn-safearea-pixhome-child-bounds-cover"',
   'assert x.classify_resolved_target_state("rn-safearea-pixhome-hit-index-higher")=="rn-safearea-pixhome-hit-index-higher"',
+  'assert x.classify_resolved_target_state("rn-safearea-isolated-pix-direct")=="rn-safearea-isolated-pix-direct"',
+  'assert x.classify_resolved_target_state("rn-safearea-isolated-pix-descendant")=="rn-safearea-isolated-pix-descendant"',
+  'assert x.classify_resolved_target_state("rn-safearea-isolated-pix-ancestor")=="rn-safearea-isolated-pix-ancestor"',
+  'assert x.classify_resolved_target_state("rn-safearea-isolated-root-fallback")=="rn-safearea-isolated-root-fallback"',
+  'assert x.classify_resolved_target_state("rn-safearea-isolated-other")=="rn-safearea-isolated-other"',
+  'assert x.classify_resolved_target_state("rn-safearea-isolated-unconfirmed")=="rn-safearea-isolated-unconfirmed"',
   'assert x.classify_resolved_target_state("rn-safearea-pixhome-hit-index-lower")=="rn-safearea-pixhome-hit-index-lower"',
   'assert x.classify_resolved_target_state("rn-safearea-pixhome-hit-mapped-higher")=="rn-safearea-pixhome-hit-mapped-higher"',
   'assert x.classify_resolved_target_state("rn-safearea-pixhome-hit-mapped-lower")=="rn-safearea-pixhome-hit-mapped-lower"',
