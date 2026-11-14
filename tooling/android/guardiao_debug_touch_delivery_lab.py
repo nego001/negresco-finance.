@@ -835,8 +835,12 @@ def quick_pix_alternate_block_category(nodes: list[dict[str,str]],
         return "quick-alt-target-bounds-unconfirmed"
     x1,y1,x2,y2=bounds
     dx,dy=x2-x1,y2-y1
-    if dx<40 or dy<40:
-        return "quick-alt-target-too-small"
+    if dx<40 and dy<40:
+        return "quick-alt-both-dimensions-too-small"
+    if dx<40:
+        return "quick-alt-width-too-small"
+    if dy<40:
+        return "quick-alt-height-too-small"
     center=((x1+x2)//2,(y1+y2)//2)
     unrelated_center=False
     peers=[]
