@@ -1023,6 +1023,30 @@ def safe_quick_pix_point(nodes: list[dict[str,str]], width: int, height: int,
     return point
 
 
+
+def quick_pix_debug_geometry_category(nodes: list[dict[str,str]], package: str) -> str:
+    """Read only fixed Debug testID categories, never publish UIA coordinates."""
+    if not isinstance(nodes,list) or len(nodes)>3000 or not package:
+        return "quick-geometry-unconfirmed"
+    matches=[n for n in nodes if n.get("content-desc")=="Abrir Pix"
+             and n.get("package")==package]
+    if len(matches)!=1:
+        return "quick-geometry-unconfirmed"
+    raw=matches[0].get("resource-id","")
+    if not isinstance(raw,str) or len(raw)>250:
+        return "quick-geometry-unconfirmed"
+    marker=raw.rsplit("/",1)[-1]
+    m=re.fullmatch(
+        r"negresco-lab-quick-pix-layout-(unconfirmed|regular|thin)"
+        r"-window-(unconfirmed|regular|thin)"
+        r"-viewport-(unconfirmed|inside|crosses-bottom|above|below)",
+        marker
+    )
+    if m is None:
+        return "quick-geometry-unconfirmed"
+    return "quick-layout-"+m.group(1)+"-window-"+m.group(2)+"-viewport-"+m.group(3)
+
+
 def quick_pix_comparator() -> None:
     """One guarded shortcut tap only, same PID, strict navigation evidence."""
     mark_navigation_phase("before-pid")
@@ -1042,6 +1066,10 @@ def quick_pix_comparator() -> None:
     second_gate=quick_pix_target_gate_category(second_nodes,w,h,BASE.PACKAGE)
     print("ENV (LAB): Quick Pix preflight first="+first_gate+
           " second="+second_gate,flush=True)
+    print("ENV (LAB): Quick Pix geometry first="+
+          quick_pix_debug_geometry_category(first_nodes,BASE.PACKAGE)+
+          " second="+quick_pix_debug_geometry_category(second_nodes,BASE.PACKAGE),
+          flush=True)
     if (first is None or first!=second or first_gate!=second_gate
             or first_gate not in ("quick-target-eligible",
                                   "quick-target-eligible-ancestor",

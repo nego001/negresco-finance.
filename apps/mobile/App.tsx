@@ -171,6 +171,45 @@ export default function App() {
     return ()=>clearTimeout(timer);
   },[page,labBottomPlacement]);
 
+
+  // LAB-only passive Quick Pix geometry; no raw coordinates or dimensions leave JS.
+  const labQuickPixRef=useRef<React.ElementRef<typeof TouchableOpacity>|null>(null);
+  const labQuickScrollRef=useRef<React.ElementRef<typeof ScrollView>|null>(null);
+  const [labQuickLayout,setLabQuickLayout]=useState('unconfirmed');
+  const [labQuickWindow,setLabQuickWindow]=useState('unconfirmed');
+  const [labQuickViewport,setLabQuickViewport]=useState('unconfirmed');
+  const recordLabQuickLayout=(height:number)=>{
+    if(!__DEV__)return;
+    const category=!Number.isFinite(height)||height<=0?'unconfirmed':height<48?'thin':'regular';
+    setLabQuickLayout(previous=>previous===category?previous:category);
+  };
+  const measureLabQuickPix=()=>{
+    if(!__DEV__||page!=='Início')return;
+    const target=labQuickPixRef.current, scroll=labQuickScrollRef.current;
+    if(!target||!scroll)return;
+    target.measureInWindow((x,y,width,height)=>{
+      const valid=[x,y,width,height].every(Number.isFinite)&&width>0&&height>0;
+      const category=!valid?'unconfirmed':height<48?'thin':'regular';
+      setLabQuickWindow(previous=>previous===category?previous:category);
+      scroll.measureInWindow((sx,sy,sw,sh)=>{
+        let viewport='unconfirmed';
+        if(valid&&[sx,sy,sw,sh].every(Number.isFinite)&&sw>0&&sh>0){
+          const bottom=sy+sh;
+          if(y+height<=sy+2||y<sy-2)viewport='above';
+          else if(y>=bottom-2)viewport='below';
+          else if(y+height>bottom+2)viewport='crosses-bottom';
+          else viewport='inside';
+        }
+        setLabQuickViewport(previous=>previous===viewport?previous:viewport);
+      });
+    });
+  };
+  useEffect(()=>{
+    if(!__DEV__||page!=='Início')return;
+    const timer=setTimeout(measureLabQuickPix,850);
+    return ()=>clearTimeout(timer);
+  },[page,labQuickLayout]);
+
   const localLock=useLocalAppLock();
   // Read the latest lock state from async PDF continuations, not a stale closure.
   const lockStatusRef=useRef(localLock.status);
@@ -412,7 +451,7 @@ export default function App() {
       <View style={s.headerText}><Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75} style={s.brand}>NEGRESCO <Text style={{color:blue}}>FINANCE</Text></Text><Text numberOfLines={1} style={s.tagline}>SEU UNIVERSO FINANCEIRO</Text></View>
       <TouchableOpacity accessibilityRole="button" accessibilityLabel="Abrir ajustes" onPress={()=>nav('Ajustes')} style={s.headerButton}><Icon name="settings" color={blue} size={22}/></TouchableOpacity>
     </View>
-    <Animated.View style={[s.animatedPage,{opacity:enter,transform:[{translateY:enter.interpolate({inputRange:[0,1],outputRange:[14,0]})}]}]}><ScrollView key={page} style={s.scroll} contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
+    <Animated.View style={[s.animatedPage,{opacity:enter,transform:[{translateY:enter.interpolate({inputRange:[0,1],outputRange:[14,0]})}]}]}><ScrollView key={page} ref={__DEV__?labQuickScrollRef:undefined} style={s.scroll} contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
       {page==='Início'?<>
         <View style={s.eyebrow}><View style={[s.dot,{backgroundColor:blue}]}/><Text style={[s.eyebrowText,{color:blue}]}>PAINEL PRINCIPAL</Text><Text style={s.preview}>MODO PRÉVIA</Text></View>
         <Text style={[s.heading,fontLarge&&{fontSize:39,lineHeight:47}]}>Seu universo,{"\n"}suas escolhas.</Text>
@@ -426,7 +465,7 @@ export default function App() {
           <View style={s.rowBetween}><Text style={s.balanceFooter}>Seus dados, suas permissões.</Text><Text style={{color:blue,fontSize:22}}>✧</Text></View>
         </View>
         <View style={s.sectionHeading}><Text style={s.sectionTitle}>Acesso rápido</Text><Text style={s.sectionCaption}>SEUS ATALHOS</Text></View>
-        <View style={s.quickRow}>{[{name:'Pix',glyph:'pix'},{name:'Contas',glyph:'accounts'},{name:'Cartões',glyph:'cards'},{name:'Metas',glyph:'goals'}].map(x=><TouchableOpacity key={x.name} accessibilityRole="button" accessibilityLabel={'Abrir '+x.name} onPress={()=>nav(x.name as Page)} style={s.quick}><View style={s.quickIcon}><Icon name={x.glyph as IconName} size={27} color={blue}/></View><Text style={s.quickText}>{x.name}</Text></TouchableOpacity>)}</View>
+        <View style={s.quickRow}>{[{name:'Pix',glyph:'pix'},{name:'Contas',glyph:'accounts'},{name:'Cartões',glyph:'cards'},{name:'Metas',glyph:'goals'}].map(x=><TouchableOpacity key={x.name} accessibilityRole="button" accessibilityLabel={'Abrir '+x.name} onPress={()=>nav(x.name as Page)} ref={__DEV__&&x.name==='Pix'?labQuickPixRef:undefined} onLayout={__DEV__&&x.name==='Pix'?e=>recordLabQuickLayout(e.nativeEvent.layout.height):undefined} testID={__DEV__&&x.name==='Pix'?'negresco-lab-quick-pix-layout-'+labQuickLayout+'-window-'+labQuickWindow+'-viewport-'+labQuickViewport:undefined} style={s.quick}><View style={s.quickIcon}><Icon name={x.glyph as IconName} size={27} color={blue}/></View><Text style={s.quickText}>{x.name}</Text></TouchableOpacity>)}</View>
         <View style={s.sectionHeading}><Text style={s.sectionTitle}>Explore seu espaço</Text><Text style={s.sectionCaption}>07 MÓDULOS</Text></View>
         <View style={s.grid}>{sections.map(x=><Tap key={x.name} title={x.name} subtitle={compact?undefined:x.description} glyph={x.glyph} onPress={()=>nav(x.name)} style={compact?{minHeight:115}:undefined}/>)}</View>
         <Notice title="Construído para evoluir" body="Prévia segura: sem contas conectadas e sem movimentações financeiras reais."/>

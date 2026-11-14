@@ -111,6 +111,36 @@ test('bounded pre-gesture probe selects one clean point but never bypasses overl
  assert.match(quick,/first_gate!=second_gate/);
 });
 
+test('Quick Pix Debug reports only fixed layout/window/viewport geometry categories',()=>{
+ assert.match(app,/negresco-lab-quick-pix-layout-/);
+ assert.match(app,/recordLabQuickLayout/);
+ assert.match(app,/measureLabQuickPix/);
+ assert.match(app,/labQuickScrollRef/);
+ assert.match(app,/viewport='crosses-bottom'/);
+ assert.match(runner,/def quick_pix_debug_geometry_category\(/);
+ assert.match(runner,/Quick Pix geometry first=/);
+ const script=[
+  "import sys",
+  "sys.path.insert(0,'tooling/android')",
+  "import guardiao_debug_touch_delivery_lab as t",
+  "p='com.negresco.finance'",
+  "def mk(rid):",
+  " return {'content-desc':'Abrir Pix','package':p,'resource-id':rid}",
+  "base='negresco-lab-quick-pix-layout-regular-window-regular-viewport-crosses-bottom'",
+  "assert t.quick_pix_debug_geometry_category([mk('com.negresco.finance:id/'+base)],p)=='quick-layout-regular-window-regular-viewport-crosses-bottom'",
+  "assert t.quick_pix_debug_geometry_category([mk('negresco-lab-quick-pix-layout-thin-window-regular-viewport-inside')],p)=='quick-layout-thin-window-regular-viewport-inside'",
+  "assert t.quick_pix_debug_geometry_category([mk(base),mk(base)],p)=='quick-geometry-unconfirmed'",
+  "assert t.quick_pix_debug_geometry_category([mk('private-user-data')],p)=='quick-geometry-unconfirmed'",
+  "assert t.quick_pix_debug_geometry_category([mk(base+'-injected')],p)=='quick-geometry-unconfirmed'",
+  "print('quick-debug-category-contract-pass')"
+ ].join('\n');
+ const out=spawnSync('python3',['-I','-S','-B','-c',script],{encoding:'utf8',timeout:30000});
+ assert.equal(out.status,0,'quick debug category synthetic contract failed');
+ assert.match(out.stdout,/quick-debug-category-contract-pass/);
+ const gate=runner.split('def safe_quick_pix_point(')[1].split('\n\ndef quick_pix_debug_geometry_category(')[0];
+ assert.match(gate,/if dx<40 or dy<40 or len\(nodes\)>3000:/);
+});
+
 test('passive alternate blocker categories do not authorize gestures',()=>{
  const script="import sys\nsys.path.insert(0,'tooling/android')\nimport guardiao_debug_touch_delivery_lab as t\np='com.negresco.finance'\ndef n(label,box,path,click='true',rid=''):\n return {'content-desc':label,'package':p,'bounds':box,'_quick_path':path,\n         'clickable':click,'enabled':'true','resource-id':rid}\ntabs=[n('',f'[{100*i},890][{100*(i+1)},960]',f'0/5/{i}',\n        rid='negresco-lab-tab-'+name)\n      for i,name in enumerate(('home','pix','negresco'))]\ntarget=n('Abrir Pix','[120,720][200,800]','0/2/1')\nsmall=n('','[155,754][166,766]','0/4/1')\nbig=n('','[110,710][210,810]','0/4/1')\nassert t.quick_pix_alternate_block_category([target,big,*tabs],400,1000,p)=='quick-alt-whole-target-covered'\nassert t.quick_pix_alternate_block_category([target,small,*tabs],400,1000,p)=='quick-alt-clean-point-inconsistent'\nassert t.safe_quick_pix_point([target,small,*tabs],400,1000,p)==(140,740)\nunknown=n('','not-a-rectangle','0/4/2')\nassert t.quick_pix_alternate_block_category([target,small,unknown,*tabs],400,1000,p)=='quick-alt-peer-bounds-unconfirmed'\nassert t.safe_quick_pix_point([target,small,unknown,*tabs],400,1000,p) is None\nsibling=n('','[155,754][166,766]','0/2/2')\nassert t.quick_pix_alternate_block_category([target,sibling,*tabs],400,1000,p)=='quick-alt-center-conflict'\nassert t.safe_quick_pix_point([target,sibling,*tabs],400,1000,p) is None\nassert t.quick_pix_alternate_block_category([target,*tabs],400,1000,p)=='quick-alt-no-unrelated-center'\nnarrow=n('Abrir Pix','[120,720][156,800]','0/2/1')\nnarrow_peer=n('','[132,755][143,766]','0/4/1')\nassert t.quick_pix_alternate_block_category([narrow,narrow_peer,*tabs],400,1000,p)=='quick-alt-width-too-small'\nassert t.safe_quick_pix_point([narrow,narrow_peer,*tabs],400,1000,p) is None\nshort=n('Abrir Pix','[120,720][200,756]','0/2/1')\nshort_peer=n('','[155,733][166,744]','0/4/1')\nassert t.quick_pix_alternate_block_category([short,short_peer,*tabs],400,1000,p)=='quick-alt-height-too-small'\nassert t.safe_quick_pix_point([short,short_peer,*tabs],400,1000,p) is None\nboth=n('Abrir Pix','[120,720][156,756]','0/2/1')\nboth_peer=n('','[132,733][143,744]','0/4/1')\nassert t.quick_pix_alternate_block_category([both,both_peer,*tabs],400,1000,p)=='quick-alt-both-dimensions-too-small'\nassert t.safe_quick_pix_point([both,both_peer,*tabs],400,1000,p) is None\nprint('passive-alternate-categories-pass')";
  const r=spawnSync('python3',['-I','-S','-B','-c',script],{encoding:'utf8',timeout:30000});
