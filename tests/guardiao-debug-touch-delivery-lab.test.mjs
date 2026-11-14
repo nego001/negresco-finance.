@@ -25,7 +25,7 @@ test('all marker generation is __DEV__ only and release navigation unchanged',()
  assert.match(app,/__DEV__&&Platform\.OS==='android'&&\{paddingBottom:/);
  assert.doesNotMatch(app,/NEGRESCO_LAB_NAV_.+\$\{.*account/);
 });
-test('SafeAreaView front children are classified by bounds without mutation',()=>{
+test('SafeAreaView front children and controlled disposable Debug A/B are guarded',()=>{
  assert.match(dispatch,/countFront < 2048/);
  assert.match(dispatch,/var eligibleElsewhere = false/);
  assert.match(dispatch,/eligibleElsewhere = true/);
@@ -33,6 +33,14 @@ test('SafeAreaView front children are classified by bounds without mutation',()=
  assert.match(dispatch,/rn-multipoint-selected-all-isolated-pix/);
  assert.match(dispatch,/rn-multipoint-all-front-marked/);
  assert.match(dispatch,/rn-multipoint-all-front-unmarked/);
+ assert.match(dispatch,/negrescoLabABFrontCandidate/);
+ assert.match(dispatch,/multiPoint == "rn-multipoint-all-front-unmarked"/);
+ assert.match(dispatch,/targetRootBranch\.parent === root/);
+ assert.match(dispatch,/!targetRootBranch\.isClickable/);
+ assert.match(dispatch,/guardedFront\.visibility = android\.view\.View\.INVISIBLE/);
+ assert.match(dispatch,/guardedFront\.visibility = originalVisibility/);
+ assert.match(dispatch,/negrescoLabSetABCategory\("ab-hidden-restored"\)/);
+ assert.match(dispatch,/\} finally \{/);
  assert.match(dispatch,/rn-multipoint-front-marker-unconfirmed/);
  assert.match(dispatch,/rn-multipoint-selected-partial-isolated-pix/);
  assert.match(dispatch,/rn-multipoint-selected-none-isolated-pix/);
@@ -198,6 +206,14 @@ test('Android 9 emits only allowlisted categories and does not expand touch budg
  assert.match(dispatch,/rn-multipoint-selected-all-isolated-pix/);
  assert.match(dispatch,/rn-multipoint-all-front-marked/);
  assert.match(dispatch,/rn-multipoint-all-front-unmarked/);
+ assert.match(dispatch,/negrescoLabABFrontCandidate/);
+ assert.match(dispatch,/multiPoint == "rn-multipoint-all-front-unmarked"/);
+ assert.match(dispatch,/targetRootBranch\.parent === root/);
+ assert.match(dispatch,/!targetRootBranch\.isClickable/);
+ assert.match(dispatch,/guardedFront\.visibility = android\.view\.View\.INVISIBLE/);
+ assert.match(dispatch,/guardedFront\.visibility = originalVisibility/);
+ assert.match(dispatch,/negrescoLabSetABCategory\("ab-hidden-restored"\)/);
+ assert.match(dispatch,/\} finally \{/);
  assert.match(dispatch,/rn-multipoint-front-marker-unconfirmed/);
  assert.match(dispatch,/rn-multipoint-selected-partial-isolated-pix/);
  assert.match(dispatch,/rn-multipoint-selected-none-isolated-pix/);
@@ -295,6 +311,13 @@ test('Android 9 emits only allowlisted categories and does not expand touch budg
  assert.match(dispatch,/rn-target-root-fallback/);
  assert.match(runner,/Pix RN resolver preflight=/);
  assert.match(runner,/Pix RN resolver after gesture=/);
+ assert.match(runner,/Pix native A\/B preflight=/);
+ assert.match(runner,/Pix native A\/B after gesture=/);
+ assert.match(runner,/ab_before!="ab-ready"/);
+ assert.match(dispatch,/def classify_ab_state\(/);
+ assert.match(dispatch,/def read_debug_ab_state\(/);
+ assert.match(dispatch,/if \(BuildConfig\.DEBUG && guardedFront != null/);
+ assert.doesNotMatch(app,/ab-hidden-restored|negrescoLabABFrontCandidate/);
  assert.match(runner,/Pix native root pointer preflight=/);
  assert.match(runner,/Pix native root pointer after gesture=/);
  assert.match(runner,/Pix native root peer preflight=/);
@@ -487,6 +510,11 @@ test('native Activity fixed-category dispatch probe installs only into disposabl
   'assert x.classify_root_pointer_state("root-pointer-mixed-self-eligible-private")=="root-pointer-unconfirmed"',
   'assert x.classify_root_pointer_state("root-pointer-auto-hidden")=="root-pointer-unconfirmed"',
   'assert x.classify_root_pointer_state(None)=="root-pointer-unconfirmed"',
+  'assert x.classify_ab_state("ab-ready")=="ab-ready"',
+  'assert x.classify_ab_state("ab-skipped")=="ab-skipped"',
+  'assert x.classify_ab_state("ab-hidden-restored")=="ab-hidden-restored"',
+  'assert x.classify_ab_state("ab-ready\\n")=="ab-unconfirmed"',
+  'assert x.classify_ab_state("invalid")=="ab-unconfirmed"',
   'assert x.classify_resolved_target_state("rn-target-ready")=="rn-target-ready"',
   'assert x.classify_resolved_target_state("rn-target-pix-direct")=="rn-target-pix-direct"',
   'assert x.classify_resolved_target_state("rn-target-pix-descendant")=="rn-target-pix-descendant"',

@@ -22,6 +22,8 @@ SIBLING_FILE = "negresco_lab_native_pix_siblings"
 ROOT_PEER_FILE = "negresco_lab_native_pix_root_peer"
 ROOT_POINTER_FILE = "negresco_lab_native_pix_root_pointer"
 RN_TARGET_FILE = "negresco_lab_native_rn_resolved_target"
+AB_FILE = "negresco_lab_native_pix_ab_state"
+AB_ALLOWED = frozenset(("ab-ready","ab-skipped","ab-hidden-restored","ab-unconfirmed"))
 RN_TARGET_ALLOWED = frozenset((
     "rn-target-ready", "rn-target-pix-direct",
     "rn-target-pix-descendant", "rn-target-pix-ancestor",
@@ -199,6 +201,19 @@ KOTLIN = r'''
     }
   }
 
+  // A/B state is Debug private fixed-category telemetry. Never write View data.
+  private var negrescoLabABFrontCandidate: android.view.View? = null
+  private fun negrescoLabSetABCategory(category: String) {
+    if (!BuildConfig.DEBUG) return
+    try {
+      openFileOutput("negresco_lab_native_pix_ab_state", android.content.Context.MODE_PRIVATE).use {
+        it.write(category.toByteArray(Charsets.US_ASCII))
+      }
+    } catch (_: Exception) {
+      // Synthetic category only; no exceptions, tags or coordinates logged.
+    }
+  }
+
   private fun negrescoLabSetResolvedTargetCategory(category: String) {
     if (!BuildConfig.DEBUG) return
     try {
@@ -240,6 +255,8 @@ KOTLIN = r'''
     super.onResume()
     negrescoLabGestureActive = false
     negrescoLabGestureInvalid = false
+    negrescoLabABFrontCandidate = null
+    negrescoLabSetABCategory("ab-ready")
     negrescoLabSetDispatchCategory("activity-ready")
     negrescoLabSetScrollCategory("scroll-ready")
     negrescoLabSetPixCategory("pix-ready")
@@ -1198,8 +1215,21 @@ KOTLIN = r'''
                                       if (isolated == "rn-safearea-isolated-pix-direct"
                                           || isolated == "rn-safearea-isolated-pix-descendant"
                                           || isolated == "rn-safearea-isolated-pix-ancestor") {
-                                        negrescoLabPixThreePointCategory(
+                                        val multiPoint = negrescoLabPixThreePointCategory(
                                           root, pix, pixRootBranch, targetRootBranch, tagId, px, py)
+                                        if (multiPoint == "rn-multipoint-all-front-unmarked"
+                                            && targetRootBranch.parent === root
+                                            && targetRootBranch.javaClass.name.startsWith(
+                                              "com.facebook.react.views.safeareaview.")
+                                            && targetRootBranch.isEnabled
+                                            && targetRootBranch.isShown
+                                            && !targetRootBranch.isClickable
+                                            && targetRootBranch.visibility == android.view.View.VISIBLE) {
+                                          // A/B candidate is an unmarked native front sibling
+                                          // at 3/3 Pix points. Only disposable Debug Activity.
+                                          negrescoLabABFrontCandidate = targetRootBranch
+                                        }
+                                        multiPoint
                                       } else isolated
                                     } else siblingOrder
                                   } else {
@@ -1287,9 +1317,39 @@ KOTLIN = r'''
       negrescoLabPixRootPeerCategory(event) else "root-peer-unconfirmed"
     val rootPointer = if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN)
       negrescoLabPixRootPointerCategory(event) else "root-pointer-unconfirmed"
+    if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN) {
+      negrescoLabABFrontCandidate = null
+    }
     val resolved = if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN)
       negrescoLabResolvedTargetCategory(event) else "rn-target-unconfirmed"
-    val handled = super.dispatchTouchEvent(event)
+    val guardedFront = if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN
+        && resolved == "rn-multipoint-all-front-unmarked") {
+      negrescoLabABFrontCandidate
+    } else null
+    // Controlled, one-DOWN native A/B in the DISPOSABLE Debug APK ONLY.
+    // Android establishes the ViewGroup touch target on ACTION_DOWN. Restore
+    // in finally BEFORE the callback and before any later event. Never retry.
+    // The baseline run 43547062297 is the unchanged-tree control.
+    val handled = if (BuildConfig.DEBUG && guardedFront != null
+        && guardedFront.isAttachedToWindow && guardedFront.isShown
+        && guardedFront.visibility == android.view.View.VISIBLE
+        && !guardedFront.isClickable && guardedFront.isEnabled
+        && guardedFront.javaClass.name.startsWith(
+          "com.facebook.react.views.safeareaview.")) {
+      val originalVisibility = guardedFront.visibility
+      try {
+        guardedFront.visibility = android.view.View.INVISIBLE
+        super.dispatchTouchEvent(event)
+      } finally {
+        guardedFront.visibility = originalVisibility
+        negrescoLabSetABCategory("ab-hidden-restored")
+      }
+    } else {
+      if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN) {
+        negrescoLabSetABCategory("ab-skipped")
+      }
+      super.dispatchTouchEvent(event)
+    }
     if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN) {
       negrescoLabSetDispatchCategory(
         (if (handled) "activity-down-consumed-" else "activity-down-unconsumed-") + rootHit
@@ -1432,6 +1492,24 @@ def read_debug_root_pointer_state(adb, package: str) -> str:
     except Exception:
         return "root-pointer-unconfirmed"
     return classify_root_pointer_state(raw if isinstance(raw,str) else None)
+
+
+def classify_ab_state(raw: str | None) -> str:
+    """Only synthetic native A/B categories, no View state or identifiers."""
+    if not isinstance(raw,str) or len(raw)>64:
+        return "ab-unconfirmed"
+    return raw if raw in AB_ALLOWED else "ab-unconfirmed"
+
+
+def read_debug_ab_state(adb, package: str) -> str:
+    """Fixed category from disposable Debug private storage via run-as only."""
+    if not isinstance(package,str) or not re.fullmatch(r"[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+",package):
+        return "ab-unconfirmed"
+    try:
+        raw=adb("shell","run-as",package,"cat","files/"+AB_FILE,timeout=15,check=False)
+    except Exception:
+        return "ab-unconfirmed"
+    return classify_ab_state(raw if isinstance(raw,str) else None)
 
 
 def classify_resolved_target_state(raw: str | None) -> str:
