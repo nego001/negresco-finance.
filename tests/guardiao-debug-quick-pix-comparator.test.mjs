@@ -28,8 +28,8 @@ test('Home keeps the quick Pix demo shortcut ahead of tall cards without changin
  assert.ok(quick>=0 && row>quick && banner>row && balance>row,
    'quick shortcuts must precede the banner and balance in initial Home viewport');
  assert.equal((home.match(/Acesso rápido/g)||[]).length,1);
- assert.equal((home.match(/accessibilityLabel=\\{'Abrir '\\+x\\.name\\}/g)||[]).length,1);
- assert.match(runner,/if dx<40 or dy<40 or len\\(nodes\\)>3000:/);
+ assert.equal(home.split("accessibilityLabel={'Abrir '+x.name}").length,2);
+ assert.ok(runner.includes('if dx<40 or dy<40 or len(nodes)>3000:'));
  assert.match(runner,/first is None or first!=second/);
 });
 
