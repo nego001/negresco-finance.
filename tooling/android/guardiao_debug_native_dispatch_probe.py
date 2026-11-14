@@ -54,6 +54,9 @@ RN_TARGET_ALLOWED = frozenset((
     "rn-safearea-pixhome-child-bounds-cover",
     "rn-safearea-pixhome-hit-index-higher",
     "rn-multipoint-selected-all-isolated-pix",
+    "rn-multipoint-all-front-marked",
+    "rn-multipoint-all-front-unmarked",
+    "rn-multipoint-front-marker-unconfirmed",
     "rn-multipoint-selected-partial-isolated-pix",
     "rn-multipoint-selected-none-isolated-pix",
     "rn-multipoint-isolated-other",
@@ -798,11 +801,11 @@ KOTLIN = r'''
       root: android.view.ViewGroup,
       pix: android.view.View,
       pixBranch: android.view.View,
-      selectedBranch: android.view.View,
+      selectedBranch: android.view.View, tagId: Int,
       px: Float, py: Float): String {
     if (!BuildConfig.DEBUG) return "rn-multipoint-unconfirmed"
     return try {
-      if (!pix.isAttachedToWindow || !pix.isShown || pix.alpha <= 0f
+      if (tagId <= 0 || !pix.isAttachedToWindow || !pix.isShown || pix.alpha <= 0f
           || pix.width < 12 || pix.height <= 0 || selectedBranch.id <= 0
           || !root.isAttachedToWindow || !root.isShown
           || !px.isFinite() || !py.isFinite()) {
@@ -889,7 +892,31 @@ KOTLIN = r'''
         if (underFront) selectedCount += 1
       }
       when (selectedCount) {
-        3 -> "rn-multipoint-selected-all-isolated-pix"
+        3 -> {
+          // This synthetic marker reveals only whether the selected front
+          // branch owns ANY app Debug testID. It cannot prove View origin.
+          // No raw tag, ID, class name, UI text or coordinate is persisted.
+          val queue = java.util.ArrayDeque<android.view.View>()
+          queue.add(selectedBranch)
+          var count = 0
+          var marked = false
+          while (!queue.isEmpty() && count < 2048) {
+            val candidate = queue.removeFirst()
+            count += 1
+            val marker = candidate.getTag(tagId)
+            if (marker is String && marker.startsWith("negresco-lab-")) {
+              marked = true
+            }
+            if (candidate is android.view.ViewGroup) {
+              for (index in 0 until candidate.childCount) {
+                queue.add(candidate.getChildAt(index))
+              }
+            }
+          }
+          if (!queue.isEmpty()) "rn-multipoint-front-marker-unconfirmed"
+          else if (marked) "rn-multipoint-all-front-marked"
+          else "rn-multipoint-all-front-unmarked"
+        }
         1, 2 -> "rn-multipoint-selected-partial-isolated-pix"
         0 -> "rn-multipoint-selected-none-isolated-pix"
         else -> "rn-multipoint-unconfirmed"
@@ -1172,7 +1199,7 @@ KOTLIN = r'''
                                           || isolated == "rn-safearea-isolated-pix-descendant"
                                           || isolated == "rn-safearea-isolated-pix-ancestor") {
                                         negrescoLabPixThreePointCategory(
-                                          root, pix, pixRootBranch, targetRootBranch, px, py)
+                                          root, pix, pixRootBranch, targetRootBranch, tagId, px, py)
                                       } else isolated
                                     } else siblingOrder
                                   } else {
