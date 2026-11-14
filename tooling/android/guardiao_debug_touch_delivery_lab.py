@@ -814,6 +814,81 @@ def quick_pix_alternate_clear_point(nodes: list[dict[str,str]],
     return None
 
 
+def quick_pix_alternate_block_category(nodes: list[dict[str,str]],
+                                      width: int, height: int,
+                                      package: str) -> str:
+    """Categorize why no safe inner point was found, without changing taps.
+
+    The algorithm is passive and never returns coordinates or raw UI data.
+    Only fixed output categories may reach CI logs.
+    """
+    if (not isinstance(nodes,list) or not 0<len(nodes)<=3000
+            or width<=200 or height<=400 or not package):
+        return "quick-alt-input-unconfirmed"
+    matches=[n for n in nodes if n.get("content-desc")=="Abrir Pix"
+             and n.get("package")==package]
+    if len(matches)!=1:
+        return "quick-alt-target-unconfirmed"
+    target=matches[0]
+    bounds=rect(target,width,height)
+    if bounds is None:
+        return "quick-alt-target-bounds-unconfirmed"
+    x1,y1,x2,y2=bounds
+    dx,dy=x2-x1,y2-y1
+    if dx<40 or dy<40:
+        return "quick-alt-target-too-small"
+    center=((x1+x2)//2,(y1+y2)//2)
+    unrelated_center=False
+    peers=[]
+    for node in nodes:
+        if (node is target or node.get("package")!=package
+                or node.get("clickable")!="true" or node.get("enabled")!="true"):
+            continue
+        other=rect(node,width,height)
+        if other is None:
+            return "quick-alt-peer-bounds-unconfirmed"
+        peers.append((node,other))
+        if other[0]<=center[0]<other[2] and other[1]<=center[1]<other[3]:
+            if quick_pix_peer_is_proven_ancestor(target,node,bounds,other):
+                continue
+            if quick_pix_peer_relationship_category(target,node,bounds,other)!="quick-peer-unrelated":
+                return "quick-alt-center-conflict"
+            unrelated_center=True
+    if not unrelated_center:
+        return "quick-alt-no-unrelated-center"
+    if any(other[0]<=x1 and other[1]<=y1 and
+           other[2]>=x2 and other[3]>=y2 and
+           not quick_pix_peer_is_proven_ancestor(target,node,bounds,other)
+           for node,other in peers):
+        return "quick-alt-whole-target-covered"
+    # The SAME eight immutable, pre-gesture sample locations as the strict gate.
+    positions=((1,1),(3,1),(1,3),(3,3),
+               (1,2),(3,2),(2,1),(2,3))
+    attempted=0
+    for col,row in positions:
+        px=x1+(dx*col)//4
+        py=y1+(dy*row)//4
+        if not (x1+8<=px<x2-8 and y1+8<=py<y2-8):
+            continue
+        attempted+=1
+        ancestor_count=0
+        clean=True
+        for node,other in peers:
+            if other[0]<=px<other[2] and other[1]<=py<other[3]:
+                if quick_pix_peer_is_proven_ancestor(target,node,bounds,other):
+                    ancestor_count+=1
+                    if ancestor_count>8:
+                        return "quick-alt-too-many-ancestors"
+                    continue
+                clean=False
+                break
+        if clean:
+            return "quick-alt-clean-point-inconsistent"
+    if not attempted:
+        return "quick-alt-no-inner-probe-margin"
+    return "quick-alt-all-probes-obstructed"
+
+
 def quick_pix_target_gate_category(nodes: list[dict[str,str]], width: int,
                                    height: int, package: str) -> str:
     """Passive explanation of the exact single-tap gates; no authorization.
@@ -967,6 +1042,13 @@ def quick_pix_comparator() -> None:
             or first_gate not in ("quick-target-eligible",
                                   "quick-target-eligible-ancestor",
                                   "quick-target-eligible-alternate")):
+        if first_gate=="quick-peer-unrelated" or second_gate=="quick-peer-unrelated":
+            first_block=quick_pix_alternate_block_category(
+                first_nodes,w,h,BASE.PACKAGE)
+            second_block=quick_pix_alternate_block_category(
+                second_nodes,w,h,BASE.PACKAGE)
+            print("ENV (LAB): Quick Pix alternate block first="+first_block+
+                  " second="+second_block,flush=True)
         print("ENV (LAB): Quick Pix comparator=target-unconfirmed",flush=True)
         raise RuntimeError("preview-target-not-unique-stable-safe")
     mark_navigation_phase("before-gesture")

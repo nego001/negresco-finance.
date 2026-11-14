@@ -23,6 +23,14 @@ test('quick Pix comparison is a single fail-closed demo shortcut gesture',()=>{
  assert.match(runner,/def safe_quick_pix_point\(/);
  assert.match(runner,/def quick_pix_target_gate_category\(/);
  assert.match(runner,/def quick_pix_alternate_clear_point\(/);
+ assert.match(runner,/def quick_pix_alternate_block_category\(/);
+ assert.match(runner,/Quick Pix alternate block first=/);
+ assert.match(runner,/quick-alt-whole-target-covered/);
+ assert.match(runner,/quick-alt-all-probes-obstructed/);
+ assert.match(runner,/quick-alt-peer-bounds-unconfirmed/);
+ assert.match(runner,/quick-alt-target-too-small/);
+ assert.match(runner,/quick-alt-center-conflict/);
+ assert.match(runner,/quick-alt-clean-point-inconsistent/);
  assert.match(runner,/quick-target-eligible-alternate/);
  assert.match(runner,/positions=\(\(1,1\),\(3,1\),\(1,3\),\(3,3\)/);
  assert.match(runner,/if dx<40 or dy<40 or len\(nodes\)>3000:/);
@@ -99,4 +107,13 @@ test('bounded pre-gesture probe selects one clean point but never bypasses overl
  assert.equal((quick.match(/"input","tap"/g)||[]).length,1);
  assert.match(quick,/first is None or first!=second/);
  assert.match(quick,/first_gate!=second_gate/);
+});
+
+test('passive alternate blocker categories do not authorize gestures',()=>{
+ const script="import sys\nsys.path.insert(0,'tooling/android')\nimport guardiao_debug_touch_delivery_lab as t\np='com.negresco.finance'\ndef n(label,box,path,click='true'):\n return {'content-desc':label,'package':p,'bounds':box,'_quick_path':path,\n         'clickable':click,'enabled':'true'}\ntabs=[n('',f'[{100*i},890][{100*(i+1)},960]',f'0/5/{i}') for i in range(3)]\ntarget=n('Abrir Pix','[120,720][200,800]','0/2/1')\nsmall=n('','[155,754][166,766]','0/4/1')\nbig=n('','[110,710][210,810]','0/4/1')\nassert t.quick_pix_alternate_block_category([target,big,*tabs],400,1000,p)=='quick-alt-whole-target-covered'\nassert t.quick_pix_alternate_block_category([target,small,*tabs],400,1000,p)=='quick-alt-clean-point-inconsistent'\nassert t.safe_quick_pix_point([target,small,*tabs],400,1000,p)==(140,740)\nunknown=n('','not-a-rectangle','0/4/2')\nassert t.quick_pix_alternate_block_category([target,small,unknown,*tabs],400,1000,p)=='quick-alt-peer-bounds-unconfirmed'\nassert t.safe_quick_pix_point([target,small,unknown,*tabs],400,1000,p) is None\nsibling=n('','[155,754][166,766]','0/2/2')\nassert t.quick_pix_alternate_block_category([target,sibling,*tabs],400,1000,p)=='quick-alt-center-conflict'\nassert t.safe_quick_pix_point([target,sibling,*tabs],400,1000,p) is None\nassert t.quick_pix_alternate_block_category([target,*tabs],400,1000,p)=='quick-alt-no-unrelated-center'\nprint('passive-alternate-categories-pass')";
+ const r=spawnSync('python3',['-I','-S','-B','-c',script],{encoding:'utf8',timeout:30000});
+ assert.equal(r.status,0,'passive alternate blocker classifier failed');
+ assert.match(r.stdout,/passive-alternate-categories-pass/);
+ const tap=runner.split('def quick_pix_comparator() -> None:')[1].split('\n\ndef run() -> None:')[0];
+ assert.equal((tap.match(/"input","tap"/g)||[]).length,1);
 });
