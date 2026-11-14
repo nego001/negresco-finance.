@@ -668,8 +668,100 @@ def guarded_preview_navigation() -> None:
         raise RuntimeError("preview-navigation-count-unconfirmed")
 
 
+def safe_quick_pix_point(nodes: list[dict[str,str]], width: int, height: int,
+                         package: str) -> tuple[int,int] | None:
+    """Unique, enabled demo shortcut in the Home content, not the bottom tab.
+
+    No real payment and no publication of XML, coordinates or private UI text.
+    """
+    if (not isinstance(nodes,list) or len(nodes)>3000
+            or width<=200 or height<=400 or not package):
+        return None
+    matches=[n for n in nodes if n.get("content-desc")=="Abrir Pix"
+             and n.get("package")==package]
+    if len(matches)!=1:
+        return None
+    target=matches[0]
+    if target.get("clickable")!="true" or target.get("enabled")!="true":
+        return None
+    bounds=rect(target,width,height)
+    if bounds is None:
+        return None
+    x1,y1,x2,y2=bounds
+    if not (y1>=int(height*.08) and y2<int(height*.78)
+            and x2-x1>=20 and y2-y1>=20):
+        return None
+    point=((x1+x2)//2,(y1+y2)//2)
+    for ident in TAB_IDS.values():
+        selected=[n for n in nodes if debug.safe_testid_matches(n,ident)]
+        if len(selected)!=1 or selected[0].get("package")!=package:
+            return None
+        bar=rect(selected[0],width,height)
+        if bar is None:
+            return None
+        if bar[0]<=point[0]<bar[2] and bar[1]<=point[1]<bar[3]:
+            return None
+    for node in nodes:
+        if (node is target or node.get("package")!=package
+                or node.get("clickable")!="true" or node.get("enabled")!="true"):
+            continue
+        other=rect(node,width,height)
+        if other is None:
+            return None
+        if other[0]<=point[0]<other[2] and other[1]<=point[1]<other[3]:
+            return None
+    return point
+
+
+def quick_pix_comparator() -> None:
+    """One guarded shortcut tap only, same PID, strict navigation evidence."""
+    mark_navigation_phase("before-pid")
+    before=same_process.observed_single_app_pid()
+    assert_preview_pid(before)
+    mark_navigation_phase("initial-home")
+    if BASE.lookup("Seu universo") is None:
+        raise RuntimeError("preview-initial-home-unconfirmed")
+    mark_navigation_phase("before-target")
+    w,h=BASE.screen_size()
+    first=safe_quick_pix_point(BASE.xml_nodes(),w,h,BASE.PACKAGE)
+    time.sleep(.35)
+    second=safe_quick_pix_point(BASE.xml_nodes(),w,h,BASE.PACKAGE)
+    if first is None or first!=second:
+        print("ENV (LAB): Quick Pix comparator=target-unconfirmed",flush=True)
+        raise RuntimeError("preview-target-not-unique-stable-safe")
+    mark_navigation_phase("before-gesture")
+    assert_preview_pid(before)
+    # Only the preexisting demo Home shortcut, never a real Pix transaction.
+    BASE.adb("shell","input","tap",str(second[0]),str(second[1]),timeout=10)
+    mark_navigation_phase("post-gesture-state")
+    category="quick-home-retained"
+    for _ in range(8):
+        assert_preview_pid(before)
+        nodes=BASE.xml_nodes()
+        pix=[n for n in nodes if debug.safe_testid_matches(n,TAB_IDS["pix"])]
+        home=[n for n in nodes if debug.safe_testid_matches(n,TAB_IDS["home"])]
+        if (BASE.lookup("Pix do seu jeito.") is not None
+                and len(pix)==1 and len(home)==1
+                and pix[0].get("selected")=="true"
+                and home[0].get("selected")=="false"):
+            native=classify_nav_native_state(nodes)
+            category=("quick-pix-nav-confirmed"
+                      if native=="native-page-pix-pressin-no-call-yes"
+                      else "quick-pix-rendered-marker-unconfirmed")
+            break
+        time.sleep(.65)
+    print("ENV (LAB): Quick Pix comparator="+category,flush=True)
+    if category!="quick-pix-nav-confirmed":
+        raise RuntimeError("preview-navigation-state-unconfirmed")
+    assert_preview_pid(before)
+    if debug.semantic.REPORT.exists() or BASE.REPORT.exists():
+        raise RuntimeError("stale local PDF report found")
+    print("PASS (LAB): one guarded Home shortcut to Pix DEMO; unchanged PID; no PDF",flush=True)
+
+
 def run() -> None:
-    if len(sys.argv) != 1:
+    mode=tuple(sys.argv[1:])
+    if mode not in ((),("--quick-pix-comparator",)):
         raise RuntimeError("unexpected native ancestor lab argument")
     if debug.semantic.REPORT.exists() or BASE.REPORT.exists():
         raise RuntimeError("stale local PDF report found")
@@ -763,8 +855,11 @@ def run() -> None:
         if BASE.lookup("Gerar e compartilhar relatório PDF") is not None:
             raise RuntimeError("unexpected PDF action on home")
         print("PASS (LAB): Debug inset-offset A/B geometry confirmed", flush=True)
-        guarded_preview_navigation()
-        print("PASS (LAB): two guarded Pix preview navigation gestures; same PID; no PDF", flush=True)
+        if mode==("--quick-pix-comparator",):
+            quick_pix_comparator()
+        else:
+            guarded_preview_navigation()
+            print("PASS (LAB): two guarded Pix preview navigation gestures; same PID; no PDF", flush=True)
     finally:
         try:
             BASE.adb("reverse", "--remove", f"tcp:{debug.BUNDLE_PORT}", check=False)
