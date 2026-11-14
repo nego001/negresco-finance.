@@ -30,6 +30,11 @@ test('SafeAreaView front children are classified by bounds without mutation',()=
  assert.match(dispatch,/var eligibleElsewhere = false/);
  assert.match(dispatch,/eligibleElsewhere = true/);
  assert.match(dispatch,/rn-safearea-pixhome-hit-index-higher/);
+ assert.match(dispatch,/rn-multipoint-selected-all-isolated-pix/);
+ assert.match(dispatch,/rn-multipoint-selected-partial-isolated-pix/);
+ assert.match(dispatch,/rn-multipoint-selected-none-isolated-pix/);
+ assert.match(dispatch,/rn-multipoint-isolated-other/);
+ assert.match(dispatch,/rn-multipoint-unconfirmed/);
  assert.match(dispatch,/rn-safearea-isolated-pix-direct/);
  assert.match(dispatch,/rn-safearea-isolated-pix-descendant/);
  assert.match(dispatch,/rn-safearea-isolated-pix-ancestor/);
@@ -50,6 +55,13 @@ test('SafeAreaView front children are classified by bounds without mutation',()=
  assert.match(dispatch,/val group = pixBranch as\? android\.view\.ViewGroup/);
  assert.match(dispatch,/group\.getLocationOnScreen\(branchOrigin\)/);
  assert.match(dispatch,/resolver\.invoke\(null, x, y, group\)/);
+ assert.match(dispatch,/negrescoLabPixThreePointCategory\(/);
+ assert.match(dispatch,/val points = floatArrayOf\(/);
+ assert.match(dispatch,/pix\.width \* 0\.25f/);
+ assert.match(dispatch,/pix\.width \* 0\.75f/);
+ assert.match(dispatch,/negrescoLabIsolatedPixTargetCategory\(pix, pixBranch, x, py\)/);
+ assert.match(dispatch,/val selected = resolver\.invoke\(null, localX, localY, root\)/);
+ assert.match(dispatch,/selectedCount == 3|3 -> "rn-multipoint-selected-all-isolated-pix"/);
  assert.match(dispatch,/while \(!pixChildren\.isEmpty\(\) && inspected < 2048\)/);
  assert.doesNotMatch(dispatch,/\.setPointerEvents\(|\.setVisibility\(|\.setAlpha\(|\.performClick\(/);
  assert.match(dispatch,/val visited = BooleanArray\(size\)/);
@@ -167,6 +179,11 @@ test('Android 9 emits only allowlisted categories and does not expand touch budg
  assert.match(dispatch,/rn-safearea-pixhome-front-empty/);
  assert.match(dispatch,/rn-safearea-pixhome-child-bounds-cover/);
  assert.match(dispatch,/rn-safearea-pixhome-hit-index-higher/);
+ assert.match(dispatch,/rn-multipoint-selected-all-isolated-pix/);
+ assert.match(dispatch,/rn-multipoint-selected-partial-isolated-pix/);
+ assert.match(dispatch,/rn-multipoint-selected-none-isolated-pix/);
+ assert.match(dispatch,/rn-multipoint-isolated-other/);
+ assert.match(dispatch,/rn-multipoint-unconfirmed/);
  assert.match(dispatch,/rn-safearea-isolated-pix-direct/);
  assert.match(dispatch,/rn-safearea-isolated-pix-descendant/);
  assert.match(dispatch,/rn-safearea-isolated-pix-ancestor/);
@@ -187,6 +204,13 @@ test('Android 9 emits only allowlisted categories and does not expand touch budg
  assert.match(dispatch,/val group = pixBranch as\? android\.view\.ViewGroup/);
  assert.match(dispatch,/group\.getLocationOnScreen\(branchOrigin\)/);
  assert.match(dispatch,/resolver\.invoke\(null, x, y, group\)/);
+ assert.match(dispatch,/negrescoLabPixThreePointCategory\(/);
+ assert.match(dispatch,/val points = floatArrayOf\(/);
+ assert.match(dispatch,/pix\.width \* 0\.25f/);
+ assert.match(dispatch,/pix\.width \* 0\.75f/);
+ assert.match(dispatch,/negrescoLabIsolatedPixTargetCategory\(pix, pixBranch, x, py\)/);
+ assert.match(dispatch,/val selected = resolver\.invoke\(null, localX, localY, root\)/);
+ assert.match(dispatch,/selectedCount == 3|3 -> "rn-multipoint-selected-all-isolated-pix"/);
  assert.match(dispatch,/while \(!pixChildren\.isEmpty\(\) && inspected < 2048\)/);
  assert.doesNotMatch(dispatch,/\.setPointerEvents\(|\.setVisibility\(|\.setAlpha\(|\.performClick\(/);
  assert.match(dispatch,/val visited = BooleanArray\(size\)/);
@@ -475,6 +499,11 @@ test('native Activity fixed-category dispatch probe installs only into disposabl
   'assert x.classify_resolved_target_state("rn-safearea-pixhome-front-empty")=="rn-safearea-pixhome-front-empty"',
   'assert x.classify_resolved_target_state("rn-safearea-pixhome-child-bounds-cover")=="rn-safearea-pixhome-child-bounds-cover"',
   'assert x.classify_resolved_target_state("rn-safearea-pixhome-hit-index-higher")=="rn-safearea-pixhome-hit-index-higher"',
+  'assert x.classify_resolved_target_state("rn-multipoint-selected-all-isolated-pix")=="rn-multipoint-selected-all-isolated-pix"',
+  'assert x.classify_resolved_target_state("rn-multipoint-selected-partial-isolated-pix")=="rn-multipoint-selected-partial-isolated-pix"',
+  'assert x.classify_resolved_target_state("rn-multipoint-selected-none-isolated-pix")=="rn-multipoint-selected-none-isolated-pix"',
+  'assert x.classify_resolved_target_state("rn-multipoint-isolated-other")=="rn-multipoint-isolated-other"',
+  'assert x.classify_resolved_target_state("rn-multipoint-unconfirmed")=="rn-multipoint-unconfirmed"',
   'assert x.classify_resolved_target_state("rn-safearea-isolated-pix-direct")=="rn-safearea-isolated-pix-direct"',
   'assert x.classify_resolved_target_state("rn-safearea-isolated-pix-descendant")=="rn-safearea-isolated-pix-descendant"',
   'assert x.classify_resolved_target_state("rn-safearea-isolated-pix-ancestor")=="rn-safearea-isolated-pix-ancestor"',

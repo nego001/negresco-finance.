@@ -53,6 +53,11 @@ RN_TARGET_ALLOWED = frozenset((
     "rn-safearea-pixhome-front-empty",
     "rn-safearea-pixhome-child-bounds-cover",
     "rn-safearea-pixhome-hit-index-higher",
+    "rn-multipoint-selected-all-isolated-pix",
+    "rn-multipoint-selected-partial-isolated-pix",
+    "rn-multipoint-selected-none-isolated-pix",
+    "rn-multipoint-isolated-other",
+    "rn-multipoint-unconfirmed",
     "rn-safearea-isolated-pix-direct",
     "rn-safearea-isolated-pix-descendant",
     "rn-safearea-isolated-pix-ancestor",
@@ -786,6 +791,74 @@ KOTLIN = r'''
     }
   }
 
+  // Passive counterfactual sampling at the observed tap and two interior
+  // horizontal points. No additional MotionEvents or UI changes. The result
+  // describes target selection only, not the actual dispatch/callback path.
+  private fun negrescoLabPixThreePointCategory(
+      root: android.view.ViewGroup,
+      pix: android.view.View,
+      pixBranch: android.view.View,
+      selectedBranch: android.view.View,
+      px: Float, py: Float): String {
+    if (!BuildConfig.DEBUG) return "rn-multipoint-unconfirmed"
+    return try {
+      if (!pix.isAttachedToWindow || !pix.isShown || pix.alpha <= 0f
+          || pix.width < 12 || pix.height <= 0 || selectedBranch.id <= 0
+          || !root.isAttachedToWindow || !root.isShown
+          || !px.isFinite() || !py.isFinite()) {
+        return "rn-multipoint-unconfirmed"
+      }
+      val pixOrigin = IntArray(2)
+      val rootOrigin = IntArray(2)
+      pix.getLocationOnScreen(pixOrigin)
+      root.getLocationOnScreen(rootOrigin)
+      if (py < pixOrigin[1] || py >= pixOrigin[1] + pix.height
+          || px < pixOrigin[0] || px >= pixOrigin[0] + pix.width) {
+        return "rn-multipoint-unconfirmed"
+      }
+      // This only samples points already inside the Pix tab. No gesture.
+      val points = floatArrayOf(
+        px,
+        pixOrigin[0] + pix.width * 0.25f,
+        pixOrigin[0] + pix.width * 0.75f
+      )
+      val resolver = Class.forName("com.facebook.react.uimanager.TouchTargetHelper")
+        .getMethod("findTargetTagForTouch",
+          java.lang.Float.TYPE, java.lang.Float.TYPE,
+          android.view.ViewGroup::class.java)
+      var selectedCount = 0
+      for (x in points) {
+        val localX = x - rootOrigin[0]
+        val localY = py - rootOrigin[1]
+        if (!x.isFinite() || localX < 0f || localY < 0f
+            || localX >= root.width || localY >= root.height) {
+          return "rn-multipoint-unconfirmed"
+        }
+        val isolated = negrescoLabIsolatedPixTargetCategory(pix, pixBranch, x, py)
+        if (isolated == "rn-safearea-isolated-unconfirmed") {
+          return "rn-multipoint-unconfirmed"
+        }
+        if (isolated != "rn-safearea-isolated-pix-direct"
+            && isolated != "rn-safearea-isolated-pix-descendant"
+            && isolated != "rn-safearea-isolated-pix-ancestor") {
+          return "rn-multipoint-isolated-other"
+        }
+        val selected = resolver.invoke(null, localX, localY, root) as? Int
+          ?: return "rn-multipoint-unconfirmed"
+        if (selected <= 0) return "rn-multipoint-unconfirmed"
+        if (selected == selectedBranch.id) selectedCount += 1
+      }
+      when (selectedCount) {
+        3 -> "rn-multipoint-selected-all-isolated-pix"
+        1, 2 -> "rn-multipoint-selected-partial-isolated-pix"
+        0 -> "rn-multipoint-selected-none-isolated-pix"
+        else -> "rn-multipoint-unconfirmed"
+      }
+    } catch (_: Exception) {
+      "rn-multipoint-unconfirmed"
+    }
+  }
+
   private fun negrescoLabResolvedTargetCategory(event: android.view.MotionEvent): String {
     if (!BuildConfig.DEBUG) return "rn-target-unconfirmed"
     return try {
@@ -1053,8 +1126,14 @@ KOTLIN = r'''
                                       root, pixRootBranch, targetRootBranch)
                                     if (siblingOrder == "rn-safearea-pixhome-hit-index-higher"
                                         || siblingOrder == "rn-safearea-pixhome-hit-mapped-higher") {
-                                      negrescoLabIsolatedPixTargetCategory(
+                                      val isolated = negrescoLabIsolatedPixTargetCategory(
                                         pix, pixRootBranch, px, py)
+                                      if (isolated == "rn-safearea-isolated-pix-direct"
+                                          || isolated == "rn-safearea-isolated-pix-descendant"
+                                          || isolated == "rn-safearea-isolated-pix-ancestor") {
+                                        negrescoLabPixThreePointCategory(
+                                          root, pix, pixRootBranch, targetRootBranch, px, py)
+                                      } else isolated
                                     } else siblingOrder
                                   } else {
                                     "rn-safearea-pixhome-self-visible-miss-child-away"
