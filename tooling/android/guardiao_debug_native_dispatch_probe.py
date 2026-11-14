@@ -845,8 +845,48 @@ KOTLIN = r'''
         }
         val selected = resolver.invoke(null, localX, localY, root) as? Int
           ?: return "rn-multipoint-unconfirmed"
-        if (selected <= 0) return "rn-multipoint-unconfirmed"
-        if (selected == selectedBranch.id) selectedCount += 1
+        // Resolver results can point to native descendants, not only the
+        // direct sibling View. A direct-ID equality would falsely classify
+        // these valid hits as misses. Virtual/unmatched tags fail closed.
+        if (selected <= 0 || selected == root.id) {
+          return "rn-multipoint-unconfirmed"
+        }
+        val scan = java.util.ArrayDeque<android.view.View>()
+        scan.add(root)
+        var inspected = 0
+        var matches = 0
+        var selectedView: android.view.View? = null
+        while (!scan.isEmpty() && inspected < 2048) {
+          val candidate = scan.removeFirst()
+          inspected += 1
+          if (candidate.id == selected) {
+            matches += 1
+            selectedView = candidate
+          }
+          if (candidate is android.view.ViewGroup) {
+            for (index in 0 until candidate.childCount) {
+              scan.add(candidate.getChildAt(index))
+            }
+          }
+        }
+        if (!scan.isEmpty() || matches != 1 || selectedView == null) {
+          return "rn-multipoint-unconfirmed"
+        }
+        var cursor: android.view.View? = selectedView
+        var depth = 0
+        var underFront = false
+        while (cursor != null && cursor !== root && depth < 64) {
+          if (cursor === selectedBranch) {
+            underFront = true
+            break
+          }
+          cursor = cursor.parent as? android.view.View
+          depth += 1
+        }
+        if (depth >= 64 || (!underFront && cursor !== root)) {
+          return "rn-multipoint-unconfirmed"
+        }
+        if (underFront) selectedCount += 1
       }
       when (selectedCount) {
         3 -> "rn-multipoint-selected-all-isolated-pix"

@@ -61,6 +61,13 @@ test('SafeAreaView front children are classified by bounds without mutation',()=
  assert.match(dispatch,/pix\.width \* 0\.75f/);
  assert.match(dispatch,/negrescoLabIsolatedPixTargetCategory\(pix, pixBranch, x, py\)/);
  assert.match(dispatch,/val selected = resolver\.invoke\(null, localX, localY, root\)/);
+ assert.match(dispatch,/if \(selected <= 0 \|\| selected == root\.id\)/);
+ assert.match(dispatch,/val scan = java\.util\.ArrayDeque<android\.view\.View>\(\)/);
+ assert.match(dispatch,/if \(candidate\.id == selected\)/);
+ assert.match(dispatch,/if \(!scan\.isEmpty\(\) \|\| matches != 1 \|\| selectedView == null\)/);
+ assert.match(dispatch,/if \(cursor === selectedBranch\)/);
+ assert.match(dispatch,/if \(underFront\) selectedCount \+= 1/);
+ assert.doesNotMatch(dispatch,/if \(selected == selectedBranch\.id\) selectedCount \+= 1/);
  assert.match(dispatch,/selectedCount == 3|3 -> "rn-multipoint-selected-all-isolated-pix"/);
  assert.match(dispatch,/while \(!pixChildren\.isEmpty\(\) && inspected < 2048\)/);
  assert.doesNotMatch(dispatch,/\.setPointerEvents\(|\.setVisibility\(|\.setAlpha\(|\.performClick\(/);
@@ -210,6 +217,13 @@ test('Android 9 emits only allowlisted categories and does not expand touch budg
  assert.match(dispatch,/pix\.width \* 0\.75f/);
  assert.match(dispatch,/negrescoLabIsolatedPixTargetCategory\(pix, pixBranch, x, py\)/);
  assert.match(dispatch,/val selected = resolver\.invoke\(null, localX, localY, root\)/);
+ assert.match(dispatch,/if \(selected <= 0 \|\| selected == root\.id\)/);
+ assert.match(dispatch,/val scan = java\.util\.ArrayDeque<android\.view\.View>\(\)/);
+ assert.match(dispatch,/if \(candidate\.id == selected\)/);
+ assert.match(dispatch,/if \(!scan\.isEmpty\(\) \|\| matches != 1 \|\| selectedView == null\)/);
+ assert.match(dispatch,/if \(cursor === selectedBranch\)/);
+ assert.match(dispatch,/if \(underFront\) selectedCount \+= 1/);
+ assert.doesNotMatch(dispatch,/if \(selected == selectedBranch\.id\) selectedCount \+= 1/);
  assert.match(dispatch,/selectedCount == 3|3 -> "rn-multipoint-selected-all-isolated-pix"/);
  assert.match(dispatch,/while \(!pixChildren\.isEmpty\(\) && inspected < 2048\)/);
  assert.doesNotMatch(dispatch,/\.setPointerEvents\(|\.setVisibility\(|\.setAlpha\(|\.performClick\(/);
