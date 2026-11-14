@@ -6,6 +6,8 @@ on:
     paths:
       - .github/workflows/guardiao-debug-quick-pix-comparator.yml
       - tooling/android/guardiao_debug_touch_delivery_lab.py
+      - apps/mobile/App.tsx
+      - tests/guardiao-debug-quick-pix-comparator.test.mjs
 permissions:
   contents: read
 concurrency:
