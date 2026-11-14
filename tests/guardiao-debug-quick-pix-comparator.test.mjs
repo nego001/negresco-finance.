@@ -22,6 +22,14 @@ test('quick Pix comparison is a single fail-closed demo shortcut gesture',()=>{
  assert.match(app,/accessibilityLabel=\{'Abrir '\+x\.name\}/);
  assert.match(runner,/def safe_quick_pix_point\(/);
  assert.match(runner,/def quick_pix_target_gate_category\(/);
+ assert.match(runner,/def quick_pix_hierarchy_nodes\(/);
+ assert.match(runner,/def quick_pix_peer_is_proven_ancestor\(/);
+ assert.match(runner,/target_path\.startswith\(peer_path\+"\/"\)/);
+ assert.match(runner,/quick-target-eligible-ancestor/);
+ assert.match(runner,/quick-too-many-ancestors/);
+ assert.match(runner,/first_nodes=quick_pix_hierarchy_nodes\(\)/);
+ assert.match(runner,/second_nodes=quick_pix_hierarchy_nodes\(\)/);
+ assert.match(runner,/first_gate!=second_gate/);
  assert.match(runner,/Quick Pix preflight first=/);
  assert.match(runner,/quick-label-absent/);
  assert.match(runner,/quick-label-ambiguous/);
@@ -59,4 +67,11 @@ test('synthetic safe-band contract tests actual tab boundary and rejects offscre
  const r=spawnSync('python3',['-I','-S','-B','-c',script],{encoding:'utf8',timeout:30000});
  assert.equal(r.status,0,'synthetic safe-band contract failed');
  assert.match(r.stdout,/safe-dynamic-band-contract-pass/);
+});
+
+test('ancestor-aware comparator allows only proven containing XML ancestors',()=>{
+ const script="import sys\nsys.path.insert(0,'tooling/android')\nimport guardiao_debug_touch_delivery_lab as t\np='com.negresco.finance'\ndef node(label,box,rid='',path='',click='true'):\n return {'content-desc':label,'package':p,'bounds':box,'resource-id':rid,\n         'clickable':click,'enabled':'true','_quick_path':path}\ntabs=[node('',f'[{i*100},890][{(i+1)*100},960]',\n           'negresco-lab-tab-'+name,'0/0/'+str(i))\n      for i,name in enumerate(('home','pix','negresco'))]\ntarget=node('Abrir Pix','[120,720][180,770]',path='0/2/1/3')\nancestor=node('','[100,690][195,785]',path='0/2/1')\nwrong=node('','[100,690][195,785]',path='0/5/1')\nnodes=[target,ancestor,*tabs]\nassert t.quick_pix_target_gate_category(nodes,400,1000,p)=='quick-target-eligible-ancestor'\nassert t.safe_quick_pix_point(nodes,400,1000,p)==(150,745)\nassert t.quick_pix_target_gate_category([target,wrong,*tabs],400,1000,p)=='quick-overlap-peer'\nassert t.safe_quick_pix_point([target,wrong,*tabs],400,1000,p) is None\nassert not t.quick_pix_peer_is_proven_ancestor(target,wrong,(120,720,180,770),(100,690,195,785))\nassert t.quick_pix_target_gate_category([target,*tabs],400,1000,p)=='quick-target-eligible'\nbad=node('','[130,720][160,760]',path='0/2')\nassert t.safe_quick_pix_point([target,bad,*tabs],400,1000,p) is None\nassert t.quick_pix_target_gate_category([target,bad,*tabs],400,1000,p)=='quick-overlap-peer'\nmissing=node('','[100,690][195,785]')\nassert t.safe_quick_pix_point([target,missing,*tabs],400,1000,p) is None\nassert t.quick_pix_target_gate_category([target,missing,*tabs],400,1000,p)=='quick-overlap-peer'\nprint('confirmed-ancestor-only-contract-pass')";
+ const r=spawnSync('python3',['-I','-S','-B','-c',script],{encoding:'utf8',timeout:30000});
+ assert.equal(r.status,0,'strict ancestor relation synthetic contract failed');
+ assert.match(r.stdout,/confirmed-ancestor-only-contract-pass/);
 });

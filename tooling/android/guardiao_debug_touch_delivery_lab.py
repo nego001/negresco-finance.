@@ -668,6 +668,65 @@ def guarded_preview_navigation() -> None:
         raise RuntimeError("preview-navigation-count-unconfirmed")
 
 
+QUICK_PIX_PRIVATE_XML = "/sdcard/negresco_quick_pix_private.xml"
+
+
+def quick_pix_hierarchy_nodes() -> list[dict[str,str]]:
+    """Private, depth-bounded UIA snapshot with synthetic ancestry paths.
+
+    This parser never logs raw XML, labels, identifiers, bounds or paths.
+    Paths are only compared within a single disposable-emulator snapshot.
+    """
+    try:
+        BASE.adb("shell","uiautomator","dump",QUICK_PIX_PRIVATE_XML,timeout=35)
+        raw=BASE.adb("exec-out","cat",QUICK_PIX_PRIVATE_XML,timeout=15)
+        if not isinstance(raw,str) or len(raw)>MAX_XML_BYTES:
+            return []
+        root=ET.fromstring(raw.lstrip("\ufeff"))
+        result: list[dict[str,str]] = []
+        def visit(element: ET.Element, path: tuple[int,...]) -> None:
+            if len(path)>64 or len(result)>3000:
+                raise ValueError("bounded hierarchy only")
+            if element.tag=="node":
+                props=dict(element.attrib)
+                props["_quick_path"]="/".join(str(i) for i in path)
+                result.append(props)
+            for index,child in enumerate(element):
+                visit(child,path+(index,))
+        visit(root,())
+        return result if 0<len(result)<=3000 else []
+    except (ValueError,TypeError,RecursionError,ET.ParseError,Exception):
+        return []
+    finally:
+        try:
+            BASE.adb("shell","rm","-f",QUICK_PIX_PRIVATE_XML,timeout=12,check=False)
+        except Exception:
+            pass
+
+
+def quick_pix_peer_is_proven_ancestor(target: dict[str,str],
+                                     peer: dict[str,str],
+                                     target_bounds: tuple[int,int,int,int],
+                                     peer_bounds: tuple[int,int,int,int]) -> bool:
+    """Allow only a proven containing ancestor in the same XML snapshot.
+
+    A coordinate overlap or a matching bounding rectangle alone is NEVER
+    evidence of parentage, and unrelated clickable peers still block.
+    """
+    target_path=target.get("_quick_path","")
+    peer_path=peer.get("_quick_path","")
+    valid=r"[0-9]{1,4}(?:/[0-9]{1,4}){0,63}"
+    if (not isinstance(target_path,str) or not isinstance(peer_path,str)
+            or re.fullmatch(valid,target_path) is None
+            or re.fullmatch(valid,peer_path) is None
+            or not target_path.startswith(peer_path+"/")):
+        return False
+    return (peer_bounds[0]<=target_bounds[0] and
+            peer_bounds[1]<=target_bounds[1] and
+            peer_bounds[2]>=target_bounds[2] and
+            peer_bounds[3]>=target_bounds[3])
+
+
 def quick_pix_target_gate_category(nodes: list[dict[str,str]], width: int,
                                    height: int, package: str) -> str:
     """Passive explanation of the exact single-tap gates; no authorization.
@@ -714,6 +773,7 @@ def quick_pix_target_gate_category(nodes: list[dict[str,str]], width: int,
         return "quick-tabs-placement-unconfirmed"
     if y2>=nav_top-8:
         return "quick-target-near-bottom-nav"
+    ancestor_count=0
     for node in nodes:
         if (node is target or node.get("package")!=package
                 or node.get("clickable")!="true" or node.get("enabled")!="true"):
@@ -722,8 +782,14 @@ def quick_pix_target_gate_category(nodes: list[dict[str,str]], width: int,
         if other is None:
             return "quick-peer-bounds-unconfirmed"
         if other[0]<=point[0]<other[2] and other[1]<=point[1]<other[3]:
+            if quick_pix_peer_is_proven_ancestor(target,node,bounds,other):
+                ancestor_count+=1
+                if ancestor_count>8:
+                    return "quick-too-many-ancestors"
+                continue
             return "quick-overlap-peer"
-    return "quick-target-eligible"
+    return ("quick-target-eligible-ancestor" if ancestor_count
+            else "quick-target-eligible")
 
 
 def safe_quick_pix_point(nodes: list[dict[str,str]], width: int, height: int,
@@ -765,6 +831,7 @@ def safe_quick_pix_point(nodes: list[dict[str,str]], width: int, height: int,
         nav_top=min(nav_top,bar[1])
     if nav_top<int(height*.60) or y2>=nav_top-8:
         return None
+    ancestor_count=0
     for node in nodes:
         if (node is target or node.get("package")!=package
                 or node.get("clickable")!="true" or node.get("enabled")!="true"):
@@ -773,6 +840,11 @@ def safe_quick_pix_point(nodes: list[dict[str,str]], width: int, height: int,
         if other is None:
             return None
         if other[0]<=point[0]<other[2] and other[1]<=point[1]<other[3]:
+            if quick_pix_peer_is_proven_ancestor(target,node,bounds,other):
+                ancestor_count+=1
+                if ancestor_count>8:
+                    return None
+                continue
             return None
     return point
 
@@ -787,16 +859,18 @@ def quick_pix_comparator() -> None:
         raise RuntimeError("preview-initial-home-unconfirmed")
     mark_navigation_phase("before-target")
     w,h=BASE.screen_size()
-    first_nodes=BASE.xml_nodes()
+    first_nodes=quick_pix_hierarchy_nodes()
     first=safe_quick_pix_point(first_nodes,w,h,BASE.PACKAGE)
+    first_gate=quick_pix_target_gate_category(first_nodes,w,h,BASE.PACKAGE)
     time.sleep(.35)
-    second_nodes=BASE.xml_nodes()
+    second_nodes=quick_pix_hierarchy_nodes()
     second=safe_quick_pix_point(second_nodes,w,h,BASE.PACKAGE)
-    if first is None or first!=second:
-        first_gate=quick_pix_target_gate_category(first_nodes,w,h,BASE.PACKAGE)
-        second_gate=quick_pix_target_gate_category(second_nodes,w,h,BASE.PACKAGE)
-        print("ENV (LAB): Quick Pix preflight first="+first_gate+
-              " second="+second_gate,flush=True)
+    second_gate=quick_pix_target_gate_category(second_nodes,w,h,BASE.PACKAGE)
+    print("ENV (LAB): Quick Pix preflight first="+first_gate+
+          " second="+second_gate,flush=True)
+    if (first is None or first!=second or first_gate!=second_gate
+            or first_gate not in ("quick-target-eligible",
+                                  "quick-target-eligible-ancestor")):
         print("ENV (LAB): Quick Pix comparator=target-unconfirmed",flush=True)
         raise RuntimeError("preview-target-not-unique-stable-safe")
     mark_navigation_phase("before-gesture")
