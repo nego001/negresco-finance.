@@ -459,6 +459,8 @@ export default function App() {
         <View style={s.eyebrow}><View style={[s.dot,{backgroundColor:blue}]}/><Text style={[s.eyebrowText,{color:blue}]}>PAINEL PRINCIPAL</Text><Text style={s.preview}>MODO PRÉVIA</Text></View>
         <Text style={[s.heading,fontLarge&&{fontSize:39,lineHeight:47}]}>Seu universo,{"\n"}suas escolhas.</Text>
         <Text style={[s.description,fontLarge&&{fontSize:17,lineHeight:26}]}>Tudo que importa para sua vida financeira, em um só lugar.</Text>
+        <View style={s.sectionHeading}><Text style={s.sectionTitle}>Acesso rápido</Text><Text style={s.sectionCaption}>SEUS ATALHOS</Text></View>
+        <View style={s.quickRow}>{[{name:'Pix',glyph:'pix'},{name:'Contas',glyph:'accounts'},{name:'Cartões',glyph:'cards'},{name:'Metas',glyph:'goals'}].map(x=><TouchableOpacity key={x.name} accessibilityRole="button" accessibilityLabel={'Abrir '+x.name} onPress={()=>nav(x.name as Page)} ref={__DEV__&&x.name==='Pix'?labQuickPixRef:undefined} onLayout={__DEV__&&x.name==='Pix'?e=>recordLabQuickLayout(e.nativeEvent.layout.height):undefined} testID={__DEV__&&x.name==='Pix'?'negresco-lab-quick-pix-layout-'+labQuickLayout+'-window-'+labQuickWindow+'-viewport-'+labQuickViewport:undefined} style={s.quick}><View style={s.quickIcon}><Icon name={x.glyph as IconName} size={27} color={blue}/></View><Text style={s.quickText}>{x.name}</Text></TouchableOpacity>)}</View>
         <View style={s.visualBanner}><View style={s.bannerCopy}><Text style={s.bannerLabel}>NEGRESCO FINANCE</Text><Text style={s.bannerTitle}>Seu dinheiro.{"\n"}Seu ritmo.</Text><Text style={s.bannerText}>Uma nova forma de visualizar suas finanças.</Text></View><View style={s.bannerOrb}><Text style={s.bannerOrbText}>N</Text></View></View>
         <View style={s.balance}>
           <View style={s.rowBetween}><Text style={s.overline}>PATRIMÔNIO CONSOLIDADO</Text><TouchableOpacity accessibilityRole="button" accessibilityLabel="Alternar visibilidade do saldo" onPress={()=>setShowBalance(!showBalance)}><Icon name="eye" color={blue} size={22}/></TouchableOpacity></View>
@@ -467,8 +469,7 @@ export default function App() {
           <View style={s.separator}/>
           <View style={s.rowBetween}><Text style={s.balanceFooter}>Seus dados, suas permissões.</Text><Text style={{color:blue,fontSize:22}}>✧</Text></View>
         </View>
-        <View style={s.sectionHeading}><Text style={s.sectionTitle}>Acesso rápido</Text><Text style={s.sectionCaption}>SEUS ATALHOS</Text></View>
-        <View style={s.quickRow}>{[{name:'Pix',glyph:'pix'},{name:'Contas',glyph:'accounts'},{name:'Cartões',glyph:'cards'},{name:'Metas',glyph:'goals'}].map(x=><TouchableOpacity key={x.name} accessibilityRole="button" accessibilityLabel={'Abrir '+x.name} onPress={()=>nav(x.name as Page)} ref={__DEV__&&x.name==='Pix'?labQuickPixRef:undefined} onLayout={__DEV__&&x.name==='Pix'?e=>recordLabQuickLayout(e.nativeEvent.layout.height):undefined} testID={__DEV__&&x.name==='Pix'?'negresco-lab-quick-pix-layout-'+labQuickLayout+'-window-'+labQuickWindow+'-viewport-'+labQuickViewport:undefined} style={s.quick}><View style={s.quickIcon}><Icon name={x.glyph as IconName} size={27} color={blue}/></View><Text style={s.quickText}>{x.name}</Text></TouchableOpacity>)}</View>
+        
         <View style={s.sectionHeading}><Text style={s.sectionTitle}>Explore seu espaço</Text><Text style={s.sectionCaption}>07 MÓDULOS</Text></View>
         <View style={s.grid}>{sections.map(x=><Tap key={x.name} title={x.name} subtitle={compact?undefined:x.description} glyph={x.glyph} onPress={()=>nav(x.name)} style={compact?{minHeight:115}:undefined}/>)}</View>
         <Notice title="Construído para evoluir" body="Prévia segura: sem contas conectadas e sem movimentações financeiras reais."/>

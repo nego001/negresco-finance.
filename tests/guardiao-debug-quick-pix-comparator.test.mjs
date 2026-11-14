@@ -18,6 +18,21 @@ test('isolated Android API28 comparator cannot become Release or change original
  assert.match(primary,/script: python3 tooling\/android\/guardiao_debug_touch_delivery_lab\.py\n/);
  assert.doesNotMatch(primary,/--quick-pix-comparator/);
 });
+test('Home keeps the quick Pix demo shortcut ahead of tall cards without changing gesture gates',()=>{
+ const home=app.split("page==='Início'?<>")[1]?.split("</>:page==='Pix'?<>")[0];
+ assert.ok(home,'Home JSX must exist');
+ const quick=home.indexOf('Acesso rápido');
+ const banner=home.indexOf('s.visualBanner');
+ const balance=home.indexOf('s.balance');
+ const row=home.indexOf('s.quickRow');
+ assert.ok(quick>=0 && row>quick && banner>row && balance>row,
+   'quick shortcuts must precede the banner and balance in initial Home viewport');
+ assert.equal((home.match(/Acesso rápido/g)||[]).length,1);
+ assert.equal((home.match(/accessibilityLabel=\\{'Abrir '\\+x\\.name\\}/g)||[]).length,1);
+ assert.match(runner,/if dx<40 or dy<40 or len\\(nodes\\)>3000:/);
+ assert.match(runner,/first is None or first!=second/);
+});
+
 test('quick Pix comparison is a single fail-closed demo shortcut gesture',()=>{
  assert.match(app,/accessibilityLabel=\{'Abrir '\+x\.name\}/);
  assert.match(runner,/def safe_quick_pix_point\(/);
