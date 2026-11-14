@@ -22,6 +22,13 @@ test('quick Pix comparison is a single fail-closed demo shortcut gesture',()=>{
  assert.match(app,/accessibilityLabel=\{'Abrir '\+x\.name\}/);
  assert.match(runner,/def safe_quick_pix_point\(/);
  assert.match(runner,/def quick_pix_target_gate_category\(/);
+ assert.match(runner,/def quick_pix_alternate_clear_point\(/);
+ assert.match(runner,/quick-target-eligible-alternate/);
+ assert.match(runner,/positions=\(\(1,1\),\(3,1\),\(1,3\),\(3,3\)/);
+ assert.match(runner,/if dx<40 or dy<40 or len\(nodes\)>3000:/);
+ assert.match(runner,/if not unrelated_center:/);
+ assert.match(runner,/x1\+8<=px<x2-8/);
+ assert.match(runner,/if ancestors>8:/);
  assert.match(runner,/def quick_pix_hierarchy_nodes\(/);
  assert.match(runner,/def quick_pix_peer_is_proven_ancestor\(/);
  assert.match(runner,/def quick_pix_peer_relationship_category\(/);
@@ -81,4 +88,15 @@ test('ancestor-aware comparator allows only proven containing XML ancestors',()=
  const r=spawnSync('python3',['-I','-S','-B','-c',script],{encoding:'utf8',timeout:30000});
  assert.equal(r.status,0,'strict ancestor relation synthetic contract failed');
  assert.match(r.stdout,/confirmed-ancestor-only-contract-pass/);
+});
+
+test('bounded pre-gesture probe selects one clean point but never bypasses overlapping controls',()=>{
+ const script="import sys\nsys.path.insert(0,'tooling/android')\nimport guardiao_debug_touch_delivery_lab as t\np='com.negresco.finance'\ndef node(label,box,rid='',path=''):\n return {'content-desc':label,'package':p,'bounds':box,\n         'resource-id':rid,'clickable':'true','enabled':'true',\n         '_quick_path':path}\ntabs=[node('',f'[{i*100},890][{(i+1)*100},960]',\n    'negresco-lab-tab-'+name,'0/5/'+str(i))\n    for i,name in enumerate(('home','pix','negresco'))]\ntarget=node('Abrir Pix','[120,720][200,800]',path='0/2/1/3')\nsmall=node('','[155,754][166,766]',path='0/4/1')\nnodes=[target,small,*tabs]\nassert t.quick_pix_target_gate_category(nodes,400,1000,p)=='quick-target-eligible-alternate'\nassert t.safe_quick_pix_point(nodes,400,1000,p)==(140,740)\nbig=node('','[110,710][210,810]',path='0/4/1')\nassert t.quick_pix_target_gate_category([target,big,*tabs],400,1000,p)=='quick-peer-unrelated'\nassert t.safe_quick_pix_point([target,big,*tabs],400,1000,p) is None\nsibling=node('','[155,754][166,766]',path='0/2/1/4')\nassert t.quick_pix_target_gate_category([target,sibling,*tabs],400,1000,p)=='quick-peer-clickable-sibling'\nassert t.safe_quick_pix_point([target,sibling,*tabs],400,1000,p) is None\ndescendant=node('','[155,754][166,766]',path='0/2/1/3/0')\nassert t.safe_quick_pix_point([target,descendant,*tabs],400,1000,p) is None\nunknown=node('','invalid',path='0/4/1')\nassert t.safe_quick_pix_point([target,small,unknown,*tabs],400,1000,p) is None\nprint('alternate-single-safe-point-contract-pass')";
+ const r=spawnSync('python3',['-I','-S','-B','-c',script],{encoding:'utf8',timeout:30000});
+ assert.equal(r.status,0,'alternate point synthetic contract failed');
+ assert.match(r.stdout,/alternate-single-safe-point-contract-pass/);
+ const quick=runner.split('def quick_pix_comparator() -> None:')[1].split('\n\ndef run() -> None:')[0];
+ assert.equal((quick.match(/"input","tap"/g)||[]).length,1);
+ assert.match(quick,/first is None or first!=second/);
+ assert.match(quick,/first_gate!=second_gate/);
 });
