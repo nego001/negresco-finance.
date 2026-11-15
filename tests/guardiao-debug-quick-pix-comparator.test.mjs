@@ -18,13 +18,15 @@ test('isolated Android API28 comparator cannot become Release or change original
  assert.match(primary,/script: python3 tooling\/android\/guardiao_debug_touch_delivery_lab\.py\n/);
  assert.doesNotMatch(primary,/--quick-pix-comparator/);
 });
-test('Debug-only Android root hit-order A/B does not affect production or bypass gesture preflight',()=>{
- assert.ok(app.includes("__DEV__&&Platform.OS==='android'&&s.labAndroidRootHitOrder"),
-  'root stacking experiment must require both __DEV__ and Android');
+test('isolated Release-mode Android root hit-order preserves Debug gesture preflight',()=>{
+ const root=app.split('return <SafeAreaView')[1]?.split('onLayout={__DEV__')[0];
+ assert.ok(root?.includes("Platform.OS==='android'&&s.labAndroidRootHitOrder"),
+  'root hit-order experimental Release must remain Android-only');
+ assert.ok(!root.includes("__DEV__&&Platform.OS==='android'&&s.labAndroidRootHitOrder"));
+ assert.ok(root.includes("__DEV__&&Platform.OS==='android'&&{paddingBottom:(StatusBar.currentHeight??24)}"),
+  'Debug-only bottom inset must remain isolated while root hit-order is tested');
  assert.ok(app.includes('labAndroidRootHitOrder:{zIndex:4,elevation:4}'));
  assert.equal(app.split("labAndroidRootHitOrder:{zIndex:4,elevation:4}").length,2);
- const prod=app.split('return <SafeAreaView')[1]?.split('onLayout={__DEV__')[0];
- assert.ok(prod?.includes("__DEV__&&Platform.OS==='android'&&s.labAndroidRootHitOrder"));
  assert.match(runner,/if dx<40 or dy<40 or len\(nodes\)>3000:/);
  assert.match(runner,/if \(first is None or first!=second or first_gate!=second_gate/);
  assert.ok(runner.includes('if first_gate!=second_gate')||runner.includes('or first_gate!=second_gate'));

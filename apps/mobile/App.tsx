@@ -619,6 +619,10 @@ export default function App() {
         <View style={s.visualFeature}><Text style={s.visualFeatureTitle}>Um painel preparado para você</Text><Text style={s.visualFeatureBody}>Visualização de informações, atalhos e indicadores ganhará vida quando você autorizar a conexão de dados.</Text></View><Text style={s.sectionTitle}>Explore também</Text><View style={s.grid}>{sections.filter(x=>x.name!==page).map(x=><Tap key={x.name} title={x.name} glyph={x.glyph} onPress={()=>nav(x.name)} style={{minHeight:115}}/>)}</View>
       </>}
     </ScrollView></Animated.View>
+    {/* EXPERIMENTAL Android root hit-order A/B is shared with Release-mode
+        preview only after the Debug navigation test succeeded. The existing
+        Debug-only root bottom inset is kept separate. Runtime UI bounds,
+        same-PID navigation and PDF receipts still gate any approval. */}
     {/* Candidate Release-mode layout guard: the three navigation touch targets
         retain the tested minimum dimensions outside __DEV__. Runtime geometry
         and the independent PDF receiver still decide actual lab PASS. */}
