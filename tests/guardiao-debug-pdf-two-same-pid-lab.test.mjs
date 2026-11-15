@@ -8,6 +8,7 @@ const workflow=readFileSync('.github/workflows/guardiao-debug-pdf-two-same-pid-l
 
 test('two PDF same-PID proof is restricted to synthetic Android API28 Debug',()=>{
  assert.match(workflow,/lab\/p01-guardiao-debug-pdf-two-same-pid-v1/);
+ assert.match(workflow,/lab\/p01-guardiao-two-pdf-live-geometry-v1/);
  assert.match(workflow,/api-level: 28/);
  assert.match(workflow,/assembleDebug/);
  assert.match(workflow,/verify-debug-apk/);
