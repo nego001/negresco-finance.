@@ -7,6 +7,8 @@ retain strict receipt, native-channel and safe Home navigation gates.
 """
 from __future__ import annotations
 
+import json
+import re
 import sys
 
 import guardiao_pdf_debug_metro_lab as debug
@@ -18,6 +20,43 @@ import guardiao_pdf_native_phase_lab as native
 import guardiao_debug_native_boot_categories as boot
 
 CYCLES = tuple("abcdefghij")
+
+
+def verify_extended_semantic_receipt(path) -> None:
+    """Check independent PDF metadata agreement without reading document bytes.
+
+    This is an additional contract after the existing receiver and semantic
+    proof. Equal SHA hashes across identical synthetic PDFs are allowed; never
+    treat a changed hash alone as proof of a new document.
+    """
+    failure = "same-pid-ten-pdf-semantic-metadata-unverified"
+    try:
+        if (path.is_symlink() or not path.is_file()
+                or not 0 < path.stat().st_size <= retained.MAX_RECEIPT_BYTES):
+            raise RuntimeError(failure)
+        record = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, ValueError):
+        raise RuntimeError(failure) from None
+    if type(record) is not dict:
+        raise RuntimeError(failure)
+    pages = record.get("pdfPages")
+    size = record.get("pdfSizeBytes")
+    digest = record.get("receivedPdfSha256")
+    if (type(record.get("schemaVersion")) is not int
+            or record.get("schemaVersion") != 2
+            or record.get("scope") != "SHA_PINNED_ANDROID_APP_SYNTHETIC_PDF_TEXT"
+            or record.get("chromeReferenceUsed") is not False
+            or type(pages) is not int or not 1 <= pages <= 8
+            or type(record.get("textPagesVerified")) is not int
+            or record["textPagesVerified"] != pages
+            or type(record.get("pdfPageCount")) is not int
+            or record["pdfPageCount"] != pages
+            or type(record.get("nonblankPages")) is not int
+            or record["nonblankPages"] != pages
+            or type(size) is not int or not 200 < size <= 8 * 1024 * 1024
+            or type(digest) is not str
+            or re.fullmatch(r"[0-9a-f]{64}", digest) is None):
+        raise RuntimeError(failure)
 
 
 def require_pid(expected: str | None) -> None:
@@ -96,6 +135,7 @@ def run() -> None:
             require_pid(baseline_pid)
             retained.verify_synthetic_debug_receipt(
                 semantic.REPORT, debug.debug_digest())
+            verify_extended_semantic_receipt(semantic.REPORT)
             receipts_verified += 1
             print("PASS (LAB): same-PID synthetic PDF receipt cycle " +
                   cycle + " verified", flush=True)

@@ -24,6 +24,7 @@ test('ten PDF same-PID proof is restricted to synthetic Android API28 Debug',()=
  assert.match(runner,/if args == \("install", "-r", str\(debug\.base\.APK\)\):/);
  assert.match(runner,/skipped_app_install != 1/);
  assert.match(runner,/retained\.verify_synthetic_debug_receipt\(/);
+ assert.match(runner,/verify_extended_semantic_receipt\(semantic\.REPORT\)/);
  assert.match(runner,/boot\.reset_native_window\(\)/);
  assert.match(runner,/native\.verify_diagnostic_channel\(\)/);
  assert.match(runner,/semantic\.REPORT\.unlink\(\)/);
@@ -59,7 +60,7 @@ test('ten-cycle synthetic simulation keeps one PID, skips only app reinstall and
   '  x.debug.base.adb("install","-r",str(x.debug.base.APK))',
   '  flags=("syntheticInput","realAndroidApkPdf","nativePdfSemanticTextVerified","receiverCacheClean","privateCaptureDeleted","systemChooserObserved","receiverPdfRead","allPagesRendered")',
   '  dct={flag:True for flag in flags}',
-  '  dct.update({"api":28,"apkSha256":"a"*64,"sourceFixture":x.retained.EXPECTED_FIXTURE,"approvedForProduction":False,"stableReleaseAllowed":False})',
+  '  dct.update({"api":28,"apkSha256":"a"*64,"sourceFixture":x.retained.EXPECTED_FIXTURE,"approvedForProduction":False,"stableReleaseAllowed":False,"schemaVersion":2,"scope":"SHA_PINNED_ANDROID_APP_SYNTHETIC_PDF_TEXT","chromeReferenceUsed":False,"pdfPages":1,"textPagesVerified":1,"pdfPageCount":1,"nonblankPages":1,"pdfSizeBytes":1024,"receivedPdfSha256":"b"*64})',
   '  x.semantic.REPORT.write_text(json.dumps(dct))',
   '  calls.append(("pdf",))',
   ' x.semantic.run_lab=fake_pdf',
@@ -108,7 +109,7 @@ test('ten-cycle sequence fails closed on PID change, stale native phase or dupli
   '    x.debug.base.adb("install","-r",str(x.debug.base.APK))',
   '   flags=("syntheticInput","realAndroidApkPdf","nativePdfSemanticTextVerified","receiverCacheClean","privateCaptureDeleted","systemChooserObserved","receiverPdfRead","allPagesRendered")',
   '   record={key:True for key in flags}',
-  '   record.update({"api":28,"apkSha256":"a"*64,"sourceFixture":x.retained.EXPECTED_FIXTURE,"approvedForProduction":False,"stableReleaseAllowed":False})',
+  '   record.update({"api":28,"apkSha256":"a"*64,"sourceFixture":x.retained.EXPECTED_FIXTURE,"approvedForProduction":False,"stableReleaseAllowed":False,"schemaVersion":2,"scope":"SHA_PINNED_ANDROID_APP_SYNTHETIC_PDF_TEXT","chromeReferenceUsed":False,"pdfPages":1,"textPagesVerified":1,"pdfPageCount":1,"nonblankPages":1,"pdfSizeBytes":1024,"receivedPdfSha256":"b"*64})',
   '   x.semantic.REPORT.write_text(json.dumps(record))',
   '   pdf_count[0]+=1',
   '   calls.append(("pdf",))',
@@ -128,4 +129,37 @@ test('ten-cycle sequence fails closed on PID change, stale native phase or dupli
  const outcome=spawnSync('python3',['-c',script],{encoding:'utf8',timeout:20000});
  assert.equal(outcome.status,0,outcome.stderr);
  assert.match(outcome.stdout,/PASS: ten-cycle PDF gate blocks PID drift, stale native state and duplicate reinstall/);
+});
+
+test('ten-PDF semantic receipt guard rejects inconsistent metadata without opening any PDF',()=>{
+ const py=[
+  'import sys,json,tempfile',
+  'from pathlib import Path',
+  "sys.path.insert(0,'tooling/android')",
+  'import guardiao_debug_pdf_ten_same_pid_lab as x',
+  'base={"schemaVersion":2,"scope":"SHA_PINNED_ANDROID_APP_SYNTHETIC_PDF_TEXT","chromeReferenceUsed":False,"pdfPages":1,"textPagesVerified":1,"pdfPageCount":1,"nonblankPages":1,"pdfSizeBytes":1024,"receivedPdfSha256":"b"*64}',
+  'cases=[("schemaVersion",True),("scope","unverified"),("chromeReferenceUsed",True),("pdfPages",0),("pdfPages",True),("textPagesVerified",2),("pdfPageCount",2),("nonblankPages",0),("pdfSizeBytes",True),("pdfSizeBytes",200),("receivedPdfSha256","B"*64),("receivedPdfSha256","0"*63)]',
+  'with tempfile.TemporaryDirectory() as d:',
+  ' p=Path(d)/"receipt.json"',
+  ' p.write_text(json.dumps(base))',
+  ' x.verify_extended_semantic_receipt(p)',
+  ' for key,value in cases:',
+  '  bad=dict(base);bad[key]=value',
+  '  p.write_text(json.dumps(bad))',
+  '  try: x.verify_extended_semantic_receipt(p)',
+  '  except RuntimeError as err: assert str(err)=="same-pid-ten-pdf-semantic-metadata-unverified",(key,str(err))',
+  '  else: raise AssertionError("tampered metadata accepted: "+key)',
+  ' p.write_text("not-json")',
+  ' try: x.verify_extended_semantic_receipt(p)',
+  ' except RuntimeError as err: assert str(err)=="same-pid-ten-pdf-semantic-metadata-unverified"',
+  ' else: raise AssertionError("malformed metadata accepted")',
+  ' p.unlink()',
+  ' try: x.verify_extended_semantic_receipt(p)',
+  ' except RuntimeError as err: assert str(err)=="same-pid-ten-pdf-semantic-metadata-unverified"',
+  ' else: raise AssertionError("missing metadata accepted")',
+  'print("PASS: ten-PDF semantic receipt metadata is fail closed")'
+ ].join('\n');
+ const s=spawnSync('python3',['-c',py],{encoding:'utf8',timeout:20000});
+ assert.equal(s.status,0,s.stderr);
+ assert.match(s.stdout,/PASS: ten-PDF semantic receipt metadata is fail closed/);
 });

@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - lab/p01-guardiao-debug-ten-pdf-same-pid-v1
+      - lab/p01-guardiao-debug-ten-pdf-metadata-guard-v1
 permissions:
   contents: read
 concurrency:
