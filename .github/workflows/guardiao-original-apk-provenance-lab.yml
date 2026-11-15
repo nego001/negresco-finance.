@@ -1,0 +1,24 @@
+name: Guardiao original immutable APK metadata-only provenance preflight
+on:
+  push:
+    branches:
+      - lab/p01-guardiao-original-apk-provenance-v1
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: guardiao-original-apk-provenance-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  metadata-only-preflight:
+    name: Check original run and artifact metadata (no APK download)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Fail closed if original source artifact is unavailable
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 tooling/android/guardiao_original_apk_provenance_lab.py
