@@ -22,8 +22,8 @@ test('Release bottom target layout fix does not disable protected app or add aut
  assert.match(source,/const releasePdfGate=pdfNativeGate\.current\.acquire\(\)/);
  assert.match(source,/releasePdfGate\(\)/);
  assert.doesNotMatch(source,/onPress=\{\(\)=>nav\('Início'\)\}\s*\/>/);
- // Root's Android bottom inset and debug-only observability stay unchanged
+ // Root's Android bottom inset is intentionally shared in this experiment; debug-only observability remains unchanged
  // in this single native layout experiment, no 2nd copy of the nav bar.
- assert.match(source,/__DEV__&&Platform\.OS==='android'&&\{paddingBottom:\(StatusBar\.currentHeight\?\?24\)\}/);
+ assert.match(source,/Platform\.OS==='android'&&\{paddingBottom:\(StatusBar\.currentHeight\?\?24\)\}/);
  assert.equal((source.match(/style=\{\[s\.bottom,s\.labBottomBounds\]\}/g)||[]).length,1);
 });

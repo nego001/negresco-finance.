@@ -8,7 +8,7 @@ const runner=readFileSync('tooling/android/guardiao_debug_touch_delivery_lab.py'
 const workflow=readFileSync('.github/workflows/guardiao-debug-touch-delivery-lab.yml','utf8');
 const dispatch=readFileSync('tooling/android/guardiao_debug_native_dispatch_probe.py','utf8');
 
-test('all marker generation is __DEV__ only and release navigation unchanged',()=>{
+test('debug-only markers and gesture gates remain isolated during Release root inset A/B',()=>{
  assert.match(app,/onPressIn=\{__DEV__\?\(\)=>\{if\(x\.name==='Pix'\)\{setLabPixPressIn\(true\);console\.log\('NEGRESCO_LAB_NAV_TOUCHIN_PIX'\)/);
  assert.match(app,/onPress=\{\(\)=>nav\(x\.name as Page\)\}/);
  assert.match(app,/if\(__DEV__&&\(p==='Pix'\|\|p==='Início'\)\)/);
@@ -22,7 +22,7 @@ test('all marker generation is __DEV__ only and release navigation unchanged',()
  assert.doesNotMatch(app,/onTouchStart=\{__DEV__\?\(\)=>\{if\(x\.name==='Pix'/);
  assert.match(app,/collapsable=\{__DEV__\?false:undefined\} testID=\{__DEV__\?\('negresco-lab-rn-page-'/);
  assert.match(app,/accessibilityRole="tab"/);
- assert.match(app,/__DEV__&&Platform\.OS==='android'&&\{paddingBottom:/);
+ assert.match(app,/Platform\.OS==='android'&&\{paddingBottom:/);
  assert.doesNotMatch(app,/NEGRESCO_LAB_NAV_.+\$\{.*account/);
 });
 test('SafeAreaView front children and controlled disposable Debug A/B are guarded',()=>{

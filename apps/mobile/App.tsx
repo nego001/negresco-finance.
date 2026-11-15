@@ -454,6 +454,7 @@ export default function App() {
     }
     setPage(p);
   };
+  // Lab-only Android Release-mode root bottom inset A/B; actual Home bounds still gate approval.
   const active=sections.find(x=>x.name===page);
   const evidenceReview=buildEvidenceReview(boletoResult,cnpjResult);
   return <SafeAreaView ref={__DEV__?labWindowRoot:undefined} style={[s.root,{paddingTop:Platform.OS==='android'?(StatusBar.currentHeight??24):0},Platform.OS==='android'&&{paddingBottom:(StatusBar.currentHeight??24)},Platform.OS==='android'&&s.labAndroidRootHitOrder]} onLayout={__DEV__?e=>recordLabRoot(e.nativeEvent.layout.height):undefined} onTouchStart={__DEV__?()=>setLabRootTouchStart(true):undefined}>
