@@ -7,10 +7,10 @@ const app=readFileSync('apps/mobile/App.tsx','utf8');
 const runner=readFileSync('tooling/android/guardiao_debug_bottom_inset_offset_lab.py','utf8');
 const wf=readFileSync('.github/workflows/guardiao-debug-bottom-inset-offset-lab.yml','utf8');
 
-test('Debug-only bottom inset remains isolated while root hit-order is tested in Release candidate',()=>{
+test('Android bottom inset is being tested with Release root hit-order in Release candidate',()=>{
  const root=app.split('return <SafeAreaView')[1]?.split(' onLayout={__DEV__')[0];
- assert.ok(root?.includes("style={[s.root,{paddingTop:Platform.OS==='android'?(StatusBar.currentHeight??24):0},__DEV__&&Platform.OS==='android'&&{paddingBottom:(StatusBar.currentHeight??24)},Platform.OS==='android'&&s.labAndroidRootHitOrder]}"),
-  'only Debug Android may add bottom inset; root hit-order is separately A/B tested in Release');
+ assert.ok(root?.includes("style={[s.root,{paddingTop:Platform.OS==='android'?(StatusBar.currentHeight??24):0},Platform.OS==='android'&&{paddingBottom:(StatusBar.currentHeight??24)},Platform.OS==='android'&&s.labAndroidRootHitOrder]}"),
+  'the bottom inset and root hit-order are evaluated together in isolated Release');
  assert.ok(app.includes('labAndroidRootHitOrder:{zIndex:4,elevation:4}'));
  assert.match(app,/accessibilityRole="tab"/);
  assert.match(app,/onPress=\{\(\)=>nav\(x\.name as Page\)\}/);

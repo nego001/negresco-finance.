@@ -12,7 +12,8 @@ test('Android root hit-order is applied to both Debug and isolated Release-mode 
  assert.match(root,/style=\{\[s\.root,/);
  assert.match(root,/Platform\.OS==='android'&&s\.labAndroidRootHitOrder/);
  assert.doesNotMatch(root,/__DEV__&&Platform\.OS==='android'&&s\.labAndroidRootHitOrder/);
- assert.match(root,/__DEV__&&Platform\.OS==='android'&&\{paddingBottom:\(StatusBar\.currentHeight\?\?24\)\}/);
+ assert.match(root,/Platform\.OS==='android'&&\{paddingBottom:\(StatusBar\.currentHeight\?\?24\)\}/);
+ assert.doesNotMatch(root,/__DEV__&&Platform\.OS==='android'&&\{paddingBottom/);
  assert.match(app,/labAndroidRootHitOrder:\{zIndex:4,elevation:4\}/);
  assert.equal((root.match(/s\.labAndroidRootHitOrder/g)||[]).length,1);
 });

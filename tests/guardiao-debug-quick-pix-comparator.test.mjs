@@ -23,8 +23,8 @@ test('isolated Release-mode Android root hit-order preserves Debug gesture prefl
  assert.ok(root?.includes("Platform.OS==='android'&&s.labAndroidRootHitOrder"),
   'root hit-order experimental Release must remain Android-only');
  assert.ok(!root.includes("__DEV__&&Platform.OS==='android'&&s.labAndroidRootHitOrder"));
- assert.ok(root.includes("__DEV__&&Platform.OS==='android'&&{paddingBottom:(StatusBar.currentHeight??24)}"),
-  'Debug-only bottom inset must remain isolated while root hit-order is tested');
+ assert.ok(root.includes("Platform.OS==='android'&&{paddingBottom:(StatusBar.currentHeight??24)}"),
+  'bottom inset is intentionally present in isolated Android Release A/B');
  assert.ok(app.includes('labAndroidRootHitOrder:{zIndex:4,elevation:4}'));
  assert.equal(app.split("labAndroidRootHitOrder:{zIndex:4,elevation:4}").length,2);
  assert.match(runner,/if dx<40 or dy<40 or len\(nodes\)>3000:/);
