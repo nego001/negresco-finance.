@@ -28,11 +28,14 @@ def safe_home_target(nodes: list[dict[str, str]], width: int,
     rects: dict[str, tuple[int, int, int, int]] = {}
     actual: dict[str, dict[str, str]] = {}
     for ident in TAB_IDS:
-        hits = [n for n in nodes
-                if n.get("resource-id", "").rsplit("/", 1)[-1] == ident]
+        hits = [n for n in nodes if debug.safe_testid_matches(n, ident)]
         if len(hits) != 1:
             return None
         node = hits[0]
+        label = node.get("resource-id", "").rsplit("/", 1)[-1]
+        if label != ident and not label.startswith(
+                ident + "-yoga-regular-bottom-regular-placement-inside-root-window-regular-in-viewport"):
+            return None
         if (node.get("package") != package or node.get("clickable") != "true"
                 or node.get("enabled") != "true"):
             return None
@@ -96,6 +99,28 @@ def safe_js_nav_layout_category() -> str:
         return "js-layout-log-unconfirmed"
 
 
+def safe_current_testid_layout_category() -> str:
+    """Two current, independent categorical UI observations must agree."""
+    expected = (
+        "testid-yoga-all-regular",
+        "testid-bottom-inside-root",
+        "window-three-regular-in-viewport",
+        "testid-three-targets-bounded-readonly",
+    )
+    def observe() -> tuple[str, str, str, str]:
+        return (
+            debug.safe_debug_testid_yoga_category(),
+            debug.safe_debug_bottom_placement_category(),
+            debug.safe_debug_window_measure_category(),
+            debug.safe_debug_testid_nav_geometry(),
+        )
+    first = observe()
+    time.sleep(.2)
+    second = observe()
+    return ("layout-current-testids-confirmed" if first == second == expected
+            else "layout-current-testids-unconfirmed")
+
+
 def assert_same_pid(expected: str) -> None:
     if not expected or geometry.observed_single_app_pid() != expected:
         raise RuntimeError("same-process-pid-unconfirmed")
@@ -116,13 +141,16 @@ def navigate_after_verified_pdf(before_pid: str) -> None:
     if BASE.lookup("Seu dinheiro.") is not None:
         raise RuntimeError("already-on-home-unconfirmed")
     js_geometry = safe_js_nav_layout_category()
-    native_geometry = debug.safe_debug_testid_nav_geometry()
-    print("ENV (LAB): Debug Yoga layout=" + js_geometry, flush=True)
-    print("ENV (LAB): Debug native tab bounds=" + native_geometry, flush=True)
-    if js_geometry != "js-layout-all-regular":
-        raise RuntimeError("yoga-layout-unconfirmed")
-    if native_geometry != "testid-three-targets-bounded-readonly":
-        raise RuntimeError("three-target-bounds-unconfirmed")
+    live_geometry = safe_current_testid_layout_category()
+    print("ENV (LAB): Debug Yoga historical log=" + js_geometry, flush=True)
+    print("ENV (LAB): Debug current testID layout=" + live_geometry, flush=True)
+    # Contradictory historical JS evidence still blocks. Missing log markers
+    # never count as PASS by themselves: two fresh native testID readings
+    # must attest Yoga, root placement, viewport and bounded rectangles.
+    if js_geometry not in ("js-layout-all-regular", "js-layout-log-unconfirmed"):
+        raise RuntimeError("yoga-historical-layout-unsafe-or-unconfirmed")
+    if live_geometry != "layout-current-testids-confirmed":
+        raise RuntimeError("yoga-current-layout-unconfirmed")
     width, height = BASE.screen_size()
     first = safe_home_target(BASE.xml_nodes(), width, height, BASE.PACKAGE)
     if first is None:
@@ -137,8 +165,7 @@ def navigate_after_verified_pdf(before_pid: str) -> None:
     for _ in range(6):
         assert_same_pid(before_pid)
         nodes = BASE.xml_nodes()
-        homes = [n for n in nodes
-                 if n.get("resource-id", "").rsplit("/", 1)[-1] == TAB_IDS[0]]
+        homes = [n for n in nodes if debug.safe_testid_matches(n, TAB_IDS[0])]
         banner = [n for n in nodes
                   if n.get("text", "").startswith("Seu dinheiro.") and n.get("enabled") == "true"]
         if len(homes) == 1 and homes[0].get("selected") == "true" and len(banner) == 1:

@@ -32,6 +32,10 @@ test('home touch target is rejected for thin, offscreen, duplicated or ambiguous
   'bounds=["[0,800][310,900]","[320,800][650,900]","[660,800][1000,900]"]',
   'nodes=[{"resource-id":"p:id/"+n,"bounds":b,"package":"p","clickable":"true","enabled":"true","selected":"false"} for n,b in zip(names,bounds)]',
   'assert x.safe_home_target(nodes,1080,960,"p")== (155,850)',
+  'suffixed=[dict(n,**{"resource-id":n["resource-id"]+"-yoga-regular-bottom-regular-placement-inside-root-window-regular-in-viewport"}) for n in nodes]',
+  'assert x.safe_home_target(suffixed,1080,960,"p")== (155,850)',
+  'bad=[dict(n,**{"resource-id":n["resource-id"]+"-yoga-thin-bottom-regular-placement-inside-root-window-regular-in-viewport"}) for n in nodes]',
+  'assert x.safe_home_target(bad,1080,960,"p") is None',
   'assert x.safe_home_target([dict(n,bounds=b) for n,b in zip(nodes,["[0,800][310,815]","[320,800][650,815]","[660,800][1000,815]"])],1080,960,"p") is None',
   'assert x.safe_home_target(nodes[:2],1080,960,"p") is None',
   'assert x.safe_home_target(nodes+[nodes[0]],1080,960,"p") is None',
@@ -57,10 +61,36 @@ test('Debug Yoga probe uses fixed onLayout categories without exposing dimension
  assert.match(runner,/def safe_js_nav_layout_category\(\) -> str:/);
  assert.match(runner,/ReactNativeJS:I/);
  assert.match(runner,/js-layout-all-regular/);
- assert.match(runner,/if js_geometry != "js-layout-all-regular"/);
+ assert.match(runner,/safe_current_testid_layout_category/);
+ assert.match(runner,/js_geometry not in \("js-layout-all-regular", "js-layout-log-unconfirmed"\)/);
+ assert.match(runner,/live_geometry != "layout-current-testids-confirmed"/);
+ assert.match(runner,/debug\.safe_debug_testid_yoga_category\(\)/);
+ assert.match(runner,/debug\.safe_debug_bottom_placement_category\(\)/);
+ assert.match(runner,/debug\.safe_debug_window_measure_category\(\)/);
+ assert.match(runner,/debug\.safe_debug_testid_nav_geometry\(\)/);
  assert.doesNotMatch(runner,/print\(raw\)|print\(.*logcat|upload-artifact/);
 });
 
+
+test('current post-PDF Yoga needs two matching safe testID readings',()=>{
+ const py=[
+  'import sys',
+  "sys.path.insert(0,'tooling/android')",
+  'import guardiao_debug_same_process_nav_lab as x',
+  'x.time.sleep=lambda t:None',
+  'x.debug.safe_debug_testid_yoga_category=lambda:"testid-yoga-all-regular"',
+  'x.debug.safe_debug_bottom_placement_category=lambda:"testid-bottom-inside-root"',
+  'x.debug.safe_debug_window_measure_category=lambda:"window-three-regular-in-viewport"',
+  'x.debug.safe_debug_testid_nav_geometry=lambda:"testid-three-targets-bounded-readonly"',
+  'assert x.safe_current_testid_layout_category()=="layout-current-testids-confirmed"',
+  'x.debug.safe_debug_testid_yoga_category=lambda:"testid-yoga-some-thin"',
+  'assert x.safe_current_testid_layout_category()=="layout-current-testids-unconfirmed"',
+  'print("PASS: fresh layout safe and thin blocked")'
+ ].join('\n');
+ const output=spawnSync('python3',['-c',py],{encoding:'utf8',timeout:15000});
+ assert.equal(output.status,0,output.stderr);
+ assert.match(output.stdout,/PASS: fresh layout safe and thin blocked/);
+});
 
 test('home PID is captured by the launch probe before the post-PDF guard checks it',()=>{
   const stage=runner.split('    def pdf_then_navigate() -> None:')[1]?.split('\n    debug.observe_debug_home_geometry = home_probe')[0];
