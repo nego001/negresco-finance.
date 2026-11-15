@@ -603,7 +603,19 @@ def collect_persistent_visual_share_marker() -> bool:
     return False
 
 
-def run(*, after_verified_debug_pdf: Callable[[], None] | None = None) -> None:
+def valid_debug_api_for_target(observed: object, expected: object) -> bool:
+    """Strict, fixed Debug-only emulator API gate; never accept bool or wildcard."""
+    return (
+        type(expected) is int and expected in (26, 28)
+        and type(observed) is int and observed == expected
+    )
+
+
+def run(*, after_verified_debug_pdf: Callable[[], None] | None = None,
+        expected_api: int = 28) -> None:
+    # Default preserves every existing API28 Debug caller's original gate.
+    if not valid_debug_api_for_target(expected_api, expected_api):
+        raise RuntimeError("Debug-only expected Android API outside allowlist")
     if len(sys.argv) != 1 or len(FIXTURE) != 48 or FIXTURE[2] != "0":
         raise RuntimeError("synthetic fixture policy rejected")
     print("STAGE (LAB): Debug APK local integrity check starting", flush=True)
@@ -791,7 +803,8 @@ def run(*, after_verified_debug_pdf: Callable[[], None] | None = None) -> None:
         print("ENV (LAB): Android Debug native renderer exit " +
               native_print_phase.collect_renderer_exit_category(), flush=True)
         report = json.loads(semantic.REPORT.read_text(encoding="utf8"))
-        if (report.get("api") != 28 or report.get("apkSha256") != digest or
+        if (not valid_debug_api_for_target(report.get("api"), expected_api)
+            or report.get("apkSha256") != digest or
             report.get("sourceFixture") != "synthetic-48-collection-reference-invalid" or
             report.get("nativePdfSemanticTextVerified") is not True or
             report.get("receiverCacheClean") is not True or

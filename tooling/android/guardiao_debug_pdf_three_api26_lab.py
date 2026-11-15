@@ -186,7 +186,7 @@ def run() -> None:
     debug.observe_debug_home_geometry = observe_home_pid
     semantic.run_lab = ten_synthetic_pdfs
     try:
-        debug.run()
+        debug.run(expected_api=26)
         if receipts_verified != len(CYCLES):
             raise RuntimeError("same-pid-ten-pdf-receipt-count-unconfirmed")
         print("PASS (LAB): three independent synthetic PDFs in unchanged API26 Debug PID",

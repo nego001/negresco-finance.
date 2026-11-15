@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - lab/p01-guardiao-debug-three-pdf-api26-v1
+      - lab/p01-guardiao-debug-api26-final-gate-v1
 permissions:
   contents: read
 concurrency:
