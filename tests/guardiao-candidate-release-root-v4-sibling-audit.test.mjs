@@ -38,7 +38,10 @@ test('sibling inventory distinguishes duplicate content labels from unique bound
  'missing=x.sibling_inventory(a+b,W,H)',
  'assert missing["Negresco"]==("none","none","none")',
  'twice=x.sibling_inventory(a+b+b+c,W,H)',
- 'assert twice["Pix"]==("multiple","multiple","multiple")',
+ 'assert twice["Pix"]==("multiple","multiple","none"),twice',
+ 'different=tab("Pix","[400,2090][700,2220]","[490,2130][580,2190]")',
+ 'ambiguous=x.sibling_inventory(a+b+different+c,W,H)',
+ 'assert ambiguous["Pix"]==("multiple","multiple","multiple"),ambiguous',
  'print("PASS: passive sibling inventory strict labels and parent geometry")'
  ].join('\n');
  const result=spawnSync('python3',['-c',code],{encoding:'utf8',timeout:30000});
