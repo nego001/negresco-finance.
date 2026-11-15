@@ -295,6 +295,16 @@ export default function App() {
   // Do not release merely because navigation revoked a report token: the
   // Android native print promise might still be running in the background.
   const pdfNativeGate=useRef(createPdfNativeExportGate());
+  // The informational timer NEVER cancels, retries or releases native printing.
+  // It only makes a long-running attempt visible while the native gate is held.
+  const [reportPdfLongPending,setReportPdfLongPending]=useState(false);
+  useEffect(()=>{
+    if(!reportPdfBusy)return;
+    const noticeTimer=setTimeout(()=>{
+      if(pdfNativeGate.current.busy())setReportPdfLongPending(true);
+    },30000);
+    return ()=>clearTimeout(noticeTimer);
+  },[reportPdfBusy]);
   // Debug-only observation: this fixed code survives rapid native chooser
   // transitions, unlike transient pending Text. No PDF/input/URI is retained.
   const [labLastPdfStartedPhase,setLabLastPdfStartedPhase]=useState<PdfExportPendingPhase|null>(null);
@@ -394,6 +404,7 @@ export default function App() {
       // Unlock only after the original export promise actually settles.
       releasePdfGate();
       setReportPdfBusy(false);
+      setReportPdfLongPending(false);
     }
   };
   const [guardiaoHistory,setGuardiaoHistory]=useState<{id:string;date:string;kind:string;valid:boolean;digits:number}[]>([]);
@@ -541,6 +552,13 @@ export default function App() {
         </View>
         {boletoResult&&<TouchableOpacity accessibilityRole="button" disabled={reportPdfBusy} onPress={exportLocalPdf} style={[s.actionButton,{backgroundColor:blue,marginBottom:15}]}><Text style={s.actionText}>Gerar e compartilhar relatório PDF</Text></TouchableOpacity>}
         {!!reportExportStatus&&<Text style={[s.visualFeatureBody,{marginBottom:12}]}>{reportExportStatus}</Text>}
+        {reportPdfBusy&&reportPdfLongPending&&pdfNativeGate.current.busy()&&
+          <Text style={[s.visualFeatureBody,{marginBottom:12}]}
+            accessibilityLiveRegion="polite"
+            accessibilityLabel="PDF ainda pendente. Nenhuma segunda exportação será iniciada.">
+            A geração do PDF está demorando mais que o normal. O arquivo ainda não foi confirmado.
+            Outra exportação permanece bloqueada para evitar operações simultâneas.
+          </Text>}
         {typeof __DEV__!=='undefined'&&__DEV__&&labLastPdfStartedPhase&&
           <Text style={[s.visualFeatureBody,{marginBottom:12}]}
             accessibilityLabel={`LAB: última etapa PDF iniciada: ${labLastPdfStartedPhase}`}>

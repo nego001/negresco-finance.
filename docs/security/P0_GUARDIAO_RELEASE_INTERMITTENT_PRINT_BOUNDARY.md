@@ -71,6 +71,22 @@ nativo pode ainda estar executando **não** corrige a operação inacabada.
 Timeout não deve produzir `shared`, disparar automaticamente uma segunda
 exportação ou apagar PDF que um chooser nativo já possa estar lendo.
 
+## Experimento isolado: aviso informativo durante impressão pendente
+
+Na branch experimental `lab/p01-guardiao-pdf-pending-ux-warning-v1`,
+o aplicativo mostra, após 30 segundos com a operação nativa ainda ocupada,
+um aviso de que **o arquivo PDF ainda não foi confirmado** e que a segunda
+exportação permanece bloqueada. O aviso é apenas de interface e também pode
+ser acessado por leitores de tela. O tempo de 30 segundos **não** classifica
+a exportação como falha, não emite recibo e não aciona compartilhamento.
+
+O relógio informativo é cancelado quando a tentativa realmente termina; ele
+**não** destrava `pdfSingleFlight`, não resolve/rejeita a promessa de
+`Print.printToFileAsync()`, não faz nova impressão, não apaga arquivos
+temporários e não realiza operações financeiras. O cenário de travamento
+permanece bloqueado e precisa de correção nativa comprovada. Esta alteração
+não foi integrada à `main` nem ao APK Release imutável.
+
 ## Lacuna real de evidência e plano de retomada
 
 O artifact do workflow histórico [#40617164086](https://github.com/nego001/negresco-finance./actions/runs/40617164086)
