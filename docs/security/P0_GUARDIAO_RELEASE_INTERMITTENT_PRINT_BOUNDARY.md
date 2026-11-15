@@ -29,6 +29,24 @@ circunstâncias parecidas. A comparação **não** determina a causa da
 intermitência nem demonstra influência de timing, scheduler, cache, WebView,
 React Native, `expo-print` ou `expo-sharing`.
 
+## Tempos medidos nos quatro jobs originais
+
+Os timestamps UTC permitem calcular do toque comprovado ao primeiro chooser,
+ou ao bloqueio, sem emitir qualquer conteúdo de PDF ou dado financeiro:
+
+| Amostra | Intervalo observado | Evidência |
+|---|---:|---|
+| Android 8 / API26 | 1,16 s | Chooser e recibo válido |
+| Android 9 / API28 A | 1,30 s | Chooser e recibo válido |
+| Android 9 / API28 B | 65,00 s | Timeout sem chooser e sem recibo |
+| Android 9 / API28 C | 6,55 s | Chooser e recibo válido |
+
+O tempo de 65 segundos representa a janela de observação até o bloqueio,
+não a duração conhecida da execução interna do renderer.
+
+O arquivo tooling/android/guardiao_original_release_phase_differential.py
+produz apenas categorias fixas e durações delimitadas a partir de logs locais.
+Ele não atesta origem de logs, identidade de APK, causa-raiz nem produção.
 ## O que o código permite concluir
 
 No caminho do app, `App.tsx` chama
