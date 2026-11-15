@@ -28,7 +28,10 @@ test('initial Home geometry is read-only and fails closed without touch or XML d
  assert.match(home,/home\.observed_single_app_pid\(\)!=pid/);
  assert.match(home,/candidate\.candidate_identity\(candidate\.APK\)/);
  assert.match(home,/BASE\.wait_visible\("Seu universo",retries=45\)/);
- assert.doesNotMatch(home,/input", "tap"|input", "swipe"|force-stop|pm", "clear"|print\(nodes\)|print\(pid\)|print\(result\)|screencap/);
+ // Exclude explanatory Python docstrings/comments: words like "force-stop"
+ // are allowed in documentation, but executable Android input is not.
+ const executable=home.replace(/"""[\s\S]*?"""/g,'').replace(/^\s*#.*$/gm,'');
+ assert.doesNotMatch(executable,/input", "tap"|input", "swipe"|force-stop|pm", "clear"|print\(nodes\)|print\(pid\)|print\(result\)|screencap/);
  const code=[
   'import sys',
   "sys.path.insert(0,'tooling/android')",
