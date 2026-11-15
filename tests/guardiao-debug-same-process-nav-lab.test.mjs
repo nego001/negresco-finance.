@@ -8,6 +8,8 @@ const workflow=readFileSync('.github/workflows/guardiao-debug-same-process-nav-l
 
 test('same-process navigation is isolated to ephemeral Debug API28 and never publishes',()=>{
   assert.match(workflow,/lab\/p01-guardiao-debug-same-process-nav-v1/);
+  assert.match(workflow,/lab\/p01-guardiao-pdf-post-receipt-nav-v1/);
+  assert.doesNotMatch(workflow,/workflow_dispatch|assembleRelease|upload-artifact|secrets\./i);
   assert.match(workflow,/permissions:\s*\n  contents: read/);
   assert.match(workflow,/persist-credentials: false/);
   assert.match(workflow,/assembleDebug/);

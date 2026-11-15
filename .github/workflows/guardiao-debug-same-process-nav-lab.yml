@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - lab/p01-guardiao-debug-same-process-nav-v1
+      - lab/p01-guardiao-pdf-post-receipt-nav-v1
 permissions:
   contents: read
 concurrency:
