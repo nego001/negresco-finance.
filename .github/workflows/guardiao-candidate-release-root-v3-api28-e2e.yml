@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   candidate-four-pdf-same-pid:
-    name: Independent Android9 candidate checks: ${{ matrix.scenario }}
+    name: 'Independent Android9 candidate checks: ${{ matrix.scenario }}'
     runs-on: ubuntu-22.04
     timeout-minutes: 55
     strategy:
