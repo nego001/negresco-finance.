@@ -8,7 +8,10 @@ const runner=readFileSync('tooling/android/guardiao_debug_bottom_inset_offset_la
 const wf=readFileSync('.github/workflows/guardiao-debug-bottom-inset-offset-lab.yml','utf8');
 
 test('only Debug Android adds bottom-safe inset; original Release layout stays identical',()=>{
- assert.match(app,/style=\{\[s\.root,\{paddingTop:Platform\.OS==='android'\?\(StatusBar\.currentHeight\?\?24\):0\},__DEV__&&Platform\.OS==='android'&&\{paddingBottom:\(StatusBar\.currentHeight\?\?24\)\}\]\}/);
+ const root=app.split('return <SafeAreaView')[1]?.split(' onLayout={__DEV__')[0];
+ assert.ok(root?.includes("style={[s.root,{paddingTop:Platform.OS==='android'?(StatusBar.currentHeight??24):0},__DEV__&&Platform.OS==='android'&&{paddingBottom:(StatusBar.currentHeight??24)},__DEV__&&Platform.OS==='android'&&s.labAndroidRootHitOrder]}"),
+  'only Debug Android may add the root inset and root hit-order experiment');
+ assert.ok(app.includes('labAndroidRootHitOrder:{zIndex:4,elevation:4}'));
  assert.match(app,/accessibilityRole="tab"/);
  assert.match(app,/onPress=\{\(\)=>nav\(x\.name as Page\)\}/);
  assert.match(app,/bottom:\{height:76,paddingHorizontal:12,paddingBottom:4,/);

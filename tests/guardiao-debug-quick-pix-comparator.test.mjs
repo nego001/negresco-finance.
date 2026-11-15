@@ -26,7 +26,7 @@ test('Debug-only Android root hit-order A/B does not affect production or bypass
  const prod=app.split('return <SafeAreaView')[1]?.split('onLayout={__DEV__')[0];
  assert.ok(prod?.includes("__DEV__&&Platform.OS==='android'&&s.labAndroidRootHitOrder"));
  assert.match(runner,/if dx<40 or dy<40 or len\(nodes\)>3000:/);
- assert.ok(runner.includes('if first is None or first!=second'));
+ assert.match(runner,/if \(first is None or first!=second or first_gate!=second_gate/);
  assert.ok(runner.includes('if first_gate!=second_gate')||runner.includes('or first_gate!=second_gate'));
  assert.ok(app.includes("accessibilityLabel={'Abrir '+x.name}"));
 });
