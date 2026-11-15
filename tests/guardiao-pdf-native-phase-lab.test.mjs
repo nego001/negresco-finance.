@@ -260,6 +260,8 @@ test('categorical UI trace is only after PDF evidence and never logs raw XML',()
 });
 
 test('PDF BLOCK rechecks fixed native phases and canary without leaking device state',()=>{
+ assert.match(workflow,/lab\/p01-guardiao-pdf-phase-readonly-v1/);
+ assert.doesNotMatch(workflow,/workflow_dispatch|assembleRelease|upload-artifact|secrets\./i);
  const label='print("ENV (LAB): Android Debug native print phase " +';
  const found=runner.indexOf(label);
  const start=runner.lastIndexOf('        except Exception:',found);

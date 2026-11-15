@@ -754,7 +754,7 @@ def run() -> None:
                   native_print_phase.collect_renderer_exit_category(), flush=True)
             # An initial working canary does not prove the channel works
             # after a blocked native await. Recheck using fixed codes only.
-            # Never emit logcat, exception text, HTML, URI or PDF bytes.
+            # Never emit raw device records, exceptions, HTML, URI or PDF bytes.
             print("ENV (LAB): Android Debug native phase progress on BLOCK " +
                   native_print_phase.collect_native_phase_progress(), flush=True)
             print("ENV (LAB): Android Debug layout-write order on BLOCK " +
