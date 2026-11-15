@@ -8,6 +8,7 @@ const workflow=readFileSync('.github/workflows/guardiao-debug-same-process-nav-l
 
 test('same-process navigation is isolated to ephemeral Debug API28 and never publishes',()=>{
   assert.match(workflow,/lab\/p01-guardiao-debug-same-process-nav-v1/);
+  assert.match(workflow,/lab\/p01-guardiao-debug-postpdf-late-nav-v1/);
   assert.match(workflow,/lab\/p01-guardiao-pdf-post-receipt-nav-v1/);
   assert.doesNotMatch(workflow,/workflow_dispatch|assembleRelease|upload-artifact|secrets\./i);
   assert.match(workflow,/permissions:\s*\n  contents: read/);
@@ -18,7 +19,8 @@ test('same-process navigation is isolated to ephemeral Debug API28 and never pub
   assert.doesNotMatch(workflow,/assembleRelease|workflow_dispatch|upload-artifact|contents: write|eas update|expo publish|secrets\./);
   assert.match(runner,/original_run\(\)\s+# One real PDF A/);
   assert.match(runner,/pdf_receipts != 1/);
-  assert.match(runner,/debug\.run\(\)/);
+  assert.match(runner,/debug\.run\(after_verified_debug_pdf=verify_home_after_pdf\)/);
+  assert.match(runner,/if pdf_receipts != 1 or not home_returned:/);
   assert.match(runner,/same-process-pid-unconfirmed/);
   assert.doesNotMatch(runner,/print\(\s*(?:nodes|second|first|xml|PID|fixture)\b|screencap|BASE\.adb\("shell", "pm", "clear"|BASE\.adb\("shell", "am", "force-stop"|BASE\.adb\("shell", "input", "swipe"/i);
 });
@@ -92,15 +94,35 @@ test('current post-PDF Yoga needs two matching safe testID readings',()=>{
  assert.match(output.stdout,/PASS: fresh layout safe and thin blocked/);
 });
 
+test('post-receipt callback runs after real PDF and visual gates, never before',()=>{
+ const parent=readFileSync('tooling/android/guardiao_pdf_debug_metro_lab.py','utf8');
+ const start=parent.indexOf('        report = json.loads(semantic.REPORT.read_text(');
+ const evidence=parent.indexOf('        if (report.get("api") != 28',start);
+ const phase=parent.indexOf('        if not observed:\n            raise RuntimeError("no actual debug-only phase marker was observed")',evidence);
+ const callback=parent.indexOf('            after_verified_debug_pdf()',phase);
+ const complete=parent.indexOf('        print("PASS (LAB): Debug synthetic PDF received, rendered, checked and erased")',callback);
+ assert.ok(start>=0 && start<evidence && evidence<phase && phase<callback && callback<complete,
+  'native PDF evidence, visual phase and callback order must stay fail-closed');
+ assert.match(parent,/def run\(\*, after_verified_debug_pdf: Callable\[\[\], None\] \| None = None\) -> None:/);
+ assert.match(parent,/if after_verified_debug_pdf is not None:\s*\n\s*after_verified_debug_pdf\(\)/);
+ assert.match(runner,/if pdf_receipts != 1 or not pid_before or not semantic\.REPORT\.is_file\(\):/);
+ assert.match(runner,/home_returned = True/);
+ assert.doesNotMatch(runner,/except Exception:\s*\n\s*pass\s*\n\s*home_returned = True/);
+});
+
 test('home PID is captured by the launch probe before the post-PDF guard checks it',()=>{
   const stage=runner.split('    def pdf_then_navigate() -> None:')[1]?.split('\n    debug.observe_debug_home_geometry = home_probe')[0];
   assert.ok(stage,'PDF-to-navigation stage must exist');
   const run=stage.indexOf('original_run()  # One real PDF A');
   const pid=stage.indexOf('if not pid_before:');
   const receipt=stage.indexOf('if not semantic.REPORT.is_file():');
-  const navigation=stage.indexOf('navigate_after_verified_pdf(pid_before)');
-  assert.ok(run>=0 && run<pid && pid<receipt && receipt<navigation,
-    'launch/PID capture must precede guard, receipt validation and navigation');
+  const nav=runner.split('    def verify_home_after_pdf() -> None:')[1]?.split('\n    debug.observe_debug_home_geometry = home_probe')[0];
+  assert.ok(run>=0 && run<pid && pid<receipt && nav,
+    'launch/PID capture must precede receipt validation');
+  assert.ok(!stage.includes('navigate_after_verified_pdf(pid_before)'),
+    'return must not run before the parent visual PDF gate');
+  assert.ok(nav.includes('navigate_after_verified_pdf(pid_before)'),
+    'deferred callback must perform the real guarded Home return');
   assert.match(runner,/def home_probe\(\) -> None:/);
   assert.match(runner,/debug\.observe_debug_home_geometry = home_probe/);
   assert.match(runner,/semantic\.run_lab = pdf_then_navigate/);

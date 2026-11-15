@@ -183,6 +183,7 @@ def run() -> None:
     original_probe = debug.observe_debug_home_geometry
     pid_before: str | None = None
     pdf_receipts = 0
+    home_returned = False
 
     def home_probe() -> None:
         nonlocal pid_before
@@ -194,22 +195,28 @@ def run() -> None:
 
     def pdf_then_navigate() -> None:
         nonlocal pdf_receipts
-        # The home_probe is invoked *within* original_run during app launch.
-        # Never require its PID before the probe actually executes.
+        # Keep the UI on the post-share screen until debug.run has checked
+        # the independent PDF receipt AND its original visual/phase marker.
         original_run()  # One real PDF A; independent receiver and semantic receipt.
         if not pid_before:
             raise RuntimeError("initial-process-unconfirmed")
         if not semantic.REPORT.is_file():
             raise RuntimeError("synthetic-pdf-a-receipt-missing")
         pdf_receipts += 1
+
+    def verify_home_after_pdf() -> None:
+        nonlocal home_returned
+        if pdf_receipts != 1 or not pid_before or not semantic.REPORT.is_file():
+            raise RuntimeError("post-receipt-home-gate-unconfirmed")
         navigate_after_verified_pdf(pid_before)
+        home_returned = True
 
     debug.observe_debug_home_geometry = home_probe
     semantic.run_lab = pdf_then_navigate
     try:
-        debug.run()  # Preserves offline Metro, APK digest, permissions and cleanup.
-        if pdf_receipts != 1:
-            raise RuntimeError("unexpected-pdf-cycle-count")
+        debug.run(after_verified_debug_pdf=verify_home_after_pdf)
+        if pdf_receipts != 1 or not home_returned:
+            raise RuntimeError("unexpected-post-pdf-navigation-state")
     finally:
         semantic.run_lab = original_run
         debug.observe_debug_home_geometry = original_probe

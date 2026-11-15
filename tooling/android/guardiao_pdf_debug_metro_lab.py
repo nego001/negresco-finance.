@@ -6,6 +6,7 @@ NEW temporary debug APK plus local Metro. The previous SHA-pinned Release lab
 and its independently approved receipt files are never changed.
 """
 from __future__ import annotations
+from collections.abc import Callable
 
 import hashlib
 import http.client
@@ -602,7 +603,7 @@ def collect_persistent_visual_share_marker() -> bool:
     return False
 
 
-def run() -> None:
+def run(*, after_verified_debug_pdf: Callable[[], None] | None = None) -> None:
     if len(sys.argv) != 1 or len(FIXTURE) != 48 or FIXTURE[2] != "0":
         raise RuntimeError("synthetic fixture policy rejected")
     print("STAGE (LAB): Debug APK local integrity check starting", flush=True)
@@ -823,6 +824,12 @@ def run() -> None:
         # Print only categories that the source defines, never values from UI.
         for category in sorted(observed):
             print("PASS STAGE (LAB): observed " + category, flush=True)
+        # Optional lab-only continuation: only AFTER a verified PDF receipt,
+        # native share observation and all ordinary fail-closed phase gates.
+        # Used to attest post-PDF Home navigation before cleaning the runner.
+        # Default runs are unchanged; a failed continuation remains BLOCK.
+        if after_verified_debug_pdf is not None:
+            after_verified_debug_pdf()
         print("PASS (LAB): Debug synthetic PDF received, rendered, checked and erased")
     finally:
         base.adb = original_adb
