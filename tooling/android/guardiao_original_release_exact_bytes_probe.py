@@ -46,7 +46,7 @@ def probe(path: Path) -> str:
                     or not stat.S_ISREG(before.st_mode)
                     or before.st_nlink != 1):
                 return BLOCK
-            if apk.read(4) != b"PK\\x03\\x04":
+            if apk.read(4) != b"PK\x03\x04":
                 return BLOCK
             apk.seek(0)
             with zipfile.ZipFile(apk) as archive:
