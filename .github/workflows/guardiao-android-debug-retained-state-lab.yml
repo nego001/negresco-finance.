@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - lab/p01-guardiao-debug-metro-phase-v1
+      - lab/p01-guardiao-pdf-phase-readonly-v1
 permissions:
   contents: read
 concurrency:

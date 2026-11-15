@@ -8,6 +8,8 @@ const original=readFileSync('tooling/android/guardiao_pdf_debug_metro_lab.py','u
 
 test('three Debug cycles retain app state but require fresh native phase channel and real PDFs',()=>{
  assert.match(workflow,/branches:\s*\n\s+- lab\/p01-guardiao-debug-metro-phase-v1/);
+ assert.match(workflow,/lab\/p01-guardiao-pdf-phase-readonly-v1/);
+ assert.doesNotMatch(workflow,/workflow_dispatch|assembleRelease|upload-artifact|eas update|secrets\./i);
  assert.match(workflow,/name: Guardiao Android 9 Debug retained-state native PDF phases/);
  assert.match(workflow,/api-level: 28/);
  assert.match(workflow,/python3 tooling\/android\/guardiao_pdf_debug_retained_state_lab\.py/);
