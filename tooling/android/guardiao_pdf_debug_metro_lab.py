@@ -752,6 +752,15 @@ def run() -> None:
                   native_print_phase.collect_last_phase(), flush=True)
             print("ENV (LAB): Android Debug native renderer exit " +
                   native_print_phase.collect_renderer_exit_category(), flush=True)
+            # An initial working canary does not prove the channel works
+            # after a blocked native await. Recheck using fixed codes only.
+            # Never emit logcat, exception text, HTML, URI or PDF bytes.
+            print("ENV (LAB): Android Debug native phase progress on BLOCK " +
+                  native_print_phase.collect_native_phase_progress(), flush=True)
+            print("ENV (LAB): Android Debug layout-write order on BLOCK " +
+                  native_print_phase.collect_layout_write_order(), flush=True)
+            print("ENV (LAB): Android Debug native diagnostic channel on BLOCK " +
+                  native_print_phase.verify_diagnostic_channel(), flush=True)
             # Fixed process state only: no stdout, JavaScript, stack or PDF.
             print("ENV (LAB): private Metro process " +
                   ("alive" if server.poll() is None else "exited"), flush=True)

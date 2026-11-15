@@ -259,6 +259,30 @@ test('categorical UI trace is only after PDF evidence and never logs raw XML',()
  assert.doesNotMatch(runner,/print\(base\.xml_nodes|print\(nodes\)|print\(node\)|screencap|upload-artifact/);
 });
 
+test('PDF BLOCK rechecks fixed native phases and canary without leaking device state',()=>{
+ const label='print("ENV (LAB): Android Debug native print phase " +';
+ const found=runner.indexOf(label);
+ const start=runner.lastIndexOf('        except Exception:',found);
+ const end=runner.indexOf('            # Fixed process state only: no stdout, JavaScript, stack or PDF.',found);
+ assert.ok(found>=0 && start>=0 && end>found,'read-only PDF failure branch must exist');
+ const onBlock=runner.slice(start,end);
+ for(const marker of [
+  'native_print_phase.collect_last_phase()',
+  'native_print_phase.collect_renderer_exit_category()',
+  'native_print_phase.collect_native_phase_progress()',
+  'native_print_phase.collect_layout_write_order()',
+  'native_print_phase.verify_diagnostic_channel()',
+  'Android Debug native diagnostic channel on BLOCK'
+ ])assert.ok(onBlock.includes(marker),'missing native PDF diagnostic '+marker);
+ for(const forbidden of ['print(result.stdout)','print(result.stderr)','print(raw)','print(html)','print(uri)'])
+  assert.ok(!onBlock.includes(forbidden),'unfiltered native data output forbidden');
+ for(const fn of [
+  'def classify_native_phase_progress(raw:',
+  'def classify_layout_write_order(raw:',
+  'def verify_diagnostic_channel() -> str:',
+  'MAX_CAPTURE = 64_000'
+ ])assert.ok(source.includes(fn),'bounded native phase contract missing '+fn);
+});
 test('native instrumentation is installed only in disposable Debug build',()=>{
  assert.match(workflow,/python3 \.\.\/\.\.\/tooling\/android\/guardiao_pdf_native_phase_lab\.py install/);
  assert.match(workflow,/python3 \.\.\/\.\.\/tooling\/android\/guardiao_pdf_native_phase_lab\.py source-build/);
