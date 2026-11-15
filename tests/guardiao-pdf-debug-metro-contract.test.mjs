@@ -132,14 +132,21 @@ test('Debug-only native tab testIDs compare clickable target bounds without gest
 });
 
 
-test('isolated Debug-only tab bounds experiment leaves Release sizing untouched',()=>{
+test('Debug and experimental Release preview preserve strict bounded bottom-tab touch sizes',()=>{
   const app=readFileSync('apps/mobile/App.tsx','utf8');
-  assert.match(app,/<View style=\{\[s\.bottom,__DEV__&&s\.labBottomBounds\]\}/);
-  assert.match(app,/style=\{\[s\.nav,__DEV__&&s\.labNavBounds,page===x\.name&&s\.navSelected\]\}/);
+  // Historical P0 incident: Release-mode candidate exposed a point-size
+  // Início tab even while Debug's safe 60dp bounds had been verified.
+  // This experimental branch deliberately applies BOTH minima to Release too.
+  assert.match(app,/<View style=\{\[s\.bottom,s\.labBottomBounds\]\}/);
+  assert.match(app,/style=\{\[s\.nav,s\.labNavBounds,page===x\.name&&s\.navSelected\]\}/);
+  assert.doesNotMatch(app,/__DEV__&&s\.labBottomBounds|__DEV__&&s\.labNavBounds/);
   assert.match(app,/labBottomBounds:\{minHeight:76,flexShrink:0\}/);
   assert.match(app,/labNavBounds:\{height:60,minHeight:60,flexShrink:0\}/);
-  // The original values remain unchanged for non-__DEV__ builds.
+  // Keep the rest of the bar, touch target, and role exactly as before:
+  // sizing change cannot create a hidden automatic tap or bypass navigation.
   assert.match(app,/bottom:\{height:76,paddingHorizontal:12,paddingBottom:4,/);
   assert.match(app,/nav:\{width:'31%',alignItems:'center',justifyContent:'center',borderRadius:18,marginVertical:6\}/);
+  assert.match(app,/accessibilityRole="tab"/);
+  assert.match(app,/onPress=\{\(\)=>nav\(x\.name as Page\)\}/);
   assert.doesNotMatch(app,/onPress=\{\(\)=>nav\(x\.name as Page\)\}.*input\s+tap/);
 });
