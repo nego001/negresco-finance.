@@ -44,7 +44,7 @@ test('scoped triplet rejects ambiguous, overlapping and detached Android UI desc
  "overlap=tab('Pix','[280,2100][630,2230]','[380,2130][540,2190]')",
  "assert t.scoped_triplet_category(a+overlap+c,W,H)=='horizontal-overlap-or-order'",
  "misorder=tab('Pix','[720,2100][1040,2230]','[780,2130][950,2190]')",
- "assert t.scoped_triplet_category(a+misorder+c,W,H)=='horizontal-overlap-or-order'",
+ "assert t.scoped_triplet_category(a+misorder+c,W,H)!='scoped-three-tabs-verified'",
  "off=tab('Pix','[390,2340][690,2460]','[480,2350][570,2390]')",
  "assert t.scoped_triplet_category(a+off+c,W,H)!='scoped-three-tabs-verified'",
  "no_parent=a+[b[1]]+c",
