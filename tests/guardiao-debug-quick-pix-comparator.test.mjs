@@ -18,6 +18,19 @@ test('isolated Android API28 comparator cannot become Release or change original
  assert.match(primary,/script: python3 tooling\/android\/guardiao_debug_touch_delivery_lab\.py\n/);
  assert.doesNotMatch(primary,/--quick-pix-comparator/);
 });
+test('Debug-only Android root hit-order A/B does not affect production or bypass gesture preflight',()=>{
+ assert.ok(app.includes("__DEV__&&Platform.OS==='android'&&s.labAndroidRootHitOrder"),
+  'root stacking experiment must require both __DEV__ and Android');
+ assert.ok(app.includes('labAndroidRootHitOrder:{zIndex:4,elevation:4}'));
+ assert.equal(app.split("labAndroidRootHitOrder:{zIndex:4,elevation:4}").length,2);
+ const prod=app.split('return <SafeAreaView')[1]?.split('onLayout={__DEV__')[0];
+ assert.ok(prod?.includes("__DEV__&&Platform.OS==='android'&&s.labAndroidRootHitOrder"));
+ assert.match(runner,/if dx<40 or dy<40 or len\(nodes\)>3000:/);
+ assert.ok(runner.includes('if first is None or first!=second'));
+ assert.ok(runner.includes('if first_gate!=second_gate')||runner.includes('or first_gate!=second_gate'));
+ assert.ok(app.includes("accessibilityLabel={'Abrir '+x.name}"));
+});
+
 test('Home keeps the quick Pix demo shortcut ahead of tall cards without changing gesture gates',()=>{
  const home=app.split("page==='Início'?<>")[1]?.split("</>:page==='Pix'?<>")[0];
  assert.ok(home,'Home JSX must exist');
