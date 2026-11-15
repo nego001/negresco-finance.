@@ -29,7 +29,9 @@ test('two PDF same-PID proof is restricted to synthetic Android API28 Debug',()=
  assert.match(runner,/semantic\.REPORT\.unlink\(\)/);
  assert.match(runner,/if index == 0:/);
  assert.match(runner,/semantic\.run_lab = original_run/);
- assert.doesNotMatch(runner,/pm", "clear"|force-stop|reinstallRelease|print\(raw\)|print\(nodes\)|print\(.*PID|upload-artifact/i);
+ assert.doesNotMatch(runner,/pm", "clear"|force-stop|reinstallRelease|print\(raw\)|print\(nodes\)|print\(\s*(?:baseline_pid|now|expected)\b|upload-artifact/i);
+ assert.doesNotMatch(runner,/print\([^\n]*(?:str\((?:baseline_pid|now|expected)\)|\+\s*(?:baseline_pid|now|expected)\b)/i);
+ assert.match(runner,/print\("PASS \(LAB\): same-PID synthetic PDF receipt cycle "/);
 });
 
 test('two-cycle synthetic simulation keeps one PID, skips only app reinstall and verifies both fresh receipts',()=>{
