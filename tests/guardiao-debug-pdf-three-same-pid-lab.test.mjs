@@ -76,3 +76,56 @@ test('three-cycle synthetic simulation keeps one PID, skips only app reinstall a
  assert.equal(s.status,0,s.stderr);
  assert.match(s.stdout,/PASS: three independent synthetic receipts retain PID and reject reinstall/);
 });
+
+test('triple sequence fails closed on PID change, stale native phase or duplicate Debug reinstall',()=>{
+ const script=[
+  'import sys,json,tempfile',
+  'from pathlib import Path',
+  "sys.path.insert(0,'tooling/android')",
+  'import guardiao_debug_pdf_three_same_pid_lab as x',
+  'for mode in ("changed-pid","stale-native-phase","duplicate-install"):',
+  ' with tempfile.TemporaryDirectory() as d:',
+  '  x.semantic.REPORT=Path(d)/"receipt.json"',
+  '  x.debug.base.APK=Path(d)/"app-debug.apk"',
+  '  x.debug.debug_digest=lambda:"a"*64',
+  '  x.debug.observe_debug_home_geometry=lambda:None',
+  '  calls=[]; pid_probes=[0]; pdf_count=[0]',
+  '  def pid():',
+  '   pid_probes[0]+=1',
+  '   return "9999" if mode=="changed-pid" and pid_probes[0]>2 else "31415"',
+  '  x.identity.observed_single_app_pid=pid',
+  '  x.nav.navigate_after_verified_pdf=lambda expected:calls.append(("nav",expected))',
+  '  x.boot.reset_native_window=lambda:calls.append(("native-reset",))',
+  '  x.native.collect_last_phase=lambda:("native-render-completed" if mode=="stale-native-phase" else "native-phase-unconfirmed")',
+  '  x.native.verify_diagnostic_channel=lambda:"native-logcat-probe-confirmed"',
+  '  x.native.collect_native_phase_progress=lambda:"native-progress-unconfirmed"',
+  '  x.native.collect_layout_write_order=lambda:"layout-write-unconfirmed"',
+  '  x.debug.base.adb=lambda *args,**kw:calls.append(tuple(args)) or ""',
+  '  def pdf():',
+  '   x.debug.observe_debug_home_geometry()',
+  '   x.debug.base.adb("install","-r",str(x.debug.base.APK))',
+  '   if mode=="duplicate-install" and pdf_count[0]==1:',
+  '    x.debug.base.adb("install","-r",str(x.debug.base.APK))',
+  '   flags=("syntheticInput","realAndroidApkPdf","nativePdfSemanticTextVerified","receiverCacheClean","privateCaptureDeleted","systemChooserObserved","receiverPdfRead","allPagesRendered")',
+  '   record={key:True for key in flags}',
+  '   record.update({"api":28,"apkSha256":"a"*64,"sourceFixture":x.retained.EXPECTED_FIXTURE,"approvedForProduction":False,"stableReleaseAllowed":False})',
+  '   x.semantic.REPORT.write_text(json.dumps(record))',
+  '   pdf_count[0]+=1',
+  '   calls.append(("pdf",))',
+  '  x.semantic.run_lab=pdf',
+  '  x.debug.run=lambda:x.semantic.run_lab()',
+  '  try: x.run()',
+  '  except RuntimeError as error:',
+  '   expected={"changed-pid":"same-pid-three-pdf-process-identity-unconfirmed","stale-native-phase":"same-pid-three-pdf-stale-native-phase","duplicate-install":"same-pid-three-pdf-install-scope-invalid"}[mode]',
+  '   assert str(error)==expected,(mode,str(error))',
+  '  else: raise AssertionError("blocked three-PDF scenario was accepted")',
+  '  assert pdf_count[0]==1,(mode,calls)',
+  '  assert not x.semantic.REPORT.exists(),mode',
+  '  assert sum(c[0]=="install" for c in calls)==1,(mode,calls)',
+  '  assert sum(c[0]=="nav" for c in calls)<=1,(mode,calls)',
+  'print("PASS: triple PDF gate blocks PID drift, stale native state and duplicate reinstall")'
+ ].join('\n');
+ const outcome=spawnSync('python3',['-c',script],{encoding:'utf8',timeout:20000});
+ assert.equal(outcome.status,0,outcome.stderr);
+ assert.match(outcome.stdout,/PASS: triple PDF gate blocks PID drift, stale native state and duplicate reinstall/);
+});

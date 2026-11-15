@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Two synthetic Guardiao PDFs on API28 in one continuously live Debug app PID.
+"""Three synthetic Guardiao PDFs on API28 in one continuously live Debug app PID.
 
 Lab only. The original SHA-pinned Release APK, payment paths and app sources
 are unchanged. Reuse only the already installed Debug app on cycles B and C;
@@ -52,7 +52,7 @@ def run() -> None:
                 # two stable reads, unchanged PID; no BACK or blind tapping.
                 nav.navigate_after_verified_pdf(baseline_pid)
                 require_pid(baseline_pid)
-                # A previous successful callback must not count for PDF B.
+                # A previous successful callback must not count for PDFs B or C.
                 boot.reset_native_window()
                 if native.collect_last_phase() != "native-phase-unconfirmed":
                     raise RuntimeError("same-pid-three-pdf-stale-native-phase")
