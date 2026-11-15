@@ -98,13 +98,14 @@ test('current post-PDF Yoga needs two matching safe testID readings',()=>{
 test('post-receipt callback runs after real PDF and visual gates, never before',()=>{
  const parent=readFileSync('tooling/android/guardiao_pdf_debug_metro_lab.py','utf8');
  const start=parent.indexOf('        report = json.loads(semantic.REPORT.read_text(');
- const evidence=parent.indexOf('        if (report.get("api") != 28',start);
+ const evidence=parent.indexOf('        if (not valid_debug_api_for_target(report.get("api"), expected_api)',start);
  const phase=parent.indexOf('        if not observed:\n            raise RuntimeError("no actual debug-only phase marker was observed")',evidence);
  const callback=parent.indexOf('            after_verified_debug_pdf()',phase);
  const complete=parent.indexOf('        print("PASS (LAB): Debug synthetic PDF received, rendered, checked and erased")',callback);
  assert.ok(start>=0 && start<evidence && evidence<phase && phase<callback && callback<complete,
   'native PDF evidence, visual phase and callback order must stay fail-closed');
- assert.match(parent,/def run\(\*, after_verified_debug_pdf: Callable\[\[\], None\] \| None = None\) -> None:/);
+ assert.match(parent,/def run\(\*, after_verified_debug_pdf: Callable\[\[\], None\] \| None = None,\s*\n\s*expected_api: int = 28\) -> None:/);
+ assert.match(parent,/not valid_debug_api_for_target\(report\.get\("api"\), expected_api\)/);
  assert.match(parent,/if after_verified_debug_pdf is not None:\s*\n\s*after_verified_debug_pdf\(\)/);
  assert.match(runner,/if pdf_receipts != 1 or not pid_before or not semantic\.REPORT\.is_file\(\):/);
  assert.match(runner,/home_returned = True/);
