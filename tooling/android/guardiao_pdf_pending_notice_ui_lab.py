@@ -73,8 +73,10 @@ def run() -> None:
     if BASE.REPORT.exists():
         raise RuntimeError("stale receiver receipt")
     original_adb, original_chooser = BASE.adb, BASE.chooser_present
+    original_wait = BASE.wait_visible
     radio_skips: set[str] = set()
     started, baseline_pid = None, None
+    notice_scrolls = 0
     server, relay = None, None
     verified = False
 
@@ -86,8 +88,23 @@ def run() -> None:
             raise RuntimeError("unexpected radio disable")
         return original_adb(*args,**kwargs)
 
+    def strict_synthetic_field(needle: str, retries: int = 25, *,
+                               scroll: bool = False, enabled: bool = False):
+        node = original_wait(needle, retries=retries, scroll=scroll, enabled=enabled)
+        if needle != "Linha digitável do boleto" or retries not in (10, 30):
+            return node
+        # Do not mistake an accessible label TextView for the actual EditText.
+        fields = [item for item in BASE.xml_nodes()
+                  if item.get("class") == "android.widget.EditText"
+                  and item.get("content-desc") == "Linha digitável do boleto"]
+        if len(fields) != 1:
+            raise RuntimeError("unique synthetic EditText not observed")
+        if retries == 10 and fields[0].get("text") != BASE.FIXTURE:
+            raise RuntimeError("exact synthetic input not confirmed")
+        return fields[0]
+
     def observe() -> bool:
-        nonlocal started, baseline_pid
+        nonlocal started, baseline_pid, notice_scrolls
         if original_chooser():
             raise RuntimeError("unexpected native chooser")
         pid = identity.observed_single_app_pid()
@@ -96,14 +113,20 @@ def run() -> None:
         if started is None:
             started, baseline_pid = time.monotonic(), pid
         elapsed = time.monotonic()-started
-        if elapsed >= 27 and strict_notice(BASE.xml_nodes()):
-            if not 28 <= elapsed <= 95:
-                raise RuntimeError("pending notice timing outside bounded range")
-            if BASE.receiver_receipt() is not None or BASE.REPORT.exists():
-                raise RuntimeError("unexpected receipt while synthetic print unresolved")
-            if identity.observed_single_app_pid() != baseline_pid:
-                raise RuntimeError("pending notice app PID changed")
-            raise NoticeVerified()
+        if elapsed >= 27:
+            if strict_notice(BASE.xml_nodes()):
+                if not 28 <= elapsed <= 95:
+                    raise RuntimeError("pending notice timing outside bounded range")
+                if BASE.receiver_receipt() is not None or BASE.REPORT.exists():
+                    raise RuntimeError("unexpected receipt while synthetic print unresolved")
+                if identity.observed_single_app_pid() != baseline_pid:
+                    raise RuntimeError("pending notice app PID changed")
+                raise NoticeVerified()
+            # The notice is below the export button in the ScrollView.
+            # Bounded read-only viewport movement; never tap again or retry.
+            if notice_scrolls < 5:
+                BASE.scroll_forward_precise()
+                notice_scrolls += 1
         return False
 
     try:
@@ -114,6 +137,7 @@ def run() -> None:
         original_adb("reverse",f"tcp:{debug.BUNDLE_PORT}",f"tcp:{transport.LISTEN_PORT}")
         relay.reset_after_preflight()
         BASE.adb, BASE.chooser_present = keep_metro, observe
+        BASE.wait_visible = strict_synthetic_field
         try:
             # Existing strict one-shot real Android navigation, fixed invalid
             # synthetic input and export tap; no PDF is expected in this test.
@@ -129,6 +153,7 @@ def run() -> None:
         print("PASS (LAB): unchanged app PID, no chooser, no PDF receipt",flush=True)
     finally:
         BASE.adb, BASE.chooser_present = original_adb, original_chooser
+        BASE.wait_visible = original_wait
         BASE.REPORT.unlink(missing_ok=True)
         try:
             original_adb("reverse","--remove",f"tcp:{debug.BUNDLE_PORT}",check=False)

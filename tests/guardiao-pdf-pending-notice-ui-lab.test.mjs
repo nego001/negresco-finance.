@@ -14,6 +14,12 @@ test('real API28 pending warning lab uses only disposable source and no producti
  assert.match(source,/original_chooser\(\)/);
  assert.match(source,/BASE\.receiver_receipt\(\) is not None/);
  assert.match(source,/identity\.observed_single_app_pid\(\)/);
+ assert.match(source,/def strict_synthetic_field\(/);
+ assert.match(source,/len\(fields\) != 1/);
+ assert.match(source,/fields\[0\]\.get\("text"\) != BASE\.FIXTURE/);
+ assert.match(source,/notice_scrolls < 5/);
+ assert.match(source,/BASE\.scroll_forward_precise\(\)/);
+ assert.match(source,/BASE\.wait_visible = original_wait/);
  assert.doesNotMatch(app,/CI-only synthetic Debug hang/);
  assert.match(workflow,/api-level: 28/);
  assert.match(workflow,/assembleDebug/);
