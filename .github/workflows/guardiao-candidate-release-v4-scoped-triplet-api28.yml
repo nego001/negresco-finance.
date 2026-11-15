@@ -1,0 +1,74 @@
+name: Guardiao Android v4 bounded bottom triplet proof API28
+on:
+  push:
+    branches:
+      - lab/p01-guardiao-release-v4-scoped-bottom-triplet-api28-v1
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: guardiao-candidate-v4-scoped-triplet-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  candidate-four-pdf-same-pid:
+    name: 'Read-only Android9 candidate proof: ${{ matrix.scenario }}'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 55
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: [home_only]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Download only original pinned current candidate artifact, not historical APK
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: negresco-finance-v313-security-preview
+          run-id: 43772274643
+          repository: nego001/negresco-finance.
+          github-token: ${{ github.token }}
+          path: test-apk
+      - name: Verify SHA of test-only candidate and stage without rebuild or data clearing
+        run: |
+          set -euo pipefail
+          APK=test-apk/Negresco-Finance-V3.1.3-preview.apk
+          test -f "$APK"
+          test ! -L "$APK"
+          echo '3f41e039ef519de16858df94e57b81f7133154e928071557fd9a6057fa3ca9c6  test-apk/Negresco-Finance-V3.1.3-preview.apk' | sha256sum --check --strict
+          install -D -m 0600 "$APK" test-apk/android/app/build/outputs/apk/release/app-release.apk
+          echo '3f41e039ef519de16858df94e57b81f7133154e928071557fd9a6057fa3ca9c6  test-apk/android/app/build/outputs/apk/release/app-release.apk' | sha256sum --check --strict
+          echo 'PASS (LAB): current candidate exact SHA verified without original Release substitution'
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd
+        with:
+          packages: platform-tools
+      - name: Verify APK is test-only Debug signed despite Release compile
+        run: |
+          set -euo pipefail
+          APK=test-apk/android/app/build/outputs/apk/release/app-release.apk
+          test -f "$APK"
+          test -x "$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK" > /tmp/negresco-candidate-signature
+          grep -Fq 'CN=Android Debug' /tmp/negresco-candidate-signature
+          echo 'PASS (LAB): new Release-mode candidate signed only for disposable tests'
+      - name: Enable temporary Android emulator acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-negresco-kvm.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Attest three unique bounded bottom tabs without any gesture
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
+        with:
+          api-level: 28
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          emulator-boot-timeout: 600
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          script: python3 tooling/android/guardiao_candidate_release_v4_scoped_triplet_api28_lab.py
+      # Offline, synthetic-only: no Release build, app update, OTA, upload or PDF file.
