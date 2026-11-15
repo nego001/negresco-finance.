@@ -111,7 +111,7 @@ test('post-receipt callback runs after real PDF and visual gates, never before',
 });
 
 test('home PID is captured by the launch probe before the post-PDF guard checks it',()=>{
-  const stage=runner.split('    def pdf_then_navigate() -> None:')[1]?.split('\n    debug.observe_debug_home_geometry = home_probe')[0];
+  const stage=runner.split('    def pdf_then_navigate() -> None:')[1]?.split('\n    def verify_home_after_pdf() -> None:')[0];
   assert.ok(stage,'PDF-to-navigation stage must exist');
   const run=stage.indexOf('original_run()  # One real PDF A');
   const pid=stage.indexOf('if not pid_before:');

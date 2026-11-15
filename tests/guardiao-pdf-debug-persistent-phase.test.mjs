@@ -48,7 +48,7 @@ test('persistent marker is checked only after real PDF receipt, without weakenin
 
 test('post-receiver visual scan checks UI before any Back that could dismiss evidence',()=>{
   const start=runner.indexOf('def collect_persistent_visual_share_marker() -> bool:');
-  const end=runner.indexOf('def run() -> None:',start);
+  const end=runner.indexOf('def run(',start);
   assert.ok(start>=0 && end>start);
   const collector=runner.slice(start,end);
   const snapshot=collector.indexOf('initial_nodes = base.xml_nodes()');

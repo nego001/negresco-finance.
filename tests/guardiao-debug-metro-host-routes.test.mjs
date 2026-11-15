@@ -57,7 +57,8 @@ test('host-route checks are read-only, fixed-address and post-failure only',()=>
   assert.match(probe,/MAX_OUTPUT = 16_384/);
   assert.match(runner,/host_routes\.fixed_route_categories\(\)/);
   assert.match(runner,/Android Debug Metro emulator alias/);
-  const start=runner.indexOf('def run() -> None:');
+  const start=runner.indexOf('def run(');
+  assert.ok(start>=0,'Debug runner entrypoint must exist');
   const body=runner.slice(start);
   assert.ok(body.indexOf('except Exception:')<body.indexOf('host_routes.fixed_route_categories()'));
   assert.doesNotMatch(probe,/print\(|logging\.|write_text|write_bytes|screencap|logcat|upload_file|requests\.|urllib|https?:\/\/|settings put|setprop|input keyevent/i);
