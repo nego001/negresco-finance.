@@ -26,7 +26,7 @@ def inspect(path: Path, expected: str = ORIGINAL_SHA256,
             minimum: int = MIN_APK_BYTES,
             maximum: int = MAX_APK_BYTES) -> str:
     """Hashes a single non-symlink regular file with descriptor-stable identity."""
-    if (type(path) is not Path or type(expected) is not str or
+    if (not isinstance(path, Path) or type(expected) is not str or
             len(expected) != 64 or
             any(char not in "0123456789abcdef" for char in expected) or
             type(minimum) is not int or type(maximum) is not int or
