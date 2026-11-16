@@ -25,6 +25,27 @@ SCOPED_CODES = frozenset((
     "duplicate-parent", "horizontal-overlap-or-order", "rows-not-aligned",
 ))
 STAGES = frozenset(("initial", "pre-return", "post-return"))
+HOME_CODES = frozenset((
+    "home-label-bounded", "home-label-unconfirmed", "home-bounds-unconfirmed",
+    "home-layout-unconfirmed", "three-tabs-thin",
+))
+LABEL_CODES = frozenset((
+    "on-bottom-band", "onscreen-other-band", "offscreen", "point-only",
+    "zero-area", "unconfirmed", "reversed", "viewport-unconfirmed",
+))
+ANCESTOR_CODES = frozenset((
+    "geometry-eligible", "height-too-small", "height-too-large",
+    "bottom-too-low", "top-outside-bottom-tab", "width-too-small",
+    "width-too-large", "bounds-unconfirmed", "bounds-degenerate",
+    "bounds-offscreen", "viewport-unconfirmed",
+))
+SIBLING_CODES = frozenset((
+    "siblings-both-regular", "siblings-both-thin", "siblings-mixed-height",
+    "siblings-shared-region", "siblings-missing-or-ambiguous",
+    "siblings-package-mismatch", "siblings-bounds-unconfirmed",
+    "siblings-offscreen-or-degenerate", "home-bounds-unconfirmed",
+    "viewport-unconfirmed", "package-unconfirmed",
+))
 BLOCK = "BLOCK (LAB): API28 scoped boundary diagnosis incomplete"
 
 
@@ -38,6 +59,27 @@ def run() -> None:
     original_attest = scoped.attest_triplet
     original_home = home.restore_home_tab_in_same_process
     original_scoped = geometry.scoped_triplet_category
+    original_home_snapshot = home.safe_home_layout_snapshot_category
+
+    def safe_label(value: object, allowed: frozenset[str]) -> str:
+        return value if type(value) is str and value in allowed else "other-or-unconfirmed"
+
+    def diagnostic_home_snapshot(nodes, width, height):
+        # Reuse the *same* already fetched private UI snapshot. Never request
+        # another Android dump, recover after a failure, or approve a gesture.
+        original_verdict = original_home_snapshot(nodes, width, height)
+        try:
+            shape, ancestor, siblings = home.safe_initial_home_detail(
+                nodes, width, height
+            )
+        except Exception:
+            shape = ancestor = siblings = "other-or-unconfirmed"
+        print("ENV (LAB): home-snapshot=" +
+              safe_label(original_verdict, HOME_CODES) +
+              " label=" + safe_label(shape, LABEL_CODES) +
+              " ancestor=" + safe_label(ancestor, ANCESTOR_CODES) +
+              " siblings=" + safe_label(siblings, SIBLING_CODES), flush=True)
+        return original_verdict
 
     def diagnostic_category(nodes, width, height):
         verdict = original_scoped(nodes, width, height)
@@ -64,6 +106,7 @@ def run() -> None:
                   home.safe_home_block_category(err), flush=True)
             raise
 
+    home.safe_home_layout_snapshot_category = diagnostic_home_snapshot
     geometry.scoped_triplet_category = diagnostic_category
     scoped.attest_triplet = diagnostic_attest
     home.restore_home_tab_in_same_process = diagnostic_home
@@ -71,6 +114,7 @@ def run() -> None:
         v5.run()
     finally:
         # Restore all interceptors on both success and failure.
+        home.safe_home_layout_snapshot_category = original_home_snapshot
         geometry.scoped_triplet_category = original_scoped
         scoped.attest_triplet = original_attest
         home.restore_home_tab_in_same_process = original_home
