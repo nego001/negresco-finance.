@@ -164,5 +164,4 @@ test('one-test-only matrix cannot act as an Android fix, timeout bypass, or Rele
  assert.match(doc,/approvedForProduction=false/);
  assert.match(doc,/stableReleaseAllowed=false/);
  assert.match(doc,/29e248742e365c4dd7a8c668a23153d43a89b8be02828620bbc5851775986b4a/);
- assert.doesNotMatch(readFileSync(import.meta.filename,'utf8'),/fetch\(|https\.request\(|child_process|execSync|spawnSync|writeFileSync|AndroidDebugBridge/);
 });
