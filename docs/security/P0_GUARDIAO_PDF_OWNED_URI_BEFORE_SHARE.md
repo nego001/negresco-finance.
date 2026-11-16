@@ -14,7 +14,7 @@ A suíte `tests/guardiao-pdf-owned-uri-share-gate.test.mjs` inclui matriz sinté
 
 ## Limites da evidência
 
-**Esta branch altera a fonte do candidato para evitar uma possível exposição de arquivos, mas não reconstrói APK, não testa Android e não aprova produção.** Os APKs experimentais v4 já atestados em Android 8/9 **não contêm automaticamente esta mudança**. Uma futura compilação descartável nova, com hash e assinatura independentes e prova E2E equivalente, seria necessária antes de afirmar comportamento no dispositivo.
+**Esta branch altera a fonte do candidato; alterações em `apps/mobile/` disparam automaticamente um workflow de APK experimental assinado com certificado Android Debug. Isso NÃO equivale a teste E2E no Android, assinatura estável ou aprovação de produção.** Os APKs experimentais v4 já atestados em Android 8/9 **não contêm automaticamente esta mudança**. Uma futura compilação descartável nova, com hash e assinatura independentes e prova E2E equivalente, seria necessária antes de afirmar comportamento no dispositivo.
 
 A mudança também **não explica nem corrige** o travamento intermitente do APK histórico SHA-256 `29e248742e365c4dd7a8c668a23153d43a89b8be02828620bbc5851775986b4a`. A verificação do cache lida com o retorno *após* impressão; não ajuda se a impressão nunca retorna.
 
