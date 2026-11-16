@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "runId": 40808040078,
+  "headSha": "767ceb17a6c7b0c188bb039062edb16a4840067e",
+  "originalApkSha256": "29e248742e365c4dd7a8c668a23153d43a89b8be02828620bbc5851775986b4a",
+  "api26FirstExecutionStartedAt": "2026-10-29T02:43:32Z",
+  "purpose": "offline-historical-job-outcome-categories-only",
+  "attempts": [
+    {
+      "attempt": 1,
+      "api28JobId": 123231576126,
+      "api28": "failure",
+      "api26": "success",
+      "pair": "skipped",
+      "pairJobId": 123233137735,
+      "downloadedArtifactApis": null
+    },
+    {
+      "attempt": 2,
+      "api28JobId": 123235275913,
+      "api28": "success",
+      "api26": "success",
+      "pair": "success",
+      "pairJobId": 123236714745,
+      "downloadedArtifactApis": [
+        26,
+        28
+      ]
+    },
+    {
+      "attempt": 3,
+      "api28JobId": 124604520513,
+      "api28": "failure",
+      "api26": "success",
+      "pair": "skipped",
+      "pairJobId": 124605657880,
+      "downloadedArtifactApis": null
+    },
+    {
+      "attempt": 4,
+      "api28JobId": 125537592012,
+      "api28": "success",
+      "api26": "success",
+      "pair": "failure",
+      "pairJobId": 125540178974,
+      "downloadedArtifactApis": [
+        28
+      ]
+    },
+    {
+      "attempt": 5,
+      "api28JobId": 125544912704,
+      "api28": "failure",
+      "api26": "success",
+      "pair": "skipped",
+      "pairJobId": 125546912566,
+      "downloadedArtifactApis": null
+    },
+    {
+      "attempt": 6,
+      "api28JobId": 125591880603,
+      "api28": "success",
+      "api26": "success",
+      "pair": "failure",
+      "pairJobId": 125594024444,
+      "downloadedArtifactApis": [
+        28
+      ]
+    }
+  ]
+}
