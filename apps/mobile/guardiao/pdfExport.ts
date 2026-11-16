@@ -16,6 +16,9 @@ export type PdfExportPorts={
   sharingAvailable:()=>Promise<boolean>;
   share:(uri:string)=>Promise<unknown>;
   isCurrent:()=>boolean;
+  // Optional for existing portable tests; the mobile App always provides this
+  // strict Expo Print private-cache URI ownership predicate before sharing.
+  isOwnedPdfUri?:(uri:string)=>boolean;
   // Called for a generated file only if native sharing was never invoked.
   discardUnsharedFile?:(uri:string)=>Promise<boolean>;
   onFailurePhase?:(phase:PdfExportFailurePhase)=>void;
@@ -44,9 +47,10 @@ export async function exportPdfWithLifecycleGuard(ports:PdfExportPorts):Promise<
     const pdf=await ports.print(ports.html);
     createdUri=typeof pdf?.uri==='string'?pdf.uri:null;
     if(!authorized())return 'cancelled';
+    phase='invalid-uri';
     if(!createdUri||!createdUri.startsWith('file://')||
-       !/\.pdf(?:[?#]|$)/i.test(createdUri)){
-      phase='invalid-uri';
+       !/\.pdf(?:[?#]|$)/i.test(createdUri)||
+       (ports.isOwnedPdfUri&&ports.isOwnedPdfUri(createdUri)!==true)){
       reportFailure();
       return 'failed';
     }

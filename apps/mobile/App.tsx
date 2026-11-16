@@ -371,6 +371,7 @@ export default function App() {
           throw new Error('LAB_ORIGINAL_PDF_PRINT_FAILED');
         }
       },
+      isOwnedPdfUri:uri=>isOwnedPrintPdfUri(uri,FileSystem.cacheDirectory),
       sharingAvailable:()=>Sharing.isAvailableAsync(),
       share:uri=>Sharing.shareAsync(uri,{mimeType:'application/pdf',dialogTitle:'Compartilhar relatório do Guardião'}),
       onFailurePhase:phase=>{diagnosis.phase=phase;},
