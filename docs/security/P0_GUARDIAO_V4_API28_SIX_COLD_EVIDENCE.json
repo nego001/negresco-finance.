@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "scope": "SYNTHETIC_CANDIDATE_V4_SIX_COLD_API28_EVIDENCE_SNAPSHOT",
+  "workflowRunId": 43785823881,
+  "ciRunId": 43785823825,
+  "workflowConclusion": "success",
+  "ciConclusion": "success",
+  "ciContractsPassed": 1467,
+  "headSha": "c096d0a13ff0b4cee293446731ad9558717e6c83",
+  "candidateApkSha256": "3f41e039ef519de16858df94e57b81f7133154e928071557fd9a6057fa3ca9c6",
+  "historicalReleaseSha256": "29e248742e365c4dd7a8c668a23153d43a89b8be02828620bbc5851775986b4a",
+  "releaseSigning": "Android Debug (test-only)",
+  "approvedForProduction": false,
+  "stableReleaseAllowed": false,
+  "trials": [
+    {
+      "trial": 1,
+      "jobId": 133033094942,
+      "api": 28,
+      "jobConclusion": "success",
+      "chooserObservationBand": "5-to-15s",
+      "receiverRendered": true,
+      "semanticTextVerified": true,
+      "cacheCleared": true,
+      "originalReleaseTested": false
+    },
+    {
+      "trial": 2,
+      "jobId": 133033094756,
+      "api": 28,
+      "jobConclusion": "success",
+      "chooserObservationBand": "5-to-15s",
+      "receiverRendered": true,
+      "semanticTextVerified": true,
+      "cacheCleared": true,
+      "originalReleaseTested": false
+    },
+    {
+      "trial": 3,
+      "jobId": 133033094698,
+      "api": 28,
+      "jobConclusion": "success",
+      "chooserObservationBand": "5-to-15s",
+      "receiverRendered": true,
+      "semanticTextVerified": true,
+      "cacheCleared": true,
+      "originalReleaseTested": false
+    },
+    {
+      "trial": 4,
+      "jobId": 133033094434,
+      "api": 28,
+      "jobConclusion": "success",
+      "chooserObservationBand": "under-5s",
+      "receiverRendered": true,
+      "semanticTextVerified": true,
+      "cacheCleared": true,
+      "originalReleaseTested": false
+    },
+    {
+      "trial": 5,
+      "jobId": 133033094788,
+      "api": 28,
+      "jobConclusion": "success",
+      "chooserObservationBand": "under-5s",
+      "receiverRendered": true,
+      "semanticTextVerified": true,
+      "cacheCleared": true,
+      "originalReleaseTested": false
+    },
+    {
+      "trial": 6,
+      "jobId": 133033094728,
+      "api": 28,
+      "jobConclusion": "success",
+      "chooserObservationBand": "under-5s",
+      "receiverRendered": true,
+      "semanticTextVerified": true,
+      "cacheCleared": true,
+      "originalReleaseTested": false
+    }
+  ]
+}
