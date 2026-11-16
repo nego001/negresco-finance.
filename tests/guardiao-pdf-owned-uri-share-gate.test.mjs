@@ -61,7 +61,7 @@ test('invalid ownership fails closed when cache root is absent, falsey or malfor
  for(const root of [undefined,null,'',CACHE.slice(0,-1),'file://wrong/cache/']){
   const t=make({validate:uri=>isOwnedPrintPdfUri(uri,root)});
   assert.equal(await exportPdfWithLifecycleGuard(t.ports),'failed');
-  assert.deepEqual(t.events,['print']);
+  assert.deepEqual(t.events,['print','deleted'],'owned temporary file must be safely discarded');
   assert.deepEqual(t.diagnostics,['invalid-uri']);
  }
 });
@@ -70,12 +70,12 @@ test('false truthy and throwing custom ownership validators cannot pass',async()
  for(const value of [false,undefined,null,0,1,'yes',{}]){
   const t=make({validate:()=>value});
   assert.equal(await exportPdfWithLifecycleGuard(t.ports),'failed');
-  assert.deepEqual(t.events,['print']);
+  assert.deepEqual(t.events,['print','deleted'],'owned temporary file must be safely discarded');
   assert.deepEqual(t.diagnostics,['invalid-uri']);
  }
  const t=make({validate:()=>{throw Error('PRIVATE FAKE FILE PATH');}});
  assert.equal(await exportPdfWithLifecycleGuard(t.ports),'failed');
- assert.deepEqual(t.events,['print']);
+ assert.deepEqual(t.events,['print','deleted'],'owned temporary file must be safely discarded');
  assert.deepEqual(t.diagnostics,['invalid-uri']);
  assert.doesNotMatch(t.diagnostics.join(''),/PRIVATE|PATH|file:\/\//);
 });
