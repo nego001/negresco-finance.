@@ -13,7 +13,8 @@ test('workflow fixes immutable new APK bytes, source build identity and independ
  assert.match(wf,/0eb3d43a1190c60c8f5cd55f0b9d7a276026e6959886b9cdf3d2d07a4ffb30f4/g);
  assert.match(wf,/name: negresco-finance-v313-security-preview/);
  assert.match(wf,/name: Guardiao v5 owned PDF URI cross API native receiver/);
- assert.match(wf,/branches:\s*\n\s*- lab/p01-guardiao-v5-owned-uri-real-pdf-api26-api28-v1/);
+ assert.match(wf,/branches:\s*\n\s*- /);
+ assert.ok(wf.includes('lab/p01-guardiao-v5-owned-uri-real-pdf-api26-api28-v1'));
  assert.match(wf,/api: \[26, 28\]/);
  assert.match(wf,/trial: \[1, 2\]/);
  assert.match(wf,/fail-fast: false/);
