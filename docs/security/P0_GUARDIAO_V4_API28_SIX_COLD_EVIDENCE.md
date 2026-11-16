@@ -29,6 +29,9 @@ Suas saídas finais preservam `approvedForProduction=false` e `stableReleaseAllo
 
 O APK histórico imutável SHA `29e248742e365c4dd7a8c668a23153d43a89b8be02828620bbc5851775986b4a` continua indisponível. As seis tentativas históricas no Android9 de outubro/novembro forneceram três PDFs confirmados e três não confirmados; duas falhas posteriores de gate foram ausência de metadados API26, não impressão comprovadamente falha. Estas séries NÃO formam experimento A/B e não autorizam afirmar que v4 corrigiu o travamento.
 
+
+**Sobre o Android 8 no histórico:** os reruns 1–6 do workflow original preservaram o mesmo job API26 iniciado em 29/10. O resultado SUCCESS ali representa uma execução validada, **não seis novos emuladores Android 8 independentes**. Essa diferença importa na comparação de estabilidade entre APIs.
+
 **Próxima necessidade real:** recuperar binário histórico pelo hash exato e executar testes físicos sob revisão humana; se impossível, manter o defeito histórico não resolvido.
 
 **P0:** #120/#126 OPEN; PR #125 DRAFT/unmerged; sem merge, OTA, assinatura estável, aprovação, dados financeiros reais ou pagamento.
