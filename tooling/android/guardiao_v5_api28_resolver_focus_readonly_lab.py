@@ -14,6 +14,7 @@ import guardiao_original_release_same_process_lab as home
 
 SHA = "0eb3d43a1190c60c8f5cd55f0b9d7a276026e6959886b9cdf3d2d07a4ffb30f4"
 BLOCK = "BLOCK (LAB): Android9 resolver focus observation unverified"
+ORIGINAL_RESOURCE_CLASSIFIER = resource.classify  # Stable reference: no recursive wrapper.
 WINDOW = frozenset((
     "window-focus-unconfirmed", "window-focus-null", "window-focus-app",
     "window-focus-ime-named", "window-focus-chooser", "window-focus-other",
@@ -22,7 +23,7 @@ WINDOW = frozenset((
 
 def resolver_trigger(nodes: object, width: object, height: object) -> str:
     """Uses existing allowlisted framework resource classifier, no Android reads."""
-    signals = resource.classify(nodes, width, height)
+    signals = ORIGINAL_RESOURCE_CLASSIFIER(nodes, width, height)
     if any(v == "unconfirmed" for v in signals):
         return "unconfirmed"
     if signals[0] == "present" or signals[1] == "present":
@@ -56,6 +57,8 @@ def run() -> None:
     if len(sys.argv) != 1 or resource.SHA != SHA:
         raise RuntimeError("pinned candidate identity rejected")
     original = resource.classify
+    if original is not ORIGINAL_RESOURCE_CLASSIFIER:
+        raise RuntimeError("unexpected nested classifier wrapper")
 
     def inspect_existing_snapshot(nodes, width, height):
         marker, focus = observe(nodes, width, height)

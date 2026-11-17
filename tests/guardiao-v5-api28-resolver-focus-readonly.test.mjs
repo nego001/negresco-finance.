@@ -104,7 +104,9 @@ test('only one additional bounded read on anomaly; no gestures or new XML dumps'
  assert.match(probe,/home\.base\.adb\("shell", "dumpsys", "window", "windows"/);
  assert.match(probe,/timeout=8, check=False/);
  assert.doesNotMatch(probe,/\.xml_nodes\(|uiautomator|\binput\b|\btap\b|swipe|sleep\(|logcat|screenshot|print\(/);
- for(const needle of ['resource.classify = inspect_existing_snapshot',
+ for(const needle of ['signals = ORIGINAL_RESOURCE_CLASSIFIER(nodes, width, height)',
+   'original is not ORIGINAL_RESOURCE_CLASSIFIER',
+   'resource.classify = inspect_existing_snapshot',
    'return original(nodes, width, height)', 'resource.classify = original',
    'resource.run()', 'resolver_trigger(nodes, width, height)']) assert.ok(src.includes(needle),needle);
 });
