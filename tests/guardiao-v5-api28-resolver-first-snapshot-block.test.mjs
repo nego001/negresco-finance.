@@ -89,6 +89,5 @@ test('no bypass, new wait, relaxed geometry, app update or real data in test bra
  for(const needle of ['original = previous.classify',
    'previous.classify = classify_existing','previous.classify = original',
    'return original(nodes, width, height)'])assert.ok(resource.includes(needle),needle);
- const thisTest=readFileSync('tests/guardiao-v5-api28-resolver-first-snapshot-block.test.mjs','utf8');
- assert.doesNotMatch(thisTest,/install -r|input tap|input swipe|sleep\(|force-stop|clear data|approve.*production|payable/i);
+ assert.doesNotMatch(resource,/\.adb\(|\.xml_nodes\(|sleep\(|input.*tap|force-stop/i);
 });
