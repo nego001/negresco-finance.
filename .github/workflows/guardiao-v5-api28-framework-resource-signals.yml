@@ -1,0 +1,87 @@
+name: Guardiao v5 API28 framework resolver and chooser resource diagnosis
+on:
+  push:
+    branches:
+      - lab/p01-guardiao-v5-api28-framework-resource-signals-v1
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: guardiao-v5-resource-signals-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  api28-home-cardinality-diagnosis:
+    name: 'Android9 framework resources trial ${{ matrix.trial }}'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 55
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [28]
+        trial: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Download exact SHA pinned new owned-URI APK from its successful experimental build
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: negresco-finance-v313-security-preview
+          run-id: 43789332636
+          repository: nego001/negresco-finance.
+          github-token: ${{ github.token }}
+          path: test-apk
+      - name: Verify SHA of test-only candidate and stage without rebuild or data clearing
+        run: |
+          set -euo pipefail
+          APK=test-apk/Negresco-Finance-V3.1.3-preview.apk
+          test -f "$APK"
+          test ! -L "$APK"
+          echo '0eb3d43a1190c60c8f5cd55f0b9d7a276026e6959886b9cdf3d2d07a4ffb30f4  test-apk/Negresco-Finance-V3.1.3-preview.apk' | sha256sum --check --strict
+          install -D -m 0600 "$APK" test-apk/android/app/build/outputs/apk/release/app-release.apk
+          echo '0eb3d43a1190c60c8f5cd55f0b9d7a276026e6959886b9cdf3d2d07a4ffb30f4  test-apk/android/app/build/outputs/apk/release/app-release.apk' | sha256sum --check --strict
+          echo 'PASS (LAB): immutable v5 owned-URI APK SHA verified, no historical substitution'
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd
+        with:
+          packages: platform-tools
+      - name: Verify APK is test-only Debug signed despite Release compile
+        run: |
+          set -euo pipefail
+          APK=test-apk/android/app/build/outputs/apk/release/app-release.apk
+          test -f "$APK"
+          test -x "$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK" > /tmp/negresco-candidate-signature
+          grep -Fq 'CN=Android Debug' /tmp/negresco-candidate-signature
+          echo 'PASS (LAB): new Release-mode candidate signed only for disposable tests'
+      - name: Build permissionless independent PDF receiver
+        run: |
+          set -euo pipefail
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" >/dev/null
+          bash tooling/android/pdf-receiver-lab/build_receiving_apk.sh
+      - name: Enable offline PDF semantic extraction tools, no content logs
+        run: |
+          set -euo pipefail
+          if ! command -v pdfinfo >/dev/null || ! command -v pdftotext >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq poppler-utils
+          fi
+      - name: Enable temporary Android emulator acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-negresco-kvm.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Inspect framework resource hints without changing four-PDF gate
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
+        with:
+          api-level: ${{ matrix.api }}
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          emulator-boot-timeout: 600
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          script: python3 tooling/android/guardiao_v5_api28_framework_resource_signals_lab.py
+      # Offline, synthetic-only: no Release build, app update, OTA, upload or PDF file.
