@@ -1,0 +1,51 @@
+name: Guardiao Android9 persistent UiAutomation synthetic reference
+on:
+  push:
+    branches:
+      - lab/p01-guardiao-api28-persistent-ui-automation-selftest-v1
+permissions:
+  contents: read
+concurrency:
+  group: guardiao-persistent-ui-reference-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  reference:
+    name: 'Android9 persistent reference trial ${{ matrix.trial }}'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [28]
+        trial: [1, 2]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd
+        with:
+          packages: platform-tools
+      - name: Build synthetic SDK-only testOnly instrumentation
+        run: |
+          set -euo pipefail
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" >/dev/null
+          bash tooling/android/a11y-persistent-lab/build_self_instrumentation.sh
+      - name: Enable temporary Android emulator acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-negresco-kvm.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Check three roots in one persistent synthetic UiAutomation
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
+        with:
+          api-level: ${{ matrix.api }}
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          emulator-boot-timeout: 600
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          script: python3 tooling/android/guardiao_api28_persistent_ui_automation_smoke.py

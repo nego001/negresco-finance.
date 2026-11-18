@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.negresco.a11ypersistent.lab">
+  <application android:label="A11y Persistent LAB" android:debuggable="true" android:testOnly="true" android:allowBackup="false" android:usesCleartextTraffic="false">
+    <activity android:name=".ProbeActivity" android:exported="false" />
+  </application>
+  <instrumentation android:name=".ProbeInstrumentation" android:targetPackage="com.negresco.a11ypersistent.lab" android:functionalTest="true" />
+</manifest>
