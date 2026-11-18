@@ -50,7 +50,7 @@ test('each original dump and read is redirected to a distinct path and promptly 
   "  raise AssertionError('unexpected ADB')",
   'def flow():',
   '  for _ in range(2):',
-  '    assert d.base.adb(*d.ORIGINAL_DUMP)==None if False else True',
+  '    assert d.base.adb(*d.ORIGINAL_DUMP).startswith("UI hier")',
   '    assert d.base.adb(*d.ORIGINAL_READ)==xml',
   "with patch.object(d.base,'adb',side_effect=fake),patch.object(d.prior,'run',side_effect=flow):",
   '  saved=d.base.adb',
