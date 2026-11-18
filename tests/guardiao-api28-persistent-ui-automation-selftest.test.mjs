@@ -19,7 +19,7 @@ test('a single UiAutomation session samples three roots without node details or 
  assert.equal((src.match(/session\.getRootInActiveWindow\(\)/g)||[]).length,1);
  assert.match(src,/for \(int i = 1; i <= 3; i\+\+\)/);
  assert.match(src,/root\.recycle\(\)/);
- assert.match(src,/session\.destroy\(\)/);
+ assert.match(src,/finish\(Activity\.RESULT_OK, report\)/);
  assert.doesNotMatch(src,/getText\(|getPackageName\(|getContentDescription\(|injectInputEvent|performAction|takeScreenshot|Log\./);
 });
 test('instrumentation parser rejects missing and contradictory results',()=>{

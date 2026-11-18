@@ -38,9 +38,8 @@ public final class ProbeInstrumentation extends Instrumentation {
       verdict = "unconfirmed";
     } finally {
       report.putString("verdict", verdict);
-      if (session != null) {
-        try { session.destroy(); } catch (Exception ignored) { }
-      }
+      // Instrumentation.finish closes its owned UiAutomation connection.
+      // No hidden API: android.jar does not expose UiAutomation.destroy().
       finish(Activity.RESULT_OK, report);
     }
   }
