@@ -8,6 +8,7 @@ Never print raw XML, Android paths, window text, exception strings or hashes.
 from __future__ import annotations
 import secrets
 import sys
+from xml.etree import ElementTree as ET
 import guardiao_v5_api28_pre_snapshot_focus_lab as prior
 import guardiao_pdf_ui_emulator_smoke as base
 
@@ -68,8 +69,11 @@ def run() -> None:
                 return output
             except Exception:
                 pending = None
-                cleanup(path)
-                raise
+                try:
+                    cleanup(path)
+                except Exception:
+                    pass  # cleanup failure cannot authorize a new capture
+                raise CaptureUnconfirmed("unique dump failed closed") from None
         if args == ORIGINAL_READ:
             if pending is None:
                 raise CaptureUnconfirmed("read without confirmed unique dump")
@@ -79,9 +83,18 @@ def run() -> None:
                 output = old_adb("exec-out", "cat", path, **kwargs)
                 if type(output) is not str or not (0 < len(output) <= MAX_XML_CHARS):
                     raise CaptureUnconfirmed("invalid captured XML size")
+                try:
+                    ET.fromstring(output.lstrip("\ufeff"))
+                except ET.ParseError:
+                    raise CaptureUnconfirmed("captured XML malformed") from None
                 return output
+            except Exception:
+                raise CaptureUnconfirmed("unique XML read failed closed") from None
             finally:
-                cleanup(path)
+                try:
+                    cleanup(path)
+                except Exception:
+                    raise CaptureUnconfirmed("unique XML cleanup failed closed") from None
         return old_adb(*args, **kwargs)
 
     base.adb = capture

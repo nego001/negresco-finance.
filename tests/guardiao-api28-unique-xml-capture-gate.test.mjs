@@ -100,7 +100,7 @@ test('failed read also cleans the temporary file and preserves the failure',()=>
   "with patch.object(d.base,'adb',side_effect=fake),patch.object(d.prior,'run',side_effect=flow):",
   '  with contextlib.redirect_stdout(io.StringIO()):',
   '    try:d.run()',
-  '    except RuntimeError:pass',
+  '    except d.CaptureUnconfirmed:pass',
   "    else:raise AssertionError('cat failure must propagate')",
   "assert len(ops)==3 and ops[2][:3]==('shell','rm','-f')",
   "print('PASS (LAB): unique XML gate')",
@@ -128,4 +128,72 @@ test('workflow stays pinned to test-only APK and app/navigation gates are not ed
  assert.match(original,/first != scoped\.PASS or second != scoped\.PASS/);
  assert.match(original,/attest_triplet\(pid, "pre-return"\)/);
  assert.doesNotMatch(src,/sleep\(|input", "tap"|input", "swipe"|adb shell pm clear|logcat|screenshot/);
+});
+
+test('nonzero or timed-out uiautomator command blocks immediately; no legacy RuntimeError retry',()=>{
+ probe([
+  'calls=[]',
+  'def fail(*args,**kwargs):',
+  '  calls.append(args)',
+  "  if args[:3]==('shell','uiautomator','dump'): raise RuntimeError('PRIVATE adb error')",
+  "  if args[:3]==('shell','rm','-f'): return ''",
+  "  raise AssertionError('unexpected Android access')",
+  'def flow(): d.base.wait_visible("Guardião",retries=5)',
+  "with patch.object(d.base,'adb',side_effect=fail),patch.object(d.prior,'run',side_effect=flow):",
+  '  try:d.run()',
+  "  except d.CaptureUnconfirmed:pass",
+  "  else:raise AssertionError('failure must not enter legacy retries')",
+  'assert len(calls)==2',
+  "assert calls[0][:3]==('shell','uiautomator','dump') and calls[1][:3]==('shell','rm','-f')",
+  "print('PASS (LAB): unique XML gate')",
+ ]);
+});
+
+test('malformed XML is blocked before the legacy parse-and-retry path',()=>{
+ probe([
+  'calls=[]',
+  'def fake(*args,**kwargs):',
+  '  calls.append(args)',
+  "  if args[:3]==('shell','uiautomator','dump'):return 'UI hierchary dumped to: '+args[3]",
+  "  if args[:2]==('exec-out','cat'):return '<hierarchy><node>'",
+  "  if args[:3]==('shell','rm','-f'):return ''",
+  "  raise AssertionError('unexpected Android access')",
+  'def flow():d.base.wait_visible("Guardião",retries=5)',
+  "with patch.object(d.base,'adb',side_effect=fake),patch.object(d.prior,'run',side_effect=flow):",
+  '  try:d.run()',
+  "  except d.CaptureUnconfirmed:pass",
+  "  else:raise AssertionError('invalid XML must block')",
+  'assert len(calls)==3',
+  "print('PASS (LAB): unique XML gate')",
+ ]);
+});
+
+test('cleanup error is a hard block, even after successful dump and read',()=>{
+ probe([
+  'calls=[]',
+  'def fake(*args,**kwargs):',
+  '  calls.append(args)',
+  "  if args[:3]==('shell','uiautomator','dump'):return 'UI hierchary dumped to: '+args[3]",
+  "  if args[:2]==('exec-out','cat'):return '<hierarchy></hierarchy>'",
+  "  if args[:3]==('shell','rm','-f'):raise RuntimeError('PRIVATE filesystem error')",
+  "  raise AssertionError('unexpected Android access')",
+  'def flow():d.base.wait_visible("Guardião",retries=3)',
+  "with patch.object(d.base,'adb',side_effect=fake),patch.object(d.prior,'run',side_effect=flow):",
+  '  try:d.run()',
+  "  except d.CaptureUnconfirmed:pass",
+  "  else:raise AssertionError('cleanup failure must block')",
+  'assert len(calls)==3',
+  "print('PASS (LAB): unique XML gate')",
+ ]);
+});
+
+test('all instrumented dump/read exceptions are outside retry-swallowed exception types',()=>{
+ const legacy=readFileSync('tooling/android/guardiao_pdf_ui_emulator_smoke.py','utf8');
+ assert.match(legacy,/except \(RuntimeError, ET\.ParseError, subprocess\.TimeoutExpired\):/);
+ assert.match(src,/class CaptureUnconfirmed\(Exception\):/);
+ assert.match(src,/raise CaptureUnconfirmed\("unique dump failed closed"\) from None/);
+ assert.match(src,/raise CaptureUnconfirmed\("unique XML read failed closed"\) from None/);
+ assert.match(src,/raise CaptureUnconfirmed\("unique XML cleanup failed closed"\) from None/);
+ assert.match(src,/ET\.fromstring\(output\.lstrip\("\\ufeff"\)\)/);
+ assert.doesNotMatch(src,/sleep\(|force-stop|input", "tap"|input", "swipe"|print\(output|print\(path/);
 });
