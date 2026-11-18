@@ -110,7 +110,7 @@ test('production CLI fixes the real pinned digest and checks twice; no debugging
  assert.match(source,/if status != PASS_CODE/);
  assert.match(source,/if identity_check\(output\) != PASS_CODE/);
  assert.match(source,/os\.O_EXCL/);
- assert.match(source,/os\.O_NOFOLLOW/);
+ assert.ok(source.includes('getattr(os, "O_NOFOLLOW", 0)'),"no-follow output guard missing");
  assert.match(source,/with tempfile\.TemporaryDirectory/);
  assert.match(source,/output\.unlink\(missing_ok=True\)/);
  assert.match(verify,/ORIGINAL_APK_SHA256 = "29e248742e365c4dd7a8c668a23153d43a89b8be02828620bbc5851775986b4a"/);
