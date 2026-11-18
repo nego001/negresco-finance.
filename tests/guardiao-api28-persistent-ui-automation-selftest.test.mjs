@@ -50,3 +50,12 @@ test('branch-only two Android9 reference emulators, no finance APK or upload',()
  for(const s of ['lab/p01-guardiao-api28-persistent-ui-automation-selftest-v1','api: [28]','trial: [1, 2]','contents: read','persist-credentials: false','-no-snapshot'])assert.ok(workflow.includes(s),s);
  assert.doesNotMatch(workflow,/com\.negresco\.finance|download-artifact|upload-artifact|contents: write|workflow_dispatch:|schedule:|pull_request:|secrets\./);
 });
+
+test('bounded stage codes and root verdicts do not leak instrumentation output',()=>{
+ const runner=readFileSync('tooling/android/guardiao_api28_persistent_ui_automation_smoke.py','utf8');
+ for(const s of ['STAGE = "startup"','STAGE = "api28-check"','STAGE = "package-preflight"',
+  'STAGE = "synthetic-install"','STAGE = "instrumentation-command"',
+  'STAGE = "root-verdict"','ENV (LAB): persistent-root-category=',
+  'BLOCK + " stage=" + STAGE'])assert.ok(runner.includes(s),s);
+ assert.doesNotMatch(runner,/print\(result|print\(proc|print\(error|print\(installed|print\(raw|print\(output/);
+});

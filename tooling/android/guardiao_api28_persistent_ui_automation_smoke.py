@@ -7,6 +7,7 @@ import sys
 PACKAGE = "com.negresco.a11ypersistent.lab"
 APK = "tooling/android/a11y-persistent-lab/app/build/outputs/apk/debug/a11y-persistent-lab.apk"
 BLOCK = "BLOCK (LAB): persistent UiAutomation synthetic reference unconfirmed"
+STAGE = "startup"
 
 
 def classify(raw: object) -> str:
@@ -44,21 +45,29 @@ def adb(*args: str, timeout: int = 35) -> str:
 
 
 def run() -> None:
+    global STAGE
     if len(sys.argv) != 1:
         raise RuntimeError("CLI arguments forbidden")
     try:
+        STAGE = "api28-check"
         if adb("shell", "getprop", "ro.build.version.sdk").strip() != "28":
             raise RuntimeError("wrong API level")
         # Missing package is the expected synthetic reference state. pm path
         # can exit nonzero for that normal state, so use the list query instead.
+        STAGE = "package-preflight"
         installed = adb("shell", "pm", "list", "packages", "com.negresco.finance")
         if any(line.strip() == "package:com.negresco.finance"
                for line in installed.splitlines()):
             raise RuntimeError("finance package must be absent from synthetic reference")
+        STAGE = "synthetic-install"
         adb("install", "-t", "-r", APK, timeout=50)
+        STAGE = "instrumentation-command"
         result = adb("shell", "am", "instrument", "-w", "-r",
                      PACKAGE + "/.ProbeInstrumentation", timeout=100)
-        if classify(result) != "all-present":
+        STAGE = "root-verdict"
+        outcome = classify(result)
+        print("ENV (LAB): persistent-root-category=" + outcome, flush=True)
+        if outcome != "all-present":
             raise RuntimeError("synthetic root presence not proven")
         print("PASS (LAB): one persistent UiAutomation, three synthetic roots present")
     finally:
@@ -72,5 +81,5 @@ if __name__ == "__main__":
     try:
         run()
     except Exception:
-        print(BLOCK, file=sys.stderr)
+        print(BLOCK + " stage=" + STAGE, file=sys.stderr)
         raise SystemExit(1)
