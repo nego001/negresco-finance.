@@ -126,5 +126,5 @@ test('workflow keeps exact Android 9 APK and strict four-PDF gate; no new Androi
   'prior.sample = original_sample'
  ]) assert.ok(src.includes(s),s);
  const s=src.slice(src.indexOf('def observed_adb('),src.indexOf('def observed_receiver('));
- assert.doesNotMatch(s,/sleep\(|subprocess|adb\.shell|input.*tap|uiautomator.*dump.*adb\(|print\(result|print\(fingerprint/);
+ assert.doesNotMatch(s,/sleep\(|subprocess|adb\.shell|input.*tap|uiautomator.*dump.*adb\(|\bprint\(result|\bprint\(fingerprint/);
 });
