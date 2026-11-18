@@ -89,5 +89,5 @@ test('the added focus observation never edits accepted geometry, inputs, sleeps 
  const i=src.indexOf('def sample('),j=src.indexOf('\ndef run(',i);
  assert.ok(j>i);
  assert.match(src.slice(i,j),/timeout=8, check=False/);
- assert.doesNotMatch(src,/sleep\(|input", "tap"|input", "swipe"|force-stop|\\.install\\(|uiautomator|logcat|screenshot/);
+  assert.doesNotMatch(src,/sleep[(]|input", "tap"|input", "swipe"|force-stop|install[(]|uiautomator|logcat|screenshot/);
 });
