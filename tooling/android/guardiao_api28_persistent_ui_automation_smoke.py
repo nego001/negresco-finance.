@@ -49,7 +49,11 @@ def run() -> None:
     try:
         if adb("shell", "getprop", "ro.build.version.sdk").strip() != "28":
             raise RuntimeError("wrong API level")
-        if adb("shell", "pm", "path", "com.negresco.finance").strip():
+        # Missing package is the expected synthetic reference state. pm path
+        # can exit nonzero for that normal state, so use the list query instead.
+        installed = adb("shell", "pm", "list", "packages", "com.negresco.finance")
+        if any(line.strip() == "package:com.negresco.finance"
+               for line in installed.splitlines()):
             raise RuntimeError("finance package must be absent from synthetic reference")
         adb("install", "-t", "-r", APK, timeout=50)
         result = adb("shell", "am", "instrument", "-w", "-r",

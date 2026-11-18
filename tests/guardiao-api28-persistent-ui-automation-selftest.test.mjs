@@ -13,6 +13,9 @@ test('synthetic self-instrumentation has zero permissions and no exported Activi
  assert.match(manifest,/android:testOnly="true"/);
  assert.match(manifest,/android:exported="false"/);
  assert.doesNotMatch(manifest,/<uses-permission|com\.negresco\.finance/);
+ const runner=readFileSync('tooling/android/guardiao_api28_persistent_ui_automation_smoke.py','utf8');
+ assert.match(runner,/pm", "list", "packages", "com\.negresco\.finance"/);
+ assert.doesNotMatch(runner,/pm", "path", "com\.negresco\.finance"/);
 });
 test('a single UiAutomation session samples three roots without node details or gestures',()=>{
  assert.equal((src.match(/session = getUiAutomation\(\)/g)||[]).length,1);
