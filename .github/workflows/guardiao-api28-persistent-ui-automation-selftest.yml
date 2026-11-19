@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   reference:
-    name: 'Android9 persistent reference trial ${{ matrix.trial }}'
+    name: 'Android9 persistent ${{ matrix.mode }} trial ${{ matrix.trial }}'
     runs-on: ubuntu-22.04
     timeout-minutes: 35
     strategy:
@@ -18,6 +18,7 @@ jobs:
       matrix:
         api: [28]
         trial: [1, 2]
+        mode: [baseline, stabilized]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
@@ -48,4 +49,4 @@ jobs:
           profile: pixel_6
           emulator-boot-timeout: 600
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
-          script: python3 tooling/android/guardiao_api28_persistent_ui_automation_smoke.py
+          script: python3 tooling/android/guardiao_api28_persistent_ui_automation_smoke.py ${{ matrix.mode }}

@@ -1,23 +1,48 @@
 package com.negresco.a11ypersistent.lab;
+
 import android.app.Activity;
 import android.app.Instrumentation;
 import android.app.UiAutomation;
 import android.content.Intent;
 import android.os.Bundle;
 import android.view.accessibility.AccessibilityNodeInfo;
-/** Standalone self-instrumented synthetic app, never the finance app. */
+
+/** Synthetic self-instrumentation only; never targets the finance application. */
 public final class ProbeInstrumentation extends Instrumentation {
-  @Override public void onCreate(Bundle data) { super.onCreate(data); start(); }
+  private String mode = "unconfirmed";
+
+  @Override public void onCreate(Bundle data) {
+    super.onCreate(data);
+    if (data != null) mode = data.getString("mode", "unconfirmed");
+    start();
+  }
+
   @Override public void onStart() {
-    UiAutomation session = null;
     Bundle report = new Bundle();
     String verdict = "unconfirmed";
+    report.putString("mode", mode);
+    report.putString("readiness", "unconfirmed");
     try {
+      if (!"baseline".equals(mode) && !"stabilized".equals(mode)) {
+        throw new IllegalArgumentException("invalid synthetic mode");
+      }
       Intent intent = new Intent(getTargetContext(), ProbeActivity.class);
       intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
       getTargetContext().startActivity(intent);
       waitForIdleSync();
-      session = getUiAutomation();
+
+      if ("stabilized".equals(mode)) {
+        ProbeActivity activity = ProbeActivity.current();
+        if (activity == null || !activity.awaitVisible(10000L)) {
+          throw new IllegalStateException("synthetic window not ready");
+        }
+        report.putString("readiness", "ready");
+      } else {
+        report.putString("readiness", "not-requested");
+      }
+
+      // Exactly one UiAutomation connection and three non-retried observations.
+      UiAutomation session = getUiAutomation();
       if (session != null) {
         int present = 0;
         for (int i = 1; i <= 3; i++) {
@@ -38,8 +63,7 @@ public final class ProbeInstrumentation extends Instrumentation {
       verdict = "unconfirmed";
     } finally {
       report.putString("verdict", verdict);
-      // Instrumentation.finish closes its owned UiAutomation connection.
-      // No hidden API: android.jar does not expose UiAutomation.destroy().
+      // finish() owns and closes the instrumented UiAutomation session.
       finish(Activity.RESULT_OK, report);
     }
   }

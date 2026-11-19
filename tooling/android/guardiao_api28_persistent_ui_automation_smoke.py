@@ -7,33 +7,41 @@ import sys
 PACKAGE = "com.negresco.a11ypersistent.lab"
 APK = "tooling/android/a11y-persistent-lab/app/build/outputs/apk/debug/a11y-persistent-lab.apk"
 BLOCK = "BLOCK (LAB): persistent UiAutomation synthetic reference unconfirmed"
+MODES = frozenset(("baseline", "stabilized"))
 STAGE = "startup"
 
 
-def classify(raw: object) -> str:
-    if type(raw) is not str or not 1 <= len(raw) <= 64000:
-        return "unconfirmed"
+def classify(raw: object, expected_mode: str) -> tuple[str, str]:
+    """Return fixed allowlisted verdict and P/N mask, never raw output."""
+    if type(raw) is not str or not 1 <= len(raw) <= 64000 or expected_mode not in MODES:
+        return "unconfirmed", "---"
     fields = {}
     codes = []
-    required = {"sample1", "sample2", "sample3", "verdict"}
+    required = {"sample1", "sample2", "sample3", "verdict", "mode", "readiness"}
     for line in raw.splitlines():
         if line.startswith("INSTRUMENTATION_RESULT: "):
             key, sep, value = line[len("INSTRUMENTATION_RESULT: "):].partition("=")
-            if sep and key in required:
-                if key in fields:
-                    return "unconfirmed"
-                fields[key] = value.strip()
+            if not sep or key not in required or key in fields:
+                return "unconfirmed", "---"
+            fields[key] = value.strip()
         elif line.startswith("INSTRUMENTATION_CODE: "):
             codes.append(line[len("INSTRUMENTATION_CODE: "):].strip())
         elif line.startswith(("INSTRUMENTATION_FAILED:", "INSTRUMENTATION_ABORTED:")):
-            return "unconfirmed"
-    if set(fields) != required or codes != ["-1"]:
-        return "unconfirmed"
-    if all(fields[f"sample{i}"] == "present" for i in (1, 2, 3)) and fields["verdict"] == "all-present":
-        return "all-present"
-    if any(fields[f"sample{i}"] == "null" for i in (1, 2, 3)) and fields["verdict"] == "some-null":
-        return "some-null"
-    return "unconfirmed"
+            return "unconfirmed", "---"
+    if set(fields) != required or codes != ["-1"] or fields["mode"] != expected_mode:
+        return "unconfirmed", "---"
+    expected_readiness = "ready" if expected_mode == "stabilized" else "not-requested"
+    if fields["readiness"] != expected_readiness:
+        return "unconfirmed", "---"
+    samples = [fields[f"sample{i}"] for i in (1, 2, 3)]
+    if any(v not in ("present", "null") for v in samples):
+        return "unconfirmed", "---"
+    pattern = "".join("P" if value == "present" else "N" for value in samples)
+    if pattern == "PPP" and fields["verdict"] == "all-present":
+        return "all-present", pattern
+    if "N" in pattern and fields["verdict"] == "some-null":
+        return "some-null", pattern
+    return "unconfirmed", "---"
 
 
 def adb(*args: str, timeout: int = 35) -> str:
@@ -44,16 +52,14 @@ def adb(*args: str, timeout: int = 35) -> str:
     return proc.stdout
 
 
-def run() -> None:
+def run(mode: str) -> None:
     global STAGE
-    if len(sys.argv) != 1:
-        raise RuntimeError("CLI arguments forbidden")
+    if mode not in MODES:
+        raise RuntimeError("invalid synthetic mode")
     try:
         STAGE = "api28-check"
         if adb("shell", "getprop", "ro.build.version.sdk").strip() != "28":
             raise RuntimeError("wrong API level")
-        # Missing package is the expected synthetic reference state. pm path
-        # can exit nonzero for that normal state, so use the list query instead.
         STAGE = "package-preflight"
         installed = adb("shell", "pm", "list", "packages", "com.negresco.finance")
         if any(line.strip() == "package:com.negresco.finance"
@@ -62,14 +68,16 @@ def run() -> None:
         STAGE = "synthetic-install"
         adb("install", "-t", "-r", APK, timeout=50)
         STAGE = "instrumentation-command"
-        result = adb("shell", "am", "instrument", "-w", "-r",
+        result = adb("shell", "am", "instrument", "-w", "-r", "-e", "mode", mode,
                      PACKAGE + "/.ProbeInstrumentation", timeout=100)
         STAGE = "root-verdict"
-        outcome = classify(result)
+        outcome, pattern = classify(result, mode)
         print("ENV (LAB): persistent-root-category=" + outcome, flush=True)
+        if outcome in ("all-present", "some-null"):
+            print("ENV (LAB): persistent-root-pattern=" + pattern, flush=True)
         if outcome != "all-present":
             raise RuntimeError("synthetic root presence not proven")
-        print("PASS (LAB): one persistent UiAutomation, three synthetic roots present")
+        print("PASS (LAB): one persistent UiAutomation, three synthetic roots present mode=" + mode)
     finally:
         try:
             adb("uninstall", PACKAGE, timeout=25)
@@ -79,7 +87,9 @@ def run() -> None:
 
 if __name__ == "__main__":
     try:
-        run()
+        if len(sys.argv) != 2 or sys.argv[1] not in MODES:
+            raise RuntimeError("only allowlisted synthetic mode accepted")
+        run(sys.argv[1])
     except Exception:
         print(BLOCK + " stage=" + STAGE, file=sys.stderr)
         raise SystemExit(1)
