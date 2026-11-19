@@ -38,6 +38,6 @@ test('only the external Debug app can be classified; runner never acts on financ
  assert.doesNotMatch(observer,/getText\(|getContentDescription\(|injectInputEvent|performAction|getBoundsInScreen/);
 });
 test('policy limits inference even if both trials pass',()=>{
- for(const s of ['2/2','API28','PPP','#120','#126','Draft','approvedForProduction=false','stableReleaseAllowed=false','no PDF'])
+ for(const s of ['2/2','API28','PPP','#120','#126','Draft','approvedForProduction=false','stableReleaseAllowed=false','No PDF'])
    assert.ok(policy.includes(s),s);
 });
