@@ -18,7 +18,7 @@ jobs:
       matrix:
         api: [28]
         trial: [1, 2]
-        mode: [baseline, stabilized]
+        mode: [synced]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:

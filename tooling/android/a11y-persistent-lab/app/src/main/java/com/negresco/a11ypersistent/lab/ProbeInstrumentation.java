@@ -23,16 +23,23 @@ public final class ProbeInstrumentation extends Instrumentation {
     report.putString("mode", mode);
     report.putString("readiness", "unconfirmed");
     try {
-      if (!"baseline".equals(mode) && !"stabilized".equals(mode)) {
+      if (!"baseline".equals(mode) && !"stabilized".equals(mode) && !"synced".equals(mode)) {
         throw new IllegalArgumentException("invalid synthetic mode");
       }
       Intent intent = new Intent(getTargetContext(), ProbeActivity.class);
       intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-      getTargetContext().startActivity(intent);
-      waitForIdleSync();
+      ProbeActivity launched = null;
+      if ("synced".equals(mode)) {
+        // Public API: obtain the actual Activity created in this instrumentation process.
+        Activity started = startActivitySync(intent);
+        if (started instanceof ProbeActivity) launched = (ProbeActivity) started;
+      } else {
+        getTargetContext().startActivity(intent);
+        waitForIdleSync();
+      }
 
-      if ("stabilized".equals(mode)) {
-        ProbeActivity activity = ProbeActivity.current();
+      if ("stabilized".equals(mode) || "synced".equals(mode)) {
+        ProbeActivity activity = "synced".equals(mode) ? launched : ProbeActivity.current();
         if (activity == null) {
           report.putString("readiness", "activity-missing");
           throw new IllegalStateException("synthetic Activity missing");

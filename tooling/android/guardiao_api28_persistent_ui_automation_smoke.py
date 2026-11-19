@@ -7,7 +7,7 @@ import sys
 PACKAGE = "com.negresco.a11ypersistent.lab"
 APK = "tooling/android/a11y-persistent-lab/app/build/outputs/apk/debug/a11y-persistent-lab.apk"
 BLOCK = "BLOCK (LAB): persistent UiAutomation synthetic reference unconfirmed"
-MODES = frozenset(("baseline", "stabilized"))
+MODES = frozenset(("baseline", "stabilized", "synced"))
 STAGE = "startup"
 
 
@@ -30,7 +30,7 @@ def classify(raw: object, expected_mode: str) -> tuple[str, str]:
             return "unconfirmed", "---"
     if set(fields) != required or codes != ["-1"] or fields["mode"] != expected_mode:
         return "unconfirmed", "---"
-    expected_readiness = "ready" if expected_mode == "stabilized" else "not-requested"
+    expected_readiness = "not-requested" if expected_mode == "baseline" else "ready"
     if fields["readiness"] != expected_readiness:
         return "unconfirmed", "---"
     samples = [fields[f"sample{i}"] for i in (1, 2, 3)]

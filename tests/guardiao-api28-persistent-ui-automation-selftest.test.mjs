@@ -26,7 +26,7 @@ test('single UiAutomation session samples exactly three roots without details, g
  assert.match(src,/finish\(Activity\.RESULT_OK, report\)/);
  assert.doesNotMatch(src,/getText\(|getPackageName\(|getContentDescription\(|injectInputEvent|performAction|takeScreenshot|Log\.|Thread\.sleep/);
 });
-test('stable mode needs observed focus, visibility and real layout before one-time sampling',()=>{
+test('readiness modes need observed focus, visibility and real layout before sampling',()=>{
  assert.match(activity,/CountDownLatch\(1\)/);
  for(const s of ['hasWindowFocus()', 'decor.isShown()', 'decor.getWidth() > 0', 'decor.getHeight() > 0', 'awaitVisible'])assert.ok(activity.includes(s),s);
  assert.match(src,/"stabilized"\.equals\(mode\)/);
@@ -35,15 +35,22 @@ test('stable mode needs observed focus, visibility and real layout before one-ti
  assert.match(src,/report\.putString\("readiness", "not-requested"\)/);
  assert.doesNotMatch(src+activity,/Thread\.sleep|injectInputEvent|performAction/);
 });
+test('synchronous own-package Activity launch is separate from the asynchronous baseline',()=>{
+ assert.equal((src.match(/startActivitySync\(intent\)/g)||[]).length,1);
+ assert.match(src,/started instanceof ProbeActivity/);
+ assert.match(src,/"synced"\.equals\(mode\) \? launched : ProbeActivity\.current\(\)/);
+ assert.match(src,/waitForIdleSync\(\)/);
+ assert.doesNotMatch(src,/injectInputEvent|performAction|Thread\.sleep/);
+});
 test('parser reports only the fixed pattern, rejects contradictions, partial and dishonest results',()=>{
  const program=[
   'import sys,itertools',"sys.path.insert(0,'tooling/android')",
   'import guardiao_api28_persistent_ui_automation_smoke as p',
-  "for mode in ('baseline','stabilized'):",
+  "for mode in ('baseline','stabilized','synced'):",
   " for bits in itertools.product(('present','null'), repeat=3):",
   "  verdict='all-present' if all(x=='present' for x in bits) else 'some-null'",
   "  lines=[f'INSTRUMENTATION_RESULT: sample{i}={x}' for i,x in enumerate(bits,1)]",
-  "  lines += [f'INSTRUMENTATION_RESULT: mode={mode}',f'INSTRUMENTATION_RESULT: readiness={\"ready\" if mode==\"stabilized\" else \"not-requested\"}',f'INSTRUMENTATION_RESULT: verdict={verdict}','INSTRUMENTATION_CODE: -1']",
+  "  lines += [f'INSTRUMENTATION_RESULT: mode={mode}',f'INSTRUMENTATION_RESULT: readiness={\"not-requested\" if mode==\"baseline\" else \"ready\"}',f'INSTRUMENTATION_RESULT: verdict={verdict}','INSTRUMENTATION_CODE: -1']",
   "  raw='\\n'.join(lines)",
   "  mask=''.join('P' if x=='present' else 'N' for x in bits)",
   "  assert p.classify(raw, mode)==(verdict,mask)",
@@ -55,11 +62,11 @@ test('parser reports only the fixed pattern, rejects contradictions, partial and
   "  assert p.classify(raw.replace('sample2=', 'sample2=bad'),mode)==('unconfirmed','---')",
   "  assert p.classify(raw.replace('readiness=', 'readiness=bad'),mode)==('unconfirmed','---')",
   "  assert p.classify('\\n'.join(lines[:-1]),mode)==('unconfirmed','---')",
-  "print('PASS (LAB): 16 masks and strict reject fixtures')"
+  "print('PASS (LAB): 24 masks and strict reject fixtures')"
  ].join('\n');
  const r=spawnSync('python3',['-c',program],{encoding:'utf8',timeout:20000});
  assert.equal(r.status,0,r.stderr);
- assert.match(r.stdout,/PASS \(LAB\): 16 masks/);
+ assert.match(r.stdout,/PASS \(LAB\): 24 masks/);
 });
 
 test('failed readiness reports only fixed stage codes, never opens root gate',()=>{
@@ -85,8 +92,8 @@ test('SDK-only one-day ephemeral signature and zero-permission gate',()=>{
  for(const s of ['aapt2','d8','zipalign','apksigner','--min-api 28','--target-sdk-version 28','openssl rand -hex 16','keytool -genkeypair'])assert.ok(build.includes(s),s);
  assert.doesNotMatch(build,/curl |wget |gradle |mvn |npm |gh release|upload-artifact/);
 });
-test('branch-only independent baseline and stable Android9 emulators',()=>{
- for(const s of ['lab/p01-guardiao-api28-persistent-ui-automation-selftest-v1','api: [28]','trial: [1, 2]','mode: [baseline, stabilized]','contents: read','persist-credentials: false','-no-snapshot'])assert.ok(workflow.includes(s),s);
+test('branch-only independently synchronized Android9 emulators',()=>{
+ for(const s of ['lab/p01-guardiao-api28-persistent-ui-automation-selftest-v1','api: [28]','trial: [1, 2]','mode: [synced]','contents: read','persist-credentials: false','-no-snapshot'])assert.ok(workflow.includes(s),s);
  assert.doesNotMatch(workflow,/com\.negresco\.finance|download-artifact|upload-artifact|contents: write|workflow_dispatch:|schedule:|pull_request:|secrets\./);
  assert.match(workflow,/smoke\.py \$\{\{ matrix\.mode \}\}/);
 });
