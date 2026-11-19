@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.negresco.a11ydebugobserver.lab">
+  <application
+      android:label="A11y Debug Observer LAB"
+      android:debuggable="true"
+      android:testOnly="true"
+      android:allowBackup="false"
+      android:usesCleartextTraffic="false" />
+  <instrumentation
+      android:name=".ObserveInstrumentation"
+      android:targetPackage="com.negresco.a11ydebugobserver.lab"
+      android:functionalTest="true" />
+</manifest>
