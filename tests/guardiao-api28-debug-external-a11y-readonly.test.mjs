@@ -70,6 +70,6 @@ test('workflow is single-branch, API28, debug, never deploys APK or data',()=>{
   assert.doesNotMatch(workflow,/workflow_dispatch:|schedule:|pull_request:|contents: write|upload-artifact|download-artifact|secrets\.|assembleRelease|app-release.apk/);
 });
 test('policy excludes product approval, PDF and any financial access',()=>{
- for(const s of ['approvedForProduction=false','stableReleaseAllowed=false','#120','#126','Draft','root', 'no PDF'])
+ for(const s of ['approvedForProduction=false','stableReleaseAllowed=false','#120','#126','Draft','root', 'No PDF'])
   assert.ok(policy.includes(s),s);
 });
