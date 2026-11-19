@@ -120,8 +120,19 @@ test('SDK-only one-day ephemeral signature and zero-permission gate',()=>{
  for(const s of ['aapt2','d8','zipalign','apksigner','--min-api 28','--target-sdk-version 28','openssl rand -hex 16','keytool -genkeypair'])assert.ok(build.includes(s),s);
  assert.doesNotMatch(build,/curl |wget |gradle |mvn |npm |gh release|upload-artifact/);
 });
+test('pre-registered A/B uses same synthetic code, 3 independent trials per mode',()=>{
+ assert.match(workflow,/trial: \[1, 2, 3\]/);
+ assert.match(workflow,/mode: \[synced, synced-idle\]/);
+ assert.equal((workflow.match(/reactivecircus\/android-emulator-runner@/g)||[]).length,1);
+ assert.match(workflow,/script: python3 tooling\/android\/guardiao_api28_persistent_ui_automation_smoke\.py \$\{\{ matrix\.mode \}\}/);
+ assert.match(workflow,/fail-fast: false/);
+ assert.match(workflow,/emulator-options: .*?-no-snapshot/);
+ assert.match(src,/"synced-idle"\.equals\(mode\)/);
+ assert.match(src,/boolean syncedLaunch = "synced"\.equals\(mode\) \|\| "synced-idle"\.equals\(mode\)/);
+ assert.doesNotMatch(workflow,/workflow_dispatch:|schedule:|pull_request:|upload-artifact|download-artifact/);
+});
 test('branch-only independently synchronized Android9 emulators',()=>{
- for(const s of ['lab/p01-guardiao-api28-persistent-ui-automation-selftest-v1','api: [28]','trial: [1, 2]','mode: [synced-idle]','contents: read','persist-credentials: false','-no-snapshot'])assert.ok(workflow.includes(s),s);
+ for(const s of ['lab/p01-guardiao-api28-persistent-ui-automation-selftest-v1','api: [28]','trial: [1, 2, 3]','mode: [synced, synced-idle]','contents: read','persist-credentials: false','-no-snapshot'])assert.ok(workflow.includes(s),s);
  assert.doesNotMatch(workflow,/com\.negresco\.finance|download-artifact|upload-artifact|contents: write|workflow_dispatch:|schedule:|pull_request:|secrets\./);
  assert.match(workflow,/smoke\.py \$\{\{ matrix\.mode \}\}/);
 });
