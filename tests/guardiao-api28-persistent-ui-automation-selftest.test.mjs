@@ -38,7 +38,7 @@ test('readiness modes need observed focus, visibility and real layout before sam
 test('synchronous own-package Activity launch is separate from the asynchronous baseline',()=>{
  assert.equal((src.match(/startActivitySync\(intent\)/g)||[]).length,1);
  assert.match(src,/started instanceof ProbeActivity/);
- assert.match(src,/"synced"\.equals\(mode\) \? launched : ProbeActivity\.current\(\)/);
+ assert.match(src,/syncedLaunch \? launched : ProbeActivity\.current\(\)/);
  assert.match(src,/waitForIdleSync\(\)/);
  assert.doesNotMatch(src,/injectInputEvent|performAction|Thread\.sleep/);
 });
@@ -46,11 +46,13 @@ test('parser reports only the fixed pattern, rejects contradictions, partial and
  const program=[
   'import sys,itertools',"sys.path.insert(0,'tooling/android')",
   'import guardiao_api28_persistent_ui_automation_smoke as p',
-  "for mode in ('baseline','stabilized','synced'):",
+  "for mode in ('baseline','stabilized','synced','synced-idle'):",
   " for bits in itertools.product(('present','null'), repeat=3):",
   "  verdict='all-present' if all(x=='present' for x in bits) else 'some-null'",
   "  lines=[f'INSTRUMENTATION_RESULT: sample{i}={x}' for i,x in enumerate(bits,1)]",
-  "  lines += [f'INSTRUMENTATION_RESULT: mode={mode}',f'INSTRUMENTATION_RESULT: readiness={\"not-requested\" if mode==\"baseline\" else \"ready\"}',f'INSTRUMENTATION_RESULT: verdict={verdict}','INSTRUMENTATION_CODE: -1']",
+  "  readiness='not-requested' if mode=='baseline' else 'ready'",
+  "  idle='idle-observed' if mode=='synced-idle' else 'not-requested'",
+  "  lines += [f'INSTRUMENTATION_RESULT: mode={mode}',f'INSTRUMENTATION_RESULT: readiness={readiness}',f'INSTRUMENTATION_RESULT: idle={idle}',f'INSTRUMENTATION_RESULT: verdict={verdict}','INSTRUMENTATION_CODE: -1']",
   "  raw='\\n'.join(lines)",
   "  mask=''.join('P' if x=='present' else 'N' for x in bits)",
   "  assert p.classify(raw, mode)==(verdict,mask)",
@@ -62,11 +64,11 @@ test('parser reports only the fixed pattern, rejects contradictions, partial and
   "  assert p.classify(raw.replace('sample2=', 'sample2=bad'),mode)==('unconfirmed','---')",
   "  assert p.classify(raw.replace('readiness=', 'readiness=bad'),mode)==('unconfirmed','---')",
   "  assert p.classify('\\n'.join(lines[:-1]),mode)==('unconfirmed','---')",
-  "print('PASS (LAB): 24 masks and strict reject fixtures')"
+  "print('PASS (LAB): 32 masks and strict reject fixtures')"
  ].join('\n');
  const r=spawnSync('python3',['-c',program],{encoding:'utf8',timeout:20000});
  assert.equal(r.status,0,r.stderr);
- assert.match(r.stdout,/PASS \(LAB\): 24 masks/);
+ assert.match(r.stdout,/PASS \(LAB\): 32 masks/);
 });
 
 test('failed readiness reports only fixed stage codes, never opens root gate',()=>{
@@ -88,12 +90,38 @@ test('failed readiness reports only fixed stage codes, never opens root gate',()
  assert.equal(r.status,0,r.stderr);
  assert.match(r.stdout,/PASS \(LAB\): readiness diagnostic/);
 });
+test('synced-idle pre-gate is bounded, one-time and never converts timeout to PASS',()=>{
+ assert.equal((src.match(/session\.waitForIdle\(1000L, 5000L\)/g)||[]).length,1);
+ assert.match(src,/catch \(TimeoutException timeout\)/);
+ assert.match(src,/report\.putString\("idle", "idle-observed"\)/);
+ assert.match(src,/report\.putString\("idle", "idle-timeout"\)/);
+ assert.ok(src.indexOf('session.waitForIdle(1000L, 5000L)') < src.indexOf('root = session.getRootInActiveWindow()'));
+ for(const item of ['"synced-idle"','"idle-observed"','"idle-timeout"','"not-requested"'])assert.ok((src+runner).includes(item),item);
+ assert.match(runner,/expected_idle = "idle-observed" if expected_mode == "synced-idle" else "not-requested"/);
+ assert.match(runner,/ENV \(LAB\): persistent-idle-category=/);
+ const code=[
+  'import sys',"sys.path.insert(0,'tooling/android')",
+  'import guardiao_api28_persistent_ui_automation_smoke as p',
+  "for status in ('idle-observed','idle-timeout','not-requested'):",
+  " raw='\\n'.join(['INSTRUMENTATION_RESULT: mode=synced-idle',f'INSTRUMENTATION_RESULT: idle={status}','INSTRUMENTATION_CODE: -1'])",
+  " assert p.classify_idle(raw,'synced-idle')==status",
+  " assert p.classify(raw,'synced-idle')==('unconfirmed','---')",
+  " assert p.classify_idle(raw+'\\nINSTRUMENTATION_RESULT: idle=idle-observed','synced-idle')=='unconfirmed'",
+  " assert p.classify_idle(raw.replace('INSTRUMENTATION_CODE: -1','INSTRUMENTATION_CODE: 0'),'synced-idle')=='unconfirmed'",
+  " raw='\\n'.join(['INSTRUMENTATION_RESULT: mode=synced-idle','INSTRUMENTATION_RESULT: idle=idle-timeout']+[f'INSTRUMENTATION_RESULT: sample{i}=present' for i in (1,2,3)]+['INSTRUMENTATION_RESULT: readiness=ready','INSTRUMENTATION_RESULT: verdict=all-present','INSTRUMENTATION_CODE: -1'])",
+  " assert p.classify(raw,'synced-idle')==('unconfirmed','---')",
+  "print('PASS (LAB): idle gate strict fixture')"
+ ].join('\n');
+ const r=spawnSync('python3',['-c',code],{encoding:'utf8',timeout:20000});
+ assert.equal(r.status,0,r.stderr);
+ assert.match(r.stdout,/PASS \(LAB\): idle gate/);
+});
 test('SDK-only one-day ephemeral signature and zero-permission gate',()=>{
  for(const s of ['aapt2','d8','zipalign','apksigner','--min-api 28','--target-sdk-version 28','openssl rand -hex 16','keytool -genkeypair'])assert.ok(build.includes(s),s);
  assert.doesNotMatch(build,/curl |wget |gradle |mvn |npm |gh release|upload-artifact/);
 });
 test('branch-only independently synchronized Android9 emulators',()=>{
- for(const s of ['lab/p01-guardiao-api28-persistent-ui-automation-selftest-v1','api: [28]','trial: [1, 2]','mode: [synced]','contents: read','persist-credentials: false','-no-snapshot'])assert.ok(workflow.includes(s),s);
+ for(const s of ['lab/p01-guardiao-api28-persistent-ui-automation-selftest-v1','api: [28]','trial: [1, 2]','mode: [synced-idle]','contents: read','persist-credentials: false','-no-snapshot'])assert.ok(workflow.includes(s),s);
  assert.doesNotMatch(workflow,/com\.negresco\.finance|download-artifact|upload-artifact|contents: write|workflow_dispatch:|schedule:|pull_request:|secrets\./);
  assert.match(workflow,/smoke\.py \$\{\{ matrix\.mode \}\}/);
 });

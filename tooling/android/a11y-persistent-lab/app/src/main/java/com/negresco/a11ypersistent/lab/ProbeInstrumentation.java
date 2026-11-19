@@ -6,6 +6,7 @@ import android.app.UiAutomation;
 import android.content.Intent;
 import android.os.Bundle;
 import android.view.accessibility.AccessibilityNodeInfo;
+import java.util.concurrent.TimeoutException;
 
 /** Synthetic self-instrumentation only; never targets the finance application. */
 public final class ProbeInstrumentation extends Instrumentation {
@@ -22,14 +23,16 @@ public final class ProbeInstrumentation extends Instrumentation {
     String verdict = "unconfirmed";
     report.putString("mode", mode);
     report.putString("readiness", "unconfirmed");
+    report.putString("idle", "unconfirmed");
     try {
-      if (!"baseline".equals(mode) && !"stabilized".equals(mode) && !"synced".equals(mode)) {
+      boolean syncedLaunch = "synced".equals(mode) || "synced-idle".equals(mode);
+      if (!"baseline".equals(mode) && !"stabilized".equals(mode) && !syncedLaunch) {
         throw new IllegalArgumentException("invalid synthetic mode");
       }
       Intent intent = new Intent(getTargetContext(), ProbeActivity.class);
       intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
       ProbeActivity launched = null;
-      if ("synced".equals(mode)) {
+      if (syncedLaunch) {
         // Public API: obtain the actual Activity created in this instrumentation process.
         Activity started = startActivitySync(intent);
         if (started instanceof ProbeActivity) launched = (ProbeActivity) started;
@@ -38,8 +41,8 @@ public final class ProbeInstrumentation extends Instrumentation {
         waitForIdleSync();
       }
 
-      if ("stabilized".equals(mode) || "synced".equals(mode)) {
-        ProbeActivity activity = "synced".equals(mode) ? launched : ProbeActivity.current();
+      if ("stabilized".equals(mode) || syncedLaunch) {
+        ProbeActivity activity = syncedLaunch ? launched : ProbeActivity.current();
         if (activity == null) {
           report.putString("readiness", "activity-missing");
           throw new IllegalStateException("synthetic Activity missing");
@@ -56,6 +59,19 @@ public final class ProbeInstrumentation extends Instrumentation {
       // Exactly one UiAutomation connection and three non-retried observations.
       UiAutomation session = getUiAutomation();
       if (session != null) {
+        if ("synced-idle".equals(mode)) {
+          // Public API waits for accessibility EVENT quietness, not proof of an active root.
+          // One bounded wait before any root read; no retry after a missing root.
+          try {
+            session.waitForIdle(1000L, 5000L);
+            report.putString("idle", "idle-observed");
+          } catch (TimeoutException timeout) {
+            report.putString("idle", "idle-timeout");
+            throw timeout;
+          }
+        } else {
+          report.putString("idle", "not-requested");
+        }
         int present = 0;
         for (int i = 1; i <= 3; i++) {
           AccessibilityNodeInfo root = null;
