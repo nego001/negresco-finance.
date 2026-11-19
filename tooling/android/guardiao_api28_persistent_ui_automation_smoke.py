@@ -44,6 +44,31 @@ def classify(raw: object, expected_mode: str) -> tuple[str, str]:
     return "unconfirmed", "---"
 
 
+def classify_readiness(raw: object, expected_mode: str) -> str:
+    """Independent fixed-only readiness diagnosis; never changes root PASS/BLOCK."""
+    if type(raw) is not str or not 1 <= len(raw) <= 64000 or expected_mode not in MODES:
+        return "unconfirmed"
+    fields = {}
+    codes = []
+    for line in raw.splitlines():
+        if line.startswith("INSTRUMENTATION_RESULT: "):
+            key, sep, value = line[len("INSTRUMENTATION_RESULT: "):].partition("=")
+            if not sep:
+                return "unconfirmed"
+            if key in ("mode", "readiness"):
+                if key in fields:
+                    return "unconfirmed"
+                fields[key] = value.strip()
+        elif line.startswith("INSTRUMENTATION_CODE: "):
+            codes.append(line[len("INSTRUMENTATION_CODE: "):].strip())
+        elif line.startswith(("INSTRUMENTATION_FAILED:", "INSTRUMENTATION_ABORTED:")):
+            return "unconfirmed"
+    allowed = {"ready", "not-requested", "activity-missing", "not-resumed", "no-focus", "no-layout", "not-ready"}
+    if codes != ["-1"] or fields.get("mode") != expected_mode or fields.get("readiness") not in allowed:
+        return "unconfirmed"
+    return fields["readiness"]
+
+
 def adb(*args: str, timeout: int = 35) -> str:
     proc = subprocess.run(["adb", *args], capture_output=True, text=True,
                           check=False, timeout=timeout)
@@ -72,6 +97,8 @@ def run(mode: str) -> None:
                      PACKAGE + "/.ProbeInstrumentation", timeout=100)
         STAGE = "root-verdict"
         outcome, pattern = classify(result, mode)
+        readiness = classify_readiness(result, mode)
+        print("ENV (LAB): persistent-readiness-category=" + readiness, flush=True)
         print("ENV (LAB): persistent-root-category=" + outcome, flush=True)
         if outcome in ("all-present", "some-null"):
             print("ENV (LAB): persistent-root-pattern=" + pattern, flush=True)

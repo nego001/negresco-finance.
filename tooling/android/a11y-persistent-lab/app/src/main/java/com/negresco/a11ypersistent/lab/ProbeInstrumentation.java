@@ -33,7 +33,12 @@ public final class ProbeInstrumentation extends Instrumentation {
 
       if ("stabilized".equals(mode)) {
         ProbeActivity activity = ProbeActivity.current();
-        if (activity == null || !activity.awaitVisible(10000L)) {
+        if (activity == null) {
+          report.putString("readiness", "activity-missing");
+          throw new IllegalStateException("synthetic Activity missing");
+        }
+        if (!activity.awaitVisible(10000L)) {
+          report.putString("readiness", activity.readinessFailureCategory());
           throw new IllegalStateException("synthetic window not ready");
         }
         report.putString("readiness", "ready");

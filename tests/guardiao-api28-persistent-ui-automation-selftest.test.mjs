@@ -61,6 +61,26 @@ test('parser reports only the fixed pattern, rejects contradictions, partial and
  assert.equal(r.status,0,r.stderr);
  assert.match(r.stdout,/PASS \(LAB\): 16 masks/);
 });
+
+test('failed readiness reports only fixed stage codes, never opens root gate',()=>{
+ for(const s of ['activity-missing','not-resumed','no-focus','no-layout','not-ready','readinessFailureCategory'])
+  assert.ok((src+activity+runner).includes(s),s);
+ assert.match(runner,/ENV \(LAB\): persistent-readiness-category=/);
+ const py=[
+  'import sys',"sys.path.insert(0,'tooling/android')",
+  'import guardiao_api28_persistent_ui_automation_smoke as p',
+  "for category in ('ready','not-requested','activity-missing','not-resumed','no-focus','no-layout','not-ready'):",
+  " raw='\\n'.join(['INSTRUMENTATION_RESULT: mode=stabilized',f'INSTRUMENTATION_RESULT: readiness={category}','INSTRUMENTATION_RESULT: verdict=unconfirmed','INSTRUMENTATION_CODE: -1'])",
+  " assert p.classify_readiness(raw,'stabilized')==category",
+  " assert p.classify(raw,'stabilized')==('unconfirmed','---')",
+  " assert p.classify_readiness(raw+'\\nINSTRUMENTATION_RESULT: readiness=ready','stabilized')=='unconfirmed'",
+  " assert p.classify_readiness(raw.replace('INSTRUMENTATION_CODE: -1','INSTRUMENTATION_CODE: 0'),'stabilized')=='unconfirmed'",
+  "print('PASS (LAB): readiness diagnostic strictly categorized')"
+ ].join('\n');
+ const r=spawnSync('python3',['-c',py],{encoding:'utf8',timeout:20000});
+ assert.equal(r.status,0,r.stderr);
+ assert.match(r.stdout,/PASS \(LAB\): readiness diagnostic/);
+});
 test('SDK-only one-day ephemeral signature and zero-permission gate',()=>{
  for(const s of ['aapt2','d8','zipalign','apksigner','--min-api 28','--target-sdk-version 28','openssl rand -hex 16','keytool -genkeypair'])assert.ok(build.includes(s),s);
  assert.doesNotMatch(build,/curl |wget |gradle |mvn |npm |gh release|upload-artifact/);

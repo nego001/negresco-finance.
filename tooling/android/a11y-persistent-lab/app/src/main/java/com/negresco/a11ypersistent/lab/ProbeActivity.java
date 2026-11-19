@@ -12,6 +12,9 @@ import java.util.concurrent.TimeUnit;
 public final class ProbeActivity extends Activity {
   private static volatile ProbeActivity active;
   private final CountDownLatch visible = new CountDownLatch(1);
+  private volatile boolean resumed;
+  private volatile boolean focused;
+  private volatile boolean laidOut;
 
   @Override public void onCreate(Bundle state) {
     super.onCreate(state);
@@ -25,14 +28,22 @@ public final class ProbeActivity extends Activity {
       });
   }
 
+  @Override protected void onResume() {
+    super.onResume();
+    resumed = true;
+    recordVisibleIfReady();
+  }
+
   @Override public void onWindowFocusChanged(boolean hasFocus) {
     super.onWindowFocusChanged(hasFocus);
-    if (hasFocus) recordVisibleIfReady();
+    if (hasFocus) focused = true;
+    recordVisibleIfReady();
   }
 
   private void recordVisibleIfReady() {
     View decor = getWindow().getDecorView();
-    if (!isFinishing() && hasWindowFocus() && decor.isShown()
+    if (decor.getWidth() > 0 && decor.getHeight() > 0) laidOut = true;
+    if (resumed && !isFinishing() && hasWindowFocus() && decor.isShown()
         && decor.getWidth() > 0 && decor.getHeight() > 0) {
       visible.countDown();
     }
@@ -42,6 +53,14 @@ public final class ProbeActivity extends Activity {
 
   boolean awaitVisible(long timeoutMillis) throws InterruptedException {
     return visible.await(timeoutMillis, TimeUnit.MILLISECONDS);
+  }
+
+  /** Fixed diagnostic category, never window details or accessibility content. */
+  String readinessFailureCategory() {
+    if (!resumed) return "not-resumed";
+    if (!focused) return "no-focus";
+    if (!laidOut) return "no-layout";
+    return "not-ready";
   }
 
   @Override protected void onDestroy() {
