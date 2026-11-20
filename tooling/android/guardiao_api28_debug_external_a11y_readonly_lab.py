@@ -14,6 +14,7 @@ import signal
 import subprocess
 import sys
 import time
+from collections.abc import Callable
 
 import guardiao_pdf_debug_metro_lab as debug
 
@@ -82,7 +83,7 @@ def debug_focus() -> bool:
     return False
 
 
-def run() -> None:
+def run(*, after_verified_observation: Callable[[], None] | None = None) -> None:
     if len(sys.argv) != 1 or MODE != "idle":
         raise RuntimeError("unexpected CLI args")
     if BASE.adb("shell", "getprop", "ro.build.version.sdk").strip() != "28":
@@ -130,6 +131,12 @@ def run() -> None:
             raise RuntimeError("Debug focus or PID changed during observation")
         if (idle, verdict, mask) != ("idle-observed", "all-present", "PPP"):
             raise RuntimeError("Debug roots unconfirmed")
+        # Optional independent, passive Home geometry proof, only AFTER a
+        # verified PPP. Never lets the old observer bypass a geometry BLOCK.
+        if after_verified_observation is not None:
+            after_verified_observation()
+            if debug_pid() != before_pid or not debug_focus():
+                raise RuntimeError("Debug PID/focus changed during passive geometry read")
         print("PASS (LAB): Debug active-window package-only roots PPP without gestures/PDF")
     finally:
         # No durable APK, XML, logcat, PDF or artifacts. Never log cleanup error text.
