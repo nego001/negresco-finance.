@@ -25,6 +25,8 @@ test('single in-memory snapshot, exact known testIDs and BLOCK for unsafe geomet
  for(const v of ['negresco-lab-tab-home','negresco-lab-tab-pix','negresco-lab-tab-negresco','observer.DEBUG_PACKAGE','safe_ancestor_constraint_category','targets-overlap','three-thin','three-bounded','nodes-missing-or-duplicate','package-unconfirmed'])
    assert.ok(geometry.includes(v),v);
  assert.match(geometry,/if category != "three-bounded":\s*\n\s*raise RuntimeError/);
+ assert.match(geometry,/finally:\s*\n\s*#.*\n\s*#.*\n\s*try:\s*\n\s*BASE\.adb\("shell", "rm", "-f", "\/sdcard\/negresco_ui\.xml", timeout=15\)/);
+ assert.match(geometry,/except Exception:\s*\n\s*category = "geometry-unconfirmed"/);
  assert.doesNotMatch(geometry,/print\(nodes|print\(raw_bounds|print\(coordinates|print\(.*text|print\(.*xml|\.get\("text"|\.get\("content-desc"|scroll_forward|scroll_backward/);
 });
 

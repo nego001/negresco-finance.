@@ -84,6 +84,13 @@ def passive_geometry_gate() -> None:
         category = classify_three_tabs(nodes, width, height)
     except Exception:
         category = "geometry-unconfirmed"
+    finally:
+        # The legacy UIAutomator reader stages a raw hierarchy on the
+        # disposable emulator. Explicit deletion is part of the PASS gate.
+        try:
+            BASE.adb("shell", "rm", "-f", "/sdcard/negresco_ui.xml", timeout=15)
+        except Exception:
+            category = "geometry-unconfirmed"
     # No raw XML, coordinates, text, node IDs, paths, failures or PIDs leave memory.
     print("ENV (LAB): debug-nav-geometry=" + category, flush=True)
     if category != "three-bounded":

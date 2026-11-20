@@ -25,3 +25,8 @@ Any category other than `three-bounded` must BLOCK. Verify the Debug PID and for
 One Android9 Debug-only run cannot prove user-facing accessibility, the original Release's geometry, successful navigation, share chooser, PDF #120, or reliability under repeated state transitions. Even if M62 passes, the next separate task is physical Android validation and an independent synthetic PDF receiver proof before any change to safety gates.
 
 P0 #120 and #126 stay **OPEN**. PR #125 stays **Draft**. `approvedForProduction=false`; `stableReleaseAllowed=false`. No signing for production, merge, OTA, account or financial value, original Release modification or permission relaxation. No PDF is created in M62.
+
+
+## Temporary UIAutomator XML cleanup hardening
+
+The inherited `base.xml_nodes()` reader uses a temporary on-device file `/sdcard/negresco_ui.xml`. M62 explicitly deletes it with a bounded ADB operation in a `finally` block, whether parsing succeeds or fails. Failure to confirm cleanup changes the category to `geometry-unconfirmed` and **BLOCKs** the experiment, even if bounds appeared eligible. The XML is never printed, uploaded, persisted in GitHub artifacts or shared outside the ephemeral emulator. This is a change solely to the isolated Debug laboratory and does not alter source code or production permissions.
