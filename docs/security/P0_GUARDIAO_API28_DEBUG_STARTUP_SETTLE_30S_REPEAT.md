@@ -1,0 +1,24 @@
+# M67 — Independent repeat of 30-second Android9 Debug Home readiness (read-only)
+
+## Observed evidence, fixed before this repeat
+
+- M65 Android [#45027607147](https://github.com/nego001/negresco-finance./actions/runs/45027607147), separate clean API28 emulator with **5.0 seconds** pre-first-observation settling: BLOCK. External native observer was `idle-observed / PPP`; the one private UIAutomator snapshot returned `tabs-all-missing`, `home-marker-absent`, `home-static-none`, and `app-no-text-or-clickables`.
+- M66 Android [#45037362267](https://github.com/nego001/negresco-finance./actions/runs/45037362267), SHA `00c0be6`, independent clean API28 emulator with **30.0 seconds** pre-first-observation settling: SUCCESS. `idle-observed / PPP`; the same strict single-snapshot detector returned `tabs-present-bounded`, `home-marker-unique`, `home-static-all`, `app-text-and-clickable`, and `app-resource-ids-present`. No gestures, navigation, PDF or screenshots. This proves the three known Debug bottom targets were uniquely detected and bounded **on that run only**. It does not prove tappability after state transitions or the historical Release's layout.
+- Both M65 and M66 reported `device-no-metro-connection-observed` despite different UI results. This is a limitation of this relay's evidence, **not proof** of Metro connectivity or absence of JavaScript. Internet permission was granted and the expected adb reverse was confirmed in both.
+- M66 [CI #45037362190](https://github.com/nego001/negresco-finance./actions/runs/45037362190): SUCCESS, **1,636/1,636 contracts PASS**, required jobs passed. Optional generic emulator jobs were skipped, not substitutes for the independent M66 Android job.
+
+One PASS at 30s and one BLOCK at 5s are consistent with timing sensitivity but not a controlled causal comparison: the emulators/builds and run environments were distinct, and the exact time of React Native readiness is not measured. Do not claim a fix or established reliability.
+
+## M67 prospective independent two-trial matrix
+
+Run **two** GitHub Actions matrix jobs (`trial: [1, 2]`, `fail-fast: false`) under the same pre-existing M66 Debug runner and code on **independent clean Android 9/API28 emulators**. Each job independently installs isolated dependencies, builds a newly hashed non-production Debug APK, builds the same separate testOnly zero-permission observer, starts private offline Metro, launches exactly once, and waits a single **predeclared 30.0 seconds** before first observation. The M66 30s runner, JNI/Java, app code, network policy, PDF code, and geometry classifier are unmodified. The workflow is the same reviewed M66 workflow apart from branch/job names, isolated concurrency and the two-element matrix.
+
+Each trial independently requires: focus and stable PID for the Debug app; one bounded `UiAutomation.waitForIdle(1000L, 5000L)` then exactly three `getRootInActiveWindow()` checks all belonging to the expected Debug package (`PPP`); pre-UI fixed-category Metro/native/route diagnostics; **one UIAutomator hierarchy only** in temporary volatile storage; all three known tab testIDs present exactly once, clickable/enabled, safe bottom-viewport bounds, distinct non-overlapping and non-thin (`tabs-present-bounded`); unique Home marker; all three static Home text markers (`home-static-all`); strict deletion of the temporary on-device UIAutomator XML file, including on error; final focus/PID check.
+
+Each failed sample is **BLOCK**, with its category and CI status preserved. `fail-fast: false` ensures failure of trial 1 does not suppress trial 2. Both jobs are required to be independently successful for an M67 *2/2 read-only repeat PASS*. Any 1/2 or 0/2 is partial/failure evidence, never discarded or retried automatically. Still do not infer statistical reliability from 2/2.
+
+Do not log/print or upload app text, user data, raw XML/logcat, resource IDs, bounds, coordinates, HTTP requests, response content, raw process IDs, screenshots, APKs, JS bundles, PDFs, or build artifacts. The runner output remains fixed categories only. No synthetic transaction, navigation, BACK, swipe, tap, chooser or PDF. No step relaxes the existing geometry conditions, app isolation or permission boundaries.
+
+## Safety disposition
+
+Even with 2/2 PASS, M67 would validate only fresh **Debug Home readiness and first-view native target geometry on API28**. It would not close #126 (historical bottom bar and two-cycle navigation) or #120 (original Release Android9 PDF intermittency). Both remain OPEN. PR #125 stays Draft and unmerged; `approvedForProduction=false`, `stableReleaseAllowed=false`. Do not update `main`, overwrite the historical SHA-pinned Release APK, ship APK/OTA, access financial credentials or interact with real users' data. A later, separately reviewed synthetic navigation/PDF test and physical-device validation are required before any production proposal.
