@@ -13,11 +13,13 @@ import guardiao_api28_debug_external_a11y_readonly_lab as observer
 import guardiao_api28_debug_home_readiness_census_lab as home
 import guardiao_api28_debug_targetid_presence_lab as counts
 import guardiao_api28_debug_nav_preview_guard as gate
+from guardiao_api28_debug_nav_stage_ledger import StageLedger
 
 BASE = observer.debug.base
 PIX_TEXTS = ("TRANSFERÊNCIAS", "Pix do seu jeito.")
 APP = observer.DEBUG_PACKAGE
 RESULT = "BLOCK (LAB): guarded Debug Home-Pix-Home navigation not attested"
+STAGE = StageLedger()  # fixed-category evidence only, no UI or device access
 
 
 def private_snapshot() -> tuple[list[dict[str, str]], int, int]:
@@ -62,6 +64,7 @@ def run_two_step_navigation() -> None:
     # M64 Home census must pass first; it checks one snapshot, removes XML,
     # requires three bound targets and the three exact static Home markers.
     home.passive_home_census()
+    STAGE.advance("home-attested")
     pid = observer.debug_pid()
     stable_app(pid)
 
@@ -72,8 +75,10 @@ def run_two_step_navigation() -> None:
     )
     if category != gate.ELIGIBLE or pix_center is None:
         raise RuntimeError("unsafe Pix candidate")
+    STAGE.advance("pix-candidate-attested")
     stable_app(pid)
     guarded_preview_tap(pix_center)  # precisely one Pix preview tap
+    STAGE.advance("pix-input-command-returned")
     time.sleep(2.0)  # fixed settle, NOT a retry after failed evidence
     stable_app(pid)
 
@@ -82,13 +87,16 @@ def run_two_step_navigation() -> None:
     nodes, width, height = private_snapshot()
     if not pix_static_proven(nodes):
         raise RuntimeError("Pix preview content not attested")
+    STAGE.advance("pix-preview-content-attested")
     category, home_center = gate.select_preview_target(
         nodes, width, height, "pix", "home"
     )
     if category != gate.ELIGIBLE or home_center is None:
         raise RuntimeError("unsafe Home candidate")
+    STAGE.advance("home-candidate-attested")
     stable_app(pid)
     guarded_preview_tap(home_center)  # precisely one Home return tap
+    STAGE.advance("home-input-command-returned")
     time.sleep(2.0)
     stable_app(pid)
 
@@ -104,7 +112,9 @@ def run_two_step_navigation() -> None:
             or static != "home-static-all"
             or structure != "app-text-and-clickable"):
         raise RuntimeError("final Home preview not attested")
+    STAGE.advance("home-return-content-attested")
     stable_app(pid)
+    STAGE.advance("sequence-complete")
     print("PASS (LAB): exactly two bounded preview taps Home-Pix-Home, same Debug PID",
           flush=True)
 
@@ -115,5 +125,7 @@ if __name__ == "__main__":
             raise RuntimeError("unexpected M69 arguments")
         observer.run(after_verified_observation=run_two_step_navigation)
     except Exception:
+        print("ENV (LAB): debug-nav-last-checkpoint=" + STAGE.category,
+              flush=True)
         print(RESULT, file=sys.stderr)
         raise SystemExit(1)
