@@ -134,6 +134,20 @@ def run(*, after_verified_observation: Callable[[], None] | None = None) -> None
         # Optional independent, passive Home geometry proof, only AFTER a
         # verified PPP. Never lets the old observer bypass a geometry BLOCK.
         if after_verified_observation is not None:
+            # Fixed-category evidence of whether the disposable Debug app
+            # asked the private Metro relay for a JS bundle. Never print HTTP.
+            transport = relay.category() if relay is not None else "unconfirmed"
+            allowed_transport = frozenset((
+                "device-debug-bundle-http-200",
+                "device-debug-bundle-http-non200",
+                "device-debug-bundle-response-unconfirmed",
+                "device-http-request-without-bundle",
+                "device-tcp-only-no-http-observed",
+                "device-no-metro-connection-observed",
+            ))
+            if transport not in allowed_transport:
+                transport = "unconfirmed"
+            print("ENV (LAB): debug-metro-transport=" + transport, flush=True)
             after_verified_observation()
             if debug_pid() != before_pid or not debug_focus():
                 raise RuntimeError("Debug PID/focus changed during passive geometry read")
