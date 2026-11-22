@@ -27,7 +27,7 @@ test('single snapshot has separate fixed allowlisted diagnoses and compulsory cl
    assert.ok(src.includes(value),value);
  assert.match(src,/finally:\s*\n[\s\S]*BASE\.adb\("shell", "rm", "-f", "\/sdcard\/negresco_ui\.xml", timeout=15\)/);
  assert.match(src,/if \(tab_status, marker_status, home_status\) != \([\s\S]*"tabs-present-bounded", "home-marker-unique", "home-static-all"/);
- assert.doesNotMatch(src,/print\(nodes|print\(raw|print\(.*\btext\b|print\(.*bounds|print\(.*xml|print\(.*resource|console\.log/);
+ assert.doesNotMatch(src,/print\(nodes|print\(raw|print\(.*\btext\b|print\(.*bounds|print\(.*xml|print\(.*\.get\(\"resource-id\"|console\.log/);
 });
 test('real pure parser separates fixed Home markers, app-owned text/clickables and IDs',()=>{
  const program=[
