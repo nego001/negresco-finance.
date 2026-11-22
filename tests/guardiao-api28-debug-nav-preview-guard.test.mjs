@@ -60,6 +60,6 @@ test('synthetic pure fixtures block missing, duplicate, selected mismatch, overl
 });
 
 test('M68 policy holds test-only classification separate from executing taps and production approval',()=>{
- for(const value of ['#120','#126','Draft','approvedForProduction=false','stableReleaseAllowed=false','M67','BLOCK','no tap','No PDF'])
+ for(const value of ['#120','#126','Draft','approvedForProduction=false','stableReleaseAllowed=false','M67','BLOCK','does NOT execute a tap','No PDF'])
    assert.ok(policy.includes(value),value);
 });
