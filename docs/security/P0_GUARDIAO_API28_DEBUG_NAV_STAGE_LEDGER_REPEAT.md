@@ -1,0 +1,25 @@
+# M73 — independent two-trial repeat of guarded Android9 Debug preview navigation
+
+## Frozen evidence before this repeat
+
+The M69 [Android workflow #45049052547](https://github.com/nego001/negresco-finance./actions/runs/45049052547) was **BLOCK** after successful initial Home. It did not provide a stage category or establish whether any touch was delivered. No regression/fix can be inferred from that ambiguous result.
+
+The M70 [Android #45051256896](https://github.com/nego001/negresco-finance./actions/runs/45051256896) was **SUCCESS** with `debug-nav-first-candidate=candidate-eligible` for the first Pix target in a **read-only** fresh emulator. This does not prove a touch was delivered. Its CI [#45051256760](https://github.com/nego001/negresco-finance./actions/runs/45051256760) was SUCCESS with 1,655/1,655 contracts.
+
+The M71 [CI #45051893821](https://github.com/nego001/negresco-finance./actions/runs/45051893821) was SUCCESS with 1,660/1,660 contracts. Its checkpoint ledger is pure and monotone.
+
+The M72 [Android workflow #45052688937](https://github.com/nego001/negresco-finance./actions/runs/45052688937), SHA `f03fea7a3668836e92a2614529ac335922b5c477`, was **SUCCESS**. Its single disposable Android9/API28 Debug test verified the exact app root `PPP`, the Home native markers and `tabs-present-bounded`, then printed `PASS (LAB): exactly two bounded preview taps Home-Pix-Home, same Debug PID`. The same runner requires separate Pix preview text evidence before the Home tap and final Home evidence after the return. No financial operation or PDF was attempted. The [M72 CI #45052688905](https://github.com/nego001/negresco-finance./actions/runs/45052688905) was SUCCESS with 1,665/1,665 contracts. **One successful synthetic Debug sequence does not prove the navigation is generally reliable, the original Release works, or PDF #120 is fixed.**
+
+## M73 independent repeat, pre-registered before any new result
+
+Run **two independent** disposable Android9/API28 emulators using a GitHub Actions matrix `trial: [1, 2]` and `fail-fast: false`. Each trial compiles its own Debug APK, performs independent SHA/debuggable/denied-permission/network checks, builds a no-permission `testOnly` external Accessibility observer and starts its own private offline Metro. This is a matrix repeat of the M72 workflow: **only the workflow title, branch/concurrency identity, job label and two-element matrix differ**. No source files, observer Java, app layouts, geometry rules, permissions, timeouts or navigation runner change between M72 and M73.
+
+Each trial allows one single sequence `Início → Pix → Início`: start the Debug app once; a single fixed 30-second initial settle before the first observation; require expected Debug app focus and unchanged PID; one bounded UiAutomation event idle wait and exactly three externally observed package-specific roots, all `PPP`; an initial strictly safe Home census with a single private UIAutomator snapshot and mandatory removal of the on-device XML; a new snapshot and pure M68 guard must accept a uniquely identified, correctly selected, enabled/clickable and nonoverlapping Pix tab. Then and only then may the runner emit one synthetic Pix tab tap, wait a fixed 2 seconds, and independently attest the Pix demonstration page and a new safe return-to-Home target in a second snapshot. Only then may it send one Home tab tap, wait a fixed 2 seconds and verify the final Home content, tab geometry and same Debug process with a final snapshot. Each snapshot is kept private in the disposable runner and deletes its temporary raw XML even on failure. **No retries** of blocked navigation states, no gesture substitution, no BACK/swipes, no arbitrary taps, no chooser, PDF, account data or transfer.
+
+The M71 ledger emits only fixed-category checkpoint names on a failed sample. `pix-input-command-returned` and `home-input-command-returned` mean the shell input call returned and **do not prove** the native UI accepted a tap. Other categories require real native/synthetic semantic evidence.
+
+A sample is PASS only if all independent gates succeed. M73 can be called **2/2 Debug preview repeat PASS** only after both jobs independently conclude SUCCESS and each records the fixed final PASS message. A 1/2 or 0/2 result is partial/failed evidence, never filtered, retried or reinterpreted as PASS; `fail-fast: false` ensures failure of trial 1 does not skip trial 2. Even 2/2 does not statistically establish reliability.
+
+## Release gate remains BLOCK
+
+This experiment does not execute or validate the original historical Release APK, fix PDF generation, test two PDF cycles, use physical Android hardware or authorize live Pix. P0 #120 and #126 remain OPEN; PR #125 stays Draft and unmerged; `approvedForProduction=false`, `stableReleaseAllowed=false`. The `main` branch, historical SHA-pinned production build, OTA and signing are untouched. No raw XML, screenshot, coordinates, PID, HTTP content, account data, APK artifacts or PDFs may be printed or uploaded.
