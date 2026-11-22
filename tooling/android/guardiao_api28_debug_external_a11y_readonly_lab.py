@@ -111,8 +111,9 @@ def run(*, after_verified_observation: Callable[[], None] | None = None) -> None
                             "-c", "android.intent.category.LAUNCHER", "1", timeout=30)
         if "Events injected: 1" not in launched:
             raise RuntimeError("Debug app launch unconfirmed")
-        # A single predeclared settling interval, not a retry after failed root.
-        time.sleep(5.0)
+        # M66: a single predeclared 30-second settling interval for a clean
+        # emulator, before the FIRST root/snapshot; never retry after failure.
+        time.sleep(30.0)
         before_pid = debug_pid()
         if not debug_focus():
             raise RuntimeError("Debug foreground package unconfirmed")

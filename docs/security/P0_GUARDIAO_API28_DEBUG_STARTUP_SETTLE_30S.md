@@ -1,0 +1,21 @@
+# M66 — bounded Android9 Debug startup-settling diagnostic (30s before first observation)
+
+## Frozen original M65 result (control; no replay or modification)
+
+The Android9 lab [#45027607147](https://github.com/nego001/negresco-finance./actions/runs/45027607147), commit `4e38d4b`, ran with a **single 5-second settle before the first root**. It conclusively BLOCKed on the single subsequent Home snapshot, despite successful build, stable Debug PID/foreground and `idle-observed / PPP`. Fixed results: `debug-metro-transport=device-no-metro-connection-observed`, `internet-permission-granted`, `adb-reverse-confirmed`, `native-startup-unconfirmed`, `metro-host-property-unset`, `probe-tool-unavailable` for shell `nc`, `shell-probe-unavailable` for the separate shell-UID app_process canary, `tabs-all-missing`, `home-marker-absent`, `home-static-none`, `app-no-text-or-clickables`, `app-resource-ids-present`. Do not convert unavailable probes to connectivity failures.
+
+The [M65 CI #45027607138](https://github.com/nego001/negresco-finance./actions/runs/45027607138) completed SUCCESS with **1,631/1,631 contracts PASS** and all required jobs PASS. Optional Android emulator jobs in that generic CI were skipped; this does not override the independent Android BLOCK.
+
+Crucial caveat: earlier [issue #120](https://github.com/nego001/negresco-finance./issues/120) records a Debug sample whose PDF delivery passed despite no Metro requests observed by the private relay. Thus the absence of a relay observation is **not proof** that the bundle was unavailable.
+
+## M66 preregistration: startup timing as an independent variable
+
+Build a **fresh disposable Android9/API28 Debug APK**, private local offline Metro, plus a zero-permission `testOnly` external observer in a new emulator. In a dedicated branch, replace only the observer runner's **single pre-first-read fixed sleep of 5.0 seconds with 30.0 seconds**. This is not an adaptive delay, new retry, or increased post-failure timeout. The earlier M65 five-second run remains immutable and must be reported as the baseline even if the 30-second result fails. No app code, native product source, network policy, observer Java, root geometry criteria, production signing or local locks change. Use exactly the unchanged M65 native transport triage callback and strict M64 single-snapshot Home census.
+
+Sequence: start local Metro, compile one local JS bundle, start private relay, reverse only the local port, verify disposable Debug APK integrity/permissions/signature and fresh installation, launch the Debug app exactly once; **wait exactly 30 seconds before the first PID/focus/root observation**. Then require the same single `UiAutomation.waitForIdle(1000L,5000L)`, exactly three `getRootInActiveWindow()` reads, `PPP`, focus and PID stable, and only one private UIAutomator hierarchy. Clean temporary on-emulator XML in `finally`; failure to clean is BLOCK. Output only fixed categorical signals already specified by M65; do not publish XML, text, URLs, stack traces, raw process IDs, screenshot, JS, Android HTTP data, account info or finance.
+
+Outcome criteria are unchanged: **PASS requires all three safely bounded distinct clickable bottom tabs (`tabs-present-bounded`), unique Home marker, three known fixed Home texts, correct app package/focus/PID and cleanup**. PPP or Metro/permission success alone is **not PASS**. A 30-second BLOCK would provide evidence against the simple "early observation within 5 seconds" explanation in this single emulator, but would not disprove all timing issues; a 30-second PASS would be consistent with timing sensitivity, but would not establish causality or overall reliability. Both samples use independent ephemeral Android builds, so this is a diagnostic comparison, not a controlled statistical experiment.
+
+## Safety status
+
+P0 #120 and #126 remain OPEN; PR #125 stays Draft; `approvedForProduction=false`, `stableReleaseAllowed=false`. No clicks, swipes, PDFs, financial inputs, credentials, payment, merge, public Release, production OTA, or modification of `main`/historical Release APK.
