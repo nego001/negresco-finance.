@@ -1,0 +1,24 @@
+# M69 — two-step synthetic Home → Pix → Home navigation, Debug only
+
+## Evidence gate before experiment
+
+- M67 [Android9 matrix #45047183173](https://github.com/nego001/negresco-finance./actions/runs/45047183173) **2/2 SUCCESS**. Two independent fresh API28 Debug emulators with fixed 30s initial settling proved native root `PPP`, Home marker unique, all three Home static labels, and each bottom tab present/clickable with strict viewport and non-overlap geometry. No gestures or PDF in M67. [CI #45047183057](https://github.com/nego001/negresco-finance./actions/runs/45047183057) **SUCCESS, 1,641/1,641 contracts**.
+- Pure M68 candidate guard [`418f8c6`](https://github.com/nego001/negresco-finance./commit/418f8c6e2d55700b43a439b9f187290db9a83332) rejects absent/duplicate/malformed IDs, wrong page/selection, thin/outside or overlapping targets, enabled clickable overlays (even foreign) and unsafe viewport. It does not perform I/O or taps. The first CI had one false wording assertion; the isolated contract correction returned **1,644/1,644 contracts PASS**. The full M68 corrected CI's independent jobs may still be running at preregistration, and this document does not presume their outcome.
+
+## M69 prospective single-run protocol
+
+Use ONE new disposable Android 9/API28 emulator and a freshly compiled isolated **Debug** APK plus separate no-permission `testOnly` observer. Adopt M66's **fixed 30-second initial settle** before first observation. Keep the same private local offline Metro, APK SHA/permission/policy gates and external `UiAutomation.waitForIdle(1000,5000)`, exactly three categorical root checks `PPP`, focus/PID stable before and after. No retries of failed observations or targets. No production signing or APK upload.
+
+The callback only starts after independent `PPP` and stable Debug foreground/PID. It first executes the unchanged M64 read-only Home census (one in-memory UIAutomator snapshot) requiring `tabs-present-bounded`, `home-marker-unique`, `home-static-all`, and cleans the temporary XML. Any missing evidence **BLOCKs before touching**.
+
+Then authorize *only the known nonfinancial preview tab* Pix with one NEW fresh in-memory snapshot: exact package, valid Home page resource-ID, precisely three native bottom tabs, correct selected flags (Home selected, Pix not), safe strict geometry, no overlap, clickable/enabled, no other clickable node covering the target center. The pure M68 `eligible-candidate-only` result is necessary but insufficient without fresh PID/focus, and its coordinate is NEVER printed or persisted. Only then issue **one** fixed `adb shell input tap` to Pix. No other action, financial input, transfer, Pix QR, API call or payment. A single predetermined 2-second settle follows; do not retry after a failed state.
+
+Take one second distinct UIAutomator snapshot. Require the exact app-owned Pix page marker and two fixed public preview text strings `TRANSFERÊNCIAS` and `Pix do seu jeito.`, along with the native Pix selected flag, all three safe target rectangles and no clickable occluder. If any fails: **BLOCK without tapping again**. If all pass, recheck PID/focus and issue **one** bounded tap on the Home tab. After another fixed 2 seconds take the **third and final post-census snapshot** and require the unique Home page marker, the original three static Home labels, all three bottom tabs correctly selected/clickable/geometrically safe and no overlay. Require final same process PID and foreground. Only the two planned calls may send `input tap`.
+
+There are at most **four** UIAutomator snapshots total: initial Home census, pre-Pix authorization, post-Pix authorization, post-Home verification. Each raw hierarchy is strictly on the disposable emulator and must be deleted in `finally`, even on errors; failure of cleanup is BLOCK. Only fixed PASS/BLOCK text is published; no raw XML, screenshot, logcat, HTTP data, app texts beyond this policy's public fixture strings, coordinates, PID, user values, PDFs or artifacts. No BACK, swipe, retry, force-stop or reinstallation between transitions.
+
+## Limits and disposition
+
+A M69 PASS would show **one** successful synthetic-only, same-PID preview Home-Pix-Home navigation sequence on a disposable Android9 Debug build; it still does not prove the original SHA-pinned Release, two consecutive PDF cycles, real user touch performance, payment safety or general reliability. A BLOCK is an engineering result, not a reason to weaken gates or repeat until green. Additional independent runs and physical-device checks are necessary for production decisions.
+
+P0 #120 and #126 remain OPEN; PR #125 remains Draft. `approvedForProduction=false` and `stableReleaseAllowed=false`. No PDF, no data, no release, no merge, no OTA or modification to `main` or the original Release APK.
