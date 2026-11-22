@@ -81,6 +81,6 @@ test('M71 checkpoints occur only after their corresponding gate or command retur
 });
 
 test('staging policy prevents premature Android gestures or production release',()=>{
- for(const s of ['M69','M70','M71','No new gesture runs','no new Android workflow','#120','#126','Draft','approvedForProduction=false','stableReleaseAllowed=false','not proof'])
+ for(const s of ['M69','M70','M71','No new gesture runs','no new Android workflow','#120','#126','Draft','approvedForProduction=false','stableReleaseAllowed=false','**not** proof'])
   assert.ok(policy.toLowerCase().includes(s.toLowerCase()),s);
 });
