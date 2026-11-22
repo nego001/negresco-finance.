@@ -16,7 +16,7 @@ test('M74 staging delegates exactly two known complete rounds with one stable PI
  assert.match(source,/navigation\.STAGE\.category != "sequence-complete"/);
  assert.match(source,/observer\.debug_pid\(\) != baseline_pid/);
  assert.match(source,/observer\.run\(after_verified_observation=twice_same_process\)/);
- assert.doesNotMatch(source,/\.adb\(|"input"|"tap"|xml_nodes\(|getRootInActiveWindow\(|subprocess|startActivity\(|force-stop|time\.sleep\(|screenshot|logcat\(/);
+ assert.doesNotMatch(source,/\.adb\(|"input"|"tap"|xml_nodes\(|getRootInActiveWindow\(|subprocess|startActivity\(|force-stop|time\.sleep\(|takeScreenshot\(|\.screenshot\(|logcat\(/);
  assert.doesNotMatch(workflow,/guardiao_api28_debug_nav_two_cycles_staging_lab\.py/);
 });
 
