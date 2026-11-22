@@ -1,0 +1,23 @@
+# M72 — category-only stage-ledger Android9 Debug preview navigation
+
+## Frozen evidence before this experiment
+
+- [M69 Android #45049052547](https://github.com/nego001/negresco-finance./actions/runs/45049052547): **FAIL/BLOCK** after the external `idle-observed / PPP` and strict native Home census PASS. The old runner logged only `guarded Debug Home-Pix-Home navigation not attested`, without proving whether any tap was executed. [CI M69 #45049052382](https://github.com/nego001/negresco-finance./actions/runs/45049052382) **SUCCESS, 1,650/1,650 contracts**, not an Android navigation PASS.
+- [M70 Android #45051256896](https://github.com/nego001/negresco-finance./actions/runs/45051256896): **SUCCESS**, after the same strict `PPP` and native Home census, with `debug-nav-first-candidate=candidate-eligible`. This **proves only the first Home → Pix native candidate was geometrically eligible without a tap on that independent emulator**, not that M69's first tap occurred or that later transitions work. [M70 CI #45051256760](https://github.com/nego001/negresco-finance./actions/runs/45051256760) **SUCCESS, 1,655/1,655 contracts**.
+- [M71 CI #45051893821](https://github.com/nego001/negresco-finance./actions/runs/45051893821) **SUCCESS, 1,660/1,660 contracts**, including a pure monotonic checkpoint state machine and unchanged M69 gates. M71 did **not** run a new Android touch experiment.
+
+## M72 preregistered independent Debug experiment
+
+One freshly built, disposable **Android9/API28 Debug** APK and one separate no-permission testOnly observer. New isolated branch `lab/p01-guardiao-api28-debug-nav-stage-ledger-android-v1`, workflow derived byte-for-byte from the reviewed M69 workflow except for branch/labels/isolated concurrency. The M71 runner and pure stage ledger are reused **unchanged**: no changes to app, layout, permissions, geometry, UI timing, source, product, or release.
+
+The experiment retains all previously reviewed gates: fixed 30-second pre-first observation settle; checked foreground and identical Debug PID; one bounded `UiAutomation.waitForIdle(1000,5000)`; three independent read-only `getRootInActiveWindow()` results from the exact Debug package `PPP`; mandatory full Home snapshot check (`tabs-present-bounded`, `home-marker-unique`, `home-static-all`), exactly one extra fresh pre-Pix authorization snapshot and strict M68 pure candidate guard. Only after `pix-candidate-attested` plus fresh stable PID/focus may the script send **one** synthetic preview Pix tab tap. After the existing fixed 2-second settle, one new snapshot must prove two fixed public Pix preview text markers, native selection/geometry/clickability and original process; only then may it send **one** guarded return-to-Home tab tap. One final snapshot must prove native Home and three safe tabs, original PID/focus. No adaptive wait, retries, BACK, swipes, payment, QR, transfer, PDF, chooser or other gestures. Every temporary UIAutomator XML is deleted in `finally`; cleanup failure blocks the test.
+
+The M71 ledger only emits the **last verified checkpoint** (fixed allowlist) on failure:
+`preflight-pending`, `home-attested`, `pix-candidate-attested`, `pix-input-command-returned`, `pix-preview-content-attested`, `home-candidate-attested`, `home-input-command-returned`, `home-return-content-attested`, `sequence-complete`.
+The `*-input-command-returned` categories mean an ADB input command returned, **not** that a touch was delivered or a page changed. The `pix-preview-content-attested` and `home-return-content-attested` categories require separate native semantic evidence. A failure at any step remains **BLOCK**; no code emits errors, coordinates, PID, UI XML, screenshot, text or request data. Only fixed categories and PASS/BLOCK appear in logs. Exactly **one attempt**: no failure-triggered retry.
+
+**Interpretation:** M72 PASS is just one successful Debug-only synthetic preview two-step sequence, not a production repair or statistical reliability. A BLOCK with a checkpoint narrows which stage was last attested and informs the next isolated no-touch diagnostic, but not automatic causality. Even with PASS, Android original SHA-pinned Release, PDF #120, two independent functional cycles #126, physical devices and transactions remain unvalidated.
+
+## Safety and disposal
+
+No screenshots, APKs, bundles, PDFs, coordinates, app values, PID, credentials or raw XML are uploaded or printed. `contents: read` only, no secrets or write permissions. The original `main`, historical Release APK, and production signing remain untouched. P0 #120 and #126 stay OPEN; PR #125 stays Draft and unmerged, `approvedForProduction=false`, `stableReleaseAllowed=false`. No merge, OTA or shipping.
