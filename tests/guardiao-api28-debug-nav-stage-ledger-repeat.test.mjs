@@ -43,7 +43,8 @@ test('each sample keeps strict Home census, PPP, two guarded actions, no repeat 
  assert.equal((runner.match(/time\.sleep\(2\.0\)/g)||[]).length,2);
  assert.equal((runner.match(/private_snapshot\(\)/g)||[]).length,4);
  assert.match(home,/if \(tab_status, marker_status, home_status\) != \([\s\S]*?"tabs-present-bounded", "home-marker-unique", "home-static-all"/);
- assert.match(runner,/finally:\s*\n\s*BASE\.adb\("shell", "rm", "-f", "\/sdcard\/negresco_ui\.xml", timeout=15\)/);
+ assert.match(runner,/finally:\s*\n\s*# Always delete exactly as before,[\s\S]*?BASE\.adb\("shell", "rm", "-f", "\/sdcard\/negresco_ui\.xml", timeout=15\)/);
+ assert.match(runner,/SNAPSHOT_DIAGNOSTIC = "snapshot-cleanup-unconfirmed"/);
  assert.match(runner,/stable_app\(pid\)/);
  assert.doesNotMatch(runner,/"keyevent"|"swipe"|"force-stop"|\.adb\("logcat"/);
 });

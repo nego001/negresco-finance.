@@ -72,7 +72,8 @@ test('existing M72 guarded one-cycle logic remains the sole source of synthetic 
  assert.match(original,/home\.passive_home_census\(\)/);
  assert.match(original,/pix_static_proven\(nodes\)/);
  assert.match(original,/stable_app\(pid\)/);
- assert.match(original,/finally:\s*\n\s*BASE\.adb\("shell", "rm", "-f", "\/sdcard\/negresco_ui\.xml", timeout=15\)/);
+ assert.match(original,/finally:\s*\n\s*# Always delete exactly as before,[\s\S]*?BASE\.adb\("shell", "rm", "-f", "\/sdcard\/negresco_ui\.xml", timeout=15\)/);
+ assert.match(original,/SNAPSHOT_DIAGNOSTIC = "snapshot-cleanup-unconfirmed"/);
 });
 
 test('staging docs retain future-only test plan and independent PDF and Release P0 gates',()=>{

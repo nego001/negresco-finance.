@@ -14,7 +14,8 @@ test('M70 inherits PPP, 30s, strict Home and one cleanup-protected extra read, b
  assert.match(diag,/observer\.run\(after_verified_observation=passive_preflight\)/);
  assert.match(diag,/home\.passive_home_census\(\)/);
  assert.match(diag,/previous\.private_snapshot\(\)/);
- assert.match(old,/finally:\s*\n\s*BASE\.adb\("shell", "rm", "-f", "\/sdcard\/negresco_ui\.xml", timeout=15\)/);
+ assert.match(old,/finally:\s*\n\s*# Always delete exactly as before,[\s\S]*?BASE\.adb\("shell", "rm", "-f", "\/sdcard\/negresco_ui\.xml", timeout=15\)/);
+ assert.match(old,/SNAPSHOT_DIAGNOSTIC = "snapshot-cleanup-unconfirmed"/);
  assert.match(diag,/if observer\.debug_pid\(\) != pid or not observer\.debug_focus\(\):/);
  assert.match(diag,/if state != "candidate-eligible":/);
  assert.doesNotMatch(diag,/\.adb\(|"input"|"tap"|"swipe"|"keyevent"|performAction|guarded_preview_tap\(|subprocess|xml_nodes\(|print\(nodes|print\(.*bounds|print\(.*pid|logcat|takeScreenshot/);

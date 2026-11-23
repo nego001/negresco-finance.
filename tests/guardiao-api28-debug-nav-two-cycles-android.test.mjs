@@ -46,7 +46,8 @@ test('two sequential cycles delegate to unchanged bounded navigation only, no by
  assert.equal((one.match(/BASE\.adb\("shell", "input", "tap"/g)||[]).length,1);
  assert.equal((one.match(/time\.sleep\(2\.0\)/g)||[]).length,2);
  assert.match(one,/home\.passive_home_census\(\)/);
- assert.match(one,/finally:\s*\n\s*BASE\.adb\("shell", "rm", "-f", "\/sdcard\/negresco_ui\.xml", timeout=15\)/);
+ assert.match(one,/finally:\s*\n\s*# Always delete exactly as before,[\s\S]*?BASE\.adb\("shell", "rm", "-f", "\/sdcard\/negresco_ui\.xml", timeout=15\)/);
+ assert.match(one,/SNAPSHOT_DIAGNOSTIC = "snapshot-cleanup-unconfirmed"/);
 });
 
 test('M75 fixed output remains categories only, not raw PID or UI',()=>{

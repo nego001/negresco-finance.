@@ -54,7 +54,8 @@ test('M69 original tap and snapshot safety gates are unchanged in the staging br
  assert.equal((runner.match(/BASE\.adb\("shell", "input", "tap"/g)||[]).length,1);
  assert.equal((runner.match(/time\.sleep\(2\.0\)/g)||[]).length,2);
  assert.equal((runner.match(/private_snapshot\(\)/g)||[]).length,4);
- assert.match(runner,/finally:\s*\n\s*BASE\.adb\("shell", "rm", "-f", "\/sdcard\/negresco_ui\.xml", timeout=15\)/);
+ assert.match(runner,/finally:\s*\n\s*# Always delete exactly as before,[\s\S]*?BASE\.adb\("shell", "rm", "-f", "\/sdcard\/negresco_ui\.xml", timeout=15\)/);
+ assert.match(runner,/SNAPSHOT_DIAGNOSTIC = "snapshot-cleanup-unconfirmed"/);
  assert.match(oldWorkflow,/lab\/p01-guardiao-api28-debug-nav-preview-two-step-v1/);
  assert.doesNotMatch(oldWorkflow,/lab\/p01-guardiao-api28-debug-nav-stage-ledger-v1/);
 });

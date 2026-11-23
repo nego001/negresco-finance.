@@ -35,7 +35,8 @@ test('M72 retains exactly two guarded preview taps, fixed waits, no retry and XM
  assert.match(runner,/observer\.run\(after_verified_observation=run_two_step_navigation\)/);
  assert.match(runner,/home\.passive_home_census\(\)/);
  assert.match(home,/finally:[\s\S]*?BASE\.adb\("shell", "rm", "-f", "\/sdcard\/negresco_ui\.xml", timeout=15\)/);
- assert.match(runner,/finally:\s*\n\s*BASE\.adb\("shell", "rm", "-f", "\/sdcard\/negresco_ui\.xml", timeout=15\)/);
+ assert.match(runner,/finally:\s*\n\s*# Always delete exactly as before,[\s\S]*?BASE\.adb\("shell", "rm", "-f", "\/sdcard\/negresco_ui\.xml", timeout=15\)/);
+ assert.match(runner,/SNAPSHOT_DIAGNOSTIC = "snapshot-cleanup-unconfirmed"/);
  assert.match(guard,/safe_ancestor_constraint_category/);
  assert.doesNotMatch(runner,/"keyevent"|"swipe"|"pm", "clear"|"force-stop"|upload-artifact|console\.log/);
 });
