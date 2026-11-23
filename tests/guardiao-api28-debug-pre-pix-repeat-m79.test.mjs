@@ -38,7 +38,8 @@ test('M79 preserves strict single-cycle guarded navigation and original diagnost
  assert.doesNotMatch(stage,/"input"|"tap"|time\.sleep|xml_nodes\(/);
  assert.match(external,/time\.sleep\(30\.0\)/);
  assert.match(external,/\("idle-observed", "all-present", "PPP"\)/);
- assert.match(diag,/finally:\s*\n\s*BASE\.adb\("shell", "rm", "-f", "\/sdcard\/negresco_ui\.xml", timeout=15\)/);
+ assert.match(diag,/finally:\s*\n\s*# Always delete exactly as before,[\s\S]*?BASE\.adb\("shell", "rm", "-f", "\/sdcard\/negresco_ui\.xml", timeout=15\)/);
+ assert.match(diag,/SNAPSHOT_DIAGNOSTIC = "snapshot-cleanup-unconfirmed"/);
 });
 test('M79 retains M77 BLOCK and production prohibitions',()=>{
  for(const value of ['M75','M76','M77','M78','M79','#120','#126','Draft',
