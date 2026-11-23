@@ -48,7 +48,8 @@ test('M78 leaves original touch counts, wait intervals, snapshots, PPP and manda
  assert.equal((navigation.match(/BASE\.adb\("shell", "input", "tap"/g)||[]).length,1);
  assert.equal((navigation.match(/time\.sleep\(2\.0\)/g)||[]).length,2);
  assert.equal((navigation.match(/private_snapshot\(\)/g)||[]).length,4);
- assert.match(navigation,/finally:\s*\n\s*BASE\.adb\("shell", "rm", "-f", "\/sdcard\/negresco_ui\.xml", timeout=15\)/);
+ assert.match(navigation,/finally:\s*\n\s*# Always delete exactly as before,[\s\S]*?BASE\.adb\("shell", "rm", "-f", "\/sdcard\/negresco_ui\.xml", timeout=15\)/);
+ assert.match(navigation,/SNAPSHOT_DIAGNOSTIC = "snapshot-cleanup-unconfirmed"/);
  assert.match(external,/time\.sleep\(30\.0\)/);
  assert.match(external,/\("idle-observed", "all-present", "PPP"\)/);
  assert.match(staging,/CYCLES: tuple\[str, str\] = \("first", "second"\)/);
