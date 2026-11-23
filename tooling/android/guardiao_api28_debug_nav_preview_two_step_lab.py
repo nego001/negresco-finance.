@@ -23,18 +23,32 @@ RESULT = "BLOCK (LAB): guarded Debug Home-Pix-Home navigation not attested"
 STAGE = StageLedger()  # fixed-category evidence only, no UI or device access
 PRE_PIX_DIAGNOSTIC = "not-started"  # allowlisted only; no UI/PID/coordinates
 RETURN_DIAGNOSTIC = "not-started"  # categorical, never content/coords/PID
+SNAPSHOT_DIAGNOSTIC = "not-started"  # fixed phase only; reset per cycle
 
 
 def private_snapshot() -> tuple[list[dict[str, str]], int, int]:
-    """Exactly one ephemeral UIAutomator read, with deletion even on failure."""
+    """Same one ephemeral UIAutomator read, mandatory deletion; M80 phase only."""
+    global SNAPSHOT_DIAGNOSTIC
+    SNAPSHOT_DIAGNOSTIC = "snapshot-screen-size-unconfirmed"
     try:
         width, height = BASE.screen_size()
+        SNAPSHOT_DIAGNOSTIC = "snapshot-ui-tree-unconfirmed"
         nodes = BASE.xml_nodes()
+        SNAPSHOT_DIAGNOSTIC = "snapshot-shape-unconfirmed"
         if not isinstance(nodes, list) or width <= 0 or height <= 0:
             raise RuntimeError("unsafe private snapshot")
+        SNAPSHOT_DIAGNOSTIC = "snapshot-cleanup-unconfirmed"
         return nodes, width, height
     finally:
-        BASE.adb("shell", "rm", "-f", "/sdcard/negresco_ui.xml", timeout=15)
+        # Always delete exactly as before, even if either read fails.
+        try:
+            BASE.adb("shell", "rm", "-f", "/sdcard/negresco_ui.xml", timeout=15)
+        except Exception:
+            SNAPSHOT_DIAGNOSTIC = "snapshot-cleanup-unconfirmed"
+            raise
+        else:
+            if SNAPSHOT_DIAGNOSTIC == "snapshot-cleanup-unconfirmed":
+                SNAPSHOT_DIAGNOSTIC = "snapshot-attested"
 
 
 def pix_static_proven(nodes: object) -> bool:
@@ -64,9 +78,10 @@ def guarded_preview_tap(point: tuple[int, int]) -> None:
 
 
 def run_two_step_navigation() -> None:
-    global RETURN_DIAGNOSTIC, PRE_PIX_DIAGNOSTIC
+    global RETURN_DIAGNOSTIC, PRE_PIX_DIAGNOSTIC, SNAPSHOT_DIAGNOSTIC
     RETURN_DIAGNOSTIC = "not-started"
     PRE_PIX_DIAGNOSTIC = "not-started"
+    SNAPSHOT_DIAGNOSTIC = "not-started"
     # M64 Home census must pass first; it checks one snapshot, removes XML,
     # requires three bound targets and the three exact static Home markers.
     home.passive_home_census()
