@@ -20,6 +20,7 @@ import unicodedata
 from pathlib import Path
 
 import guardiao_pdf_ui_emulator_smoke as base
+from guardiao_pdf_synthetic_privacy_gate import contains_formatted_synthetic_fixture
 
 PKG = base.RECEIVER_PACKAGE
 MARKER = "files/allow-synthetic-text-check-once"
@@ -151,6 +152,10 @@ def inspect_real_android_pdf(receipt: dict) -> None:
             for forbidden in FORBIDDEN:
                 if normalize(forbidden) in actual:
                     raise RuntimeError("native PDF leaks fixture or falsely authenticates a charge")
+            # Fail closed if text extraction splits the fixed invalid fixture
+            # over whitespace, punctuation, Unicode digits, or page breaks.
+            if contains_formatted_synthetic_fixture(actual):
+                raise RuntimeError("native PDF leaks formatted synthetic fixture")
             print("STAGE (LAB): scenario semantics and forbidden text checked", flush=True)
             observed = {
                 "nativePdfSemanticTextVerified": True, "textPagesVerified": pages,

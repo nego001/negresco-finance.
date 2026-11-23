@@ -1,0 +1,20 @@
+name: Guardiao formatted synthetic PDF privacy gate (lab only)
+on:
+  push:
+    branches:
+      - lab/p01-guardiao-android-pdf-formatted-leak-gate-v1
+permissions:
+  contents: read
+concurrency:
+  group: guardiao-pdf-formatted-privacy-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  synthetic-formatted-leak:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Run offline synthetic-only adversarial privacy checks
+        run: python3 -B -m unittest discover -s tooling/android -p 'test_guardiao_pdf_synthetic_privacy_gate.py' -v
