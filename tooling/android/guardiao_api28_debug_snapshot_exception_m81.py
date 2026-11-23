@@ -9,6 +9,18 @@ from __future__ import annotations
 import re
 import subprocess
 import xml.etree.ElementTree as ET
+from xml.parsers import expat
+
+# The parser's public error-code enumeration, never message/content/position.
+_XML_ERROR_CATEGORIES = {
+    expat.errors.codes[expat.errors.XML_ERROR_NO_ELEMENTS]: "snapshot-ui-xml-no-elements",
+    expat.errors.codes[expat.errors.XML_ERROR_UNCLOSED_TOKEN]: "snapshot-ui-xml-unclosed-token",
+    expat.errors.codes[expat.errors.XML_ERROR_INVALID_TOKEN]: "snapshot-ui-xml-invalid-token",
+    expat.errors.codes[expat.errors.XML_ERROR_TAG_MISMATCH]: "snapshot-ui-xml-mismatched-tag",
+    expat.errors.codes[expat.errors.XML_ERROR_JUNK_AFTER_DOC_ELEMENT]: "snapshot-ui-xml-trailing-content",
+    expat.errors.codes[expat.errors.XML_ERROR_PARTIAL_CHAR]: "snapshot-ui-xml-partial-character",
+}
+
 
 FALLBACK = "snapshot-ui-tree-unconfirmed"
 
@@ -16,7 +28,10 @@ FALLBACK = "snapshot-ui-tree-unconfirmed"
 def classify(error: BaseException) -> str:
     """Return one allowed literal, never expose the exception or its data."""
     if isinstance(error, ET.ParseError):
-        return "snapshot-ui-xml-parse-unconfirmed"
+        # Pure code lookup; do not read the error message, position or XML.
+        return _XML_ERROR_CATEGORIES.get(
+            getattr(error, "code", None), "snapshot-ui-xml-parse-unconfirmed"
+        )
 
     if isinstance(error, subprocess.TimeoutExpired):
         command = error.cmd
