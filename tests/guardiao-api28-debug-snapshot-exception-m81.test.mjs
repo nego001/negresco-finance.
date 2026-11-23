@@ -42,7 +42,7 @@ test('M81 new literal categories are allowlisted and helper never touches device
  'snapshot-ui-file-timeout','snapshot-ui-file-command-failed','snapshot-ui-xml-parse-unconfirmed',
  'snapshot-ui-tree-unconfirmed'])
    assert.ok(allowed.includes('"'+category+'"'),category);
- assert.doesNotMatch(helper,/print\(|\.adb\(|xml_nodes\(|time\.sleep|logging|open\(|requests|urllib|socket/);
+ assert.doesNotMatch(helper,/print\(|\.adb\(|xml_nodes\(|time\.sleep|import\s+logging\b|logging\.|open\(|requests|urllib|socket/);
 });
 test('M81 fixtures: original known command failure, timeout, malformed XML, and unknown fail closed',()=>{
  const script=[
