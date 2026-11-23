@@ -14,6 +14,7 @@ import guardiao_api28_debug_home_readiness_census_lab as home
 import guardiao_api28_debug_targetid_presence_lab as counts
 import guardiao_api28_debug_nav_preview_guard as gate
 import guardiao_api28_debug_return_diagnostic_lab as return_diag
+import guardiao_api28_debug_snapshot_exception_m81 as snapshot_exception
 from guardiao_api28_debug_nav_stage_ledger import StageLedger
 
 BASE = observer.debug.base
@@ -33,7 +34,12 @@ def private_snapshot() -> tuple[list[dict[str, str]], int, int]:
     try:
         width, height = BASE.screen_size()
         SNAPSHOT_DIAGNOSTIC = "snapshot-ui-tree-unconfirmed"
-        nodes = BASE.xml_nodes()
+        try:
+            nodes = BASE.xml_nodes()  # same one read, original module and arguments
+        except Exception as exc:
+            # Pure classification of already-raised exception; never print it.
+            SNAPSHOT_DIAGNOSTIC = snapshot_exception.classify(exc)
+            raise
         SNAPSHOT_DIAGNOSTIC = "snapshot-shape-unconfirmed"
         if not isinstance(nodes, list) or width <= 0 or height <= 0:
             raise RuntimeError("unsafe private snapshot")
