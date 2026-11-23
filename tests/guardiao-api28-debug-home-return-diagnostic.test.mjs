@@ -41,7 +41,8 @@ test('M76 keeps one root PPP, same settling, and exactly original two guarded ta
  assert.match(one,/home\.passive_home_census\(\)/);
  assert.match(one,/gate\.select_preview_target\(/);
  assert.match(one,/pix_static_proven\(nodes\)/);
- assert.match(one,/finally:\s*\n\s*BASE\.adb\("shell", "rm", "-f", "\/sdcard\/negresco_ui\.xml", timeout=15\)/);
+ assert.match(one,/finally:\s*\n\s*# Always delete exactly as before,[\s\S]*?BASE\.adb\("shell", "rm", "-f", "\/sdcard\/negresco_ui\.xml", timeout=15\)/);
+ assert.match(one,/SNAPSHOT_DIAGNOSTIC = "snapshot-cleanup-unconfirmed"/);
  assert.match(one,/STAGE\.advance\("sequence-complete"\)/);
  assert.doesNotMatch(two,/"input"|"tap"|time\.sleep|xml_nodes\(/);
 });
