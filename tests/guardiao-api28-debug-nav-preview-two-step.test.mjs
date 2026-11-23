@@ -32,7 +32,8 @@ test('M69 requires read-only Home census before first of exactly two guarded pre
 test('each of three additional private snapshots deletes raw XML even after exceptions',()=>{
  assert.equal((runner.match(/private_snapshot\(\)/g)||[]).length,4); // definition + three planned invocations
  assert.equal((runner.match(/BASE\.xml_nodes\(\)/g)||[]).length,1);
- assert.match(runner,/finally:\s*\n\s*BASE\.adb\("shell", "rm", "-f", "\/sdcard\/negresco_ui\.xml", timeout=15\)/);
+ assert.match(runner,/finally:\s*\n\s*# Always delete exactly as before,[\s\S]*?BASE\.adb\("shell", "rm", "-f", "\/sdcard\/negresco_ui\.xml", timeout=15\)/);
+ assert.match(runner,/SNAPSHOT_DIAGNOSTIC = "snapshot-cleanup-unconfirmed"/);
  assert.doesNotMatch(runner,/print\(nodes|print\(.*bounds|print\(.*coords|print\(.*raw|print\(.*pid|\.adb\("logcat"|upload-artifact/);
 });
 
