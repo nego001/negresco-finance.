@@ -65,6 +65,12 @@ if __name__ == "__main__":
         print("ENV (LAB): debug-nav-active-cycle=" + cycle, flush=True)
         print("ENV (LAB): debug-nav-last-complete-cycle=" + complete, flush=True)
         print("ENV (LAB): debug-nav-last-checkpoint=" + checkpoint, flush=True)
+        # Fixed reason only; never print page contents, PID, bounds or exceptions.
+        from guardiao_api28_debug_return_diagnostic_lab import RETURN_CATEGORIES
+        reason = navigation.RETURN_DIAGNOSTIC
+        if reason not in RETURN_CATEGORIES:
+            reason = "post-home-classifier-unconfirmed"
+        print("ENV (LAB): debug-nav-home-return=" + reason, flush=True)
         print("BLOCK (LAB): two complete Debug preview nav cycles not attested",
               file=sys.stderr)
         raise SystemExit(1)

@@ -13,6 +13,7 @@ import guardiao_api28_debug_external_a11y_readonly_lab as observer
 import guardiao_api28_debug_home_readiness_census_lab as home
 import guardiao_api28_debug_targetid_presence_lab as counts
 import guardiao_api28_debug_nav_preview_guard as gate
+import guardiao_api28_debug_return_diagnostic_lab as return_diag
 from guardiao_api28_debug_nav_stage_ledger import StageLedger
 
 BASE = observer.debug.base
@@ -20,6 +21,7 @@ PIX_TEXTS = ("TRANSFERÊNCIAS", "Pix do seu jeito.")
 APP = observer.DEBUG_PACKAGE
 RESULT = "BLOCK (LAB): guarded Debug Home-Pix-Home navigation not attested"
 STAGE = StageLedger()  # fixed-category evidence only, no UI or device access
+RETURN_DIAGNOSTIC = "not-started"  # categorical, never content/coords/PID
 
 
 def private_snapshot() -> tuple[list[dict[str, str]], int, int]:
@@ -61,6 +63,8 @@ def guarded_preview_tap(point: tuple[int, int]) -> None:
 
 
 def run_two_step_navigation() -> None:
+    global RETURN_DIAGNOSTIC
+    RETURN_DIAGNOSTIC = "not-started"
     # M64 Home census must pass first; it checks one snapshot, removes XML,
     # requires three bound targets and the three exact static Home markers.
     home.passive_home_census()
@@ -97,23 +101,40 @@ def run_two_step_navigation() -> None:
     stable_app(pid)
     guarded_preview_tap(home_center)  # precisely one Home return tap
     STAGE.advance("home-input-command-returned")
-    time.sleep(2.0)
-    stable_app(pid)
+    RETURN_DIAGNOSTIC = "home-input-command-returned"
+    time.sleep(2.0)  # same fixed wait as M75; never retry a failed observation
+    try:
+        stable_app(pid)
+    except Exception:
+        RETURN_DIAGNOSTIC = "post-home-process-or-focus-unconfirmed"
+        raise
 
-    # 3rd and FINAL snapshot: Home returned with three eligible targets.
-    nodes, width, height = private_snapshot()
-    category, _ = gate.select_preview_target(
-        nodes, width, height, "home", "pix"
-    )
-    nav, marker = counts.classify_snapshot(nodes, width, height)
-    static, structure, _ = home.classify_readiness(nodes)
-    if (category != gate.ELIGIBLE or nav != "tabs-present-bounded"
-            or marker != "home-marker-unique"
-            or static != "home-static-all"
-            or structure != "app-text-and-clickable"):
+    # The SAME third and final snapshot, not a new or repeated UI read.
+    try:
+        nodes, width, height = private_snapshot()
+    except Exception:
+        RETURN_DIAGNOSTIC = "post-home-snapshot-unconfirmed"
+        raise
+    try:
+        category, _ = gate.select_preview_target(
+            nodes, width, height, "home", "pix"
+        )
+        nav, marker = counts.classify_snapshot(nodes, width, height)
+        static, structure, _ = home.classify_readiness(nodes)
+        RETURN_DIAGNOSTIC = return_diag.classify(
+            nav, marker, static, structure, category
+        )
+    except Exception:
+        RETURN_DIAGNOSTIC = "post-home-classifier-unconfirmed"
+        raise
+    if RETURN_DIAGNOSTIC != "post-home-attested":
         raise RuntimeError("final Home preview not attested")
     STAGE.advance("home-return-content-attested")
-    stable_app(pid)
+    try:
+        stable_app(pid)
+    except Exception:
+        RETURN_DIAGNOSTIC = "post-home-process-or-focus-unconfirmed"
+        raise
     STAGE.advance("sequence-complete")
     print("PASS (LAB): exactly two bounded preview taps Home-Pix-Home, same Debug PID",
           flush=True)
