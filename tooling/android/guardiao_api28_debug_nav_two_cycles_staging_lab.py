@@ -71,6 +71,11 @@ if __name__ == "__main__":
         if reason not in RETURN_CATEGORIES:
             reason = "post-home-classifier-unconfirmed"
         print("ENV (LAB): debug-nav-home-return=" + reason, flush=True)
+        from guardiao_api28_debug_pre_pix_diagnostic_lab import PRE_PIX_CATEGORIES
+        pre_pix = navigation.PRE_PIX_DIAGNOSTIC
+        if pre_pix not in PRE_PIX_CATEGORIES:
+            pre_pix = "pre-pix-classifier-unconfirmed"
+        print("ENV (LAB): debug-nav-pre-pix=" + pre_pix, flush=True)
         print("BLOCK (LAB): two complete Debug preview nav cycles not attested",
               file=sys.stderr)
         raise SystemExit(1)

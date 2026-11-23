@@ -21,6 +21,7 @@ PIX_TEXTS = ("TRANSFERÊNCIAS", "Pix do seu jeito.")
 APP = observer.DEBUG_PACKAGE
 RESULT = "BLOCK (LAB): guarded Debug Home-Pix-Home navigation not attested"
 STAGE = StageLedger()  # fixed-category evidence only, no UI or device access
+PRE_PIX_DIAGNOSTIC = "not-started"  # allowlisted only; no UI/PID/coordinates
 RETURN_DIAGNOSTIC = "not-started"  # categorical, never content/coords/PID
 
 
@@ -63,22 +64,39 @@ def guarded_preview_tap(point: tuple[int, int]) -> None:
 
 
 def run_two_step_navigation() -> None:
-    global RETURN_DIAGNOSTIC
+    global RETURN_DIAGNOSTIC, PRE_PIX_DIAGNOSTIC
     RETURN_DIAGNOSTIC = "not-started"
+    PRE_PIX_DIAGNOSTIC = "not-started"
     # M64 Home census must pass first; it checks one snapshot, removes XML,
     # requires three bound targets and the three exact static Home markers.
     home.passive_home_census()
     STAGE.advance("home-attested")
-    pid = observer.debug_pid()
-    stable_app(pid)
+    # M78: classify only the already-required pre-Pix gates.
+    # No additional observation, input, timeout, recovery or raw value.
+    try:
+        pid = observer.debug_pid()
+        stable_app(pid)
+    except Exception:
+        PRE_PIX_DIAGNOSTIC = "pre-pix-process-or-focus-unconfirmed"
+        raise
 
     # 1st distinct snapshot: authorize ONLY the Pix preview target.
-    nodes, width, height = private_snapshot()
-    category, pix_center = gate.select_preview_target(
-        nodes, width, height, "home", "pix"
-    )
+    try:
+        nodes, width, height = private_snapshot()
+    except Exception:
+        PRE_PIX_DIAGNOSTIC = "pre-pix-snapshot-unconfirmed"
+        raise
+    try:
+        category, pix_center = gate.select_preview_target(
+            nodes, width, height, "home", "pix"
+        )
+    except Exception:
+        PRE_PIX_DIAGNOSTIC = "pre-pix-classifier-unconfirmed"
+        raise
     if category != gate.ELIGIBLE or pix_center is None:
+        PRE_PIX_DIAGNOSTIC = "pre-pix-target-unconfirmed"
         raise RuntimeError("unsafe Pix candidate")
+    PRE_PIX_DIAGNOSTIC = "pre-pix-target-attested"
     STAGE.advance("pix-candidate-attested")
     stable_app(pid)
     guarded_preview_tap(pix_center)  # precisely one Pix preview tap
