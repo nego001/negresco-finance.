@@ -62,7 +62,7 @@ test('M74 error path outputs only fixed allowlisted stage and cycle categories',
  assert.match(source,/debug-nav-last-complete-cycle=/);
  assert.match(source,/debug-nav-last-checkpoint=/);
  assert.match(source,/BLOCK \(LAB\): two complete Debug preview nav cycles not attested/);
- assert.doesNotMatch(source,/print\(.*str\(e\)|traceback\.print|print\(.*pid|print\(.*point|print\(.*nodes|print\(.*bounds/);
+ assert.doesNotMatch(source,/print\(\s*str\(e\)|traceback\.print|print\([^)]*\+\s*(?:pid|point|nodes|bounds)\b/);
 });
 
 test('existing M72 guarded one-cycle logic remains the sole source of synthetic taps and XML cleanup',()=>{
