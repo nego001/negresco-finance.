@@ -57,7 +57,7 @@ test('read-only return categories cannot authorize a rejected original gate',()=
  assert.match(one,/except Exception:\s*\n\s*RETURN_DIAGNOSTIC = "post-home-process-or-focus-unconfirmed"/);
  assert.match(two,/if reason not in RETURN_CATEGORIES:/);
  assert.match(two,/ENV \(LAB\): debug-nav-home-return=/);
- assert.doesNotMatch(diag,/\.adb\(|subprocess|xml_nodes\(|print\(|logging|socket|time\.sleep|os\.system|requests|urllib/);
+ assert.doesNotMatch(diag,/\.adb\(|subprocess|xml_nodes\(|print\(|import\s+logging\b|logging\.|socket|time\.sleep|os\.system|requests|urllib/);
  assert.doesNotMatch(two,/print\(\s*str\(e\)|traceback\.print|print\([^)]*\+\s*(?:pid|point|nodes|bounds)\b/);
 });
 

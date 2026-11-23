@@ -37,8 +37,12 @@ test('each of three additional private snapshots deletes raw XML even after exce
 });
 
 test('source-bound Pix preview content is required before Home return, and Home final state is strict',()=>{
- for(const x of ['TRANSFERÊNCIAS','Pix do seu jeito.','pix_static_proven(nodes)','"pix", "home"','"home", "pix"','tabs-present-bounded','home-marker-unique','home-static-all','app-text-and-clickable'])
+ for(const x of ['TRANSFERÊNCIAS','Pix do seu jeito.','pix_static_proven(nodes)','"pix", "home"','"home", "pix"'])
    assert.ok(runner.includes(x),x);
+ const returnDiag=readFileSync('tooling/android/guardiao_api28_debug_return_diagnostic_lab.py','utf8');
+ for(const x of ['tabs-present-bounded','home-marker-unique','home-static-all','app-text-and-clickable'])
+   assert.ok(returnDiag.includes(x),x);
+ assert.match(runner,/if RETURN_DIAGNOSTIC != "post-home-attested":/);
  assert.match(guard,/safe_ancestor_constraint_category/);
  assert.match(guard,/blocked-ambiguous-or-unsafe/);
  assert.match(runner,/if category != gate\.ELIGIBLE or home_center is None:/);
