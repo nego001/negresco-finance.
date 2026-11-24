@@ -1,0 +1,10 @@
+# M94 — compatibility preflight diagnosis (Debug only)
+
+## M93 outcome
+[M93 Android #45470613518](https://github.com/nego001/negresco-finance./actions/runs/45470613518) both jobs FAILURE: API29 138717252418 and API35 138717251945. Both exact source prep, disposable Debug APK safety and observer build PASS; emulator boot and private Metro bundle served. Both stopped before debug-observer-preflight=debug-focused; preflight-pending, no cycle, no Pix tap, no initial PPP attested. Actual blocked operation unconfirmed. Not a native navigation failure or proof against zIndex:1. [CI #45470613335](https://github.com/nego001/negresco-finance./actions/runs/45470613335) six required jobs SUCCESS, 1,764/1,764 contracts; three PR-only jobs skipped.
+
+## M94 diagnostic
+Same exact M93 app and SDK equality gates, one fresh job per API29/API35. Thirteen fixed labels immediately before existing relay creation/start, reverse/reset, app/observer installation, launch/verification, fixed settle, PID, focus, observer instrumentation and parse. Last label identifies the next attempted operation, not its completion; no raw exceptions, PID, window, package output or coordinates. Reversible insertion only; no added device calls, taps, reads, waits, retries, altered focus predicate or broadened SDK. If preflight passes, run unchanged original two-cycle navigation. Original observer records initial PPP and checks PID/focus after cycles; final success line is a summary, not a second independent PPP measurement. No tracked app/observer edits. No screenshots, PDFs, payments or raw artifact uploads. Preserve original M93 failures. A blocked preflight cannot be classified as functional failure. Do not relax gates to obtain green.
+
+## Production guard
+Original Release SHA256 `29e248742e365c4dd7a8c668a23153d43a89b8be02828620bbc5851775986b4a` immutable. P0 #120 and #126 OPEN, PR #125 Draft/unmerged, approvedForProduction=false, stableReleaseAllowed=false. No main edit, production build, signing, OTA, publication or actual financial data.
