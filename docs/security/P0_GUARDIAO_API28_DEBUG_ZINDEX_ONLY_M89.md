@@ -10,3 +10,6 @@ M88 retained `labAndroidRootHitOrder:{zIndex:4,elevation:4},` while subtracting 
 
 ## Production guard
 Original Release SHA256 `29e248742e365c4dd7a8c668a23153d43a89b8be02828620bbc5851775986b4a` immutable. P0 #120 and #126 OPEN, PR #125 Draft/unmerged, approvedForProduction=false, stableReleaseAllowed=false. No main edit, production build, signing, OTA, publication or real financial data.
+
+## Evidence interpretation
+Both M88 emulator startup logs contain transient ADB startup failures before the actual guarded script started; both subsequently completed the original guarded test successfully. Do not classify emulator startup or dependency failures as touch results. For M89 require the final same-PID two-cycle and external PPP PASS lines in each independent job, not merely a green workflow. Do not rerun a genuine native navigation failure to obtain a green result.
