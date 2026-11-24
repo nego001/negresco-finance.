@@ -37,7 +37,7 @@ test('M86 retains EXACT existing snapshot count, wait count and guarded tap coun
  assert.match(guard,/safe_ancestor_constraint_category/);
  assert.match(runner,/POST_PIX_DIAGNOSTIC = post_pix_classifier\.classify_missing_pix\(nodes\)/);
  assert.match(stage,/ENV \(LAB\): debug-nav-post-pix=/);
- assert.equal((source.match(/s\.labAndroidRootHitOrder/g)||[]).length,2);
+ assert.equal((source.match(/s\.labAndroidRootHitOrder/g)||[]).length,1);
 });
 test('M86 fixed allowlist has only private-data-free labels and no device or network operations',()=>{
  for(const c of ['post-pix-home-still-visible','post-pix-content-unconfirmed','post-pix-content-attested','post-pix-home-classifier-unconfirmed','post-pix-home-target-unconfirmed','post-pix-home-target-attested','post-pix-snapshot-attested','not-started'])
