@@ -1,0 +1,10 @@
+# M90 — elevation-only root counterfactual (Debug only)
+
+## Final M89 evidence (24/11/2026)
+[M89 Android #45403875546](https://github.com/nego001/negresco-finance./actions/runs/45403875546) **2/2 PASS** jobs 138479317397 and 138479317925. Both logs attest exact source delta, guarded two Home-Pix-Home cycles in one PID and final external PPP. [CI #45403875770](https://github.com/nego001/negresco-finance./actions/runs/45403875770) six required jobs SUCCESS, 1,748/1,748 contracts; PR-only emulator jobs skipped. Superseded initial M89 executions cancelled by concurrency, not native failures. Historical M84 and M88 2/2 PASS; M85b, M86b and M87 each 2/2 FAIL. M87 absent root touch marker does not establish a native hit receiver. M89 establishes sufficiency of zIndex alone in these Debug conditions, not original Release causality.
+
+## M90 experiment
+Use exact M88 pure transform (same two bottom-size overrides removed), then replace the unique root definition `labAndroidRootHitOrder:{zIndex:4,elevation:4},` with `labAndroidRootHitOrder:{elevation:4},`. Preserve unique root modifier reference and all existing diagnostics. Compare M90 to M88 by removing only zIndex and to M89 by exchanging the single retained property. No tracked App.tsx changes. Own-branch CI-only fail-closed source check; two fresh independent API28 emulators, identical geometry, same-PID bounded synthetic preview input and external PPP guards, no extra reads, taps, waits, retry, screenshot, PDF or payments. No upload of APK or raw UI. A 2/2 PASS means elevation alone is sufficient in this Debug scenario; 2/2 functional FAIL means elevation alone was insufficient under tested conditions; mixed result inconclusive. Build/preflight failures are not navigation evidence. Retain genuine failures, no rerun to force green.
+
+## Production guard
+Original Release SHA256 `29e248742e365c4dd7a8c668a23153d43a89b8be02828620bbc5851775986b4a` immutable. P0 #120 and #126 OPEN, PR #125 Draft/unmerged, approvedForProduction=false, stableReleaseAllowed=false. No main edit, production build, signing, OTA, publication or actual financial data.
