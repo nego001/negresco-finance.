@@ -81,6 +81,11 @@ if __name__ == "__main__":
         if snapshot not in SNAPSHOT_CATEGORIES:
             snapshot = "snapshot-shape-unconfirmed"
         print("ENV (LAB): debug-nav-snapshot=" + snapshot, flush=True)
+        from guardiao_api28_debug_postpix_classifier_m86 import CATEGORIES as POST_PIX_CATEGORIES
+        post_pix = navigation.POST_PIX_DIAGNOSTIC
+        if post_pix not in POST_PIX_CATEGORIES:
+            post_pix = "post-pix-home-classifier-unconfirmed"
+        print("ENV (LAB): debug-nav-post-pix=" + post_pix, flush=True)
         print("BLOCK (LAB): two complete Debug preview nav cycles not attested",
               file=sys.stderr)
         raise SystemExit(1)

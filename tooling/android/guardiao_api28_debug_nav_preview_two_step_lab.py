@@ -15,6 +15,7 @@ import guardiao_api28_debug_targetid_presence_lab as counts
 import guardiao_api28_debug_nav_preview_guard as gate
 import guardiao_api28_debug_return_diagnostic_lab as return_diag
 import guardiao_api28_debug_snapshot_exception_m81 as snapshot_exception
+import guardiao_api28_debug_postpix_classifier_m86 as post_pix_classifier
 from guardiao_api28_debug_nav_stage_ledger import StageLedger
 
 BASE = observer.debug.base
@@ -25,6 +26,7 @@ STAGE = StageLedger()  # fixed-category evidence only, no UI or device access
 PRE_PIX_DIAGNOSTIC = "not-started"  # allowlisted only; no UI/PID/coordinates
 RETURN_DIAGNOSTIC = "not-started"  # categorical, never content/coords/PID
 SNAPSHOT_DIAGNOSTIC = "not-started"  # fixed phase only; reset per cycle
+POST_PIX_DIAGNOSTIC = "not-started"  # classify existing post-Pix XML only on overall BLOCK
 
 
 def private_snapshot() -> tuple[list[dict[str, str]], int, int]:
@@ -84,10 +86,11 @@ def guarded_preview_tap(point: tuple[int, int]) -> None:
 
 
 def run_two_step_navigation() -> None:
-    global RETURN_DIAGNOSTIC, PRE_PIX_DIAGNOSTIC, SNAPSHOT_DIAGNOSTIC
+    global RETURN_DIAGNOSTIC, PRE_PIX_DIAGNOSTIC, SNAPSHOT_DIAGNOSTIC, POST_PIX_DIAGNOSTIC
     RETURN_DIAGNOSTIC = "not-started"
     PRE_PIX_DIAGNOSTIC = "not-started"
     SNAPSHOT_DIAGNOSTIC = "not-started"
+    POST_PIX_DIAGNOSTIC = "not-started"
     # M64 Home census must pass first; it checks one snapshot, removes XML,
     # requires three bound targets and the three exact static Home markers.
     home.passive_home_census()
@@ -128,14 +131,25 @@ def run_two_step_navigation() -> None:
     # 2nd distinct snapshot: require actual Pix preview page and strictly
     # authorize only the Home target before the second and final tap.
     nodes, width, height = private_snapshot()
+    POST_PIX_DIAGNOSTIC = "post-pix-snapshot-attested"
     if not pix_static_proven(nodes):
+        # Use only the SAME already-collected hierarchy. Source-defined Home
+        # marker presence is a categorical diagnosis, NEVER input authorization.
+        POST_PIX_DIAGNOSTIC = post_pix_classifier.classify_missing_pix(nodes)
         raise RuntimeError("Pix preview content not attested")
+    POST_PIX_DIAGNOSTIC = "post-pix-content-attested"
     STAGE.advance("pix-preview-content-attested")
-    category, home_center = gate.select_preview_target(
-        nodes, width, height, "pix", "home"
-    )
+    try:
+        category, home_center = gate.select_preview_target(
+            nodes, width, height, "pix", "home"
+        )
+    except Exception:
+        POST_PIX_DIAGNOSTIC = "post-pix-home-classifier-unconfirmed"
+        raise
     if category != gate.ELIGIBLE or home_center is None:
+        POST_PIX_DIAGNOSTIC = "post-pix-home-target-unconfirmed"
         raise RuntimeError("unsafe Home candidate")
+    POST_PIX_DIAGNOSTIC = "post-pix-home-target-attested"
     STAGE.advance("home-candidate-attested")
     stable_app(pid)
     guarded_preview_tap(home_center)  # precisely one Home return tap

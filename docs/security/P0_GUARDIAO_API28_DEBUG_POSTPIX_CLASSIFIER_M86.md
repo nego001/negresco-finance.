@@ -1,0 +1,26 @@
+# M86 — fixed categorical post-Pix evidence from the already-required UIA snapshot
+
+## Registered observation and limits
+
+Historical original pinned Release #126 remains an **OPEN P0** for unusably thin or ambiguous bottom navigation geometry; the independent original native PDF chooser hang #120 is **OPEN**. These are **not** reproduced by the current Debug-only app. PR #125 stays Draft/unmerged; `approvedForProduction=false`, `stableReleaseAllowed=false`. Original SHA-256 `29e248742e365c4dd7a8c668a23153d43a89b8be02828620bbc5851775986b4a` and `main` stay untouched.
+
+The isolated Debug comparator M84 [Android #45313895684](https://github.com/nego001/negresco-finance./actions/runs/45313895684) **2/2 independent emulators PASS** (two same-PID Home→Pix→Home preview cycles and external PPP each), after subtracting both bottom-navbar minimum-size style overrides only in ephemeral Debug checkouts; [CI #45313895581](https://github.com/nego001/negresco-finance./actions/runs/45313895581) **SUCCESS 1,717/1,717 contracts**. M85 [Android #45315991591](https://github.com/nego001/negresco-finance./actions/runs/45315991591) **2/2 FAIL in source preflight** due M84 command-line hardcoded branch safety; **not Android** and no geometry evidence. M85b [Android #45316200284](https://github.com/nego001/negresco-finance./actions/runs/45316200284) **2/2 FAIL in first cycle** after the same two temporary M84 style removals **plus one root hit-order zIndex/elevation style reference removal**. M85b had a successful exact source patch, disposable Debug APK and observer, bounded Home targets, initial PPP, a Pix tap command that returned, stable process/focus, and **`snapshot-attested`** on the next already-required XML read. The failure was after `pix-input-command-returned` but **before** `pix-preview-content-attested` or `home-candidate-attested`; current fixed stage ledger could not discriminate. [M85b CI #45316200181](https://github.com/nego001/negresco-finance./actions/runs/45316200181) **SUCCESS first attempt, 1,725/1,725 contracts**. Historic M77/M79/M81 native FAIL are not reclassified.
+
+This narrower M84-vs-M85b **Debug** A/B strongly implicates root zIndex/elevation in navigation under those conditions, *but the original Release is a different binary/build and the cause is not proven*. Both M85b failed despite a fully parsed XML after Pix input, **not** because of a parser ParseError.
+
+## M86 controlled diagnosis — no additional device operations
+
+Copy the **identical** M85b workflow (two independent fresh Android9/API28 ephemeral Debug jobs, `trial: [1, 2]`, `fail-fast: false`) changing **only workflow labels, isolated branch and concurrency**. Preserve the exact one-step atomic M85b temporary transformation, resulting in byte-for-byte equivalent experimental app source: no tracked `apps/mobile/App.tsx` modification, no new root/layout/handler changes.
+
+The M86 source only adds one fixed private in-memory categorical marker `POST_PIX_DIAGNOSTIC` to the **existing** guarded navigation runner. After the already-required post-Pix `private_snapshot()` has been acquired and cleaned, classify without new XML, ADB, tap, delay or UI query:
+- If the **existing** Pix public marker check fails, use the **same** list of nodes and existing pure `home.classify_readiness` function. `post-pix-home-still-visible` requires all three source-defined public Home text constants; else `post-pix-content-unconfirmed`. Both cases immediately take the **unchanged failure path**.
+- If Pix markers pass, record `post-pix-content-attested`. The **same one** existing strict `gate.select_preview_target(nodes,...,"pix","home")` call may fail with `post-pix-home-classifier-unconfirmed`, or reject as `post-pix-home-target-unconfirmed`; if accepted, record `post-pix-home-target-attested` and use **exactly the original** guarded Home tap, subsequent snapshot, same-PID and `PPP` checks. No changed authorization or success criteria.
+- All other stages use `not-started` or `post-pix-snapshot-attested`. The M74 staging runner emits **one** fixed allowlisted `debug-nav-post-pix` category **only after overall BLOCK**. No per-node values, raw XML, arbitrary UI labels, coordinates, actual PID, exception message, PDF, screenshot, financial data, file upload or telemetry are recorded.
+
+Zero additional `BASE.xml_nodes()` calls, `private_snapshot()` calls, `BASE.adb(...input...tap...)` calls, waits, timeouts, retries, BACK/swipes, PDF or real user actions. Mandatory temporary XML deletion, preflight, strict M64/M68 geometry, zero-permission observer and postrun PPP remain identical to M85b. Fail closed on any exception or unsafe geometry, no lab rerun to chase green.
+
+**M86 PASS only if both independent Android jobs each finish two original bounded same-PID synthetic Home→Pix→Home cycles with post-run PPP and the separate CI overall SUCCESS.** If either BLOCK, record category and preserve FAIL; even a successful case does not approve original pinned Release or close P0 #120/#126.
+
+## Security and deployment prohibition
+
+No merge to `main`, no original Release rebuild/signing, no public distribution/OTA, no real Pix/payment/account, no use of personal data. `approvedForProduction=false`; `stableReleaseAllowed=false`; PR #125 Draft/unmerged. Both #120 and #126 OPEN.
