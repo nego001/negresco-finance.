@@ -86,6 +86,11 @@ if __name__ == "__main__":
         if post_pix not in POST_PIX_CATEGORIES:
             post_pix = "post-pix-home-classifier-unconfirmed"
         print("ENV (LAB): debug-nav-post-pix=" + post_pix, flush=True)
+        from guardiao_api28_debug_touch_chain_m87 import CATEGORIES as CHAIN_CATEGORIES
+        touch = navigation.TOUCH_CHAIN_DIAGNOSTIC
+        if touch not in CHAIN_CATEGORIES:
+            touch = "touch-chain-header-unconfirmed"
+        print("ENV (LAB): debug-nav-touch-chain=" + touch, flush=True)
         print("BLOCK (LAB): two complete Debug preview nav cycles not attested",
               file=sys.stderr)
         raise SystemExit(1)

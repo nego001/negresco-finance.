@@ -16,6 +16,7 @@ import guardiao_api28_debug_nav_preview_guard as gate
 import guardiao_api28_debug_return_diagnostic_lab as return_diag
 import guardiao_api28_debug_snapshot_exception_m81 as snapshot_exception
 import guardiao_api28_debug_postpix_classifier_m86 as post_pix_classifier
+import guardiao_api28_debug_touch_chain_m87 as touch_chain
 from guardiao_api28_debug_nav_stage_ledger import StageLedger
 
 BASE = observer.debug.base
@@ -27,6 +28,7 @@ PRE_PIX_DIAGNOSTIC = "not-started"  # allowlisted only; no UI/PID/coordinates
 RETURN_DIAGNOSTIC = "not-started"  # categorical, never content/coords/PID
 SNAPSHOT_DIAGNOSTIC = "not-started"  # fixed phase only; reset per cycle
 POST_PIX_DIAGNOSTIC = "not-started"  # classify existing post-Pix XML only on overall BLOCK
+TOUCH_CHAIN_DIAGNOSTIC = "not-started"  # source-defined flags from same snapshot only
 
 
 def private_snapshot() -> tuple[list[dict[str, str]], int, int]:
@@ -86,11 +88,12 @@ def guarded_preview_tap(point: tuple[int, int]) -> None:
 
 
 def run_two_step_navigation() -> None:
-    global RETURN_DIAGNOSTIC, PRE_PIX_DIAGNOSTIC, SNAPSHOT_DIAGNOSTIC, POST_PIX_DIAGNOSTIC
+    global RETURN_DIAGNOSTIC, PRE_PIX_DIAGNOSTIC, SNAPSHOT_DIAGNOSTIC, POST_PIX_DIAGNOSTIC, TOUCH_CHAIN_DIAGNOSTIC
     RETURN_DIAGNOSTIC = "not-started"
     PRE_PIX_DIAGNOSTIC = "not-started"
     SNAPSHOT_DIAGNOSTIC = "not-started"
     POST_PIX_DIAGNOSTIC = "not-started"
+    TOUCH_CHAIN_DIAGNOSTIC = "not-started"
     # M64 Home census must pass first; it checks one snapshot, removes XML,
     # requires three bound targets and the three exact static Home markers.
     home.passive_home_census()
@@ -136,6 +139,9 @@ def run_two_step_navigation() -> None:
         # Use only the SAME already-collected hierarchy. Source-defined Home
         # marker presence is a categorical diagnosis, NEVER input authorization.
         POST_PIX_DIAGNOSTIC = post_pix_classifier.classify_missing_pix(nodes)
+        if POST_PIX_DIAGNOSTIC == "post-pix-home-still-visible":
+            # Do not perform another XML query or grant a tap: existing nodes only.
+            TOUCH_CHAIN_DIAGNOSTIC = touch_chain.classify_home_visible(nodes)
         raise RuntimeError("Pix preview content not attested")
     POST_PIX_DIAGNOSTIC = "post-pix-content-attested"
     STAGE.advance("pix-preview-content-attested")
