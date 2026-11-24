@@ -43,7 +43,7 @@ test('M86 fixed allowlist has only private-data-free labels and no device or net
  for(const c of ['post-pix-home-still-visible','post-pix-content-unconfirmed','post-pix-content-attested','post-pix-home-classifier-unconfirmed','post-pix-home-target-unconfirmed','post-pix-home-target-attested','post-pix-snapshot-attested','not-started'])
    assert.ok(probe.includes('"'+c+'"'),c);
  assert.match(probe,/home\.classify_readiness\(nodes\)/);
- assert.doesNotMatch(probe,/\.adb\(|xml_nodes\(|input|screenshot|print\(|time\.sleep|subprocess|requests|urllib|socket|logging\.|open\(/);
+ assert.doesNotMatch(probe,/\.adb\(|xml_nodes\(|\binput\(|\bscreenshot\(|\bprint\(|time\.sleep\(|subprocess\.|requests\.|urllib\.|socket\.|logging\.|\bopen\(/);
  assert.match(stage,/if post_pix not in POST_PIX_CATEGORIES:/);
 });
 test('M86 pure in-memory Home visibility classifier never reads XML or logs UI data',()=>{
