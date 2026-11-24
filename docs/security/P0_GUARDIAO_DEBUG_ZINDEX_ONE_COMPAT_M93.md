@@ -1,0 +1,10 @@
+# M93 — zIndex:1 compatibility pilot (Debug only)
+
+## M92 final evidence
+[M92 Android #45467704100](https://github.com/nego001/negresco-finance./actions/runs/45467704100) **2/2 FAIL**, jobs 138706921910 and 138706922256. Both passed source prep, Debug APK security, observer setup, initial PPP and geometry. Both failed first Pix after command returned and snapshot attested: post-pix-home-still-visible, touch-chain-root-not-marked, no completed cycle. [CI #45467703557](https://github.com/nego001/negresco-finance./actions/runs/45467703557) six required jobs SUCCESS, 1,760/1,760 contracts. M91 zIndex:1 alone **2/2 PASS**, M92 explicit zero 2/2 FAIL. Positive value supported in API28 Debug fixture; no specific receiver or original Release cause proved.
+
+## Compatibility pilot
+Use exact M91 pure app transform with zIndex:1 and no elevation, two bottom-size overrides removed. One new independent job per Android API 29 and 35 (Android 10/15). These are exploratory single observations per version, not broad compatibility certification. Original observer enforces API28; in branch-locked ephemeral checkout only, replace its exact SDK equality and fixed exception with the exact selected allowlisted API, never accept arbitrary actual SDK or bypass comparison. All other observer/navigation code, app transform, PID/focus, geometry, existing XML cleanup and PPP guards remain unchanged. No extra taps/reads/waits/retries/screenshots, PDF or payment. Original observer and App.tsx unchanged in Git. Any unsupported focus/observer/SDK/build behavior blocks and must be classified separately from navigation failure; do not relax gates to pass. No Release causality or PDF repair. Preserve genuine failures. Further regression tests required.
+
+## Production guard
+Original Release SHA256 `29e248742e365c4dd7a8c668a23153d43a89b8be02828620bbc5851775986b4a` immutable. P0 #120 and #126 OPEN, PR #125 Draft/unmerged, approvedForProduction=false, stableReleaseAllowed=false. No main edit, production build, signing, OTA, publication or actual financial data.
