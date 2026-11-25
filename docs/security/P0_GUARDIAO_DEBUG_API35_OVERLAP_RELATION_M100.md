@@ -1,0 +1,10 @@
+# M100 — API35 first overlap relation (Debug only)
+
+## M99 final
+[M99 Android #45534430875](https://github.com/nego001/negresco-finance./actions/runs/45534430875) job 138937428967 FAILURE: focus, initial PPP, Home census passed; first cycle home-attested, snapshot-attested, m99-target-guard=other-clickable-covers-center, pre-pix-target-unconfirmed, no Pix tap or completed cycle. All three target IDs, selection, geometry and disjoint rectangles passed original guard before this rejection. First other enabled clickable rectangle covers center; no hit dispatch or z-order proof. [CI #45534430923](https://github.com/nego001/negresco-finance./actions/runs/45534430923) 6/6 required jobs SUCCESS, 1,788/1,788 contracts.
+
+## M100
+API35 only; exact M99 app, observer and rejection decisions. The existing XML reader keeps a private string parent index for each already flattened node; original attributes and nearest clickable bounds preserved, same read and cleanup, no extra query. Only at existing first covering-node rejection, classify ancestry (ancestor/descendant/separate/unconfirmed), package equality, fixed native class category, source-defined ID family, rectangle relation. No raw values, indexes, IDs, class strings, coordinates or counts logged. Always reject as before; relationship is snapshot hierarchy, not proof of hit order. No extra device commands, taps, waits, retries, fallback, raw hierarchy, PDF/payment, screenshot or upload. Synthetic contract checks same XML call sequence, attributes, parent indexes, fail-closed invalid metadata, exact reversible transforms and original reject. No tracked app/observer/guard/base edits. Preserve API28/API29 success and API35 block. No production causal claim.
+
+## Production guard
+Original Release SHA256 `29e248742e365c4dd7a8c668a23153d43a89b8be02828620bbc5851775986b4a` immutable. P0 #120 and #126 OPEN, PR #125 Draft/unmerged, approvedForProduction=false, stableReleaseAllowed=false. No main edit, production build, signing, OTA, publication or actual financial data.
