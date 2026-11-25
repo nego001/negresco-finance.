@@ -1,0 +1,7 @@
+# M116 — Guardiao keyboard handling and first Analyze callback
+
+M115 [Android #45664994537](https://github.com/nego001/negresco-finance./actions/runs/45664994537), job 139384639110 BLOCK after one label-center Analyze tap; exact synthetic EditText verified, result not observed, no PDF attempted. M114 two successful PDF receipts remain valid. [CI #45664994419](https://github.com/nego001/negresco-finance./actions/runs/45664994419) 6/6 required, 1,858/1,858 contracts.
+
+M116 reuses exact M115 one tap and result gate, changes only temporary App ScrollView keyboardShouldPersistTaps to handled on Guardiao and never elsewhere (default), plus fixed __DEV__ Analyze press-in/onPress markers. No explicit keyboard dismissal or other functional change. Bounded read-only PID-scoped ReactNativeJS logcat snapshots before and after original observation window, fixed categories only, no raw logs, data, coordinates or extra taps. Markers are diagnostic, not required for UI result; absent markers do not establish missing event (logcat visibility/rotation possible). If result missing, original gate blocks PDF. Four new contracts expected. Not proof of keyboard cause, physical or Release fix.
+
+Original Release SHA256 29e248742e365c4dd7a8c668a23153d43a89b8be02828620bbc5851775986b4a unchanged; #120/#126 open, PR #125 Draft; approvedForProduction=false, stableReleaseAllowed=false. No main edit, signing, OTA, real financial data or PDF upload.
