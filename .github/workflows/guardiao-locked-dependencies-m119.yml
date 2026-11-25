@@ -1,0 +1,52 @@
+name: Guardiao mobile locked dependencies M119
+on:
+  push:
+    branches:
+      - lab/p01-guardiao-locked-dependencies-m119-v1
+permissions:
+  contents: read
+concurrency:
+  group: guardiao-locked-dependencies-m119-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  lockfile-candidate:
+    name: M119 reproducible mobile dependency candidate (NO APK)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply exact M117 candidate in disposable checkout
+        run: python3 tooling/android/guardiao_locked_dependencies_m119.py apply
+      - name: Resolve candidate lockfile without lifecycle scripts
+        working-directory: apps/mobile
+        run: |
+          set -euo pipefail
+          test ! -e package-lock.json
+          test ! -e node_modules
+          node --version
+          npm --version
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund --registry=https://registry.npmjs.org/
+          node ../../tooling/android/verify_guardiao_lock_m119.mjs package.json package-lock.json
+          sha256sum package-lock.json > "$RUNNER_TEMP/m119-lock.sha256"
+      - name: Clean locked install and TypeScript check
+        working-directory: apps/mobile
+        run: |
+          set -euo pipefail
+          npm ci --ignore-scripts --no-audit --no-fund --registry=https://registry.npmjs.org/
+          sha256sum -c "$RUNNER_TEMP/m119-lock.sha256"
+          node -e 'const b=require("expo/bundledNativeModules.json");const p=require("react-native-safe-area-context/package.json");if(b["react-native-safe-area-context"]!=="~5.6.0"||p.version!=="5.6.0")process.exit(1)'
+          ./node_modules/.bin/tsc --noEmit
+          npm ls --depth=0
+          echo "PASS (LAB): M119 clean npm ci and TypeScript verified with unchanged lock"
+      - name: Retain only validated public registry dependency metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: m119-mobile-dependency-lock-candidate
+          path: apps/mobile/package-lock.json
+          if-no-files-found: error
+          retention-days: 7
