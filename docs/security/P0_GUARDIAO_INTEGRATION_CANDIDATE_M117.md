@@ -1,0 +1,7 @@
+# M117 — consolidated candidate patch, not a production change
+
+M116 [Android #45667652545](https://github.com/nego001/negresco-finance./actions/runs/45667652545), job 139394059909 SUCCESS: 2/2 first Analyze events, both press-in-and-call-observed, 2/2 PDFs through independent receiver with nonblank rendering, semantic checks and cleanup, bounded Home return, same PID, chooser under-5s twice. Native renderer exit not observed in window; not proof of leak. [CI #45667652361](https://github.com/nego001/negresco-finance./actions/runs/45667652361) 6/6 required, 1,862/1,862 contracts. Keyboard hypothesis supported, not isolated root cause.
+
+M117 stores a reviewable unified patch (tooling/android/fixtures/guardiao-safe-insets-keyboard-candidate-m117.patch) for App.tsx and package.json only: exact M111 safe insets and prior root/nav styles plus M116 Guardiao-only handled keyboard taps, excluding M116 callback markers. Original tracked app/package unchanged. The exact patch is applied and compared to existing transforms only in ephemeral Debug CI; M115 one-tap gate and unchanged two-PDF API28 runner remain. No additional PDF changes, no production signing, no PDF upload. Dependency lockfile integration, real device and Release QA remain separate work; no production readiness inference. Four additional contracts expected.
+
+Original Release SHA256 29e248742e365c4dd7a8c668a23153d43a89b8be02828620bbc5851775986b4a unchanged; #120/#126 open; PR #125 Draft; approvedForProduction=false, stableReleaseAllowed=false.
