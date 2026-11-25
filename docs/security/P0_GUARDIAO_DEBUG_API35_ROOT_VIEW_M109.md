@@ -1,0 +1,10 @@
+# M109 — Android root replacement without warning suppression (Debug only)
+
+## M108 final
+[M108 Android #45626621323](https://github.com/nego001/negresco-finance./actions/runs/45626621323) job 139248422766 SUCCESS: initial PPP, two guarded Home-Pix-Home Debug preview cycles in same PID, exactly two bounded preview taps per cycle, final stable PID/focus. Initial PPP is not an independent final root census. No new PDF or real financial input. [CI #45626621038](https://github.com/nego001/negresco-finance./actions/runs/45626621038) 6/6 required SUCCESS, 1,827/1,827 contracts. Result supports targeted warning-filter factor in one API35 synthetic run; no proof of exact overlay identity, actual interception or Release correction.
+
+## M109
+Android-only API35 disposable experiment against exact M107 control, not M108 filter. React Native 0.81 deprecated legacy SafeAreaView, which did not support Android safe areas (https://reactnative.dev/blog/2025/08/12/react-native-0.81 and https://reactnative.dev/docs/safeareaview). Replace the four exact legacy root references (import, ref type, opening/closing root) with existing View or removal of import; preserve existing padding, root zIndex, styles, ref and event handlers. No warning filter, no dependency installation change, no new device read or gesture beyond M107; original strict guard and post-BLOCK native probe remain. Reversible exact source delta. This is NOT a full safe-area migration, iOS change or permanent production patch. Correct insets with maintained safe-area library require separate review, cross-version geometry and physical QA. Run existing two cycles on API35 first. Four new contracts; TypeScript compilation and runtime pending. No PDF, payment, real financial data or uploaded raw UI. Original tracked app unchanged.
+
+## Production guard
+Original Release SHA256 `29e248742e365c4dd7a8c668a23153d43a89b8be02828620bbc5851775986b4a` immutable. P0 #120 and #126 OPEN, PR #125 Draft/unmerged, approvedForProduction=false, stableReleaseAllowed=false. No main edit, production build, signing, OTA, publication or actual financial data.
