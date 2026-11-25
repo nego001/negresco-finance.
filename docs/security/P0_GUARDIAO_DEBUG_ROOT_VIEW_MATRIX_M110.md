@@ -1,0 +1,10 @@
+# M110 — exact M109 app, three Android Debug APIs
+
+## M109 final
+[M109 Android #45628420694](https://github.com/nego001/negresco-finance./actions/runs/45628420694) job 139254743260 SUCCESS: initial PPP, two guarded Home-Pix-Home Debug preview cycles in same PID, exactly two bounded taps per cycle, final stable PID/focus. Initial PPP is not independent final PPP. There was no PDF export or real financial input. [Corrected CI #45628644009](https://github.com/nego001/negresco-finance./actions/runs/45628644009) 6/6 required SUCCESS, 1,831/1,831 contracts; documentation-only descendant. No warning suppression. Evidence supports the root replacement in one API35 synthetic run, not a production fix.
+
+## M110
+Exact M109 temporary application transform, no warning filter, unchanged strict navigation guard and XML transform, same two planned cycles. Matrix API28, API29, API35, fail-fast false, independently compiled disposable Debug APKs. API28 retains original exact SDK and focus predicate (M91 passed); API29 uses exact M96 display focus and SDK transform (M96 passed); API35 uses exact M109 organized-display focus and SDK transform (M109 passed). All three install same temporary native helper, whose dump hook and host native read remain API35 only, after original rejection. No new gesture, wait/retry, data read, or permission; no eligibility changes. API-specific focus proofs are intentionally not identical; same app transform does not imply identical APK bytes. Require all three jobs and required CI green, no skipped navigation or forced recovery. This tests Android Debug, not a permanent safe-area migration, iOS, original Release, physical QA or PDF repair. Four contracts; compile/runtime pending. No real financial data, APK/XML/PDF or raw UI uploaded.
+
+## Production guard
+Original Release SHA256 `29e248742e365c4dd7a8c668a23153d43a89b8be02828620bbc5851775986b4a` immutable. P0 #120 and #126 OPEN, PR #125 Draft/unmerged, approvedForProduction=false, stableReleaseAllowed=false. No main edit, production build, signing, OTA, publication or actual financial data.
