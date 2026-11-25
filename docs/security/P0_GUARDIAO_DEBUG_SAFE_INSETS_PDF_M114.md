@@ -1,0 +1,10 @@
+# M114 — return to the PDF blocker with the validated safe-inset candidate
+
+## M113 final
+[Android #45655667379](https://github.com/nego001/negresco-finance./actions/runs/45655667379) 2/2 SUCCESS: API35 gestural job 139351521483 and threebutton job 139351522052. Mode uniquely verified before and after, two guarded Home-Pix-Home cycles per job same PID, 4/4 cycles and 2/2 final native safe-edge proofs. Initial PPP, no independent final PPP, no PDF or actual gesture. [CI #45655667319](https://github.com/nego001/negresco-finance./actions/runs/45655667319) 6/6 required SUCCESS, 1,850/1,850 contracts. Candidate Debug navigation evidence complete for these tested conditions; not a Release fix or physical device proof.
+
+## M114
+Re-enter P0 #120 using existing API28 two synthetic PDF same-PID workflow and its original runner, real chooser, independent zero-permission receiver, offline semantic tools, strict receipt validation, native print phase instrumentation and verified Home return. Exact M111 app and package transforms only, before installing dependencies in ephemeral checkout; verify pinned 5.6.0 against installed Expo bundle. No change to PDF export implementation, native print hooks, receipt, home gate, timeouts, source payment paths, production permissions or network policy. No M112 native geometry probe in this separate PDF experiment; previous M112/M113 evidence does not substitute for PDF proof. Original API28 gate preserved. If blocked before PDF, report stage rather than assume PDF failure. Four additional contracts expected. Two actual synthetic PDF receipts needed for PASS; no PDF upload or real data. No inference that #120 or #126 is resolved; physical and Release remain pending.
+
+## Production guard
+Original Release SHA256 `29e248742e365c4dd7a8c668a23153d43a89b8be02828620bbc5851775986b4a` immutable. P0 #120 and #126 OPEN, PR #125 Draft/unmerged, approvedForProduction=false, stableReleaseAllowed=false. No main edit, production build, signing, OTA, publication or actual financial data.
