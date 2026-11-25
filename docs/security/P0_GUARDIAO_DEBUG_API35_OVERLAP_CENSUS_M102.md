@@ -1,0 +1,10 @@
+# M102 — API35 private overlap census (Debug only)
+
+## M101 final
+[M101 Android #45541080746](https://github.com/nego001/negresco-finance./actions/runs/45541080746) job 138959462225 FAILURE at original guard; same app-owned empty-ID ViewGroup partial overlap, all five anchor relations separate-branch and distinct-immediate-parent, no Pix tap. Initial PPP and Home census passed. Exact component and actual hit interception unknown. Original CI #45541080641 failed one case-sensitive documentation assertion; [corrected descendant CI #45541508457](https://github.com/nego001/negresco-finance./actions/runs/45541508457) 6/6 required jobs SUCCESS, 1,797/1,797 contracts. Runtime unchanged by the one-line document fix; use corrected descendant as base.
+
+## M102
+API35 only, exact M101 runtime, same private snapshot. At existing first covering-node rejection, compare first node content-desc only to exact allowlisted source labels in App.tsx (Home quick links, module tiles, settings and balance visibility), never print raw label. Identify known tabs using existing testIDs. Classify scroll ancestor via validated private parent chain, single vs multiple covering enabled clickable nodes, known/unknown/foreign label coverage and invalid bounds presence. No coordinates, numeric counts, raw node IDs, raw hierarchy or private labels output. Label match is evidence of accessibility identity, not exact React component or actual hit dispatch. Preserve all original rejection decisions, no extra device reads, commands, gestures, wait, retries, fallback, screenshots, PDF/payment or upload. No tracked app/observer/base/guard changes. Four contracts include source reversibility and synthetic fixtures. Preserve API28/API29 successes, API35 block; no production causal claim.
+
+## Production guard
+Original Release SHA256 `29e248742e365c4dd7a8c668a23153d43a89b8be02828620bbc5851775986b4a` immutable. P0 #120 and #126 OPEN, PR #125 Draft/unmerged, approvedForProduction=false, stableReleaseAllowed=false. No main edit, production build, signing, OTA, publication or actual financial data.
