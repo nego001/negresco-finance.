@@ -1,0 +1,10 @@
+# M113 — Android 15 system navigation modes
+
+## M112 final
+[Android #45643330483](https://github.com/nego001/negresco-finance./actions/runs/45643330483): API28 job 139307540363 and API29 job 139307539777 passed on first attempt; latest attempt preserves their successful evidence (139341464168 / 139341465961). API35 initial 139307540379 blocked at focus preflight, before any navigation or geometry proof; one identical-commit rerun 139341460584 passed. Each successful job two guarded cycles same PID and final native safe edge proof, total 6/6 cycles and 3/3 geometry; no PDF or real financial data. Initial PPP, not independently repeated after navigation. [CI #45643330396](https://github.com/nego001/negresco-finance./actions/runs/45643330396) recovered from HTTP 429 dependency fetch failure, 6/6 required and 1,846/1,846 contracts.
+
+## M113
+Exact M112 app/package/native helpers and guarded navigation transformations, only branch/import changes. Two independent disposable API35 emulators with separate gestural and threebutton modes. AOSP documented overlay mechanism: https://source.android.com/docs/core/tests/vts/gsi#change-the-navigation-bar-mode-using-adb ; enable exclusively within navigation overlay category on emulator-5554, verify qemu/API35/user0 first. One fixed five-second pre-launch settle, no retries. Require selected overlay uniquely enabled and secure navigation_mode 2 or 0 both before launch and after successful existing native proof. Mode proof is conservative; unavailable overlay or delayed SystemUI update blocks, not geometry failure. No additional in-app touch or gesture, no production/device setting changes, no raw outputs saved. Four new contracts. Physical Samsung, actual cutout, gesture action, iOS and Release remain unverified. No PDF.
+
+## Production guard
+Original Release SHA256 `29e248742e365c4dd7a8c668a23153d43a89b8be02828620bbc5851775986b4a` immutable. P0 #120 and #126 OPEN, PR #125 Draft/unmerged, approvedForProduction=false, stableReleaseAllowed=false. No main edit, production build, signing, OTA, publication or actual financial data.
