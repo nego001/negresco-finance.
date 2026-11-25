@@ -1,0 +1,10 @@
+# M103 — API35 common anchor subtree (Debug only)
+
+## M102 final
+[M102 Android #45543070524](https://github.com/nego001/negresco-finance./actions/runs/45543070524) job 138966000942 FAILURE before first touch: focus, initial PPP and Home census passed; same separate app-owned ViewGroup partial overlap with empty ID. First identity unknown, no-scroll-ancestor, single covering enabled clickable node, all-unknown identity coverage, invalid other bounds absent, no Pix tap. Exact component and interception unknown. [CI #45543070519](https://github.com/nego001/negresco-finance./actions/runs/45543070519) 6/6 required jobs SUCCESS, 1,801/1,801 contracts.
+
+## M103
+API35 only, exact M102 runtime and same snapshot. Derive minimal common ancestor of five unique owned existing anchors (Home header, quick Pix, three tabs) from validated private parent links. At first existing overlap rejection classify blocker relative to this subtree: inside, root, ancestor, outside with common ancestor or separate root. Also classify fixed native kinds of minimal root, blocker parent and common ancestor, plus direct sibling vs different depth/parent. Exact android:id/content and finite native class allowlist only, never raw IDs/classes/indexes or UI data. Missing/duplicate anchors, invalid links or no common subtree give unconfirmed. A minimal anchor subtree is NOT necessarily the React root; XML hierarchy cannot prove actual z-order or touch interception. No new device reads, commands, taps, waits, retries, fallback, screenshots, PDF/payment or upload. Original rejection remains mandatory. No tracked app/observer/guard/base edit. Four synthetic/reversibility contracts. Preserve API28/API29 passes and API35 block. No production cause established.
+
+## Production guard
+Original Release SHA256 `29e248742e365c4dd7a8c668a23153d43a89b8be02828620bbc5851775986b4a` immutable. P0 #120 and #126 OPEN, PR #125 Draft/unmerged, approvedForProduction=false, stableReleaseAllowed=false. No main edit, production build, signing, OTA, publication or actual financial data.
