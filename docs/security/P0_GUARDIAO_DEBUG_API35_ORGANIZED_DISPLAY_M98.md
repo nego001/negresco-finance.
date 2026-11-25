@@ -1,0 +1,10 @@
+# M98 — literal organized default display (Debug only)
+
+## M97 final
+[M97 Android #45484178381](https://github.com/nego001/negresco-finance./actions/runs/45484178381), API35 BLOCK job 138764999631: APK validation passed; m97-display-shape=default-header-format-unconfirmed then m96-focus=default-display-unconfirmed before initial PPP, no Pix tap. One recognized default header, no additional recognized display header, format not accepted. Exact suffix not observed; no raw dump collected. [CI #45484178260](https://github.com/nego001/negresco-finance./actions/runs/45484178260) 6/6 required jobs SUCCESS, 1,780/1,780 contracts. M96 API29 PASS retained, API35 not yet a native navigation result.
+
+## M98
+[AOSP DisplayContent.dump](https://android.googlesource.com/platform/frameworks/base/+/dd9409ea7387db40da4e201e74a4a632cf2088b2/services/core/java/com/android/server/wm/DisplayContent.java) emits the literal optional suffix (organized). Hypothesis, not measured emulator suffix. One fresh API35 job, exact M97 control, accept only the additional exact header Display: mDisplayId=0 (organized) and emit a fixed category when observed. Preserve prior accepted forms, single recognized display, exact overall header, unique current-focus marker after display header, same strict u0 app component, original SDK/PID/geometry/initial PPP guards. No generic suffix or multiple display acceptance. Same one read and timeout; no extra device calls, taps, waits, retries, fallback, raw data, screenshot, PDF, payment or upload. Synthetic positive and negative fixtures; no tracked app/observer edits. If focus proof passes, original two-cycle navigation proceeds. Post-cycle PID/focus and summary, not a second PPP observation. No original Release causality established.
+
+## Production guard
+Original Release SHA256 `29e248742e365c4dd7a8c668a23153d43a89b8be02828620bbc5851775986b4a` immutable. P0 #120 and #126 OPEN, PR #125 Draft/unmerged, approvedForProduction=false, stableReleaseAllowed=false. No main edit, production build, signing, OTA, publication or actual financial data.
