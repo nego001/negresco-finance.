@@ -1,3 +1,4 @@
+import {verifyDistributionRoute} from './helpers/guardiao_distribution_contract_m160.mjs';
 import {originalManifest,verifyActiveDependencyState} from './helpers/guardiao_dependency_state_m143.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -55,7 +56,7 @@ test('preview remains free of fake lockfile and stable path still fails without 
   verifyActiveDependencyState();
   assert.equal(pkg.name,'@negresco/mobile');
   assert.equal(pkg.version,'3.1.3');
-  assert.match(stable,/npm ci --no-audit --no-fund/);
+  verifyDistributionRoute(stable);
   assert.match(stable,/Require reviewed npm lockfile before any stable Android candidate/);
   assert.match(workflow,/name: mobile-npm-lock-unreviewed-candidate/);
 });

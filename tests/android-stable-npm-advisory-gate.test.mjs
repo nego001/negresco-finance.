@@ -1,3 +1,4 @@
+import {verifyDistributionRoute} from './helpers/guardiao_distribution_contract_m160.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync,writeFileSync,mkdtempSync,rmSync,symlinkSync} from 'node:fs';
@@ -91,7 +92,7 @@ test('stable workflow queries audit before npm ci, secrets and APK build',()=>{
   assert.match(workflow,/npm audit --json --package-lock-only/);
   assert.match(workflow,/AUDIT_STATUS=\$\?/);
   assert.match(workflow,/node \.\.\/\.\.\/tooling\/android\/verify_stable_npm_audit\.cjs \/tmp\/negresco-stable-npm-audit\.json/);
-  assert.match(workflow,/run: npm ci --no-audit --no-fund/);
+  verifyDistributionRoute(workflow);
   assert.match(workflow,/tests\/android-stable-npm-advisory-gate\.test\.mjs/);
 });
 test('app stays preview and there is no real production npm lockfile',()=>{

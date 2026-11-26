@@ -1,3 +1,4 @@
+import {verifyDistributionRoute} from './helpers/guardiao_distribution_contract_m160.mjs';
 import {originalManifest,verifyActiveDependencyState} from './helpers/guardiao_dependency_state_m143.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -115,9 +116,8 @@ test('workflow has stable-only npm ci with mandatory lock verification',()=>{
   assert.ok(first>0&&first<lab&&lab<stable&&stable<build);
   const cond="github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.publish_release || inputs.stable_signing)";
   assert.ok(wf.includes('if: $'+'{{ '+cond+' }}'));
-  assert.ok(wf.includes('if: $'+'{{ !('+cond+') }}'));
+  verifyDistributionRoute(wf);
   assert.match(wf,/node \.\.\/\.\.\/tooling\/android\/verify_stable_npm_lock\.cjs package\.json package-lock\.json/);
-  assert.match(wf,/run: npm ci --no-audit --no-fund/);
   assert.match(wf,/run: npm install --no-audit --no-fund/);
   assert.match(wf,/tests\/android-stable-npm-lock-gate\.test\.mjs/);
   assert.ok(first<wf.indexOf('NEGRESCO_RELEASE_KEYSTORE_B64'));
