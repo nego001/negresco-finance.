@@ -394,8 +394,8 @@ def require_lab_api(api, expected_api=None):
     if expected_api is None:
         if api not in (26, 28):
             raise RuntimeError("unsupported Android API for this lab")
-    elif type(expected_api) is not int or expected_api != 29 or api != expected_api:
-        raise RuntimeError("explicit Android API29 lab mismatch")
+    elif type(expected_api) is not int or expected_api not in (29, 35) or api != expected_api:
+        raise RuntimeError("explicit Android lab API mismatch")
 
 
 def run_smoke(after_receiver_install=None, after_verified_receipt=None, *, expected_api=None) -> None:
