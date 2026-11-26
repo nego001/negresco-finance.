@@ -38,7 +38,7 @@ jobs:
         run: |
           set -euo pipefail
           npm view glob@14.0.2 version engines dependencies exports --json
-          npm view minimatch@11.0.1 version engines dependencies exports --json
+          npm view minimatch@11.0.9 version engines dependencies exports --json
           npm view @isaacs/nonrecursive-glob-match@1.1.0 version engines dependencies --json
           node --input-type=module - <<'JS'
           import {readFileSync,writeFileSync} from 'node:fs';
