@@ -1,0 +1,104 @@
+name: Guardiao moderate scoped overrides M133
+on:
+  push:
+    branches:
+      - lab/p01-guardiao-moderate-overrides-m133-v1
+permissions:
+  contents: read
+concurrency:
+  group: guardiao-moderate-overrides-m133-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  candidate:
+    name: M133 scoped zero-finding candidate and Expo build checks (NO APK)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.5'
+      - name: Restore exact tracked remediated candidate
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/lab/p01-guardiao-moderate-overrides-m133-v1
+          test ! -e apps/mobile/package-lock.json
+          git apply --check tooling/android/fixtures/guardiao-safe-insets-keyboard-candidate-m117.patch
+          git apply tooling/android/fixtures/guardiao-safe-insets-keyboard-candidate-m117.patch
+          cp tooling/android/fixtures/guardiao-mobile-m128-package-lock.json apps/mobile/package-lock.json
+          printf '%s  %s\n' 'cbb8bec52cb7d62a9959cd92bb195c943ade634794b0f634e3c1af2f182c78b3' apps/mobile/package-lock.json | sha256sum -c -
+      - name: Query metadata and resolve narrowly scoped candidates
+        working-directory: apps/mobile
+        env:
+          NPM_CONFIG_REGISTRY: https://registry.npmjs.org/
+          NPM_CONFIG_IGNORE_SCRIPTS: 'true'
+          NPM_CONFIG_FORCE: 'false'
+        run: |
+          set -euo pipefail
+          npm view glob@14.0.2 version engines dependencies exports --json
+          npm view minimatch@11.0.1 version engines dependencies exports --json
+          node --input-type=module - <<'JS'
+          import {readFileSync,writeFileSync} from 'node:fs';
+          import {overrides} from '../../tooling/android/guardiao_targeted_overrides_m126.mjs';
+          const p=JSON.parse(readFileSync('package.json','utf8'));
+          if(Object.hasOwn(p,'overrides'))throw Error('unexpected overrides');
+          p.overrides=overrides;
+          writeFileSync('package.json',JSON.stringify(p,null,2)+'\n');
+          JS
+          printf '%s  %s\n' '2865ad73c6ba3918e7ab92a12a1e2fa1fd0d18a604b18de33477d9f511e502d6' package.json | sha256sum -c -
+          cp package-lock.json "$RUNNER_TEMP/m133-original.json"
+          audit() {
+            local status=0
+            npm audit --json --package-lock-only --include=dev --include=optional --include=peer --audit-level=info > "$RUNNER_TEMP/m133-$1-raw.json" 2>"$RUNNER_TEMP/m133-$1.err" || status=$?
+            node ../../tooling/android/guardiao_locked_audit_m123.mjs "$RUNNER_TEMP/m133-$1-raw.json" "$status" package-lock.json > "$RUNNER_TEMP/m133-$1.json"
+          }
+          audit before
+          node --input-type=module - <<'JS'
+          import {readFileSync,writeFileSync} from 'node:fs';
+          import {overrides} from '../../tooling/android/guardiao_moderate_overrides_m133.mjs';
+          const p=JSON.parse(readFileSync('package.json','utf8'));
+          p.overrides=overrides;
+          writeFileSync('package.json',JSON.stringify(p,null,2)+'\n');
+          JS
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          node ../../tooling/android/verify_guardiao_lock_m119.mjs package.json package-lock.json
+          audit after
+          node ../../tooling/android/guardiao_moderate_overrides_m133.mjs package.json "$RUNNER_TEMP/m133-original.json" package-lock.json "$RUNNER_TEMP/m133-before.json" "$RUNNER_TEMP/m133-after.json" > "$RUNNER_TEMP/m133-summary.json"
+          cat "$RUNNER_TEMP/m133-summary.json"
+          cmp "$RUNNER_TEMP/m133-original.json" ../../tooling/android/fixtures/guardiao-mobile-m128-package-lock.json
+          sha256sum package.json package-lock.json > "$RUNNER_TEMP/m133-candidate.sha256"
+      - name: Test eligible candidate through Expo and actual Metro pipeline
+        working-directory: apps/mobile
+        env:
+          EXPO_NO_TELEMETRY: '1'
+          EXPO_OFFLINE: '1'
+        run: |
+          set -euo pipefail
+          if ! node -e 'process.exit(require(process.argv[1]).candidateEligible?0:1)' "$RUNNER_TEMP/m133-summary.json"; then
+            echo 'BLOCK (LAB): candidate does not satisfy zero-finding or graph gate'
+            exit 0
+          fi
+          npm ci --ignore-scripts --no-audit --no-fund
+          ./node_modules/.bin/tsc --noEmit
+          node ../../tooling/android/guardiao_metro_moderate_adapter_m133.mjs apply
+          node ../../tooling/android/guardiao_targeted_overrides_smoke_m126.mjs
+          node ../../tooling/android/guardiao_moderate_smoke_m133.mjs
+          cp package.json "$RUNNER_TEMP/m133-before-prebuild.json"
+          CI=1 ./node_modules/.bin/expo prebuild --platform android --no-install
+          node ../../tooling/android/guardiao_moderate_prebuild_integrity_m133.mjs "$RUNNER_TEMP/m133-before-prebuild.json" package.json
+          cp "$RUNNER_TEMP/m133-before-prebuild.json" package.json
+          sha256sum -c "$RUNNER_TEMP/m133-candidate.sha256"
+          CI=1 ./node_modules/.bin/expo export --platform android --output-dir "$RUNNER_TEMP/m133-local-bundle" --max-workers 2
+          node ../../tooling/android/guardiao_metro_moderate_adapter_m133.mjs verify
+          sha256sum -c "$RUNNER_TEMP/m133-candidate.sha256"
+          mkdir "$RUNNER_TEMP/m133-eligible"
+          cp package.json package-lock.json "$RUNNER_TEMP/m133-eligible/"
+          cp "$RUNNER_TEMP/m133-summary.json" "$RUNNER_TEMP/m133-eligible/summary.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: m133-eligible-zero-finding-lock
+          path: ${{ runner.temp }}/m133-eligible/
+          if-no-files-found: ignore
+          retention-days: 7

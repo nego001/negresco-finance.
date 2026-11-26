@@ -1,0 +1,5 @@
+# M133 — scoped moderate remediation
+
+M132 #45735546485 printed candidate glob 14.0.2 and minimatch 11.0.1 (none inside existing affected parent ranges). Metadata query was blocked by overescaped regex; no complete M132 pass. M131 contracts #139627424108 1900/1900. M129 Android compile remained in progress at preparation.
+
+M133 uses literal exact registry metadata queries, scoped versions in an isolated checkout, preserving M128 image-size and postcss fixes and legacy glob 7/minimatch 3 paths. Requires zero audit findings, unchanged direct resolved versions, no more than 24 changed paths and only listed dependency names; actual Metro image and glob/matching checks, TypeScript, reconciled prebuild and offline local Android JS export required before retaining metadata. No bundle published or uploaded, no APK, no release signing, no main changes. npm audit zero findings is not a security guarantee. Three new static contracts expected. #120/#126 remain open. approvedForProduction=false, stableReleaseAllowed=false.

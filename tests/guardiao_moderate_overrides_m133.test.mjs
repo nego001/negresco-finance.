@@ -1,0 +1,11 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {gate,overrides} from '../tooling/android/guardiao_moderate_overrides_m133.mjs';
+const m={name:'@negresco/mobile',version:'3.1.3',dependencies:{'react-native-safe-area-context':'5.6.0'}};
+const pkg=(n,v)=>({version:v,resolved:'https://registry.npmjs.org/'+n+'/-/'+n+'-'+v+'.tgz',integrity:'sha512-YWJjZA=='});
+const lock=(g='13.0.7',mm='10.2.6')=>({name:m.name,version:m.version,lockfileVersion:3,packages:{'':{...m},'node_modules/react-native-safe-area-context':pkg('react-native-safe-area-context','5.6.0'),'node_modules/glob':pkg('glob',g),'node_modules/minimatch':pkg('minimatch',mm),'node_modules/image-size':pkg('image-size','2.0.3'),'node_modules/postcss':pkg('postcss','8.5.23'),'node_modules/legacy/node_modules/glob':pkg('glob','7.2.3')}});
+const report=(findings=[])=>({auditCompleted:true,approvedForProduction:false,stableReleaseAllowed:false,total:findings.length,findings,counts:Object.fromEntries(['info','low','moderate','high','critical'].map(x=>[x,findings.filter(f=>f.severity===x).length]))});
+const before=report([{name:'glob',severity:'moderate'},{name:'minimatch',severity:'moderate'}]);
+test('M133 requires zero findings and preserves old package branches',()=>{assert.equal(overrides['glob@13.0.7'],'14.0.2');assert.equal(gate(m,lock(),lock('14.0.2','11.0.1'),before,report()).candidateEligible,true)});
+test('M133 blocks legacy upgrades and unrelated drift',()=>{const b=lock('14.0.2','11.0.1');b.packages['node_modules/legacy/node_modules/glob']=pkg('glob','14.0.2');assert.equal(gate(m,lock(),b,before,report()).candidateEligible,false);const c=lock('14.0.2','11.0.1');c.packages['node_modules/unrelated']=pkg('unrelated','1.0.0');assert.equal(gate(m,lock(),c,before,report()).candidateEligible,false)});
+test('M133 does not treat partial remediation as eligible',()=>assert.equal(gate(m,lock(),lock('14.0.2','11.0.1'),before,report([{name:'glob',severity:'moderate'}])).candidateEligible,false));
