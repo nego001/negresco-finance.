@@ -1,3 +1,7 @@
+import {historicalAppPath} from './helpers/guardiao_historical_app_m144.mjs';
+import {originalManifest} from './helpers/guardiao_dependency_state_m143.mjs';
+historicalAppPath();
+originalManifest();
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -25,7 +29,7 @@ const run=(lines)=>{
  assert.equal(r.status,0,r.stderr);
 };
 test('M110 exact M109 app and existing API-specific focus and SDK predicates',()=>run([
- 'source=m.APP.read_text(encoding="utf-8")',
+ 'source=__import__("pathlib").Path("tooling/android/fixtures/m139-historical-baseline/App.tsx").read_text(encoding="utf-8")',
  'observer=m.OBSERVER.read_text(encoding="utf-8")',
  'assert m.APIS==("28","29","35")',
  'assert m.app_transform(source)==p.app_transform(source)',

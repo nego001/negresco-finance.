@@ -1,3 +1,7 @@
+import {historicalAppPath} from './helpers/guardiao_historical_app_m144.mjs';
+import {originalManifest} from './helpers/guardiao_dependency_state_m143.mjs';
+historicalAppPath();
+originalManifest();
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -25,8 +29,8 @@ const run=(lines)=>{
  assert.equal(r.status,0,r.stderr);
 };
 test('M112 exact M111 app and guard, reversible final proof only after both cycles',()=>run([
- 'assert m.app_transform(m.APP.read_text(encoding="utf-8"))==p.app_transform(p.APP.read_text(encoding="utf-8"))',
- 'assert m.package_transform(m.PACKAGE.read_text(encoding="utf-8"))==p.package_transform(p.PACKAGE.read_text(encoding="utf-8"))',
+ 'assert m.app_transform(__import__("pathlib").Path("tooling/android/fixtures/m139-historical-baseline/App.tsx").read_text(encoding="utf-8"))==p.app_transform(__import__("pathlib").Path("tooling/android/fixtures/m139-historical-baseline/App.tsx").read_text(encoding="utf-8"))',
+ 'assert m.package_transform(__import__("pathlib").Path("tooling/android/fixtures/m139-historical-baseline/package.json").read_text(encoding="utf-8"))==p.package_transform(__import__("pathlib").Path("tooling/android/fixtures/m139-historical-baseline/package.json").read_text(encoding="utf-8"))',
  'source=m.OBSERVER.read_text(encoding="utf-8")',
  'for api in m.APIS: assert m.matrix_observer(source,api)==p.matrix_observer(source,api)',
  'assert m.subtree_transform is p.subtree_transform and m.xml_transform is p.xml_transform',

@@ -1,3 +1,7 @@
+import {historicalAppPath} from './helpers/guardiao_historical_app_m144.mjs';
+import {originalManifest} from './helpers/guardiao_dependency_state_m143.mjs';
+historicalAppPath();
+originalManifest();
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -18,7 +22,7 @@ const run=(lines)=>{
  assert.equal(r.status,0,r.stderr);
 };
 test('M116 exact temporary app and runner delta, no repeat Analyze',()=>run([
- 's=m.m115.m114.app_transform(m.APP.read_text(encoding="utf-8"))',
+ 's=m.m115.m114.app_transform(__import__("pathlib").Path("tooling/android/fixtures/m139-historical-baseline/App.tsx").read_text(encoding="utf-8"))',
  'a=m.transform(s,m.APP_PAIRS)',
  'assert a.count("keyboardShouldPersistTaps=")==1',
  'assert a.count("NEGRESCO_LAB_M116_ANALYZE_IN")==1 and a.count("NEGRESCO_LAB_M116_ANALYZE_CALL")==1',

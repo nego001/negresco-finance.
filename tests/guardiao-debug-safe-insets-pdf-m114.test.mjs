@@ -1,3 +1,7 @@
+import {historicalAppPath} from './helpers/guardiao_historical_app_m144.mjs';
+import {originalManifest} from './helpers/guardiao_dependency_state_m143.mjs';
+historicalAppPath();
+originalManifest();
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -24,7 +28,7 @@ const run=(lines)=>{
 };
 test('M114 uses exact M111 transformations on two temporary files only',()=>run([
  'assert m.app_transform is p.app_transform and m.package_transform is p.package_transform',
- 'a=p.APP.read_text(encoding="utf-8"); b=p.PACKAGE.read_text(encoding="utf-8")',
+ 'a=__import__("pathlib").Path("tooling/android/fixtures/m139-historical-baseline/App.tsx").read_text(encoding="utf-8"); b=__import__("pathlib").Path("tooling/android/fixtures/m139-historical-baseline/package.json").read_text(encoding="utf-8")',
  'os.environ.update(GITHUB_ACTIONS="true",GITHUB_REF=m.LAB_REF)',
  'with tempfile.TemporaryDirectory() as d:',
  ' m.APP=Path(d)/"App.tsx"; m.PACKAGE=Path(d)/"package.json"',
@@ -35,7 +39,7 @@ test('M114 uses exact M111 transformations on two temporary files only',()=>run(
  ' assert len(list(Path(d).iterdir()))==2'
 ]));
 test('M114 blocks invalid scope or missing file before writes',()=>run([
- 'a=p.APP.read_text(encoding="utf-8"); b=p.PACKAGE.read_text(encoding="utf-8")',
+ 'a=__import__("pathlib").Path("tooling/android/fixtures/m139-historical-baseline/App.tsx").read_text(encoding="utf-8"); b=__import__("pathlib").Path("tooling/android/fixtures/m139-historical-baseline/package.json").read_text(encoding="utf-8")',
  'with tempfile.TemporaryDirectory() as d:',
  ' m.APP=Path(d)/"App.tsx"; m.PACKAGE=Path(d)/"package.json"',
  ' m.APP.write_text(a,encoding="utf-8"); m.PACKAGE.write_text(b,encoding="utf-8")',

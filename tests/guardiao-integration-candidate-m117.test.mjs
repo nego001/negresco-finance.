@@ -1,3 +1,7 @@
+import {historicalAppPath} from './helpers/guardiao_historical_app_m144.mjs';
+import {originalManifest} from './helpers/guardiao_dependency_state_m143.mjs';
+historicalAppPath();
+originalManifest();
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -19,7 +23,7 @@ const run=(lines)=>{
  assert.equal(r.status,0,r.stderr);
 };
 test('M117 real git apply in private temp tree equals functional M111 and M116 delta',()=>run([
- 'app=m.APP.read_text(encoding="utf-8"); package=m.PACKAGE.read_text(encoding="utf-8")',
+ 'app=__import__("pathlib").Path("tooling/android/fixtures/m139-historical-baseline/App.tsx").read_text(encoding="utf-8"); package=__import__("pathlib").Path("tooling/android/fixtures/m139-historical-baseline/package.json").read_text(encoding="utf-8")',
  'expected=m.expected(app,package)',
  'assert "NEGRESCO_LAB_M116_ANALYZE_" not in expected[0]',
  'assert "keyboardShouldPersistTaps=" in expected[0]',

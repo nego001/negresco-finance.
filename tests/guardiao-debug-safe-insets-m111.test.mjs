@@ -1,3 +1,7 @@
+import {historicalAppPath} from './helpers/guardiao_historical_app_m144.mjs';
+import {originalManifest} from './helpers/guardiao_dependency_state_m143.mjs';
+historicalAppPath();
+originalManifest();
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -24,7 +28,7 @@ const run=(lines)=>{
  assert.equal(r.status,0,r.stderr);
 };
 test('M111 four exact app changes preserve M110 root and use measured edges without warning suppression',()=>run([
- 'source=m.APP.read_text(encoding="utf-8")',
+ 'source=__import__("pathlib").Path("tooling/android/fixtures/m139-historical-baseline/App.tsx").read_text(encoding="utf-8")',
  'control=p.app_transform(source)',
  'out=m.app_transform(source)',
  'assert len(m.INSET_PAIRS)==4',
@@ -43,7 +47,7 @@ test('M111 four exact app changes preserve M110 root and use measured edges with
  ' except RuntimeError: pass'
 ]));
 test('M111 adds exactly one pinned disposable native dependency',()=>run([
- 'source=m.PACKAGE.read_text(encoding="utf-8")',
+ 'source=__import__("pathlib").Path("tooling/android/fixtures/m139-historical-baseline/package.json").read_text(encoding="utf-8")',
  'out=m.package_transform(source)',
  'assert out.replace(m.PACKAGE_NEW,m.PACKAGE_OLD)==source',
  'before=json.loads(source)',

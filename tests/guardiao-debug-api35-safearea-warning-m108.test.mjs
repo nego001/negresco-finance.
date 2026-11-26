@@ -1,3 +1,7 @@
+import {historicalAppPath} from './helpers/guardiao_historical_app_m144.mjs';
+import {originalManifest} from './helpers/guardiao_dependency_state_m143.mjs';
+historicalAppPath();
+originalManifest();
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -24,7 +28,7 @@ const run=(lines)=>{
  assert.equal(r.status,0,r.stderr);
 };
 test('M108 one targeted Debug warning filter is reversible without layout changes',()=>run([
- 'source=m.APP.read_text(encoding="utf-8")',
+ 'source=__import__("pathlib").Path("tooling/android/fixtures/m139-historical-baseline/App.tsx").read_text(encoding="utf-8")',
  'control=p.m91_pure(source)',
  'out=m.app_transform(source)',
  'assert out.replace(m.WARNING_ONLY+m.APP_ANCHOR,m.APP_ANCHOR)==control',
