@@ -1,0 +1,9 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {repair,resolveLocked} from '../tooling/android/guardiao_residual_lock_m135.mjs';
+const target='node_modules/expo/node_modules/minimatch',parent='node_modules/expo/node_modules/glob',donor='node_modules/minimatch';
+const fixture=()=>({packages:{'':{},'node_modules/expo':{version:'54.0.38'},[parent]:{version:'14.0.2',dependencies:{minimatch:'^11.0.0'}},[target]:{version:'9.0.9'},[donor]:{version:'11.0.9',dependencies:{'brace-expansion':'^5.0.12'}},'node_modules/brace-expansion':{version:'5.1.0'},'node_modules/rimraf':{version:'3.0.2',dependencies:{glob:'^7.1.3'}},'node_modules/rimraf/node_modules/glob':{version:'7.2.3',dependencies:{minimatch:'^3.1.1'}},'node_modules/rimraf/node_modules/minimatch':{version:'3.1.5'}}});
+const semver={satisfies:(v,r)=>v==='11.0.9'&&r==='^11.0.0'||v==='5.1.0'&&r==='^5.0.12'};
+test('M135 removes only one exact shadow record and reuses fixed existing dependency',()=>{const a=fixture(),b=repair(a,semver);assert.ok(a.packages[target]);assert.ok(!b.packages[target]);assert.equal(resolveLocked(b.packages,parent,'minimatch'),donor);assert.deepEqual(b.packages['node_modules/rimraf/node_modules/minimatch'],a.packages['node_modules/rimraf/node_modules/minimatch']);assert.equal(Object.keys(a.packages).length-1,Object.keys(b.packages).length)});
+test('M135 rejects extra consumers, nested descendants and wrong donor',()=>{let a=fixture();a.packages['node_modules/expo'].dependencies={minimatch:'^9.0.0'};assert.throws(()=>repair(a,semver));a=fixture();a.packages[target+'/node_modules/foo']={version:'1.0.0'};assert.throws(()=>repair(a,semver));a=fixture();a.packages[donor].version='10.2.6';assert.throws(()=>repair(a,semver))});
+test('M135 rejects a missing or incompatible donor dependency',()=>{const a=fixture();delete a.packages['node_modules/brace-expansion'];assert.throws(()=>repair(a,semver))});
