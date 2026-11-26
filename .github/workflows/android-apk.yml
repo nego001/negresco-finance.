@@ -13,8 +13,6 @@ on:
         default: false
         type: boolean
   push:
-    branches-ignore:
-      - 'lab/p01-guardiao-active-integration-m149-v1'
     paths:
       - 'apps/mobile/**'
       - 'tests/mobile-baseline.test.mjs'
@@ -79,6 +77,7 @@ permissions:
   contents: read
 jobs:
   build-test-apk:
+    if: ${{ github.ref != 'refs/heads/lab/p01-guardiao-active-integration-m149-v1' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     defaults:

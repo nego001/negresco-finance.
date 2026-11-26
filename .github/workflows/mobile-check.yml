@@ -20,5 +20,18 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Detect tracked mobile lock before installation
+        id: mobile_lock
+        run: |
+          if git ls-files --error-unmatch package-lock.json >/dev/null 2>&1; then
+            echo 'tracked=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'tracked=false' >> "$GITHUB_OUTPUT"
+          fi
       - run: npm install --no-audit --no-fund
-      - run: npx tsc --noEmit
+        if: steps.mobile_lock.outputs.tracked == 'false'
+      - run: node ../../tooling/android/guardiao_ci_locked_install_m148.mjs install
+        if: steps.mobile_lock.outputs.tracked == 'true'
+      - run: node ./node_modules/typescript/bin/tsc --noEmit
+      - run: node ../../tooling/android/guardiao_ci_locked_install_m148.mjs verify
+        if: steps.mobile_lock.outputs.tracked == 'true'
