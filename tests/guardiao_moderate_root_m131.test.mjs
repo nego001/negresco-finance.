@@ -1,0 +1,8 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {analyze} from '../tooling/android/guardiao_moderate_root_m131.mjs';
+const lock={packages:{'':{dependencies:{parent:'1.0.0'}},'node_modules/parent':{version:'1.0.0',dependencies:{leaf:'^2.0.0'}},'node_modules/leaf':{version:'2.0.0'},'node_modules/other':{version:'1.0.0',dependencies:{leaf:'^3.0.0'}},'node_modules/other/node_modules/leaf':{version:'3.0.0'}}};
+const report=()=>({auditReportVersion:2,metadata:{vulnerabilities:{info:0,low:0,moderate:2,high:0,critical:0,total:2}},vulnerabilities:{parent:{name:'parent',severity:'moderate',nodes:['node_modules/parent'],isDirect:true,via:['leaf']},leaf:{name:'leaf',severity:'moderate',nodes:['node_modules/leaf'],isDirect:false,via:[{name:'leaf',source:123,range:'<2.0.1',severity:'moderate'}]}}});
+test('M131 separates direct advisory and propagated package findings',()=>{const r=analyze(lock,report(),1);assert.equal(r.rootPackageCount,1);assert.equal(r.derivedOnlyCount,1);assert.deepEqual(r.rootFindings[0].affectedFindings,['leaf','parent']);assert.equal(r.approvedForProduction,false)});
+test('M131 resolves affected dependency parent without blaming unaffected nested copy',()=>{const r=analyze(lock,report(),1);assert.deepEqual(r.rootFindings[0].parents,[{parent:'node_modules/parent',parentVersion:'1.0.0',field:'dependencies',range:'^2.0.0',resolved:'node_modules/leaf'}])});
+test('M131 blocks dangling links, ungrounded cycles and malformed advisory records',()=>{for(const via of [['missing'],['parent'],[{name:'leaf',range:'<2.0.1'}]]){const r=report();r.vulnerabilities.leaf.via=via;assert.throws(()=>analyze(lock,r,1))}});

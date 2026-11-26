@@ -1,0 +1,5 @@
+# M131 — advisory root analysis
+
+M130 #45735232399 succeeded with tracked exact remediated lock, 747 packages, no high or critical findings, 13 moderate, unchanged manifest and lock, Metro smoke and prebuild. M129 CI #45734618375 successful (1895 contracts); Android runtime #45734618505 still compiling when this lab was prepared.
+
+M131 inventories direct advisory objects and npm propagated via links, maps each finding to reachable direct advisory packages, and maps declared parent constraints to affected locked paths using ancestor resolution. A missing link or graph with no reachable direct advisory is rejected. This separates audit package counts from advisory root packages; it is not a reachability/exploitability verdict for installed Android binaries. Read-only registry audit of exact tracked candidate; no changes to dependencies, no install, no APK, no signing, no publication, no main change. Three additional contracts expected. #120/#126 and physical validation remain open. approvedForProduction=false, stableReleaseAllowed=false.
