@@ -41,10 +41,30 @@ jobs:
           if [ ! -d "$ANDROID_HOME/platforms/android-36" ]; then
             yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" || test -d "$ANDROID_HOME/platforms/android-36"
           fi
+      - name: Detect tracked mobile lockfile before installation
+        id: mobile_lock
+        working-directory: apps/mobile
+        run: |
+          set -euo pipefail
+          if git ls-files --error-unmatch package-lock.json >/dev/null 2>&1; then
+            echo 'tracked=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'tracked=false' >> "$GITHUB_OUTPUT"
+          fi
       - name: Install Expo SDK 54 dependencies without executing Android app
+        if: steps.mobile_lock.outputs.tracked == 'false'
         run: npm install --no-audit --no-fund
+      - name: Install reviewed mobile lock and explicit Metro adapter
+        if: steps.mobile_lock.outputs.tracked == 'true'
+        working-directory: apps/mobile
+        run: node ../../tooling/android/guardiao_ci_locked_install_m148.mjs install
       - name: Generate disposable Expo Android Gradle project
+        if: steps.mobile_lock.outputs.tracked == 'false'
         run: npx expo prebuild --platform android --non-interactive --no-install
+      - name: Generate reviewed disposable Android project and verify dependency integrity
+        if: steps.mobile_lock.outputs.tracked == 'true'
+        working-directory: apps/mobile
+        run: node ../../tooling/android/guardiao_ci_locked_install_m148.mjs prebuild
       - name: Compile local diagnostic Kotlin module (NO APK)
         run: |
           set -euo pipefail
@@ -104,12 +124,32 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v4
+      - name: Detect tracked mobile lockfile before installation
+        id: mobile_lock
+        working-directory: apps/mobile
+        run: |
+          set -euo pipefail
+          if git ls-files --error-unmatch package-lock.json >/dev/null 2>&1; then
+            echo 'tracked=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'tracked=false' >> "$GITHUB_OUTPUT"
+          fi
       - name: Install disposable Expo dependencies
+        if: steps.mobile_lock.outputs.tracked == 'false'
         working-directory: apps/mobile
         run: npm install --no-audit --no-fund
+      - name: Install reviewed mobile lock and explicit Metro adapter
+        if: steps.mobile_lock.outputs.tracked == 'true'
+        working-directory: apps/mobile
+        run: node ../../tooling/android/guardiao_ci_locked_install_m148.mjs install
       - name: Generate Android test Gradle project
+        if: steps.mobile_lock.outputs.tracked == 'false'
         working-directory: apps/mobile
         run: npx expo prebuild --platform android --non-interactive --no-install
+      - name: Generate reviewed disposable Android project and verify dependency integrity
+        if: steps.mobile_lock.outputs.tracked == 'true'
+        working-directory: apps/mobile
+        run: node ../../tooling/android/guardiao_ci_locked_install_m148.mjs prebuild
       - name: Set bounded Gradle resources
         working-directory: apps/mobile
         run: |

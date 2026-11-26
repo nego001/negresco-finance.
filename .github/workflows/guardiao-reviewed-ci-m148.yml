@@ -1,0 +1,51 @@
+name: Guardiao reviewed CI dependency path M148
+on:
+  push:
+    branches:
+      - lab/p01-guardiao-locked-ci-m148-v1
+permissions:
+  contents: read
+jobs:
+  rehearsal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.5'
+      - name: Stage exact candidate and run contracts
+        run: |
+          set -euo pipefail
+          git apply --check tooling/android/fixtures/guardiao-safe-insets-keyboard-candidate-m117.patch
+          git apply tooling/android/fixtures/guardiao-safe-insets-keyboard-candidate-m117.patch
+          cp tooling/android/fixtures/guardiao-mobile-m135-package-lock.json apps/mobile/package-lock.json
+          cd apps/mobile
+          node --input-type=module - <<'JS'
+          import {readFileSync,writeFileSync} from 'node:fs';
+          import {overrides} from '../../tooling/android/guardiao_moderate_overrides_m134.mjs';
+          const p=JSON.parse(readFileSync('package.json','utf8'));
+          if(Object.hasOwn(p,'overrides'))throw Error('unexpected overrides');
+          p.overrides=overrides;
+          writeFileSync('package.json',JSON.stringify(p,null,2)+'\n');
+          JS
+          git add -- App.tsx package.json
+          git add -f -- package-lock.json
+          cd ../..
+          test "$(git diff --cached --name-only | sort | tr '\n' ' ')" = 'apps/mobile/App.tsx apps/mobile/package-lock.json apps/mobile/package.json '
+          git diff --cached --check
+          npm test > "$RUNNER_TEMP/m148-contracts.tap" 2>&1 || { grep -E '^(not ok |# (tests|pass|fail) )' "$RUNNER_TEMP/m148-contracts.tap"; exit 1; }
+          grep -E '^# (tests|pass|fail) ' "$RUNNER_TEMP/m148-contracts.tap"
+      - name: Rehearse actual CI install and prebuild commands
+        working-directory: apps/mobile
+        run: |
+          set -euo pipefail
+          node ../../tooling/android/guardiao_ci_locked_install_m148.mjs install
+          node ../../tooling/android/guardiao_ci_locked_install_m148.mjs prebuild
+          node ../../tooling/android/guardiao_targeted_overrides_smoke_m126.mjs
+          node ../../tooling/android/guardiao_moderate_smoke_m134.mjs
+          node ./node_modules/typescript/bin/tsc --noEmit
+          node ../../tooling/android/guardiao_ci_locked_install_m148.mjs verify
+          git diff --exit-code -- App.tsx package.json package-lock.json
