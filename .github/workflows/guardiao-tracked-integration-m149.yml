@@ -1,0 +1,47 @@
+name: Guardiao tracked integration M149 (no distribution)
+on:
+  push:
+    branches:
+      - lab/p01-guardiao-active-integration-m149-v1
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.5'
+      - name: Require tracked active files and exact reviewed layout
+        run: |
+          set -euo pipefail
+          git ls-files --error-unmatch apps/mobile/App.tsx apps/mobile/package.json apps/mobile/package-lock.json
+          test "$(git rev-parse HEAD:apps/mobile/package-lock.json)" = 3ecd2e62032db0e8724ab3d5aa117e08b922ad4c
+          node --input-type=module -e 'import {verifyActiveLayout} from "./tests/helpers/guardiao_active_layout_m146.mjs";if(verifyActiveLayout()!=="reviewed-lab-candidate")process.exit(1)'
+          npm test
+          git diff --exit-code
+      - name: Verify current stable dependency admission without signing
+        working-directory: apps/mobile
+        run: |
+          set -euo pipefail
+          node ../../tooling/android/verify_stable_npm_lock.cjs package.json package-lock.json
+          npm audit --json --package-lock-only --include=dev --include=optional --include=peer --registry=https://registry.npmjs.org/ > "$RUNNER_TEMP/m149-audit.json"
+          node ../../tooling/android/verify_stable_npm_audit.cjs "$RUNNER_TEMP/m149-audit.json"
+      - name: Compile reviewed JS and prebuild with tracked lock
+        working-directory: apps/mobile
+        run: |
+          set -euo pipefail
+          node ../../tooling/android/guardiao_ci_locked_install_m148.mjs install
+          node ../../tooling/android/guardiao_ci_locked_install_m148.mjs prebuild
+          node ../../tooling/android/guardiao_targeted_overrides_smoke_m126.mjs
+          node ../../tooling/android/guardiao_metro_compat_smoke_m127.mjs
+          node ../../tooling/android/guardiao_moderate_smoke_m134.mjs
+          node ./node_modules/typescript/bin/tsc --noEmit
+          CI=1 ./node_modules/.bin/expo export --platform android --output-dir "$RUNNER_TEMP/m149-offline-export" --clear
+          node ../../tooling/android/guardiao_ci_locked_install_m148.mjs verify
+          git diff --exit-code -- App.tsx package.json package-lock.json
+          echo 'PASS (LAB): tracked integration verified; production approval remains false'

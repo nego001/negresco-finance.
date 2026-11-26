@@ -13,6 +13,8 @@ on:
         default: false
         type: boolean
   push:
+    branches-ignore:
+      - 'lab/p01-guardiao-active-integration-m149-v1'
     paths:
       - 'apps/mobile/**'
       - 'tests/mobile-baseline.test.mjs'

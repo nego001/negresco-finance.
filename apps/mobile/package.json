@@ -14,6 +14,7 @@
     "expo-updates": "~29.0.0",
     "react": "19.1.0",
     "react-native": "0.81.4",
+    "react-native-safe-area-context": "5.6.0",
     "@react-native-async-storage/async-storage": "2.2.0",
     "expo-file-system": "~19.0.24",
     "expo-print": "~15.0.7",
@@ -25,5 +26,63 @@
   "devDependencies": {
     "typescript": "~5.9.2",
     "@types/react": "~19.1.10"
+  },
+  "overrides": {
+    "metro@0.83.3": {
+      "image-size": "2.0.3"
+    },
+    "@expo/metro-config@54.0.17": {
+      "postcss": "8.5.23",
+      "glob": {
+        ".": "14.0.2",
+        "minimatch": "11.0.9"
+      }
+    },
+    "minimatch@9.0.9": "11.0.9",
+    "@expo/config@12.0.14": {
+      "glob": {
+        ".": "14.0.2",
+        "minimatch": "11.0.9"
+      }
+    },
+    "@expo/config-plugins@54.0.6": {
+      "glob": {
+        ".": "14.0.2",
+        "minimatch": "11.0.9"
+      }
+    },
+    "@expo/fingerprint@0.15.5": {
+      "glob": {
+        ".": "14.0.2",
+        "minimatch": "11.0.9"
+      },
+      "minimatch": "11.0.9"
+    },
+    "expo-updates": {
+      ".": "$expo-updates",
+      "glob": {
+        ".": "14.0.2",
+        "minimatch": "11.0.9"
+      }
+    },
+    "@expo/cli@54.0.28": {
+      "glob": {
+        ".": "14.0.2",
+        "minimatch": "11.0.9"
+      },
+      "minimatch": "11.0.9"
+    },
+    "rimraf@3.0.2": {
+      "glob": {
+        ".": "7.2.3",
+        "minimatch": {
+          ".": "3.1.5",
+          "brace-expansion": {
+            ".": "1.1.22",
+            "balanced-match": "1.0.2"
+          }
+        }
+      }
+    }
   }
 }
