@@ -1,0 +1,25 @@
+name: Guardiao immutable historical source M139
+on:
+  push:
+    branches:
+      - lab/p01-guardiao-historical-source-m139-v1
+permissions:
+  contents: read
+jobs:
+  evidence:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.5'
+      - name: Verify exact historical Git blobs and reconstruct candidate
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD:tooling/android/fixtures/m139-historical-baseline/App.tsx)" = 9e706f4714f3a913823a02678c5c0e3dc89ecfdd
+          test "$(git rev-parse HEAD:tooling/android/fixtures/m139-historical-baseline/package.json)" = ecdd653eabeadeee8719b329fa725d89fb33842e
+          node --test tests/guardiao_historical_source_m139.test.mjs
+          git diff --exit-code
