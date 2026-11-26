@@ -1,0 +1,5 @@
+# M141 — explicit portable Metro adapter
+
+M140 root contracts 1926/1926; differential candidate run still in progress at preparation. M136 Debug APK compiled and verified, independent receiver built, Android API28 functional protocol in progress.
+
+M141 prepares an explicit command for future integration: from an isolated apps/mobile candidate with the exact M135 manifest and lock, run node ../../tooling/android/guardiao_portable_metro_m141.mjs apply, then verify. Requires original Metro 0.83.3 and image-size 2.0.3, canonical regular files inside node_modules, exact reviewed source hashes and exact manifest/lock hashes. Repeated apply is idempotent, unknown bytes rejected, no automatic lifecycle scripts and no production approval. Matrix Linux and Windows checks clean npm ci, negative prepatch verify, apply twice, actual Metro and Expo/Rimraf smoke and tsc. No release workflow or active application edits. Two additional contracts expected. M140 diagnosis remains necessary; no test bypass. #120/#126 remain open. approvedForProduction=false, stableReleaseAllowed=false.
