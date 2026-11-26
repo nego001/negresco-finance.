@@ -1,0 +1,10 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {createHash} from 'node:crypto';
+const b=readFileSync('tooling/android/fixtures/guardiao-mobile-m135-package-lock.json');
+const p=JSON.parse(b).packages;
+const old=JSON.parse(readFileSync('tooling/android/fixtures/guardiao-mobile-m128-package-lock.json','utf8')).packages;
+test('M137 exact approved M135 bytes are permanently tracked',()=>{assert.equal(b.length,360718);assert.equal(createHash('sha256').update(b).digest('hex'),'f66d6fd261dea4c82332bf0499058a039774da9dcaa77a6e3c30934e702a7c28');assert.equal(Object.keys(p).length,763);assert.deepEqual(p[''],old[''])});
+test('M137 preserves legacy glob and minimatch paths and removes residual affected versions',()=>{for(const [path,entry] of Object.entries(old)){if(/(?:^|\/)glob$/.test(path)&&entry.version.startsWith('7.')||/(?:^|\/)minimatch$/.test(path)&&entry.version.startsWith('3.'))assert.deepEqual(p[path],entry)}assert.ok(!Object.hasOwn(p,'node_modules/expo/node_modules/minimatch'));for(const [path,entry] of Object.entries(p)){if(/(?:^|\/)glob$/.test(path))assert.ok(['7.2.3','14.0.2'].includes(entry.version));if(/(?:^|\/)minimatch$/.test(path))assert.ok(['3.1.5','11.0.9'].includes(entry.version))}});
+test('M137 verifies tracked lock without dependency regeneration or artifact transfer',()=>{const w=readFileSync('.github/workflows/guardiao-zero-finding-persistence-m137.yml','utf8');assert.ok(w.includes('npm ci')&&w.includes('git ls-files --error-unmatch')&&w.includes('expo export'));assert.ok(!w.includes('npm install')&&!w.includes('download-artifact')&&!w.includes('upload-artifact'))});
