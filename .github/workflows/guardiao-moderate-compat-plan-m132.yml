@@ -1,0 +1,64 @@
+name: Guardiao moderate compatibility plan M132
+on:
+  push:
+    branches:
+      - lab/p01-guardiao-moderate-compat-plan-m132-v1
+permissions:
+  contents: read
+concurrency:
+  group: guardiao-moderate-root-m132-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  audit:
+    name: M132 registry compatibility evidence (NO APK)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.5'
+      - name: Restore exact remediated laboratory candidate
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/lab/p01-guardiao-moderate-compat-plan-m132-v1
+          test ! -e apps/mobile/package-lock.json
+          git apply --check tooling/android/fixtures/guardiao-safe-insets-keyboard-candidate-m117.patch
+          git apply tooling/android/fixtures/guardiao-safe-insets-keyboard-candidate-m117.patch
+          cp tooling/android/fixtures/guardiao-mobile-m128-package-lock.json apps/mobile/package-lock.json
+          printf '%s  %s\n' 'cbb8bec52cb7d62a9959cd92bb195c943ade634794b0f634e3c1af2f182c78b3' apps/mobile/package-lock.json | sha256sum -c -
+      - name: Map public registry advisory roots and affected locked parents
+        working-directory: apps/mobile
+        env:
+          NPM_CONFIG_REGISTRY: https://registry.npmjs.org/
+          NPM_CONFIG_IGNORE_SCRIPTS: 'true'
+        run: |
+          set -euo pipefail
+          node --input-type=module - <<'JS'
+          import {readFileSync,writeFileSync} from 'node:fs';
+          import {overrides} from '../../tooling/android/guardiao_targeted_overrides_m126.mjs';
+          const p=JSON.parse(readFileSync('package.json','utf8'));
+          if(Object.hasOwn(p,'overrides'))throw Error('unexpected overrides');
+          p.overrides=overrides;
+          writeFileSync('package.json',JSON.stringify(p,null,2)+'\n');
+          JS
+          printf '%s  %s\n' '2865ad73c6ba3918e7ab92a12a1e2fa1fd0d18a604b18de33477d9f511e502d6' package.json | sha256sum -c -
+          node ../../tooling/android/verify_guardiao_lock_m119.mjs package.json package-lock.json
+          sha256sum package.json package-lock.json > "$RUNNER_TEMP/m132-input.sha256"
+          status=0
+          npm audit --json --package-lock-only --include=dev --include=optional --include=peer --audit-level=info > "$RUNNER_TEMP/m132-raw.json" 2>"$RUNNER_TEMP/m132-audit.err" || status=$?
+          npm view glob versions --json > "$RUNNER_TEMP/m132-glob.json"
+          npm view minimatch versions --json > "$RUNNER_TEMP/m132-minimatch.json"
+          NPM_PACKAGE="$(npm root -g)/npm/package.json"
+          test -f "$NPM_PACKAGE"
+          node ../../tooling/android/guardiao_moderate_compat_plan_m132.mjs package-lock.json "$RUNNER_TEMP/m132-raw.json" "$RUNNER_TEMP/m132-glob.json" "$RUNNER_TEMP/m132-minimatch.json" "$NPM_PACKAGE" "$status" > "$RUNNER_TEMP/m132-plan.json"
+          cat "$RUNNER_TEMP/m132-plan.json"
+          for name in glob minimatch; do
+            version="$(node -e 'const p=require(process.argv[1]).targets.find(x=>x.name===process.argv[2]);const v=p?.firstNonaffected;if(typeof v==="string"&&/^\\d+\\.\\d+\\.\\d+$/.test(v))console.log(v);else process.exit(1)' "$RUNNER_TEMP/m132-plan.json" "$name")"
+            npm view "$name@$version" version engines dependencies peerDependencies exports --json
+          done
+          sha256sum -c "$RUNNER_TEMP/m132-input.sha256"
+          cmp package-lock.json ../../tooling/android/fixtures/guardiao-mobile-m128-package-lock.json
+      # No dependency updates, installation, APK, publication or production approval.
