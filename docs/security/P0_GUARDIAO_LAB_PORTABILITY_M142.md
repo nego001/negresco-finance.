@@ -1,0 +1,5 @@
+# M142 — portable checkout and complete differential evidence
+
+M141 run 45738091627 passed Linux (exact adapter, idempotence, Metro image pipeline, six consumers, Rimraf, tsc, hashes); Windows failed before checkout because GITHUB_WORKSPACE contains trailing dots. No Windows functionality was tested. M140 run 45737884574 blocked on two baseline failures before emitting differential; standard M141 contracts 1928/1928 passed on ubuntu-latest. M136 PDF protocol still in progress.
+
+M142 runs exact commit fetch in a fresh, valid runner.temp directory, via public read-only HTTPS without credentials, no repository rename; disables autocrlf only for that checkout. Windows and Linux repeat the same M141 tests. Separately reruns M140 differential on ubuntu-latest matching standard CI runner family, retains strict TAP parser and inventory checks, emits baseline-only, shared and candidate-only failures even if baseline failed, then fails workflow if either has failures. No existing contract changed, no approval bypass. Two new contracts expected. No main, application integration, production signing, publication or OTA. #120/#126 remain open.

@@ -1,0 +1,71 @@
+name: Guardiao portable checkout M142
+on:
+  push:
+    branches:
+      - lab/p01-guardiao-lab-portability-m142-v1
+permissions:
+  contents: read
+jobs:
+  portable-adapter:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.5'
+      - name: Fetch exact public commit into portable directory
+        working-directory: ${{ runner.temp }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test ! -e negresco-m142
+          git init negresco-m142
+          cd negresco-m142
+          git config core.autocrlf false
+          git -c credential.helper= fetch --no-tags --depth=1 https://github.com/nego001/negresco-finance..git "$GITHUB_SHA"
+          git checkout --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -z "$(git status --porcelain)"
+      - name: Prepare exact reviewed mobile candidate
+        working-directory: ${{ runner.temp }}/negresco-m142
+        shell: bash
+        run: |
+          set -euo pipefail
+          git apply --check tooling/android/fixtures/guardiao-safe-insets-keyboard-candidate-m117.patch
+          git apply tooling/android/fixtures/guardiao-safe-insets-keyboard-candidate-m117.patch
+          cp tooling/android/fixtures/guardiao-mobile-m135-package-lock.json apps/mobile/package-lock.json
+          cd apps/mobile
+          node --input-type=module - <<'JS'
+          import {readFileSync,writeFileSync} from 'node:fs';
+          import {overrides} from '../../tooling/android/guardiao_moderate_overrides_m134.mjs';
+          const p=JSON.parse(readFileSync('package.json','utf8'));
+          if(Object.hasOwn(p,'overrides'))throw Error('unexpected overrides');
+          p.overrides=overrides;
+          writeFileSync('package.json',JSON.stringify(p,null,2)+'\n');
+          JS
+          printf '%s  %s\n' '61bf3916e30b74d248040f236fcb1e9a36e484aadb2331a461509c206849becd' package.json 'f66d6fd261dea4c82332bf0499058a039774da9dcaa77a6e3c30934e702a7c28' package-lock.json | sha256sum -c -
+          node ../../tooling/android/verify_guardiao_lock_m119.mjs package.json package-lock.json
+          npm ci --ignore-scripts --no-audit --no-fund --registry=https://registry.npmjs.org/
+      - name: Verify explicit adapter, idempotence and actual Metro assets
+        working-directory: ${{ runner.temp }}/negresco-m142/apps/mobile
+        shell: bash
+        run: |
+          set -euo pipefail
+          SCRIPT=../../tooling/android/guardiao_portable_metro_m141.mjs
+          if node "$SCRIPT" verify; then echo 'BLOCK: unpatched Metro unexpectedly passed'; exit 1; fi
+          node "$SCRIPT" apply > first.json
+          node "$SCRIPT" apply > second.json
+          node "$SCRIPT" verify > verified.json
+          node -e 'const a=require("./first.json"),b=require("./second.json"),c=require("./verified.json");if(!a.changed||b.changed||c.changed||a.sha256!==b.sha256||b.sha256!==c.sha256)process.exit(1);console.log("PASS: explicit application and idempotence")'
+          rm first.json second.json verified.json
+          node ../../tooling/android/guardiao_targeted_overrides_smoke_m126.mjs
+          node ../../tooling/android/guardiao_metro_compat_smoke_m127.mjs
+          node ../../tooling/android/guardiao_moderate_smoke_m134.mjs
+          node ./node_modules/typescript/bin/tsc --noEmit
+          node "$SCRIPT" verify
+          printf '%s  %s\n' '61bf3916e30b74d248040f236fcb1e9a36e484aadb2331a461509c206849becd' package.json 'f66d6fd261dea4c82332bf0499058a039774da9dcaa77a6e3c30934e702a7c28' package-lock.json | sha256sum -c -
