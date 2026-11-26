@@ -1,0 +1,69 @@
+name: Guardiao stable dependency policy rehearsal M147 (no release)
+on:
+  push:
+    branches:
+      - lab/p01-guardiao-stable-policy-rehearsal-m147-v1
+permissions:
+  contents: read
+jobs:
+  policy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.5'
+      - name: Prepare exact reviewed candidate without changing tracked app
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/lab/p01-guardiao-stable-policy-rehearsal-m147-v1
+          git apply --check tooling/android/fixtures/guardiao-safe-insets-keyboard-candidate-m117.patch
+          git apply tooling/android/fixtures/guardiao-safe-insets-keyboard-candidate-m117.patch
+          cp tooling/android/fixtures/guardiao-mobile-m135-package-lock.json apps/mobile/package-lock.json
+          cd apps/mobile
+          node --input-type=module - <<'JS'
+          import {readFileSync,writeFileSync} from 'node:fs';
+          import {overrides} from '../../tooling/android/guardiao_moderate_overrides_m134.mjs';
+          const p=JSON.parse(readFileSync('package.json','utf8'));
+          if(Object.hasOwn(p,'overrides'))throw Error('unexpected overrides');
+          p.overrides=overrides;
+          writeFileSync('package.json',JSON.stringify(p,null,2)+'\n');
+          JS
+          printf '%s  %s\n' '61bf3916e30b74d248040f236fcb1e9a36e484aadb2331a461509c206849becd' package.json 'f66d6fd261dea4c82332bf0499058a039774da9dcaa77a6e3c30934e702a7c28' package-lock.json | sha256sum -c -
+      - name: Apply actual stable lock and audit admission policies
+        working-directory: apps/mobile
+        run: |
+          set -euo pipefail
+          node ../../tooling/android/verify_guardiao_lock_m119.mjs package.json package-lock.json
+          node ../../tooling/android/verify_stable_npm_lock.cjs package.json package-lock.json
+          npm audit --json --package-lock-only --include=dev --include=optional --include=peer --registry=https://registry.npmjs.org/ > "$RUNNER_TEMP/m147-audit.json"
+          node ../../tooling/android/verify_stable_npm_audit.cjs "$RUNNER_TEMP/m147-audit.json"
+          node -e 'const fs=require("node:fs");const r=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));console.log(JSON.stringify({vulnerabilities:r.metadata.vulnerabilities,approvedForProduction:false,stableReleaseAllowed:false}))' "$RUNNER_TEMP/m147-audit.json"
+          node --input-type=module - <<'JS'
+          import {readFileSync,writeFileSync} from 'node:fs';
+          import {join} from 'node:path';
+          const p=JSON.parse(readFileSync('package-lock.json','utf8'));
+          const k=Object.keys(p.packages).find(k=>k&&p.packages[k].integrity);
+          p.packages[k].integrity='sha1-invalid';
+          writeFileSync(join(process.env.RUNNER_TEMP,'m147-invalid-lock.json'),JSON.stringify(p));
+          JS
+          if node ../../tooling/android/verify_stable_npm_lock.cjs package.json "$RUNNER_TEMP/m147-invalid-lock.json"; then echo 'BLOCK: invalid integrity accepted'; exit 1; fi
+          printf '%s\n' '{"auditReportVersion":2,"metadata":{"vulnerabilities":{"info":0,"low":0,"moderate":0,"high":1,"critical":0,"total":1}},"vulnerabilities":{"synthetic":{"severity":"high","isDirect":false,"via":[]}}}' > "$RUNNER_TEMP/m147-invalid-audit.json"
+          if node ../../tooling/android/verify_stable_npm_audit.cjs "$RUNNER_TEMP/m147-invalid-audit.json"; then echo 'BLOCK: nonzero audit accepted'; exit 1; fi
+      - name: Install exact candidate and run reviewed portable adapter
+        working-directory: apps/mobile
+        run: |
+          set -euo pipefail
+          npm ci --ignore-scripts --no-audit --no-fund --registry=https://registry.npmjs.org/
+          node ../../tooling/android/guardiao_portable_metro_m141.mjs apply
+          node ../../tooling/android/guardiao_targeted_overrides_smoke_m126.mjs
+          node ../../tooling/android/guardiao_metro_compat_smoke_m127.mjs
+          node ../../tooling/android/guardiao_moderate_smoke_m134.mjs
+          node ./node_modules/typescript/bin/tsc --noEmit
+          node ../../tooling/android/guardiao_portable_metro_m141.mjs verify
+          printf '%s  %s\n' '61bf3916e30b74d248040f236fcb1e9a36e484aadb2331a461509c206849becd' package.json 'f66d6fd261dea4c82332bf0499058a039774da9dcaa77a6e3c30934e702a7c28' package-lock.json | sha256sum -c -
+          node ../../tooling/android/verify_stable_npm_lock.cjs package.json package-lock.json
+          echo 'PASS (LAB): stable dependency admission policies rehearsed; no production authorization'
