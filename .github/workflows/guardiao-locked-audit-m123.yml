@@ -1,0 +1,46 @@
+name: Guardiao locked dependency audit M123
+on:
+  push:
+    branches:
+      - lab/p01-guardiao-locked-audit-m123-v1
+permissions:
+  contents: read
+concurrency:
+  group: guardiao-locked-audit-m123-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  audit:
+    name: M123 exact locked npm graph security audit (NO APK)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.5'
+      - name: Restore attested lab candidate and validate tracked lock
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/lab/p01-guardiao-locked-audit-m123-v1
+          test ! -e apps/mobile/package-lock.json
+          git apply --check tooling/android/fixtures/guardiao-safe-insets-keyboard-candidate-m117.patch
+          git apply tooling/android/fixtures/guardiao-safe-insets-keyboard-candidate-m117.patch
+          cp tooling/android/fixtures/guardiao-mobile-m119-package-lock.json apps/mobile/package-lock.json
+          printf '%s  %s\n' 'a31326388567fffdfccbe8ec08326fe089356a55f9058c5b669c70a28e579f27' apps/mobile/package-lock.json | sha256sum -c -
+          node tooling/android/verify_guardiao_lock_m119.mjs apps/mobile/package.json apps/mobile/package-lock.json
+      - name: Audit complete exact graph without installation or remediation
+        working-directory: apps/mobile
+        env:
+          NPM_CONFIG_REGISTRY: https://registry.npmjs.org/
+          NPM_CONFIG_IGNORE_SCRIPTS: 'true'
+          NPM_CONFIG_AUDIT_LEVEL: low
+        run: |
+          set -euo pipefail
+          status=0
+          npm audit --json --package-lock-only --include=dev --include=optional --include=peer --audit-level=info > "$RUNNER_TEMP/m123-audit.json" 2>"$RUNNER_TEMP/m123-audit.err" || status=$?
+          node ../../tooling/android/guardiao_locked_audit_m123.mjs "$RUNNER_TEMP/m123-audit.json" "$status" package-lock.json
+          cmp package-lock.json ../../tooling/android/fixtures/guardiao-mobile-m119-package-lock.json
+          rm -f "$RUNNER_TEMP/m123-audit.json" "$RUNNER_TEMP/m123-audit.err"
+      # A completed audit can report vulnerabilities. It is not production approval.
