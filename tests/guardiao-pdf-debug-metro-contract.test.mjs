@@ -1,3 +1,7 @@
+import {historicalAppPath} from './helpers/guardiao_historical_app_m144.mjs';
+import {verifyActiveLayout} from './helpers/guardiao_active_layout_m146.mjs';
+const historical=readFileSync(historicalAppPath(),'utf8');
+verifyActiveLayout();
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -137,8 +141,8 @@ test('Debug and experimental Release preview preserve strict bounded bottom-tab 
   // Historical P0 incident: Release-mode candidate exposed a point-size
   // Início tab even while Debug's safe 60dp bounds had been verified.
   // This experimental branch deliberately applies BOTH minima to Release too.
-  assert.match(app,/<View style=\{\[s\.bottom,s\.labBottomBounds\]\}/);
-  assert.match(app,/style=\{\[s\.nav,s\.labNavBounds,page===x\.name&&s\.navSelected\]\}/);
+  assert.match(historical,/<View style=\{\[s\.bottom,s\.labBottomBounds\]\}/);
+  assert.match(historical,/style=\{\[s\.nav,s\.labNavBounds,page===x\.name&&s\.navSelected\]\}/);
   assert.doesNotMatch(app,/__DEV__&&s\.labBottomBounds|__DEV__&&s\.labNavBounds/);
   assert.match(app,/labBottomBounds:\{minHeight:76,flexShrink:0\}/);
   assert.match(app,/labNavBounds:\{height:60,minHeight:60,flexShrink:0\}/);

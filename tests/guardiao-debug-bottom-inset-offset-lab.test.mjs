@@ -1,3 +1,7 @@
+import {historicalAppPath} from './helpers/guardiao_historical_app_m144.mjs';
+import {verifyActiveLayout} from './helpers/guardiao_active_layout_m146.mjs';
+const historical=readFileSync(historicalAppPath(),'utf8');
+verifyActiveLayout();
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -8,10 +12,10 @@ const runner=readFileSync('tooling/android/guardiao_debug_bottom_inset_offset_la
 const wf=readFileSync('.github/workflows/guardiao-debug-bottom-inset-offset-lab.yml','utf8');
 
 test('Android bottom inset is being tested with Release root hit-order in Release candidate',()=>{
- const root=app.split('return <SafeAreaView')[1]?.split(' onLayout={__DEV__')[0];
+ const root=historical.split('return <SafeAreaView')[1]?.split(' onLayout={__DEV__')[0];
  assert.ok(root?.includes("style={[s.root,{paddingTop:Platform.OS==='android'?(StatusBar.currentHeight??24):0},Platform.OS==='android'&&{paddingBottom:(StatusBar.currentHeight??24)},Platform.OS==='android'&&s.labAndroidRootHitOrder]}"),
   'the bottom inset and root hit-order are evaluated together in isolated Release');
- assert.ok(app.includes('labAndroidRootHitOrder:{zIndex:4,elevation:4}'));
+ assert.ok(historical.includes('labAndroidRootHitOrder:{zIndex:4,elevation:4}'));
  assert.match(app,/accessibilityRole="tab"/);
  assert.match(app,/onPress=\{\(\)=>nav\(x\.name as Page\)\}/);
  assert.match(app,/bottom:\{height:76,paddingHorizontal:12,paddingBottom:4,/);

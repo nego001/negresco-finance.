@@ -1,3 +1,7 @@
+import {historicalAppPath} from './helpers/guardiao_historical_app_m144.mjs';
+import {verifyActiveLayout} from './helpers/guardiao_active_layout_m146.mjs';
+const historical=readFileSync(historicalAppPath(),'utf8');
+verifyActiveLayout();
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -22,7 +26,7 @@ test('debug-only markers and gesture gates remain isolated during Release root i
  assert.doesNotMatch(app,/onTouchStart=\{__DEV__\?\(\)=>\{if\(x\.name==='Pix'/);
  assert.match(app,/collapsable=\{__DEV__\?false:undefined\} testID=\{__DEV__\?\('negresco-lab-rn-page-'/);
  assert.match(app,/accessibilityRole="tab"/);
- assert.match(app,/Platform\.OS==='android'&&\{paddingBottom:/);
+ assert.match(historical,/Platform\.OS==='android'&&\{paddingBottom:/);
  assert.doesNotMatch(app,/NEGRESCO_LAB_NAV_.+\$\{.*account/);
 });
 test('SafeAreaView front children and controlled disposable Debug A/B are guarded',()=>{

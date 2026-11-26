@@ -1,3 +1,7 @@
+import {historicalAppPath} from './helpers/guardiao_historical_app_m144.mjs';
+import {verifyActiveLayout} from './helpers/guardiao_active_layout_m146.mjs';
+const historical=readFileSync(historicalAppPath(),'utf8');
+verifyActiveLayout();
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -5,21 +9,21 @@ import {readFileSync} from 'node:fs';
 const app=readFileSync('apps/mobile/App.tsx','utf8');
 
 test('Android root hit-order is applied to both Debug and isolated Release-mode candidate',()=>{
- const start=app.indexOf('return <SafeAreaView');
- const end=app.indexOf(' onLayout={__DEV__?',start);
+ const start=historical.indexOf('return <SafeAreaView');
+ const end=historical.indexOf(' onLayout={__DEV__?',start);
  assert.ok(start>=0&&end>start,'SafeAreaView root expected');
- const root=app.slice(start,end);
+ const root=historical.slice(start,end);
  assert.match(root,/style=\{\[s\.root,/);
  assert.match(root,/Platform\.OS==='android'&&s\.labAndroidRootHitOrder/);
  assert.doesNotMatch(root,/__DEV__&&Platform\.OS==='android'&&s\.labAndroidRootHitOrder/);
  assert.match(root,/Platform\.OS==='android'&&\{paddingBottom:\(StatusBar\.currentHeight\?\?24\)\}/);
  assert.doesNotMatch(root,/__DEV__&&Platform\.OS==='android'&&\{paddingBottom/);
- assert.match(app,/labAndroidRootHitOrder:\{zIndex:4,elevation:4\}/);
+ assert.match(historical,/labAndroidRootHitOrder:\{zIndex:4,elevation:4\}/);
  assert.equal((root.match(/s\.labAndroidRootHitOrder/g)||[]).length,1);
 });
 test('root hit-order experiment keeps navigation handlers, native bounds and PDF security unchanged',()=>{
- assert.match(app,/style=\{\[s\.bottom,s\.labBottomBounds\]\}/);
- assert.match(app,/style=\{\[s\.nav,s\.labNavBounds,page===x\.name&&s\.navSelected\]\}/);
+ assert.match(historical,/style=\{\[s\.bottom,s\.labBottomBounds\]\}/);
+ assert.match(historical,/style=\{\[s\.nav,s\.labNavBounds,page===x\.name&&s\.navSelected\]\}/);
  assert.match(app,/labBottomBounds:\{minHeight:76,flexShrink:0\}/);
  assert.match(app,/labNavBounds:\{height:60,minHeight:60,flexShrink:0\}/);
  assert.match(app,/onPress=\{\(\)=>nav\(x\.name as Page\)\}/);

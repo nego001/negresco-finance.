@@ -1,3 +1,7 @@
+import {historicalAppPath} from './helpers/guardiao_historical_app_m144.mjs';
+import {verifyActiveLayout} from './helpers/guardiao_active_layout_m146.mjs';
+const historical=readFileSync(historicalAppPath(),'utf8');
+verifyActiveLayout();
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -12,7 +16,7 @@ test('Debug-only independent window-frame reference preserves Release role and s
  assert.match(app,/const labWindowRoot=useRef/);
  assert.match(app,/root\.measureInWindow\(\(rx,ry,rw,rh\)=>/);
  assert.match(app,/native\.measureInWindow\(\(x,y,width,height\)=>/);
- assert.match(app,/StatusBar\.currentHeight\?\?0/);
+ assert.match(historical,/StatusBar\.currentHeight\?\?0/);
  assert.match(app,/regular-below-viewport/);
  assert.match(app,/'-rootframe-' \+ \(labWindowRootFrame\[/);
  assert.match(app,/'-edge-' \+ \(labWindowEdgeGap\[/);

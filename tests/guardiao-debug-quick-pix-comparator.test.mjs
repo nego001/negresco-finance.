@@ -1,3 +1,7 @@
+import {historicalAppPath} from './helpers/guardiao_historical_app_m144.mjs';
+import {verifyActiveLayout} from './helpers/guardiao_active_layout_m146.mjs';
+const historical=readFileSync(historicalAppPath(),'utf8');
+verifyActiveLayout();
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -19,14 +23,14 @@ test('isolated Android API28 comparator cannot become Release or change original
  assert.doesNotMatch(primary,/--quick-pix-comparator/);
 });
 test('isolated Release-mode Android root hit-order preserves Debug gesture preflight',()=>{
- const root=app.split('return <SafeAreaView')[1]?.split('onLayout={__DEV__')[0];
+ const root=historical.split('return <SafeAreaView')[1]?.split('onLayout={__DEV__')[0];
  assert.ok(root?.includes("Platform.OS==='android'&&s.labAndroidRootHitOrder"),
   'root hit-order experimental Release must remain Android-only');
  assert.ok(!root.includes("__DEV__&&Platform.OS==='android'&&s.labAndroidRootHitOrder"));
  assert.ok(root.includes("Platform.OS==='android'&&{paddingBottom:(StatusBar.currentHeight??24)}"),
   'bottom inset is intentionally present in isolated Android Release A/B');
- assert.ok(app.includes('labAndroidRootHitOrder:{zIndex:4,elevation:4}'));
- assert.equal(app.split("labAndroidRootHitOrder:{zIndex:4,elevation:4}").length,2);
+ assert.ok(historical.includes('labAndroidRootHitOrder:{zIndex:4,elevation:4}'));
+ assert.equal(historical.split("labAndroidRootHitOrder:{zIndex:4,elevation:4}").length,2);
  assert.match(runner,/if dx<40 or dy<40 or len\(nodes\)>3000:/);
  assert.match(runner,/if \(first is None or first!=second or first_gate!=second_gate/);
  assert.ok(runner.includes('if first_gate!=second_gate')||runner.includes('or first_gate!=second_gate'));

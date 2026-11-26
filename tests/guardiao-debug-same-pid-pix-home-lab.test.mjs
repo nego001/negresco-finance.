@@ -1,3 +1,7 @@
+import {historicalAppPath} from './helpers/guardiao_historical_app_m144.mjs';
+import {verifyActiveLayout} from './helpers/guardiao_active_layout_m146.mjs';
+const historical=readFileSync(historicalAppPath(),'utf8');
+verifyActiveLayout();
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -7,7 +11,7 @@ const runner=readFileSync('tooling/android/guardiao_debug_same_pid_pix_home_lab.
 const workflow=readFileSync('.github/workflows/guardiao-debug-same-pid-pix-home-lab.yml','utf8');
 
 test('Pix preview round-trip is Debug-only and cannot trigger money or PDF',()=>{
- assert.match(app,/Platform\.OS==='android'&&\{paddingBottom:/);
+ assert.match(historical,/Platform\.OS==='android'&&\{paddingBottom:/);
  assert.match(app,/accessibilityRole="tab"/);
  assert.match(app,/Nenhuma transferência, cobrança ou QR Code real é gerado/);
  assert.match(workflow,/lab\/p01-guardiao-debug-same-pid-pix-home-v1/);
