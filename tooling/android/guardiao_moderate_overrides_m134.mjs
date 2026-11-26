@@ -5,6 +5,8 @@ import {overrides as baseline} from './guardiao_targeted_overrides_m126.mjs';
 // Nest minimatch under each affected glob edge; never use a top-level glob child override.
 const correctedGlob=()=>({'.':'14.0.2',minimatch:'11.0.9'});
 export const overrides={...baseline,
+ // Only the residual exact affected version; never match minimatch 3.x.
+ 'minimatch@9.0.9':'11.0.9',
  '@expo/config@12.0.14':{glob:correctedGlob()},
  '@expo/config-plugins@54.0.6':{glob:correctedGlob()},
  '@expo/fingerprint@0.15.5':{glob:correctedGlob(),minimatch:'11.0.9'},
