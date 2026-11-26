@@ -1,3 +1,4 @@
+import {originalManifest,verifyActiveDependencyState} from './helpers/guardiao_dependency_state_m143.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -12,7 +13,8 @@ test('M122 tracked candidate exactly matches the homologated M119/M120 bytes',()
  assert.equal(Object.keys(lock.packages).length,749);
 });
 test('M122 candidate lock agrees with original manifest plus isolated safe area pin',()=>{
- const manifest=JSON.parse(readFileSync('apps/mobile/package.json','utf8'));
+ const manifest=originalManifest();
+ verifyActiveDependencyState();
  assert.ok(!Object.hasOwn(manifest.dependencies,'react-native-safe-area-context'));
  manifest.dependencies['react-native-safe-area-context']='5.6.0';
  assert.equal(verify(manifest,lock),748);

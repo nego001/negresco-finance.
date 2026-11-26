@@ -1,3 +1,4 @@
+import {originalManifest,verifyActiveDependencyState} from './helpers/guardiao_dependency_state_m143.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
@@ -124,7 +125,8 @@ test('separate downloaded APK verification never executes untrusted artifact con
   assert.doesNotMatch(verifier,/contents: write|secrets\.|gh release|git push|git tag|npm ci|npm install|assembleRelease/);
 });
 test('candidate manifest remains only on ephemeral CI runner, not production app config',()=>{
-  const pkg=JSON.parse(readFileSync(resolve('apps/mobile/package.json'),'utf8'));
+  const pkg=originalManifest();
+  verifyActiveDependencyState();
   const app=JSON.parse(readFileSync(resolve('apps/mobile/app.json'),'utf8'));
   assert.equal(pkg.overrides,undefined);
   assert.equal(app.expo.updates.requestHeaders['expo-channel-name'],'preview');

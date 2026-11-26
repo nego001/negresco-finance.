@@ -1,3 +1,4 @@
+import {originalManifest,verifyActiveDependencyState} from './helpers/guardiao_dependency_state_m143.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync,existsSync} from 'node:fs';
@@ -51,7 +52,7 @@ test('review metadata records source SHA, source ref, toolchain and cryptographi
   assert.match(workflow,/apps\/mobile\/package-lock\.json/);
 });
 test('preview remains free of fake lockfile and stable path still fails without a real one',()=>{
-  assert.equal(existsSync(resolve('apps/mobile/package-lock.json')),false);
+  verifyActiveDependencyState();
   assert.equal(pkg.name,'@negresco/mobile');
   assert.equal(pkg.version,'3.1.3');
   assert.match(stable,/npm ci --no-audit --no-fund/);

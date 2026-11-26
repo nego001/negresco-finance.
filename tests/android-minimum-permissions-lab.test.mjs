@@ -1,3 +1,4 @@
+import {originalManifest,verifyActiveDependencyState} from './helpers/guardiao_dependency_state_m143.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync, mkdtempSync, writeFileSync, rmSync} from 'node:fs';
@@ -16,7 +17,8 @@ test('permission removal is exclusively in this independent lab',()=>{
  assert.equal((workflow.match(/verify_compiled_minimum_permissions\.py/g)||[]).length,2);
  // Freeze the original Forge candidate only in temporary manifests, never in source.
  assert.equal((workflow.match(/'node-forge':'1\.4\.1'/g)||[]).length,2);
- assert.equal(JSON.parse(readFileSync('apps/mobile/package.json','utf8')).overrides,undefined);
+ assert.equal(originalManifest().overrides,undefined);
+ verifyActiveDependencyState();
  assert.match(workflow,/forge-141-android-minimum-permissions-unreviewed/);
  assert.match(workflow,/CN=Android Debug/);
  assert.doesNotMatch(workflow,/contents: write|gh release|eas update|expo publish/);

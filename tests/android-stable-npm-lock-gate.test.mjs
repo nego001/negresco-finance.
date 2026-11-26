@@ -1,3 +1,4 @@
+import {originalManifest,verifyActiveDependencyState} from './helpers/guardiao_dependency_state_m143.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
@@ -51,7 +52,7 @@ function reject(f,pattern){
 test('canonical npm v3 lock admits reviewed SHA-512 dependency graph',t=>allow(fixture(t)));
 test('missing lock blocks stable publishing while preview remains testable',t=>{
   reject(fixture(t,undefined,{noLock:true}),/missing, linked, nonregular or oversized package-lock\.json/);
-  assert.equal(existsSync(resolve('apps/mobile/package-lock.json')),false);
+  verifyActiveDependencyState();
 });
 test('reject lockfile v2, mismatched package or mismatched root',t=>{
   for(const change of [
