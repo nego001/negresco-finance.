@@ -1,0 +1,139 @@
+name: Guardiao embedded-only OTA policy and Release runtime M154 (no distribution)
+on:
+  push:
+    branches:
+      - lab/p01-guardiao-active-integration-m149-v1
+    paths:
+      - '.github/workflows/guardiao-integrated-release-m154.yml'
+      - 'tooling/android/guardiao_integrated_release_m154.py'
+      - 'tooling/android/guardiao_embedded_only_m154.mjs'
+permissions:
+  contents: read
+jobs:
+  api28-release-mode:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.5'
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd
+        with:
+          packages: platform-tools
+      - name: Verify tracked candidate and current dependency policies
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/lab/p01-guardiao-active-integration-m149-v1
+          node --input-type=module -e 'import {verifyActiveLayout} from "./tests/helpers/guardiao_active_layout_m146.mjs";if(verifyActiveLayout()!=="reviewed-lab-candidate")process.exit(1)'
+          cd apps/mobile
+          node ../../tooling/android/verify_stable_npm_lock.cjs package.json package-lock.json
+          npm audit --json --package-lock-only --include=dev --include=optional --include=peer --registry=https://registry.npmjs.org/ > "$RUNNER_TEMP/m154-audit.json"
+          node ../../tooling/android/verify_stable_npm_audit.cjs "$RUNNER_TEMP/m154-audit.json"
+          node ../../tooling/android/verify_no_ota_runtime_override.cjs .
+      - name: Install and prebuild exact reviewed lock and adapter
+        working-directory: apps/mobile
+        run: |
+          set -euo pipefail
+          node ../../tooling/android/guardiao_ci_locked_install_m148.mjs install
+          cp app.json "$RUNNER_TEMP/m154-preview-app.json"
+          if node ../../tooling/android/verify_ota_release_signing.cjs app.json; then echo 'BLOCK: unsigned preview accepted'; exit 1; fi
+          node ../../tooling/android/guardiao_embedded_only_m154.mjs apply
+          node ../../tooling/android/verify_ota_release_signing.cjs app.json
+          node ../../tooling/android/guardiao_ci_locked_install_m148.mjs prebuild
+          python3 ../../tooling/android/verify_generated_ota_manifest.py app.json android/app/src/main/AndroidManifest.xml
+          node ./node_modules/typescript/bin/tsc --noEmit
+          node ../../tooling/android/guardiao_embedded_only_m154.mjs verify
+      - name: Build disposable nondebuggable Release-mode APK with test certificate only
+        working-directory: apps/mobile
+        run: |
+          set -euo pipefail
+          test ! -e android/app/negresco-ci-release.jks
+          sed -i '/^org.gradle.jvmargs=/d; /^org.gradle.parallel=/d; /^org.gradle.workers.max=/d; /^kotlin.compiler.execution.strategy=/d' android/gradle.properties
+          cat >> android/gradle.properties <<'EOF'
+          org.gradle.jvmargs=-Xmx3g -XX:MaxMetaspaceSize=1536m -Dfile.encoding=UTF-8
+          org.gradle.parallel=false
+          org.gradle.workers.max=2
+          kotlin.compiler.execution.strategy=in-process
+          EOF
+          chmod +x android/gradlew
+          cd android
+          ./gradlew :app:assembleRelease --no-daemon
+      - name: Check compiled security policies and pin fresh local APK
+        run: |
+          set -euo pipefail
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" >/dev/null
+          APK=apps/mobile/android/app/build/outputs/apk/release/app-release.apk
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          test -s "$APK"
+          test ! -L "$APK"
+          "$BT/apksigner" verify --verbose --print-certs "$APK" > "$RUNNER_TEMP/m154-signature"
+          grep -Fq 'CN=Android Debug' "$RUNNER_TEMP/m154-signature"
+          test "$(grep -c 'Signer #[0-9]* certificate DN:' "$RUNNER_TEMP/m154-signature")" = 1
+          "$BT/aapt" dump badging "$APK" > "$RUNNER_TEMP/m154-badging"
+          grep -Fq "package: name='com.negresco.finance'" "$RUNNER_TEMP/m154-badging"
+          if grep -Fq application-debuggable "$RUNNER_TEMP/m154-badging"; then exit 1; fi
+          python3 tooling/android/verify_guardiao_release_no_lab_markers.py "$APK"
+          python3 tooling/android/verify_compiled_minimum_permissions.py "$APK"
+          python3 tooling/android/verify_compiled_network_policy.py "$APK" "$BT/aapt2"
+          python3 tooling/android/verify_compiled_backup_policy.py "$APK" "$BT/aapt2"
+          python3 tooling/android/verify_compiled_ota_manifest.py --verify-stable "$APK" apps/mobile/app.json
+          python3 - "$APK" <<'PY'
+          import sys
+          from pathlib import Path
+          sys.path.insert(0, 'tooling/android')
+          import verify_compiled_ota_manifest as ota
+          m = ota.parsed_manifest(ota.read_apk(Path(sys.argv[1])))
+          if m.get(ota.ENABLED) != (0x12, False):
+              raise SystemExit("BLOCK: compiled OTA not explicitly disabled")
+          if ota.UPDATE_URL in m or ota.REQUEST_HEADERS in m:
+              raise SystemExit("BLOCK: embedded-only APK retains OTA routing metadata")
+          print("PASS (LAB): compiled APK explicitly disables OTA without endpoint or headers")
+          PY
+          test ! -e m154-private-apk.sha256
+          umask 077
+          sha256sum "$APK" | cut -d ' ' -f 1 > m154-private-apk.sha256
+          echo 'PASS (LAB): same-job test-signed nondebuggable Release-mode APK pinned'
+      - name: Build independent receiver and prepare offline semantic tools
+        run: |
+          set -euo pipefail
+          bash tooling/android/pdf-receiver-lab/build_receiving_apk.sh
+          if ! command -v pdfinfo >/dev/null || ! command -v pdftotext >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq poppler-utils
+          fi
+      - name: Enable isolated emulator acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-negresco-kvm.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Require four independent synthetic PDFs and three safe Home returns in same API28 process
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
+        with:
+          api-level: 28
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          emulator-boot-timeout: 600
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          script: python3 tooling/android/guardiao_integrated_release_m154.py
+      - name: Reverify unchanged tracked sources and local build identity
+        run: |
+          set -euo pipefail
+          test "$(sha256sum apps/mobile/android/app/build/outputs/apk/release/app-release.apk | cut -d ' ' -f 1)" = "$(cat m154-private-apk.sha256)"
+          cd apps/mobile
+          node ../../tooling/android/guardiao_ci_locked_install_m148.mjs verify
+          node ../../tooling/android/guardiao_embedded_only_m154.mjs verify
+          cp "$RUNNER_TEMP/m154-preview-app.json" app.json
+          git diff --exit-code -- App.tsx package.json package-lock.json app.json
+      - name: Remove ephemeral candidate APK and private digest
+        if: always()
+        run: |
+          if test -f "$RUNNER_TEMP/m154-preview-app.json"; then cp "$RUNNER_TEMP/m154-preview-app.json" apps/mobile/app.json; fi
+          rm -f m154-private-apk.sha256 apps/mobile/android/app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/m154-preview-app.json"
