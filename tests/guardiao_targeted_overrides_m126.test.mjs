@@ -1,0 +1,11 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {gate,overrides} from '../tooling/android/guardiao_targeted_overrides_m126.mjs';
+const m={name:'@negresco/mobile',version:'3.1.3',dependencies:{'react-native-safe-area-context':'5.6.0'}};
+const pkg=(n,v)=>({version:v,resolved:'https://registry.npmjs.org/'+n+'/-/'+n+'-'+v+'.tgz',integrity:'sha512-YWJjZA=='});
+const lock=(img='1.2.1',css='8.4.49')=>({name:m.name,version:m.version,lockfileVersion:3,packages:{'':{...m},'node_modules/react-native-safe-area-context':pkg('react-native-safe-area-context','5.6.0'),'node_modules/image-size':pkg('image-size',img),'node_modules/postcss':pkg('postcss',css)}});
+const report=(findings=[])=>({auditCompleted:true,approvedForProduction:false,stableReleaseAllowed:false,total:findings.length,findings,counts:Object.fromEntries(['info','low','moderate','high','critical'].map(x=>[x,findings.filter(f=>f.severity===x).length]))});
+const before=report([{name:'image-size',severity:'high'},{name:'postcss',severity:'high'}]);
+test('M126 requires exact two scoped pins and successful security improvement',()=>{assert.deepEqual(overrides,{'metro@0.83.3':{'image-size':'2.0.3'},'@expo/metro-config@54.0.17':{'postcss':'8.5.23'}});assert.equal(gate(m,lock(),lock('2.0.3','8.5.23'),before,report()).candidateEligible,true)});
+test('M126 rejects unrelated changes even if audit improved',()=>{const b=lock('2.0.3','8.5.23');b.packages['node_modules/unrelated']=pkg('unrelated','1.0.0');assert.equal(gate(m,lock(),b,before,report()).candidateEligible,false)});
+test('M126 rejects uncorrected target or residual high finding',()=>{assert.equal(gate(m,lock(),lock('2.0.3','8.4.49'),before,report()).candidateEligible,false);assert.equal(gate(m,lock(),lock('2.0.3','8.5.23'),before,report([{name:'postcss',severity:'high'}])).candidateEligible,false)});
