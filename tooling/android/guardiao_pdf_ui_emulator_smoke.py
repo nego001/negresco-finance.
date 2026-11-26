@@ -387,7 +387,18 @@ def receive_from_chooser(api: int, digest: str, after_verified_receipt=None) -> 
         time.sleep(1)
     raise RuntimeError("independent PDF receiver did not produce a verified receipt")
 
-def run_smoke(after_receiver_install=None, after_verified_receipt=None) -> None:
+def require_lab_api(api, expected_api=None):
+    # Historical callers retain their original API26/28 admission only.
+    if type(api) is not int:
+        raise RuntimeError("invalid observed Android API")
+    if expected_api is None:
+        if api not in (26, 28):
+            raise RuntimeError("unsupported Android API for this lab")
+    elif type(expected_api) is not int or expected_api != 29 or api != expected_api:
+        raise RuntimeError("explicit Android API29 lab mismatch")
+
+
+def run_smoke(after_receiver_install=None, after_verified_receipt=None, *, expected_api=None) -> None:
     if not APK.is_file() or APK.is_symlink() or APK.stat().st_size < 25_000_000:
         raise RuntimeError("missing or unsafe audited test APK")
     hasher = hashlib.sha256()
@@ -399,8 +410,7 @@ def run_smoke(after_receiver_install=None, after_verified_receipt=None) -> None:
         raise RuntimeError("APK is not the audited four-permission-free binary")
     print("STAGE (LAB): audited APK integrity verified", flush=True)
     api = int(adb("shell", "getprop", "ro.build.version.sdk").strip())
-    if api not in (26, 28):
-        raise RuntimeError("unsupported Android API for this lab")
+    require_lab_api(api, expected_api)
     print(f"STAGE (LAB): emulator API {api} verified", flush=True)
     adb("shell", "settings", "put", "global", "window_animation_scale", "0")
     adb("shell", "settings", "put", "global", "transition_animation_scale", "0")
