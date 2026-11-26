@@ -29,5 +29,7 @@ test('Release bottom target layout fix does not disable protected app or add aut
  // Root's Android bottom inset is intentionally shared in this experiment; debug-only observability remains unchanged
  // in this single native layout experiment, no 2nd copy of the nav bar.
  assert.match(historical,/Platform\.OS==='android'&&\{paddingBottom:\(StatusBar\.currentHeight\?\?24\)\}/);
- assert.equal((source.match(/style=\{\[s\.bottom,s\.labBottomBounds\]\}/g)||[]).length,1);
+ assert.equal((historical.match(/style=\{\[s\.bottom,s\.labBottomBounds\]\}/g)||[]).length,1);
+ const expectedStyle=source===historical?'style={[s.bottom,s.labBottomBounds]}':'style={s.bottom}';
+ assert.equal(source.split(expectedStyle).length,2);
 });

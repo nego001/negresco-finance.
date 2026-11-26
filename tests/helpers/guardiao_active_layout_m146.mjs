@@ -33,6 +33,10 @@ export function validateLayout(source,state){
  assert.ok(source.includes('labAndroidRootHitOrder:{zIndex:1}'));
  assert.ok(source.includes('bottom:{height:76,paddingHorizontal:12,paddingBottom:4,'));
  assert.ok(source.includes("style={[s.nav,page===x.name&&s.navSelected]}"));
+ assert.equal(source.split('style={s.bottom}').length,2);
+ assert.equal(source.split("style={[s.nav,page===x.name&&s.navSelected]}").length,2);
+ assert.ok(!source.includes('style={[s.bottom,s.labBottomBounds]}'));
+ assert.ok(!source.includes('style={[s.nav,s.labNavBounds,page===x.name&&s.navSelected]}'));
  assert.ok(source.includes('accessibilityRole="tab"'));
  assert.ok(source.includes('accessibilityState={{selected:page===x.name}}'));
  assert.ok(source.includes('onPress={()=>nav(x.name as Page)}'));
