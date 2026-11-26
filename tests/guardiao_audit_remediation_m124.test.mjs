@@ -1,0 +1,11 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {compare} from '../tooling/android/guardiao_audit_remediation_m124.mjs';
+const manifest={name:'@negresco/mobile',version:'3.1.3',dependencies:{'react-native-safe-area-context':'5.6.0'}};
+const pkg=(name,version)=>({version,resolved:'https://registry.npmjs.org/'+name+'/-/'+name+'-'+version+'.tgz',integrity:'sha512-YWJjZA=='});
+const original=()=>({name:manifest.name,version:manifest.version,lockfileVersion:3,packages:{'':{...manifest},'node_modules/react-native-safe-area-context':pkg('react-native-safe-area-context','5.6.0'),'node_modules/foo':pkg('foo','1.0.0')}});
+const report=(findings=[])=>({auditCompleted:true,approvedForProduction:false,stableReleaseAllowed:false,total:findings.length,findings,counts:Object.fromEntries(['info','low','moderate','high','critical'].map(x=>[x,findings.filter(f=>f.severity===x).length]))});
+const high=report([{name:'foo',severity:'high'}]);
+test('M124 transitive-only improvement is eligible for further lab validation, never production',()=>{const a=original(),b=original();b.packages['node_modules/foo']=pkg('foo','1.0.1');const x=compare(manifest,a,b,high,report());assert.equal(x.candidateEligible,true);assert.equal(x.changes.length,1);assert.equal(x.approvedForProduction,false)});
+test('M124 unchanged or newly vulnerable candidate cannot advance',()=>{const a=original();assert.equal(compare(manifest,a,a,high,high).candidateEligible,false);assert.equal(compare(manifest,a,a,high,report([{name:'bar',severity:'low'}])).candidateEligible,false)});
+test('M124 refuses same-version provenance drift and direct manifest changes',()=>{const a=original(),b=original();b.packages['node_modules/foo'].integrity='sha512-ZGVm';assert.throws(()=>compare(manifest,a,b,high,report()));const c=original();c.packages[''].dependencies={};assert.throws(()=>compare(manifest,a,c,high,report()))});
