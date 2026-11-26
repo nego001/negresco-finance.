@@ -13,5 +13,12 @@ try{
  function match(p){assert.equal(p('minimatch/package.json').version,'11.0.9');const mm=p('minimatch');assert.equal(mm.minimatch('assets/sample.txt','**/*.txt'),true);assert.equal(mm.minimatch('assets/other.bin','**/*.txt'),false);assert.equal(new mm.Minimatch('**/*.txt').match('assets/sample.txt'),true)}
  for(const p of parents){assert.equal(p('glob/package.json').version,'14.0.2');const g=p('glob');assert.deepEqual((await g.glob('**/*.txt',{cwd:tmp,nodir:true})).sort(),['assets/sample.txt']);assert.deepEqual(g.globSync('**/*.txt',{cwd:tmp,nodir:true}),['assets/sample.txt']);match(from(p,'glob'))}
  match(parents[2]);match(parents[4]);
+ const rimraf=from(req,'rimraf');assert.equal(rimraf('glob/package.json').version,'7.2.3');
+ const legacyGlob=from(rimraf,'glob');assert.equal(legacyGlob('minimatch/package.json').version,'3.1.5');
+ assert.equal(legacyGlob('minimatch')('assets/sample.txt','**/*.txt'),true);
+ const legacyMatch=from(legacyGlob,'minimatch');assert.equal(legacyMatch('brace-expansion/package.json').version,'1.1.22');
+ const legacyBrace=from(legacyMatch,'brace-expansion');assert.equal(legacyBrace('balanced-match/package.json').version,'1.0.2');
+ assert.deepEqual(rimraf('glob').sync('**/*.txt',{cwd:tmp,nodir:true}),['assets/sample.txt']);
+ console.log('PASS (LAB): Rimraf resolves original legacy glob and minimatch chain');
  console.log('PASS (LAB): all six actual Expo consumers resolve corrected glob and matching APIs');
 }finally{rmSync(tmp,{recursive:true,force:true})}

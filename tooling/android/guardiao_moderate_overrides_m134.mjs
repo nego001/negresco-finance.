@@ -10,7 +10,8 @@ export const overrides={...baseline,
  '@expo/fingerprint@0.15.5':{glob:correctedGlob(),minimatch:'11.0.9'},
  'expo-updates':{'.':'$expo-updates',glob:correctedGlob()},
  '@expo/cli@54.0.28':{glob:correctedGlob(),minimatch:'11.0.9'},
- '@expo/metro-config@54.0.17':{...baseline['@expo/metro-config@54.0.17'],glob:correctedGlob()}
+ '@expo/metro-config@54.0.17':{...baseline['@expo/metro-config@54.0.17'],glob:correctedGlob()},
+ 'rimraf@3.0.2':{glob:{'.':'7.2.3',minimatch:{'.':'3.1.5','brace-expansion':{'.':'1.1.22','balanced-match':'1.0.2'}}}}
 };
 const leaf=p=>p.slice(p.lastIndexOf('node_modules/')+13);
 const allowed=new Set(['glob','minimatch','brace-expansion','balanced-match','minipass','path-scurry','lru-cache','foreground-child','jackspeak','package-json-from-dist','@isaacs/cliui','@isaacs/brace-expansion','@isaacs/balanced-match','@isaacs/nonrecursive-glob-match']);
