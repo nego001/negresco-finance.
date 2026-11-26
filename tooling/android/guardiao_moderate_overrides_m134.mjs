@@ -6,7 +6,7 @@ export const overrides={...baseline,
  '@expo/config@12.0.14':{glob:'14.0.2'},
  '@expo/config-plugins@54.0.6':{glob:'14.0.2'},
  '@expo/fingerprint@0.15.5':{glob:'14.0.2',minimatch:'11.0.1'},
- 'expo-updates@29.0.20':{glob:'14.0.2'},
+ 'expo-updates':{'.':'$expo-updates',glob:'14.0.2'},
  '@expo/cli@54.0.28':{glob:'14.0.2',minimatch:'11.0.1'},
  '@expo/metro-config@54.0.17':{...baseline['@expo/metro-config@54.0.17'],glob:'14.0.2'},
  'glob@14.0.2':{minimatch:'11.0.1'}
