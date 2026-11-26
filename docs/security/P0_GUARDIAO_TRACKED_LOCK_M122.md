@@ -1,0 +1,5 @@
+# M121/M122 — tracked candidate lock
+
+M119 #45688506254 and M120 #45689240988 proved the exact same public registry lock, 748 packages, SHA256 a31326388567fffdfccbe8ec08326fe089356a55f9058c5b669c70a28e579f27. M120 Android API 28 validated two independent synthetic PDFs and guarded Home returns in an unchanged PID. M121 #45727936013 exported 9276 numbered lines; CI #45727935955 passed 1874/1874 contracts and six required jobs. Commit d0941416587a72571804c74c70f1639c70804467 persists the independently reconstructed, hash-checked 353587-byte lock as a tracked lab fixture.
+
+M122 uses the tracked bytes, no artifact download, actions permission or lock regeneration. Exact M117/M118 functional candidate and M120 Debug emulator QA retained. Two new static contracts expected. The fixture is not yet apps/mobile/package-lock.json because the tracked production manifest does not include the candidate Safe Area dependency. No main edit, production signing, publication or real financial data. Physical-device and Release validation remain pending; approvedForProduction=false, stableReleaseAllowed=false, #120/#126 remain release blockers.
