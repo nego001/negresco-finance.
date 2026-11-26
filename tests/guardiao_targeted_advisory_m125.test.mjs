@@ -1,0 +1,10 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {plan} from '../tooling/android/guardiao_targeted_advisory_m125.mjs';
+const target={name:'foo',parent:'node_modules/parent'};
+const lock={packages:{'node_modules/foo':{version:'1.0.0'},'node_modules/parent':{version:'3.0.0',dependencies:{foo:'^1.0.0'}}}};
+const report={vulnerabilities:{foo:{name:'foo',severity:'high',nodes:['node_modules/foo'],via:[{name:'foo',range:'<1.0.2',source:123,severity:'high'}]}}};
+const semver={valid:v=>/^\d+\.\d+\.\d+$/.test(v),validRange:v=>['^1.0.0','<1.0.2'].includes(v),satisfies:(v,r)=>r==='^1.0.0'?v.startsWith('1.'):['1.0.0','1.0.1'].includes(v),prerelease:()=>null,gt:(a,b)=>a>b,compare:(a,b)=>a.localeCompare(b),major:v=>Number(v.split('.')[0])};
+test('M125 selects smallest nonaffected version within parent range',()=>{const x=plan(lock,report,target,['1.0.1','2.0.0','1.0.3','1.0.2'],semver);assert.equal(x.compatibleCandidate,'1.0.2');assert.equal(x.approvedForProduction,false)});
+test('M125 outside-range-only version requires review, not automatic override',()=>{const x=plan(lock,report,target,['1.0.1','2.0.0'],semver);assert.equal(x.compatibleCandidate,null);assert.equal(x.firstOutsideRange,'2.0.0');assert.equal(x.classification,'PARENT_UPDATE_OR_REVIEW_REQUIRED')});
+test('M125 rejects missing direct advisory and unverified additional nodes',()=>{const x=structuredClone(report);x.vulnerabilities.foo.via=['bar'];assert.throws(()=>plan(lock,x,target,['2.0.0'],semver));const y=structuredClone(report);y.vulnerabilities.foo.nodes.push('node_modules/other/node_modules/foo');assert.throws(()=>plan(lock,y,target,['2.0.0'],semver))});

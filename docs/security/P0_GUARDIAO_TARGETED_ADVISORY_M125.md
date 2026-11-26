@@ -1,0 +1,5 @@
+# M125 — focused advisory evidence
+
+M124 #45732459167 executed successfully as an experiment but rejected the candidate: 748 -> 899 package entries, 157 added, six removed, 165 changed entries; 13 moderate, two high, zero critical unchanged. No eligible artifact. Original tracked lock unchanged. M123 CI successful. M122 emulator runtime still in progress when M125 was prepared.
+
+M125 replaces broad audit fix with read-only public registry version evidence for image-size and postcss. It cross-checks actual direct advisory ranges, affected locked paths, Metro/Expo parent ranges, and published versions; selects the lowest nonaffected stable version inside the existing parent range if one exists. Outside-range possibilities are recorded for review, never applied automatically. It fails closed on ambiguous or changed advisory evidence. Candidate versions are only candidates relative to the observed advisory ranges, not proof of security or compatibility. No installation, overrides, version changes, APK, signing, OTA or production changes. Three new static contracts expected. #120/#126 remain open. approvedForProduction=false, stableReleaseAllowed=false.
