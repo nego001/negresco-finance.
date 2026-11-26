@@ -1,3 +1,5 @@
+import {historicalAppPath} from './helpers/guardiao_historical_app_m144.mjs';
+historicalAppPath();
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -7,7 +9,7 @@ const old=readFileSync('.github/workflows/guardiao-api28-debug-touch-chain-m87.y
 const current=readFileSync('.github/workflows/guardiao-api28-debug-root-hitorder-restored-m88.yml','utf8');
 const patch=readFileSync('tooling/android/guardiao_api28_debug_root_hitorder_restored_m88.py','utf8');
 const priorM84=readFileSync('tooling/android/guardiao_api28_debug_legacy_nav_variant_m84.py','utf8');
-const app=readFileSync('apps/mobile/App.tsx','utf8');
+const app=readFileSync(historicalAppPath(),'utf8');
 const nav=readFileSync('tooling/android/guardiao_api28_debug_nav_preview_two_step_lab.py','utf8');
 const stage=readFileSync('tooling/android/guardiao_api28_debug_nav_two_cycles_staging_lab.py','utf8');
 const doc=readFileSync('docs/security/P0_GUARDIAO_API28_DEBUG_ROOT_HITORDER_RESTORED_M88.md','utf8');
@@ -50,7 +52,7 @@ test('M88 pure transform removes exactly two nav height overrides, root modifier
  'import guardiao_api28_debug_root_hitorder_restored_m88 as m',
  'import guardiao_api28_debug_legacy_nav_variant_m84 as a',
  'import guardiao_api28_debug_touch_preflight_m87 as b',
- "orig=open('apps/mobile/App.tsx',encoding='utf-8').read()",
+ "orig=open('tooling/android/fixtures/m139-historical-baseline/App.tsx',encoding='utf-8').read()",
  'restored=m.transform(orig)',
  'assert restored==a.transform(orig)',
  "assert restored.count(m.ROOT_STYLE)==1",

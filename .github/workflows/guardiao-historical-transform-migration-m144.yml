@@ -1,0 +1,59 @@
+name: Guardiao historical transform migration M144
+on:
+  push:
+    branches:
+      - lab/p01-guardiao-historical-transform-m144-v1
+permissions:
+  contents: read
+jobs:
+  differential:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.5'
+      - name: Run complete original contract inventory in exact same environment
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/lab/p01-guardiao-historical-transform-m144-v1
+          test -z "$(git status --porcelain)"
+          git diff --exit-code -- apps/mobile/App.tsx apps/mobile/package.json
+          test ! -e apps/mobile/package-lock.json
+          status=0
+          node --test --test-reporter=tap tests/*.test.mjs > "$RUNNER_TEMP/m144-original.tap" 2>&1 || status=$?
+          printf '%s\n' "$status" > "$RUNNER_TEMP/m144-original.status"
+          grep -E '^# (tests|pass|fail|cancelled|skipped|todo) ' "$RUNNER_TEMP/m144-original.tap"
+      - name: Stage exact candidate without modifying any test or release policy
+        run: |
+          set -euo pipefail
+          git apply --check tooling/android/fixtures/guardiao-safe-insets-keyboard-candidate-m117.patch
+          git apply tooling/android/fixtures/guardiao-safe-insets-keyboard-candidate-m117.patch
+          cd apps/mobile
+          node --input-type=module - <<'JS'
+          import {readFileSync,writeFileSync} from 'node:fs';
+          import {overrides} from '../../tooling/android/guardiao_moderate_overrides_m134.mjs';
+          const p=JSON.parse(readFileSync('package.json','utf8'));
+          if(Object.hasOwn(p,'overrides'))throw Error('unexpected overrides');
+          p.overrides=overrides;
+          writeFileSync('package.json',JSON.stringify(p,null,2)+'\n');
+          JS
+          cp ../../tooling/android/fixtures/guardiao-mobile-m135-package-lock.json package-lock.json
+          printf '%s  %s\n' '61bf3916e30b74d248040f236fcb1e9a36e484aadb2331a461509c206849becd' package.json 'f66d6fd261dea4c82332bf0499058a039774da9dcaa77a6e3c30934e702a7c28' package-lock.json | sha256sum -c -
+          cd ../..
+          git add -- apps/mobile/App.tsx apps/mobile/package.json
+          git add -f -- apps/mobile/package-lock.json
+          git diff --cached --check
+          test "$(git diff --cached --name-only | sort | tr '\n' ' ')" = 'apps/mobile/App.tsx apps/mobile/package-lock.json apps/mobile/package.json '
+      - name: Run full candidate inventory and emit precise failure locations
+        run: |
+          set -euo pipefail
+          status=0
+          node --test --test-reporter=tap tests/*.test.mjs > "$RUNNER_TEMP/m144-candidate.tap" 2>&1 || status=$?
+          node tooling/android/guardiao_contract_evidence_m142.mjs "$RUNNER_TEMP/m144-original.tap" "$(cat "$RUNNER_TEMP/m144-original.status")" "$RUNNER_TEMP/m144-candidate.tap" "$status" | tee "$RUNNER_TEMP/m144-differential.json"
+          git diff --exit-code -- tests tooling .github
+          git diff --cached --exit-code -- tests tooling .github
+          if test "$status" -ne 0 || test "$(cat "$RUNNER_TEMP/m144-original.status")" -ne 0; then echo 'BLOCK (LAB): candidate contract failures require review'; exit 1; fi

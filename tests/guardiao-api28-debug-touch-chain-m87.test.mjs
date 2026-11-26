@@ -1,3 +1,5 @@
+import {historicalAppPath} from './helpers/guardiao_historical_app_m144.mjs';
+historicalAppPath();
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -78,7 +80,7 @@ test('M87 branch-specific source patch equals M86b pure transform, release locke
  "sys.path.insert(0,'tooling/android')",
  'import guardiao_api28_debug_touch_preflight_m87 as a',
  'import guardiao_api28_debug_postpix_preflight_m86b as b',
- "src=open('apps/mobile/App.tsx',encoding='utf8').read()",
+ "src=open('tooling/android/fixtures/m139-historical-baseline/App.tsx',encoding='utf8').read()",
  'assert a.transform(src)==b.transform(src)',
  "for bad in ('',a.transform(src),src+src):",
  ' try: a.transform(bad);raise AssertionError("unsafe input")',

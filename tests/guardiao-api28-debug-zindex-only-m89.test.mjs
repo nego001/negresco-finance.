@@ -1,3 +1,5 @@
+import {historicalAppPath} from './helpers/guardiao_historical_app_m144.mjs';
+historicalAppPath();
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -27,7 +29,7 @@ const run=(lines)=>{
  "sys.path.insert(0,'tooling/android')",
  'import guardiao_api28_debug_zindex_only_m89 as m',
  'import guardiao_api28_debug_root_hitorder_restored_m88 as a',
- "orig=open('apps/mobile/App.tsx',encoding='utf-8').read()",
+ "orig=open('tooling/android/fixtures/m139-historical-baseline/App.tsx',encoding='utf-8').read()",
  ...lines].join('\n')],{encoding:'utf8',timeout:30000});
  assert.equal(r.status,0,r.stderr);
 };

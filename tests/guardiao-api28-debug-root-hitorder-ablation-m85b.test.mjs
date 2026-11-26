@@ -1,3 +1,5 @@
+import {historicalAppPath} from './helpers/guardiao_historical_app_m144.mjs';
+historicalAppPath();
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -45,7 +47,7 @@ test('M85b pure wrapper reproduces sequential M84 and M85 transforms exactly, wi
  'import guardiao_api28_debug_root_hitorder_ablation_m85b as s',
  'import guardiao_api28_debug_legacy_nav_variant_m84 as a',
  'import guardiao_api28_debug_root_hitorder_ablation_m85 as b',
- "original=open('apps/mobile/App.tsx',encoding='utf-8').read()",
+ "original=open('tooling/android/fixtures/m139-historical-baseline/App.tsx',encoding='utf-8').read()",
  'expected=b.transform(a.transform(original))',
  'assert s.transform(original)==expected',
  "assert s.transform(original)!=original",

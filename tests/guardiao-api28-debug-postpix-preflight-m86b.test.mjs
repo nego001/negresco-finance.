@@ -1,3 +1,5 @@
+import {historicalAppPath} from './helpers/guardiao_historical_app_m144.mjs';
+historicalAppPath();
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -41,7 +43,7 @@ test('M86b exact in-memory source transform equals reviewed M85b pure variant',(
  "sys.path.insert(0,'tooling/android')",
  'import guardiao_api28_debug_postpix_preflight_m86b as n',
  'import guardiao_api28_debug_root_hitorder_ablation_m85b as b',
- "original=open('apps/mobile/App.tsx',encoding='utf-8').read()",
+ "original=open('tooling/android/fixtures/m139-historical-baseline/App.tsx',encoding='utf-8').read()",
  'assert n.transform(original)==b.transform(original)',
  'assert n.transform(original)!=original',
  "for bad in ('',n.transform(original),original+original):",

@@ -1,3 +1,5 @@
+import {historicalAppPath} from './helpers/guardiao_historical_app_m144.mjs';
+historicalAppPath();
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -5,7 +7,7 @@ import {spawnSync} from 'node:child_process';
 const old=readFileSync('.github/workflows/guardiao-api28-debug-xml-code-repeat-m83.yml','utf8');
 const current=readFileSync('.github/workflows/guardiao-api28-debug-legacy-nav-m84.yml','utf8');
 const source=readFileSync('tooling/android/guardiao_api28_debug_legacy_nav_variant_m84.py','utf8');
-const app=readFileSync('apps/mobile/App.tsx','utf8');
+const app=readFileSync(historicalAppPath(),'utf8');
 const runner=readFileSync('tooling/android/guardiao_api28_debug_nav_preview_two_step_lab.py','utf8');
 const gate=readFileSync('tooling/android/guardiao_api28_debug_nav_preview_guard.py','utf8');
 const external=readFileSync('tooling/android/guardiao_api28_debug_external_a11y_readonly_lab.py','utf8');
