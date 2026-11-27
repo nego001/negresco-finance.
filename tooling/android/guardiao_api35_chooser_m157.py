@@ -19,7 +19,12 @@ def rect(raw, w, h):
         return None
     return x1,y1,x2,y2
 
-def inspect(nodes,w,h):
+def inspect(nodes,w,h,*, on_ambiguity=None):
+    def ambiguous(reason):
+        # M165: fixed diagnostic vocabulary only, no raw UI or geometry.
+        if on_ambiguity is not None:
+            on_ambiguity(reason)
+        return "target-ambiguous",None,None
     if type(nodes) is not list or len(nodes)>2500 or type(w) is not int or type(h) is not int or not (200<=w<=5000 and 200<=h<=5000):
         return "invalid-snapshot",None,None
     if any(type(n) is not dict for n in nodes):
@@ -37,25 +42,33 @@ def inspect(nodes,w,h):
             # label geometry; never choose between two touchable groups.
             band_top,band_bottom=int(h*.13),int(h*.88)
             in_band=[]
-            for raw_group in ancestors:
+            for raw_group in sorted(ancestors):
                 group_bounds=rect(raw_group,w,h)
                 group_parents=[n for n in nodes if n.get("package") in PACKAGES and n.get("clickable")=="true" and n.get("enabled")=="true" and n.get("bounds")==raw_group and n.get("_tap_bounds")==raw_group]
-                if group_bounds is None or len(group_parents)!=1:
-                    return "target-ambiguous",None,None
+                if group_bounds is None:
+                    return ambiguous("invalid-parent-bounds")
+                if not group_parents:
+                    return ambiguous("missing-clickable-parent")
+                if len(group_parents)!=1:
+                    return ambiguous("duplicate-clickable-parent")
                 gx1,gy1,gx2,gy2=group_bounds
                 if gx2-gx1<16 or gy2-gy1<16 or (gx2-gx1)*(gy2-gy1)>w*h//2:
-                    return "target-ambiguous",None,None
+                    return ambiguous("unsafe-parent-size")
                 group=[n for n in matches if n.get("_tap_bounds")==raw_group]
                 label_rects=[rect(n.get("bounds"),w,h) for n in group]
-                if any(b is None or not (gx1<=b[0]<b[2]<=gx2 and gy1<=b[1]<b[3]<=gy2) for b in label_rects):
-                    return "target-ambiguous",None,None
+                if any(b is None for b in label_rects):
+                    return ambiguous("invalid-label-bounds")
+                if any(not (gx1<=b[0]<b[2]<=gx2 and gy1<=b[1]<b[3]<=gy2) for b in label_rects):
+                    return ambiguous("label-outside-parent")
                 if all(b[3]<=band_top or b[1]>=band_bottom for b in label_rects):
                     continue
                 if any(not (band_top<b[1]<b[3]<band_bottom) for b in label_rects):
-                    return "target-ambiguous",None,None
+                    return ambiguous("partial-or-mixed-band")
                 in_band.append(raw_group)
+            if not in_band:
+                return ambiguous("no-in-band-group")
             if len(in_band)!=1:
-                return "target-ambiguous",None,None
+                return ambiguous("multiple-in-band-groups")
             matches=[n for n in matches if n.get("_tap_bounds")==in_band[0]]
             ancestors={in_band[0]}
         raw=next(iter(ancestors))
@@ -109,7 +122,8 @@ def find_receiver():
             raise RuntimeError("chooser foreground lost")
         try:
             w,h=base.screen_size()
-            category,target,region=inspect(base.xml_nodes(),w,h)
+            category,target,region=inspect(base.xml_nodes(),w,h,
+                on_ambiguity=lambda reason: print("ENV (LAB): API35 duplicate detail "+reason,flush=True))
         except (RuntimeError,ET.ParseError,subprocess.TimeoutExpired):
             category,target,region="snapshot-unavailable",None,None
         print("ENV (LAB): API35 chooser "+category,flush=True)
