@@ -1,0 +1,7 @@
+# M164 — resolved native diagnostic dependency isolation (lab only)
+
+Parent M163 3d40f5e0aa2fa1256e27eeec360efeb13045bf52. Its differential rehearsal 45930458026 passed 1962/1962 twice with affectedFiles=0. Mandatory CI 45930458025 and M162 API35 45930075028 were still running when this candidate was prepared.
+
+Existing CI checks the local module Release AAR classes and manifest for Debug QA activities. M164 additionally resolves the actual Debug and Release runtime component graphs of :negresco-finance-security. Blocks unresolved edges, empty graphs, missing pinned positive Debug SQLCipher/Biometric controls, missing pinned Release DataStore control, and any Zetetic or AndroidX biometric module in Release. No changes to the app, Gradle module declarations, OTA, signing, APK workflow or native authorization. The check concerns the local diagnostic module graph only, not the entire application APK or every native library. It is not proof of encrypted storage or biometric authorization. A static Node regression verifies that the mandatory diagnostic compile job invokes the guard; Gradle execution is still required for actual graph evidence.
+
+This is a prepared commit, not yet promoted to the guarded distribution branch, so the in-flight M163 CI cannot be cancelled by a new push. Before activation verify M163 required jobs and the expected parent; never force-push. The M162 Android15 runtime continues separately. Target 1963 contracts; actual count and graph results must be verified. No production approval.

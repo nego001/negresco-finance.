@@ -1,0 +1,47 @@
+// M164: CI-only Gradle init script. Resolve the actual module variant graphs,
+// not a textual dependency declaration. No source mutation, APK, or key use.
+import org.gradle.api.artifacts.component.ModuleComponentIdentifier
+import org.gradle.api.artifacts.result.UnresolvedDependencyResult
+
+gradle.afterProject { project, state ->
+    if (project.path != ':negresco-finance-security' || state.failure != null) return
+    project.tasks.register('verifyDiagnosticDependencyIsolationM164') {
+        doLast {
+            def graphs = [:]
+            ['releaseRuntimeClasspath', 'debugRuntimeClasspath'].each { name ->
+                def config = project.configurations.getByName(name)
+                if (!config.canBeResolved) {
+                    throw new GradleException('M164 BLOCK: variant cannot be resolved')
+                }
+                def result = config.incoming.resolutionResult
+                if (result.allDependencies.any { it instanceof UnresolvedDependencyResult }) {
+                    throw new GradleException('M164 BLOCK: unresolved dependency edge')
+                }
+                def modules = result.allComponents.collect { it.id }
+                    .findAll { it instanceof ModuleComponentIdentifier }
+                    .collect { [group: it.group, module: it.module, version: it.version] }
+                if (modules.isEmpty()) {
+                    throw new GradleException('M164 BLOCK: empty module graph')
+                }
+                graphs[name] = modules
+            }
+            def debug = graphs['debugRuntimeClasspath']
+            def release = graphs['releaseRuntimeClasspath']
+            // Positive control: both intentionally Debug-only libraries must
+            // resolve at the reviewed versions, not merely be declared.
+            if (!debug.any { it.group == 'net.zetetic' && it.module == 'sqlcipher-android' && it.version == '4.19.1' } ||
+                !debug.any { it.group == 'androidx.biometric' && it.module == 'biometric' && it.version == '1.1.0' }) {
+                throw new GradleException('M164 BLOCK: Debug positive controls missing or drifted')
+            }
+            // DataStore is intentionally present in both module variants.
+            // Require it in Release so a wrong/empty graph cannot pass.
+            if (!release.any { it.group == 'androidx.datastore' && it.module == 'datastore-preferences' && it.version == '1.2.1' }) {
+                throw new GradleException('M164 BLOCK: Release DataStore control missing or drifted')
+            }
+            if (release.any { it.group == 'net.zetetic' || it.group == 'androidx.biometric' }) {
+                throw new GradleException('M164 BLOCK: QA dependency reached Release module graph')
+            }
+            println('PASS (LAB): native diagnostic Release graph excludes Zetetic and AndroidX biometric; Debug and DataStore controls present')
+        }
+    }
+}

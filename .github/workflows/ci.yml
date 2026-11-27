@@ -107,6 +107,12 @@ jobs:
           fi
           echo 'PASS: native security Release AAR excludes biometric QA Activity and crash worker Service'
 
+      - name: Verify native diagnostic Release dependency isolation (NO APK)
+        run: |
+          set -euo pipefail
+          cd android
+          ./gradlew --no-daemon --stacktrace -I "$GITHUB_WORKSPACE/tooling/android/guardiao_native_release_dependency_m164.gradle" :negresco-finance-security:verifyDiagnosticDependencyIsolationM164
+
   expo-native-diagnostic-emulator:
     # Test-only AndroidKeyStore scenario in an isolated CI emulator.
     # Builds only an instrumentation APK, never the app release APK.
