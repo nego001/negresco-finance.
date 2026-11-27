@@ -1,0 +1,6 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {propose} from '../tooling/android/guardiao_distribution_route_m159.mjs';
+import {verifyDistributionRoute} from './helpers/guardiao_distribution_contract_m160.mjs';
+test('M161 guarded distribution workflow is exact reviewed proposal or historical baseline during differential only',()=>{const baseline=readFileSync('tooling/android/fixtures/guardiao-distribution-baseline-m161.yml.txt','utf8');const active=readFileSync('.github/workflows/android-apk.yml','utf8');assert.ok(active===baseline||active===propose(baseline));verifyDistributionRoute(active);const guard="    if: ${{ github.ref != 'refs/heads/lab/p01-guardiao-active-integration-m149-v1' && github.ref != 'refs/heads/lab/p01-guardiao-distribution-rehearsal-m159-v1' }}";assert.ok(active.includes(guard));assert.ok(baseline.includes(guard));assert.match(active,/inputs.publish_release && inputs.stable_signing/);const t=readFileSync('.github/workflows/guardiao-distribution-rehearsal-m159.yml','utf8');assert.match(t,/cmp .github\/workflows\/android-apk.yml/);assert.doesNotMatch(t,/upload-artifact|secrets\.|contents: write|assembleRelease|gh release/);});

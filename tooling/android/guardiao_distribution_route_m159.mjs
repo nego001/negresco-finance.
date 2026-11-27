@@ -48,7 +48,7 @@ export function propose(source){
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
  try{
   assert.equal(process.argv.length,4);
-  assert.equal(process.argv[2],'.github/workflows/android-apk.yml');
+  assert.equal(process.argv[2],'tooling/android/fixtures/guardiao-distribution-baseline-m161.yml.txt');
   assert.ok(process.env.RUNNER_TEMP&&process.argv[3]===process.env.RUNNER_TEMP+'/m159-candidate-workflow.txt','output must be inert CI temp file');
   writeFileSync(process.argv[3],propose(readFileSync(process.argv[2],'utf8')),{flag:'wx'});
   console.log('PASS (LAB): proposed distribution workflow generated, not activated');

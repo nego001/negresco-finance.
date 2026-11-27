@@ -6,7 +6,8 @@ const cond="github.event_name == 'workflow_dispatch' && github.ref == 'refs/head
 const expr=s=>'${{ '+s+' }}';
 const routeFile='.github/workflows/android-apk.yml';
 export function verifyDistributionRoute(w){
- const baseline=execFileSync('git',['show','HEAD:'+routeFile],{encoding:'utf8'});
+ const baseline=readFileSync('tooling/android/fixtures/guardiao-distribution-baseline-m161.yml.txt','utf8');
+ assert.equal(execFileSync('git',['hash-object','--','tooling/android/fixtures/guardiao-distribution-baseline-m161.yml.txt'],{encoding:'utf8'}).trim(),'0b726cac68512baa4945f6b189acae57984e7f57','historical workflow fixture drift');
  const candidate=propose(baseline);
  assert.ok(w===baseline||w===candidate,'unreviewed distribution workflow');
  const lock=w.indexOf('      - name: Require reviewed npm lockfile before any stable Android candidate');

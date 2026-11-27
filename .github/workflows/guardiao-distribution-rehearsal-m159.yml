@@ -19,7 +19,11 @@ jobs:
       - name: Generate inert workflow candidate and verify all existing contracts
         run: |
           set -euo pipefail
-          node tooling/android/guardiao_distribution_route_m159.mjs .github/workflows/android-apk.yml "$RUNNER_TEMP/m159-candidate-workflow.txt"
+          node tooling/android/guardiao_distribution_route_m159.mjs tooling/android/fixtures/guardiao-distribution-baseline-m161.yml.txt "$RUNNER_TEMP/m159-candidate-workflow.txt"
+          cmp .github/workflows/android-apk.yml "$RUNNER_TEMP/m159-candidate-workflow.txt"
+          cp .github/workflows/android-apk.yml "$RUNNER_TEMP/m161-active-workflow"
+          trap 'cp "$RUNNER_TEMP/m161-active-workflow" .github/workflows/android-apk.yml' EXIT
+          cp tooling/android/fixtures/guardiao-distribution-baseline-m161.yml.txt .github/workflows/android-apk.yml
           npm test > "$RUNNER_TEMP/m159-original.tap" 2>&1 || { grep -E '^(not ok |# (tests|pass|fail) )' "$RUNNER_TEMP/m159-original.tap"; exit 1; }
           grep -E '^# (tests|pass|fail) ' "$RUNNER_TEMP/m159-original.tap"
       - name: Rehearse exact reviewed install and prebuild from proposed route

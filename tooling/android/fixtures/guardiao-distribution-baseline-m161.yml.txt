@@ -1,0 +1,2660 @@
+name: Android APK (3.1.3 security preview)
+on:
+  workflow_dispatch:
+    inputs:
+      stable_signing:
+        description: 'Sign with the configured private release keystore (requires secrets and certificate fingerprint)'
+        required: true
+        default: false
+        type: boolean
+      publish_release:
+        description: 'Publish only a stable-signed, fingerprint-verified prerelease from a manual main dispatch'
+        required: true
+        default: false
+        type: boolean
+  push:
+    paths:
+      - 'apps/mobile/**'
+      - 'tests/mobile-baseline.test.mjs'
+      - 'tooling/android/verify_release_apk_surface.py'
+      - 'tooling/android/verify_release_bundle_consistency.py'
+      - 'tests/android-release-apk-debug-surface.test.mjs'
+      - 'tests/android-release-bundle-consistency.test.mjs'
+      - 'tests/android-apk-ci-permissions.test.mjs'
+      - 'tests/android-signing.test.mjs'
+      - 'tests/android-publish-artifact-reverification.test.mjs'
+      - 'tests/android-draft-release-atomicity.test.mjs'
+      - 'tests/android-release-provenance.test.mjs'
+      - 'tests/android-explicit-release-tag.test.mjs'
+      - 'tests/android-immutable-release-policy.test.mjs'
+      - 'tests/android-readonly-release-policy-credential.test.mjs'
+      - 'tests/android-release-collision-preflight.test.mjs'
+      - 'tests/android-postpublish-immutable-audit.test.mjs'
+      - 'tests/android-draft-rest-crosscheck.test.mjs'
+      - 'tests/android-rest-authoritative-assets.test.mjs'
+      - 'tests/android-strict-sha256-manifest.test.mjs'
+      - 'tests/android-publish-apk-identity.test.mjs'
+      - 'tests/android-publish-apk-manifest-security.test.mjs'
+      - 'tests/android-expo-data-extraction-rules.test.mjs'
+      - 'tests/android-apk-backup-resource-pins.test.mjs'
+      - 'tests/android-publisher-backup-resource-gate.test.mjs'
+      - 'tests/android-cleartext-network-policy.test.mjs'
+      - 'tests/android-compiled-network-policy.test.mjs'
+      - 'tooling/android/verify_compiled_network_policy.py'
+      - 'tooling/android/verify_compiled_backup_policy.py'
+      - 'tests/android-compiled-backup-policy.test.mjs'
+      - 'tests/android-publish-compiled-backup-xml.test.mjs'
+      - 'tooling/android/verify_ota_release_signing.cjs'
+      - 'tests/android-ota-release-signing.test.mjs'
+      - 'tooling/android/verify_generated_ota_manifest.py'
+      - 'tests/android-generated-ota-manifest.test.mjs'
+      - 'tooling/android/verify_compiled_ota_manifest.py'
+      - 'tests/android-compiled-ota-manifest.test.mjs'
+      - 'tests/android-publish-compiled-ota-policy.test.mjs'
+      - 'tooling/android/verify_generated_ota_runtime.py'
+      - 'tests/android-ota-runtime-string-lock.test.mjs'
+      - 'tooling/android/verify_compiled_ota_runtime.py'
+      - 'tests/android-compiled-ota-runtime.test.mjs'
+      - 'tests/android-publisher-ota-runtime-proof.test.mjs'
+      - 'tests/android-downloaded-apk-runtime-rehearsal.test.mjs'
+      - 'tooling/android/verify_compiled_preview_ota.py'
+      - 'tests/android-downloaded-preview-ota-isolation.test.mjs'
+      - 'tooling/android/verify_no_ota_runtime_override.cjs'
+      - 'tests/android-ota-runtime-override-firewall.test.mjs'
+      - 'tooling/android/verify_packaged_expo_config.py'
+      - 'tests/android-downloaded-expo-config-consistency.test.mjs'
+      - 'tooling/android/verify_stable_npm_lock.cjs'
+      - 'tests/android-stable-npm-lock-gate.test.mjs'
+      - 'tooling/android/verify_stable_npm_audit.cjs'
+      - 'tests/android-stable-npm-advisory-gate.test.mjs'
+      - 'tests/android-publish-compiled-network-xml.test.mjs'
+      - '.github/workflows/android-apk.yml'
+# Keep only the newest candidate compiling when multiple source commits arrive.
+concurrency:
+  group: android-candidate-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  build-test-apk:
+    if: ${{ github.ref != 'refs/heads/lab/p01-guardiao-active-integration-m149-v1' && github.ref != 'refs/heads/lab/p01-guardiao-distribution-rehearsal-m159-v1' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      # ubuntu-latest runners include Android SDK; avoid setup-android initialization failure.
+      - name: Locate Android SDK
+        run: |
+          set -euo pipefail
+          echo "ANDROID_HOME=${ANDROID_HOME:-unset}"
+          test -d "${ANDROID_HOME:?Android SDK not available on runner}"
+          test -x "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --version
+
+      - name: Validate P0 repository contracts
+        working-directory: .
+        run: npm test
+      - name: Require reviewed npm lockfile before any stable Android candidate
+        if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.publish_release || inputs.stable_signing) }}
+        run: |
+          set -euo pipefail
+          # Fail before installing dependencies or exposing signing secrets.
+          node ../../tooling/android/verify_stable_npm_lock.cjs package.json package-lock.json
+      - name: Install JS dependencies
+        if: ${{ !(github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.publish_release || inputs.stable_signing)) }}
+        run: npm install --no-audit --no-fund
+      - name: Reject known npm vulnerabilities before stable dependency installation
+        if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.publish_release || inputs.stable_signing) }}
+        run: |
+          set -euo pipefail
+          # The registry query uses the reviewed package-lock.json.
+          # npm audit exits nonzero for advisories; inspect its JSON and
+          # reject errors, incomplete results and known vulnerabilities.
+          set +e
+          npm audit --json --package-lock-only \
+            --registry=https://registry.npmjs.org/ > /tmp/negresco-stable-npm-audit.json
+          AUDIT_STATUS=$?
+          set -e
+          node ../../tooling/android/verify_stable_npm_audit.cjs /tmp/negresco-stable-npm-audit.json
+          if [ "$AUDIT_STATUS" -ne 0 ]; then
+            echo "::error::Registry npm audit did not complete cleanly"
+            exit 1
+          fi
+      - name: Install reviewed stable JS dependencies without resolving changes
+        if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.publish_release || inputs.stable_signing) }}
+        run: npm ci --no-audit --no-fund
+      - name: Validate TypeScript
+        run: npx tsc --noEmit
+      - name: Audit production app OTA runtime override boundary
+        run: |
+          set -euo pipefail
+          # Static source boundary only; compiled APK policy is checked separately.
+          node ../../tooling/android/verify_no_ota_runtime_override.cjs .
+      - name: Generate native Android project
+        run: npx expo prebuild --platform android --non-interactive --no-install
+      # Expo SDK 54 includes Kotlin/KSP-heavy modules (expo-updates, expo-modules-core).
+      # The default 512 MiB Gradle Metaspace caused OutOfMemoryError on hosted runners.
+      - name: Configure Gradle memory and Kotlin compilation
+        run: |
+          set -euo pipefail
+          PROPS=android/gradle.properties
+          test -f "$PROPS"
+          sed -i '/^org.gradle.jvmargs=/d; /^org.gradle.parallel=/d; /^org.gradle.workers.max=/d; /^kotlin.compiler.execution.strategy=/d' "$PROPS"
+          cat >> "$PROPS" <<'EOF'
+          # CI-only settings, regenerated by Expo prebuild for every build.
+          org.gradle.jvmargs=-Xmx3g -XX:MaxMetaspaceSize=1536m -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8
+          org.gradle.parallel=false
+          org.gradle.workers.max=2
+          kotlin.compiler.execution.strategy=in-process
+          EOF
+          grep -E '^(org.gradle.jvmargs|org.gradle.parallel|org.gradle.workers.max|kotlin.compiler.execution.strategy)=' "$PROPS"
+      - name: Verify non-translatable Expo OTA runtime resource
+        run: |
+          set -euo pipefail
+          # Native Android resources are selected by locale. Pin the OTA
+          # compatibility version and prohibit translated overrides.
+          python3 ../../tooling/android/verify_generated_ota_runtime.py app.json android/app/src/main/AndroidManifest.xml android/app/src/main/res/values/strings.xml android/app/src/main/res
+      - name: Inspect native Expo Updates configuration
+        env:
+          NEGRESCO_STABLE_REQUESTED: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.publish_release || inputs.stable_signing) && 'true' || 'false' }}
+        run: |
+          set -euo pipefail
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          echo "=== Android local backup policy ==="
+          if ! grep -Eq 'android:allowBackup="false"' "$MANIFEST"; then
+            echo "::error::Android Auto Backup must remain disabled until secure data recovery is designed."
+            exit 1
+          fi
+          # Check the EXACT generated XML, not just the config-plugin source.
+          node <<'NODE'
+          const fs=require("node:fs");
+          const path=require("node:path");
+          const p=require("./plugins/withNegrescoNoDataExtraction");
+          const net=require("./plugins/withNegrescoNetworkPolicy");
+          const manifest=fs.readFileSync("android/app/src/main/AndroidManifest.xml","utf8");
+          const checks=[
+            ['android:dataExtractionRules="@xml/negresco_no_data_extraction"', "modern extraction rule"],
+            ['android:fullBackupContent="@xml/negresco_legacy_no_backup"', "legacy backup rule"],
+            ['android:networkSecurityConfig="@xml/negresco_network_security"', "HTTPS network policy"],
+            ['android:usesCleartextTraffic="false"', "explicit cleartext ban"]
+          ];
+          for(const [attribute,label] of checks) {
+            if (!manifest.includes(attribute)) {
+              console.error("BLOCK: generated AndroidManifest missing "+label);
+              process.exit(1);
+            }
+          }
+          const xmlDir="android/app/src/main/res/xml";
+          for(const [name,expected] of [
+            ["negresco_no_data_extraction.xml",p.DATA_EXTRACTION_XML],
+            ["negresco_legacy_no_backup.xml",p.LEGACY_FULL_BACKUP_XML],
+            [net.NETWORK_SECURITY_FILE,net.NETWORK_SECURITY_XML]
+          ]) {
+            const file=path.join(xmlDir,name), info=fs.lstatSync(file);
+            if (!info.isFile() || info.isSymbolicLink() ||
+                fs.readFileSync(file,"utf8")!==expected) {
+              console.error("BLOCK: generated Android extraction policy differs: "+name);
+              process.exit(1);
+            }
+          }
+          console.log("PASS: generated Android Manifest and backup/transfer resources match checked-in policy");
+          NODE
+          echo "=== Expo Updates Android manifest entries ==="
+          grep -n -A 4 -B 2 -E 'expo.modules.updates|expo-channel-name|EXPO_UPDATE' "$MANIFEST" || true
+          echo "=== OTA references in Android resources ==="
+          grep -R -n -E 'u.expo.dev|expo-channel-name|preview|0.2.0' android/app/src/main/res | head -80 || true
+          echo "=== Expo resolved configuration ==="
+          npx expo config --json | node -e '
+            let s="";process.stdin.on("data",x=>s+=x);process.stdin.on("end",()=>{
+              const e=JSON.parse(s);
+              const u=e.updates||{};
+              console.log(JSON.stringify({runtimeVersion:e.runtimeVersion,updates:{enabled:u.enabled,url:u.url,requestHeaders:u.requestHeaders},projectId:e.extra?.eas?.projectId},null,2));
+              const stable=process.env.NEGRESCO_STABLE_REQUESTED==="true";
+              const endpoint="https://u.expo.dev/a506611f-a159-4341-bed7-28dcbd47bf95";
+              // Lab APKs stay isolated on preview. Stable OTA must use production.
+              // Stable embedded-only mode does not contact an update server.
+              if(stable && u.enabled===false){
+                console.log("Embedded-only stable candidate: remote OTA channel not used");
+              }else{
+                const channel=stable?"production":"preview";
+                if(u.enabled!==true||u.url!==endpoint||
+                   !u.requestHeaders||Object.keys(u.requestHeaders).length!==1||
+                   u.requestHeaders["expo-channel-name"]!==channel){
+                  console.error("BLOCK: Expo update endpoint/channel does not match build environment");
+                  process.exit(1);
+                }
+              }
+            });
+          '
+      - name: Require signed Expo OTA or embedded-only code for stable release
+        if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.publish_release || inputs.stable_signing) }}
+        run: |
+          set -euo pipefail
+          # Preview test APKs keep existing OTA settings; a stable binary may
+          # not load unsigned remote JavaScript after passing APK audits.
+          node ../../tooling/android/verify_ota_release_signing.cjs app.json
+      - name: Verify generated Android OTA manifest before stable signing
+        if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.publish_release || inputs.stable_signing) }}
+        run: |
+          set -euo pipefail
+          # Independently prove that Expo prebuild embedded the intended
+          # code-signing certificate and metadata (or disabled OTA).
+          python3 ../../tooling/android/verify_generated_ota_manifest.py app.json android/app/src/main/AndroidManifest.xml
+      - name: Reject release publication with Debug signing or wrong trigger
+        if: ${{ inputs.publish_release && (!inputs.stable_signing || github.event_name != 'workflow_dispatch' || github.ref != 'refs/heads/main') }}
+        run: |
+          echo "::error::Publishing requires explicitly enabled stable signing and a manual dispatch on main."
+          exit 1
+      - name: Reject stable signing outside a manually dispatched main build
+        if: ${{ inputs.stable_signing && (github.event_name != 'workflow_dispatch' || github.ref != 'refs/heads/main') }}
+        run: |
+          echo "::error::Stable signing is allowed only after an explicit manual dispatch on main."
+          exit 1
+      - name: Build standalone test APK
+        env:
+          NEGRESCO_USE_STABLE_SIGNING: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.stable_signing && 'true' || 'false' }}
+          NEGRESCO_RELEASE_KEYSTORE_B64: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.stable_signing && secrets.NEGRESCO_RELEASE_KEYSTORE_B64 || '' }}
+          NEGRESCO_RELEASE_STORE_PASSWORD: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.stable_signing && secrets.NEGRESCO_RELEASE_STORE_PASSWORD || '' }}
+          NEGRESCO_RELEASE_KEY_ALIAS: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.stable_signing && secrets.NEGRESCO_RELEASE_KEY_ALIAS || '' }}
+          NEGRESCO_RELEASE_KEY_PASSWORD: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.stable_signing && secrets.NEGRESCO_RELEASE_KEY_PASSWORD || '' }}
+        run: |
+          set -euo pipefail
+          if [[ "$NEGRESCO_USE_STABLE_SIGNING" == "true" ]]; then
+            export NEGRESCO_SIGNING_STORE_FILE="$PWD/android/app/negresco-ci-release.jks"
+            node ../../tooling/android/configure-release-signing.cjs
+            echo "Opt-in signing enabled. The final certificate is verified in the next step."
+          else
+            echo "::notice::This APK uses the Android Debug certificate. It is a TEST candidate, not a stable release."
+          fi
+          chmod +x android/gradlew
+          cd android
+          ./gradlew assembleRelease --no-daemon
+      - name: Audit Release APK for Guardiao debug-only UI labels
+        run: |
+          set -euo pipefail
+          python3 ../../tooling/android/verify_guardiao_release_no_lab_markers.py android/app/build/outputs/apk/release/app-release.apk
+      - name: Delete ephemeral signing material
+        if: always()
+        run: rm -f android/app/negresco-ci-release.jks
+      - name: Verify APK structure and signature
+        env:
+          NEGRESCO_USE_STABLE_SIGNING: ${{ inputs.stable_signing && 'true' || 'false' }}
+          NEGRESCO_EXPECTED_CERT_SHA256: ${{ vars.NEGRESCO_EXPECTED_CERT_SHA256 }}
+        run: |
+          set -euo pipefail
+          APK="android/app/build/outputs/apk/release/app-release.apk"
+          test -s "$APK"
+          unzip -t "$APK" >/dev/null
+          # Inspect the exact assembled APK, rejecting missing/duplicate DEX ZIP entries
+          # and any known Debug QA class; the Release AAR gate remains separate.
+          python3 ../../tooling/android/verify_release_apk_surface.py "$APK"
+          BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+          "$BUILD_TOOLS/aapt" dump badging "$APK" | grep -F "package: name='com.negresco.finance'"
+          "$BUILD_TOOLS/aapt" dump badging "$APK" | grep -F "versionCode='34' versionName='3.1.3'"
+          "$BUILD_TOOLS/aapt" dump permissions "$APK" | grep -F 'android.permission.USE_BIOMETRIC'
+          test -x "$BUILD_TOOLS/aapt2"
+          python3 ../../tooling/android/verify_compiled_network_policy.py "$APK" "$BUILD_TOOLS/aapt2"
+          python3 ../../tooling/android/verify_compiled_backup_policy.py "$APK" "$BUILD_TOOLS/aapt2"
+          python3 ../../tooling/android/verify_compiled_minimum_permissions.py "$APK"
+          # Resource packaging can remap XML paths, so check the compiled
+          # AndroidManifest resource IDs instead of guessing res/xml filenames.
+          "$BUILD_TOOLS/aapt" dump xmltree "$APK" AndroidManifest.xml > verified-apk-backup-manifest.txt
+          node <<'NODE'
+          const fs=require("node:fs");
+          const xml=fs.readFileSync("verified-apk-backup-manifest.txt","utf8");
+          const lines=xml.split(/\r?\n/);
+          const app=lines.map((line,index)=>({line,index}))
+            .filter(({line})=>/^\s*E: application(?:\s|$)/.test(line));
+          const block=message=>{console.error("BLOCK: compiled Android backup policy "+message);process.exit(1)};
+          if(app.length!==1)block("must contain exactly one application element");
+          const attrs=[];
+          for(let i=app[0].index+1;i<lines.length;i++){
+            if(/^\s*E: /.test(lines[i]))break;
+            if(/^\s*A: /.test(lines[i]))attrs.push(lines[i]);
+          }
+          for(const attr of ["dataExtractionRules","fullBackupContent","networkSecurityConfig"]){
+            const found=attrs.filter(line=>new RegExp("android:"+attr+"\\(").test(line));
+            if(found.length!==1||
+               !new RegExp("android:"+attr+"\\(0x[0-9a-fA-F]{8}\\)=@0x[0-9a-fA-F]+(?:\\s|$)").test(found[0])){
+              block("missing, malformed or duplicated "+attr+" resource reference");
+            }
+          }
+          const clear=attrs.filter(line=>/android:usesCleartextTraffic\(/.test(line));
+          if(clear.length!==1||
+             !/android:usesCleartextTraffic\(0x[0-9a-fA-F]{8}\)=\(type 0x12\)0x0+\s*$/.test(clear[0]))
+            block("cleartext network traffic must be explicitly false");
+          console.log("PASS: compiled APK references backup and HTTPS-only network security policies");
+          NODE
+          "$BUILD_TOOLS/apksigner" verify --verbose --print-certs "$APK" | tee APK-SIGNATURE.txt
+          CERT_HASH="$(sed -nE 's/.*certificate SHA-256 digest: ([0-9a-fA-F]{64}).*/\1/p' APK-SIGNATURE.txt | head -n 1 | tr '[:upper:]' '[:lower:]')"
+          [[ "$CERT_HASH" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::Could not identify APK signing certificate SHA-256."; exit 1; }
+          if [[ "$NEGRESCO_USE_STABLE_SIGNING" == "true" ]]; then
+            EXPECTED="$(printf '%s' "$NEGRESCO_EXPECTED_CERT_SHA256" | tr '[:upper:]' '[:lower:]')"
+            [[ "$EXPECTED" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::Configure repository Actions variable NEGRESCO_EXPECTED_CERT_SHA256 first."; exit 1; }
+            [[ "$CERT_HASH" == "$EXPECTED" ]] || { echo "::error::Certificate does not match pinned release fingerprint."; exit 1; }
+            if grep -q 'CN=Android Debug' APK-SIGNATURE.txt; then
+              echo "::error::Debug certificate cannot be used as a stable release identity."
+              exit 1
+            fi
+            echo "Signature identity verified against the pinned release certificate."
+          else
+            grep -q 'CN=Android Debug' APK-SIGNATURE.txt || { echo "::error::Unexpected test signing identity."; exit 1; }
+            echo "::notice::Debug-signed APK, for testing only. Preserve app data before changing signing identities."
+          fi
+          sha256sum "$APK" | tee android-apk.sha256
+      - name: Parse compiled OTA metadata in laboratory APK
+        run: |
+          set -euo pipefail
+          # Parser smoke-check on a real compiled APK. This is NOT an OTA-signing approval.
+          python3 ../../tooling/android/verify_compiled_ota_manifest.py --parse-only android/app/build/outputs/apk/release/app-release.apk
+      - name: Verify compiled OTA policy for stable APK
+        if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.publish_release || inputs.stable_signing) }}
+        run: |
+          set -euo pipefail
+          # Read the exact APK that passed signing/backup/network checks.
+          # Require embedded-only mode or matching signed code metadata.
+          python3 ../../tooling/android/verify_compiled_ota_manifest.py --verify-stable android/app/build/outputs/apk/release/app-release.apk app.json
+      - name: Audit compiled Expo OTA runtime resource
+        run: |
+          set -euo pipefail
+          APK="android/app/build/outputs/apk/release/app-release.apk"
+          test -s "$APK"
+          BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+          test -x "$BUILD_TOOLS/aapt2"
+          VERSION="$(node -p 'require("./app.json").expo.version')"
+          python3 ../../tooling/android/verify_compiled_ota_runtime.py "$APK" "$BUILD_TOOLS/aapt2" "$VERSION"
+      - name: Upload standalone APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: negresco-finance-v313-test-apk
+          path: |
+            apps/mobile/android/app/build/outputs/apk/release/app-release.apk
+            apps/mobile/android-apk.sha256
+            apps/mobile/APK-SIGNATURE.txt
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Package downloadable ZIP and release notes
+        run: |
+          set -euo pipefail
+          mkdir -p release-package
+          cp android/app/build/outputs/apk/release/app-release.apk release-package/Negresco-Finance-V3.1.3-preview.apk
+          cp android-apk.sha256 release-package/SHA256-original-apk.txt
+          cp APK-SIGNATURE.txt release-package/APK-SIGNATURE.txt
+          cat > release-package/LEIA-ME.txt <<'EOF'
+          NEGRESCO FINANCE - V3.1.3 (CANDIDATO DE TESTES, NAO PRODUCAO)
+          Android package: com.negresco.finance
+          Instalacao: extraia o APK ou baixe o APK separado no GitHub Releases.
+          Estado: interface inicial experimental; sem operacoes bancarias reais.
+          Integridade: confira o SHA256 publicado nos detalhes da versao.
+          Identidade de assinatura: compare APK-SIGNATURE.txt entre versoes.
+          Com stable_signing=false, assinatura Android Debug. Teste apenas.
+          Este APK nao ativa o SQLCipher, a biometria criptografica nem recuperacao offline de banco.
+          Com stable_signing=true, certificado estavel exige credenciais e hash esperados.
+          Trocar de certificado pode impedir atualizacao e exigir migracao de dados.
+          Atualizacao sobre APK anterior nao e garantida sem compatibilidade de assinatura e versionCode.
+          EOF
+          cp release-package/Negresco-Finance-V3.1.3-preview.apk Negresco-Finance-V3.1.3-preview.apk
+          (cd release-package && zip -q -9 -r ../Negresco-Finance-V3.1.3-preview.zip .)
+          sha256sum Negresco-Finance-V3.1.3-preview.apk Negresco-Finance-V3.1.3-preview.zip APK-SIGNATURE.txt > SHA256-release.txt
+          cat > RELEASE_NOTES.md <<'EOF'
+          ## Negresco Finance V3.1.3 - PREVIA de testes
+
+          APK experimental Android, ainda sem validacao manual em dispositivo.
+
+          ### Arquivos
+          - Negresco-Finance-V3.1.3-preview.apk: instalador Android.
+          - Negresco-Finance-V3.1.3-preview.zip: pacote com instalador, instrucoes e hash.
+          - SHA256-release.txt: verificacao de integridade dos downloads.
+          - APK-SIGNATURE.txt: identidade publica do certificado usado para assinar o APK.
+
+          ### Recursos incluidos
+          - Interface OLED e preferencias visuais.
+          - Bloqueio de interface por biometria forte, opcional nos Ajustes; requer nova instalacao nativa 3.1.1.
+          - Diagnostico manual de SecureStore autenticado, com somente marcador ficticio e tentativa de limpeza.
+          - Bloqueio Android de capturas de tela no Guardiao e em areas protegidas pelo bloqueio biometrico; exige APK nativo 3.1.2 ou posterior.
+          - Guardiao: verificacao matematica de linhas digitaveis, PDF local e historico resumido em armazenamento seguro.
+          - Consulta opcional de cadastro CNPJ via BrasilAPI, servico de terceiros.
+          - Indicadores transparentes de integracoes indisponiveis.
+
+          ### Limitacoes
+          - PREVIA 3.1.3: o APK NAO inclui os laboratorios Kotlin de SQLCipher, CryptoObject ou recuperacao; eles continuam fora do bundle Expo.
+          - A assinatura Debug pode ser diferente da assinatura do APK instalado. Nao tentar sobrepor instalacao existente sem verificar certificado e preservar dados locais.
+          - A verificacao matematica e o cadastro de empresa nao comprovam legitimidade de boleto.
+          - Sem acesso real a bancos, Pix, Reclame Aqui ou monitoramento automatico.
+          - Nao usar para operacoes financeiras reais.
+          - Bloqueio biometrico e protecao de capturas nao criptografam dados nem impedem fotografia externa da tela.
+          - PDFs compartilhados ficam sujeitos as protecoes do aplicativo de destino.
+          - A instalacao de uma nova versao nativa e necessaria para novas dependencias.
+          - Por padrao, APKs ainda sao assinados com certificado Android Debug. Assinatura permanente e opcional e exige credenciais + fingerprint configurados.
+          - Assinatura verificada nao comprova atualizacao possivel sobre qualquer instalacao antiga. Compare certificados e versionCode.
+          - Nunca desinstale uma versao existente sem antes decidir como preservar os dados locais.
+          EOF
+      - name: Verify APK identity across original, standalone and ZIP candidate
+        run: |
+          set -euo pipefail
+          python3 ../../tooling/android/verify_release_bundle_consistency.py .
+      # Always upload a complete candidate independently of GitHub Releases write access.
+      - name: Preserve full release bundle as Actions artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: negresco-finance-v313-security-preview
+          path: |
+            apps/mobile/Negresco-Finance-V3.1.3-preview.apk
+            apps/mobile/Negresco-Finance-V3.1.3-preview.zip
+            apps/mobile/SHA256-release.txt
+            apps/mobile/APK-SIGNATURE.txt
+            apps/mobile/RELEASE_NOTES.md
+          if-no-files-found: error
+          retention-days: 14
+
+  # Read-only branch builds may generate disposable APK artifacts, never releases.
+  # Only an explicit manual main dispatch can schedule the separate WRITE job.
+  verify-downloaded-ota-runtime:
+    # Nonprivileged replay of the publisher's runtime verification on the APK
+    # downloaded from the current build. Never checkout or execute the artifact.
+    needs: build-test-apk
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Download test APK from this workflow run
+        uses: actions/download-artifact@v4
+        with:
+          name: negresco-finance-v313-test-apk
+          path: verified-artifact
+      - name: Check downloaded test APK integrity
+        working-directory: verified-artifact
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib
+          import re
+          import stat
+          from pathlib import Path
+
+          # Parse one expected path, never evaluate untrusted hash-list paths.
+          apk = Path("android/app/build/outputs/apk/release/app-release.apk")
+          listed = Path("android-apk.sha256")
+          for file in (apk, listed):
+              if file.is_symlink() or not file.is_file():
+                  raise SystemExit("BLOCK: downloaded APK/checksum missing or linked")
+          raw = listed.read_bytes()
+          expected = re.fullmatch(
+              rb"([0-9a-fA-F]{64})  android/app/build/outputs/apk/release/app-release\.apk\r?\n?",
+              raw,
+          )
+          if not expected or not 8 <= apk.stat().st_size <= 1024*1024*1024:
+              raise SystemExit("BLOCK: downloaded APK SHA-256 manifest is not canonical")
+          with apk.open("rb") as handle:
+              actual = hashlib.file_digest(handle, "sha256").hexdigest()
+          if actual != expected.group(1).decode("ascii").lower():
+              raise SystemExit("BLOCK: downloaded APK SHA-256 differs from build artifact manifest")
+          print("PASS: downloaded APK bytes match artifact SHA-256")
+          PY
+      - name: Reverify downloaded compiled OTA runtime (read only)
+        working-directory: verified-artifact
+        run: |
+          set -euo pipefail
+          test -d "${ANDROID_HOME:?Android SDK unavailable}"
+          BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+          test -x "$BUILD_TOOLS/aapt2"
+          test -x "$BUILD_TOOLS/apksigner"
+          APK="android/app/build/outputs/apk/release/app-release.apk"
+          # Defense in depth on the downloaded artifact: inspect compiled
+          # permission declarations independently of the original build runner.
+          test -x "$BUILD_TOOLS/aapt"
+          PERMISSIONS="$("$BUILD_TOOLS/aapt" dump permissions "$APK")"
+          for DENIED in android.permission.SYSTEM_ALERT_WINDOW android.permission.WRITE_EXTERNAL_STORAGE android.permission.READ_EXTERNAL_STORAGE android.permission.READ_MEDIA_IMAGES; do
+            if printf '%s\n' "$PERMISSIONS" | grep -Fq "$DENIED"; then
+              echo "::error::BLOCK: downloaded APK declares forbidden Android permission $DENIED"
+              exit 1
+            fi
+          done
+          for REQUIRED in android.permission.INTERNET android.permission.USE_BIOMETRIC; do
+            if ! printf '%s\n' "$PERMISSIONS" | grep -Fq "$REQUIRED"; then
+              echo "::error::BLOCK: downloaded APK lost essential permission $REQUIRED"
+              exit 1
+            fi
+          done
+          echo 'PASS (LAB): downloaded APK permission declarations preserve least privilege'
+          "$BUILD_TOOLS/apksigner" verify --verbose "$APK" >/dev/null
+          # The trusted auditor is workflow-owned inline code, never downloaded.
+          python3 - "$APK" "$BUILD_TOOLS/aapt2" 3.1.3 <<'PY'
+          #!/usr/bin/env python3
+          """Fail-closed check of the compiled OTA runtimeVersion resource in an APK.
+
+          Reads the compiled manifest and resources.arsc through Android's AAPT2 rather
+          than trusting generated XML files or a plaintext occurrence in a ZIP.
+          """
+          from __future__ import annotations
+
+          import re
+          import struct
+          import stat
+          import subprocess
+          import sys
+          import zipfile
+          from pathlib import Path
+
+          NAME = "expo.modules.updates.EXPO_RUNTIME_VERSION"
+          RESOURCE = "string/expo_runtime_version"
+          MAX_DUMP = 32 * 1024 * 1024
+          MAX_APK = 1024 * 1024 * 1024
+          MAX_TABLE = 48 * 1024 * 1024
+          ANDROID = "http://schemas.android.com/apk/res/android"
+          PREFIX = "expo.modules.updates."
+          NO_INDEX = 0xFFFFFFFF
+          MAX_XML = 2 * 1024 * 1024
+          MAX_STRINGS = 65536
+          RE_ID = r"0x[0-9a-fA-F]{8}"
+          RE_HEADER = re.compile(r"^\s*resource\s+(0x[0-9a-fA-F]{8})\s+(?:[^\s:]+:)?(string/[^\s:]+)")
+          RE_ELEMENT = re.compile(r"^(\s*)E:\s+([a-zA-Z0-9_-]+)(?:\s|$)")
+          RE_ATTRIBUTE = re.compile(r"^\s*A:\s+android:(name|value)\(0x[0-9a-fA-F]{8}\)=(.*)$")
+          RE_VERSION = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?")
+
+
+          def block(reason):
+              raise ValueError("BLOCK: compiled Android OTA runtime resource: " + reason)
+
+
+          def run_dump(aapt2: str, apk: Path, what: str, file: str | None = None) -> str:
+              args = [aapt2, "dump", what, str(apk)]
+              if file is not None:
+                  args += ["--file", file]
+              try:
+                  p = subprocess.run(args, capture_output=True, text=True,
+                                     timeout=35, encoding="utf-8", errors="strict")
+              except (OSError, subprocess.TimeoutExpired, UnicodeError):
+                  block("AAPT2 parser is unavailable")
+              if p.returncode != 0 or not p.stdout or len(p.stdout.encode("utf-8")) > MAX_DUMP:
+                  block("AAPT2 failed or inspection output exceeds bounds")
+              return p.stdout
+
+
+          def apk_contents(apk: Path) -> None:
+              if apk.is_symlink() or not apk.is_file() or not 0 < apk.stat().st_size <= MAX_APK:
+                  block("APK is missing, linked or oversized")
+              try:
+                  with zipfile.ZipFile(apk) as archive:
+                      for name, limit in (("AndroidManifest.xml", 2 * 1024 * 1024),
+                                          ("resources.arsc", MAX_TABLE)):
+                          items = [item for item in archive.infolist() if item.filename == name]
+                          if len(items) != 1:
+                              block(name + " must be unique inside APK")
+                          item = items[0]
+                          kind = stat.S_IFMT((item.external_attr >> 16) & 0xffff) if item.create_system == 3 else 0
+                          if item.flag_bits & 1 or kind not in (0, stat.S_IFREG) or not 8 <= item.file_size <= limit:
+                              block(name + " has unsafe ZIP attributes")
+              except (OSError, zipfile.BadZipFile):
+                  block("APK ZIP cannot be inspected")
+
+
+          def u16(raw: bytes, pos: int) -> int:
+              if pos < 0 or pos + 2 > len(raw):
+                  block("truncated binary XML short")
+              return struct.unpack_from("<H", raw, pos)[0]
+
+
+          def u32(raw: bytes, pos: int) -> int:
+              if pos < 0 or pos + 4 > len(raw):
+                  block("truncated binary XML word")
+              return struct.unpack_from("<I", raw, pos)[0]
+
+
+          def length8(raw: bytes, pos: int, end: int) -> tuple[int, int]:
+              if pos >= end:
+                  block("invalid UTF-8 string length")
+              first = raw[pos]
+              pos += 1
+              if first & 0x80:
+                  if pos >= end:
+                      block("invalid two-byte string length")
+                  return ((first & 0x7f) << 8) | raw[pos], pos + 1
+              return first, pos
+
+
+          def length16(raw: bytes, pos: int, end: int) -> tuple[int, int]:
+              if pos + 2 > end:
+                  block("invalid UTF-16 string length")
+              first = u16(raw, pos)
+              pos += 2
+              if first & 0x8000:
+                  if pos + 2 > end:
+                      block("invalid extended UTF-16 string length")
+                  return ((first & 0x7fff) << 16) | u16(raw, pos), pos + 2
+              return first, pos
+
+
+          def string_pool(raw: bytes, start: int, end: int, header: int) -> list[str]:
+              if header < 28:
+                  block("invalid binary XML string pool")
+              count, style_count, flags = u32(raw, start + 8), u32(raw, start + 12), u32(raw, start + 16)
+              string_start, style_start = u32(raw, start + 20), u32(raw, start + 24)
+              if count > MAX_STRINGS or style_count > MAX_STRINGS or flags & ~0x107:
+                  block("unexpected string pool count or flags")
+              if header + 4 * (count + style_count) > end - start:
+                  block("string pool offset table truncated")
+              if string_start < header + 4 * (count + style_count) or start + string_start > end:
+                  block("string pool data starts outside chunk")
+              strings = []
+              for i in range(count):
+                  offset = u32(raw, start + header + 4 * i)
+                  pos = start + string_start + offset
+                  if pos >= end or (style_start and pos >= start + style_start):
+                      block("string offset outside pool")
+                  if flags & 0x100:
+                      utf16_len, pos = length8(raw, pos, end)
+                      size, pos = length8(raw, pos, end)
+                      if size > MAX_XML or pos + size + 1 > end or raw[pos + size] != 0:
+                          block("UTF-8 string malformed")
+                      data = raw[pos:pos + size].decode("utf-8", "strict")
+                      if len(data.encode("utf-16le")) // 2 != utf16_len:
+                          block("inconsistent UTF-8 string length")
+                  else:
+                      size, pos = length16(raw, pos, end)
+                      if size > MAX_XML // 2 or pos + size * 2 + 2 > end or raw[pos + size * 2:pos + size * 2 + 2] != b"\x00\x00":
+                          block("UTF-16 string malformed")
+                      data = raw[pos:pos + size * 2].decode("utf-16le", "strict")
+                  strings.append(data)
+              return strings
+
+
+          def parsed_manifest(raw: bytes) -> dict[str, tuple[int, object]]:
+              if not (8 <= len(raw) <= MAX_XML) or u16(raw, 0) != 0x0003 or u16(raw, 2) != 8 or u32(raw, 4) != len(raw):
+                  block("not a complete Android compiled binary manifest")
+              strings: list[str] | None = None
+              stack: list[str] = []
+              application_count = 0
+              root_count = 0
+              metadata: dict[str, tuple[int, object]] = {}
+              p = 8
+
+              def string(index: int) -> str | None:
+                  if index == NO_INDEX:
+                      return None
+                  if strings is None or index >= len(strings):
+                      block("invalid compiled string index")
+                  return strings[index]
+
+              while p < len(raw):
+                  if p + 8 > len(raw):
+                      block("trailing incomplete binary XML chunk")
+                  kind, header, size = struct.unpack_from("<HHI", raw, p)
+                  end = p + size
+                  if header < 8 or size < header or end > len(raw):
+                      block("binary XML chunk overflows document")
+                  if kind == 0x0001:
+                      if strings is not None or stack:
+                          block("duplicate or out-of-place string pool")
+                      strings = string_pool(raw, p, end, header)
+                  elif kind in (0x0180, 0x0100, 0x0101):
+                      if strings is None or header < (8 if kind == 0x0180 else 16):
+                          block("bad resource or namespace chunk")
+                  elif kind == 0x0102:
+                      if strings is None or header < 16 or size < 36:
+                          block("invalid start element")
+                      name = string(u32(raw, p + 20))
+                      ns = string(u32(raw, p + 16))
+                      if not name or ns:
+                          block("unexpected namespace or empty XML element")
+                      attr_start, attr_size, attr_count = (u16(raw, p + 24), u16(raw, p + 26), u16(raw, p + 28))
+                      if attr_start < 20 or attr_size != 20 or attr_count > 2048:
+                          block("invalid attribute layout")
+                      first = p + 16 + attr_start
+                      if first + attr_count * attr_size > end:
+                          block("attribute list exceeds node")
+                      attrs: dict[tuple[str | None, str], tuple[int, object]] = {}
+                      for i in range(attr_count):
+                          a = first + i * 20
+                          namespace, key = string(u32(raw, a)), string(u32(raw, a + 4))
+                          raw_index = u32(raw, a + 8)
+                          value_size, data_type, data = u16(raw, a + 12), raw[a + 15], u32(raw, a + 16)
+                          if value_size != 8 or not key or (namespace, key) in attrs:
+                              block("malformed or duplicate binary XML attribute")
+                          if data_type == 0x03:
+                              value = string(data)
+                              if raw_index != NO_INDEX and string(raw_index) != value:
+                                  block("raw/typed compiled string mismatch")
+                          elif data_type == 0x12:
+                              if data not in (0, 1, 0xffffffff):
+                                  block("malformed compiled boolean")
+                              value = bool(data)
+                          else:
+                              value = data
+                          attrs[(namespace, key)] = (data_type, value)
+                      if not stack:
+                          root_count += 1
+                          if name != "manifest":
+                              block("compiled root must be manifest")
+                      if name == "application" and stack == ["manifest"]:
+                          application_count += 1
+                      if name == "meta-data" and stack == ["manifest", "application"]:
+                          id_attr = attrs.get((ANDROID, "name"))
+                          if not id_attr or id_attr[0] != 0x03 or not isinstance(id_attr[1], str):
+                              block("invalid application metadata name")
+                          key = id_attr[1]
+                          if key in metadata:
+                              block("duplicate application metadata: " + key)
+                          value = attrs.get((ANDROID, "value"))
+                          if key.startswith(PREFIX) and (value is None or (ANDROID, "resource") in attrs):
+                              block("Expo updates metadata is missing literal android:value")
+                          if value is not None:
+                              metadata[key] = value
+                      stack.append(name)
+                  elif kind == 0x0103:
+                      if header < 16 or size < 24 or not stack:
+                          block("invalid compiled end element")
+                      name = string(u32(raw, p + 20))
+                      if name != stack.pop():
+                          block("unbalanced compiled XML elements")
+                  elif kind == 0x0104:
+                      if header < 16:
+                          block("invalid CDATA")
+                  else:
+                      block("unknown compiled XML chunk")
+                  p = end
+              if strings is None or stack or root_count != 1 or application_count != 1:
+                  block("exactly one closed manifest/application required")
+              return metadata
+
+
+          def read_apk(apk: Path) -> bytes:
+              if apk.is_symlink() or not apk.is_file() or not apk.stat().st_size:
+                  block("missing, linked or empty APK")
+              try:
+                  with zipfile.ZipFile(apk) as archive:
+                      entries = [m for m in archive.infolist() if m.filename == "AndroidManifest.xml"]
+                      if len(entries) != 1:
+                          block("compiled AndroidManifest must be unique in APK")
+                      member = entries[0]
+                      mode = stat.S_IFMT((member.external_attr >> 16) & 0xffff) if member.create_system == 3 else 0
+                      if member.flag_bits & 1 or mode not in (0, stat.S_IFREG) or not 8 <= member.file_size <= MAX_XML:
+                          block("compiled AndroidManifest has unsafe ZIP attributes")
+                      with archive.open(member) as stream:
+                          xml = stream.read(MAX_XML + 1)
+                      if len(xml) != member.file_size:
+                          block("compiled AndroidManifest is truncated or oversized")
+                      return xml
+              except (OSError, zipfile.BadZipFile, RuntimeError):
+                  block("cannot read APK ZIP safely")
+
+
+
+          def binary_manifest_reference(apk: Path) -> str:
+              # Read the actual compiled AXML bytes. AAPT2 text output varies between SDKs.
+              # Only a typed TYPE_REFERENCE may drive the OTA runtime compatibility.
+              metadata = parsed_manifest(read_apk(apk))
+              runtime = metadata.get(NAME)
+              if runtime is None or runtime[0] != 0x01 or not isinstance(runtime[1], int) or runtime[1] in (0, 0xffffffff):
+                  block("expected exactly one typed binary application OTA runtime reference")
+              return f"0x{runtime[1]:08x}"
+
+
+          def table_runtime(raw: str, ref: str, version: str) -> None:
+              lines = raw.splitlines()
+              found = []
+              # AAPT2 prints every possible resource configuration beneath its header.
+              for i, line in enumerate(lines):
+                  heading = RE_HEADER.match(line)
+                  if not heading:
+                      continue
+                  res_id, name = heading.groups()
+                  if name == RESOURCE or res_id.lower() == ref:
+                      if name != RESOURCE or res_id.lower() != ref:
+                          block("OTA runtime string name and manifest resource ID disagree")
+                      values = []
+                      for entry in lines[i+1:]:
+                          if RE_HEADER.match(entry) or re.match(r"^\s*type\s+\w+\s+id=", entry) or re.match(r"^Package name=", entry):
+                              break
+                          if not entry.strip():
+                              continue
+                          value = re.fullmatch(r'\s*(\([^)]*\))\s+(?:(?:\(string8\)|\(string16\))\s+)?\"([^\"]*)\"\s*', entry)
+                          if value:
+                              values.append((value.group(1), value.group(2)))
+                          elif entry.strip().startswith("("):
+                              block("unexpected or indirect OTA runtime table value")
+                      found.append(values)
+              if len(found) != 1:
+                  block("missing, ambiguous or duplicated compiled OTA runtime resource")
+              if found[0] != [("()", version)]:
+                  block("OTA runtime must have exactly one default nonlocalized value matching appVersion")
+
+
+          def inspect(apk: Path, tool: str, version: str) -> None:
+              if not RE_VERSION.fullmatch(version):
+                  block("explicit pinned appVersion required")
+              apk_contents(apk)
+              rid = binary_manifest_reference(apk)
+              table_runtime(run_dump(tool, apk, "resources"), rid, version)
+              print("PASS: compiled APK OTA runtime resource " + version +
+                    " has exactly one nonlocalized value and manifest reference")
+
+
+          def main(argv):
+              if len(argv) != 4:
+                  print("Usage: verify_compiled_ota_runtime.py <apk> <aapt2> <appVersion>",
+                        file=sys.stderr)
+                  return 2
+              try:
+                  inspect(Path(argv[1]), argv[2], argv[3])
+                  return 0
+              except (ValueError, OSError, UnicodeError) as error:
+                  print(str(error), file=sys.stderr)
+                  return 1
+
+
+          if __name__ == "__main__":
+              raise SystemExit(main(sys.argv))
+
+          PY
+
+      - name: Audit downloaded compiled Expo preview channel (read only)
+        working-directory: verified-artifact
+        run: |
+          set -euo pipefail
+          APK="android/app/build/outputs/apk/release/app-release.apk"
+          test -s "$APK"
+          # Trusted workflow-owned Python, not scripts from downloaded artifact.
+          # Preview is intentionally unsigned, never acceptable as stable OTA.
+          python3 - "$APK" <<'PY'
+          #!/usr/bin/env python3
+          """Audit OTA metadata in the binary AndroidManifest.xml inside the EXACT APK.
+
+          --parse-only exercises binary-AXML decoding on ordinary preview artifacts; it
+          is NOT a security approval. --verify-stable requires source-to-binary agreement,
+          and must run only after the X.509 source gate on a manual stable build.
+          """
+          from __future__ import annotations
+
+          import json
+          import re
+          import stat
+          import struct
+          import sys
+          import zipfile
+          from pathlib import Path
+
+          ANDROID = "http://schemas.android.com/apk/res/android"
+          PREFIX = "expo.modules.updates."
+          ENABLED = PREFIX + "ENABLED"
+          CERT = PREFIX + "CODE_SIGNING_CERTIFICATE"
+          META = PREFIX + "CODE_SIGNING_METADATA"
+          UPDATE_URL = PREFIX + "EXPO_UPDATE_URL"
+          REQUEST_HEADERS = PREFIX + "UPDATES_CONFIGURATION_REQUEST_HEADERS_KEY"
+          PINNED_ENDPOINT = "https://u.expo.dev/a506611f-a159-4341-bed7-28dcbd47bf95"
+          NO_INDEX = 0xFFFFFFFF
+          MAX_XML = 2 * 1024 * 1024
+          MAX_STRINGS = 65536
+          MAX_CONFIG = 512 * 1024
+
+
+          def block(message: str) -> None:
+              raise ValueError("BLOCK: compiled Android OTA policy: " + message)
+
+
+          def u16(raw: bytes, pos: int) -> int:
+              if pos < 0 or pos + 2 > len(raw):
+                  block("truncated binary XML short")
+              return struct.unpack_from("<H", raw, pos)[0]
+
+
+          def u32(raw: bytes, pos: int) -> int:
+              if pos < 0 or pos + 4 > len(raw):
+                  block("truncated binary XML word")
+              return struct.unpack_from("<I", raw, pos)[0]
+
+
+          def length8(raw: bytes, pos: int, end: int) -> tuple[int, int]:
+              if pos >= end:
+                  block("invalid UTF-8 string length")
+              first = raw[pos]
+              pos += 1
+              if first & 0x80:
+                  if pos >= end:
+                      block("invalid two-byte string length")
+                  return ((first & 0x7f) << 8) | raw[pos], pos + 1
+              return first, pos
+
+
+          def length16(raw: bytes, pos: int, end: int) -> tuple[int, int]:
+              if pos + 2 > end:
+                  block("invalid UTF-16 string length")
+              first = u16(raw, pos)
+              pos += 2
+              if first & 0x8000:
+                  if pos + 2 > end:
+                      block("invalid extended UTF-16 string length")
+                  return ((first & 0x7fff) << 16) | u16(raw, pos), pos + 2
+              return first, pos
+
+
+          def string_pool(raw: bytes, start: int, end: int, header: int) -> list[str]:
+              if header < 28:
+                  block("invalid binary XML string pool")
+              count, style_count, flags = u32(raw, start + 8), u32(raw, start + 12), u32(raw, start + 16)
+              string_start, style_start = u32(raw, start + 20), u32(raw, start + 24)
+              if count > MAX_STRINGS or style_count > MAX_STRINGS or flags & ~0x107:
+                  block("unexpected string pool count or flags")
+              if header + 4 * (count + style_count) > end - start:
+                  block("string pool offset table truncated")
+              if string_start < header + 4 * (count + style_count) or start + string_start > end:
+                  block("string pool data starts outside chunk")
+              strings = []
+              for i in range(count):
+                  offset = u32(raw, start + header + 4 * i)
+                  pos = start + string_start + offset
+                  if pos >= end or (style_start and pos >= start + style_start):
+                      block("string offset outside pool")
+                  if flags & 0x100:
+                      utf16_len, pos = length8(raw, pos, end)
+                      size, pos = length8(raw, pos, end)
+                      if size > MAX_XML or pos + size + 1 > end or raw[pos + size] != 0:
+                          block("UTF-8 string malformed")
+                      data = raw[pos:pos + size].decode("utf-8", "strict")
+                      if len(data.encode("utf-16le")) // 2 != utf16_len:
+                          block("inconsistent UTF-8 string length")
+                  else:
+                      size, pos = length16(raw, pos, end)
+                      if size > MAX_XML // 2 or pos + size * 2 + 2 > end or raw[pos + size * 2:pos + size * 2 + 2] != b"\x00\x00":
+                          block("UTF-16 string malformed")
+                      data = raw[pos:pos + size * 2].decode("utf-16le", "strict")
+                  strings.append(data)
+              return strings
+
+
+          def parsed_manifest(raw: bytes) -> dict[str, tuple[int, object]]:
+              if not (8 <= len(raw) <= MAX_XML) or u16(raw, 0) != 0x0003 or u16(raw, 2) != 8 or u32(raw, 4) != len(raw):
+                  block("not a complete Android compiled binary manifest")
+              strings: list[str] | None = None
+              stack: list[str] = []
+              application_count = 0
+              root_count = 0
+              metadata: dict[str, tuple[int, object]] = {}
+              p = 8
+
+              def string(index: int) -> str | None:
+                  if index == NO_INDEX:
+                      return None
+                  if strings is None or index >= len(strings):
+                      block("invalid compiled string index")
+                  return strings[index]
+
+              while p < len(raw):
+                  if p + 8 > len(raw):
+                      block("trailing incomplete binary XML chunk")
+                  kind, header, size = struct.unpack_from("<HHI", raw, p)
+                  end = p + size
+                  if header < 8 or size < header or end > len(raw):
+                      block("binary XML chunk overflows document")
+                  if kind == 0x0001:
+                      if strings is not None or stack:
+                          block("duplicate or out-of-place string pool")
+                      strings = string_pool(raw, p, end, header)
+                  elif kind in (0x0180, 0x0100, 0x0101):
+                      if strings is None or header < (8 if kind == 0x0180 else 16):
+                          block("bad resource or namespace chunk")
+                  elif kind == 0x0102:
+                      if strings is None or header < 16 or size < 36:
+                          block("invalid start element")
+                      name = string(u32(raw, p + 20))
+                      ns = string(u32(raw, p + 16))
+                      if not name or ns:
+                          block("unexpected namespace or empty XML element")
+                      attr_start, attr_size, attr_count = (u16(raw, p + 24), u16(raw, p + 26), u16(raw, p + 28))
+                      if attr_start < 20 or attr_size != 20 or attr_count > 2048:
+                          block("invalid attribute layout")
+                      first = p + 16 + attr_start
+                      if first + attr_count * attr_size > end:
+                          block("attribute list exceeds node")
+                      attrs: dict[tuple[str | None, str], tuple[int, object]] = {}
+                      for i in range(attr_count):
+                          a = first + i * 20
+                          namespace, key = string(u32(raw, a)), string(u32(raw, a + 4))
+                          raw_index = u32(raw, a + 8)
+                          value_size, data_type, data = u16(raw, a + 12), raw[a + 15], u32(raw, a + 16)
+                          if value_size != 8 or not key or (namespace, key) in attrs:
+                              block("malformed or duplicate binary XML attribute")
+                          if data_type == 0x03:
+                              value = string(data)
+                              if raw_index != NO_INDEX and string(raw_index) != value:
+                                  block("raw/typed compiled string mismatch")
+                          elif data_type == 0x12:
+                              if data not in (0, 1, 0xffffffff):
+                                  block("malformed compiled boolean")
+                              value = bool(data)
+                          else:
+                              value = data
+                          attrs[(namespace, key)] = (data_type, value)
+                      if not stack:
+                          root_count += 1
+                          if name != "manifest":
+                              block("compiled root must be manifest")
+                      if name == "application" and stack == ["manifest"]:
+                          application_count += 1
+                      if name == "meta-data" and stack == ["manifest", "application"]:
+                          id_attr = attrs.get((ANDROID, "name"))
+                          if not id_attr or id_attr[0] != 0x03 or not isinstance(id_attr[1], str):
+                              block("invalid application metadata name")
+                          key = id_attr[1]
+                          if key in metadata:
+                              block("duplicate application metadata: " + key)
+                          value = attrs.get((ANDROID, "value"))
+                          if key.startswith(PREFIX) and (value is None or (ANDROID, "resource") in attrs):
+                              block("Expo updates metadata is missing literal android:value")
+                          if value is not None:
+                              metadata[key] = value
+                      stack.append(name)
+                  elif kind == 0x0103:
+                      if header < 16 or size < 24 or not stack:
+                          block("invalid compiled end element")
+                      name = string(u32(raw, p + 20))
+                      if name != stack.pop():
+                          block("unbalanced compiled XML elements")
+                  elif kind == 0x0104:
+                      if header < 16:
+                          block("invalid CDATA")
+                  else:
+                      block("unknown compiled XML chunk")
+                  p = end
+              if strings is None or stack or root_count != 1 or application_count != 1:
+                  block("exactly one closed manifest/application required")
+              return metadata
+
+
+          def read_apk(apk: Path) -> bytes:
+              if apk.is_symlink() or not apk.is_file() or not apk.stat().st_size:
+                  block("missing, linked or empty APK")
+              try:
+                  with zipfile.ZipFile(apk) as archive:
+                      entries = [m for m in archive.infolist() if m.filename == "AndroidManifest.xml"]
+                      if len(entries) != 1:
+                          block("compiled AndroidManifest must be unique in APK")
+                      member = entries[0]
+                      mode = stat.S_IFMT((member.external_attr >> 16) & 0xffff) if member.create_system == 3 else 0
+                      if member.flag_bits & 1 or mode not in (0, stat.S_IFREG) or not 8 <= member.file_size <= MAX_XML:
+                          block("compiled AndroidManifest has unsafe ZIP attributes")
+                      with archive.open(member) as stream:
+                          xml = stream.read(MAX_XML + 1)
+                      if len(xml) != member.file_size:
+                          block("compiled AndroidManifest is truncated or oversized")
+                      return xml
+              except (OSError, zipfile.BadZipFile, RuntimeError):
+                  block("cannot read APK ZIP safely")
+
+
+
+          # Laboratory APKs have unsigned Expo preview OTA by design.
+          # This check prohibits privilege/channel escalation but does NOT authorize
+          # a production release (which must require signed OTA or embedded-only).
+          EXPECTED_CHANNEL = {"expo-channel-name": "preview"}
+
+
+          def no_duplicate_json_keys(pairs):
+              result = {}
+              for key, value in pairs:
+                  if key in result:
+                      block("duplicate OTA request header keys")
+                  result[key] = value
+              return result
+
+
+          def verify_preview(metadata: dict[str, tuple[int, object]]) -> None:
+              if metadata.get(ENABLED) != (0x12, True):
+                  block("preview OTA must have explicitly enabled updates")
+              if metadata.get(UPDATE_URL) != (0x03, PINNED_ENDPOINT):
+                  block("compiled preview OTA endpoint changed")
+              value = metadata.get(REQUEST_HEADERS)
+              if not value or value[0] != 0x03 or not isinstance(value[1], str) or len(value[1]) > 2048:
+                  block("compiled preview OTA channel must be a short literal JSON string")
+              try:
+                  headers = json.loads(value[1], object_pairs_hook=no_duplicate_json_keys)
+              except (ValueError, TypeError):
+                  block("malformed compiled preview OTA channel headers")
+              if not isinstance(headers, dict) or headers != EXPECTED_CHANNEL:
+                  block("downloaded APK must use preview channel only")
+              # No certificate/key identifier should be inserted into a laboratory APK.
+              # Merely having a certificate is not enough to approve production OTA.
+              signing_keys = [key for key in metadata if key.startswith(PREFIX + "CODE_SIGNING_")]
+              if signing_keys:
+                  block("laboratory preview APK unexpectedly contains OTA signing metadata")
+              print("PASS: downloaded APK compiled OTA URL/channel pinned to unsigned preview (LAB ONLY)")
+
+
+          def main(argv):
+              if len(argv) != 2:
+                  print("Usage: verify_compiled_preview_ota.py <apk>", file=sys.stderr)
+                  return 2
+              try:
+                  verify_preview(parsed_manifest(read_apk(Path(argv[1]))))
+                  return 0
+              except (OSError, ValueError, UnicodeError, struct.error, zipfile.LargeZipFile) as ex:
+                  print(str(ex), file=sys.stderr)
+                  return 1
+
+
+          if __name__ == "__main__":
+              raise SystemExit(main(sys.argv))
+
+          PY
+
+      - name: Independently cross-check downloaded Expo app.config OTA asset
+        working-directory: verified-artifact
+        run: |
+          set -euo pipefail
+          APK="android/app/build/outputs/apk/release/app-release.apk"
+          test -s "$APK"
+          # AppManifest Android metadata was previously audited on these bytes.
+          # Verify the separate Expo app.config asset without checkout or scripts.
+          python3 - "$APK" <<'PY'
+          #!/usr/bin/env python3
+          """Reject drift in the Expo app.config asset of the exact downloaded lab APK.
+
+          The compiled AndroidManifest.xml is verified in a distinct preceding workflow
+          step. Recheck the second Expo config representation, not just native metadata.
+          """
+          from __future__ import annotations
+
+          import json
+          import stat
+          import sys
+          import zipfile
+          from pathlib import Path
+
+          ASSET = "assets/app.config"
+          APP_VERSION = "3.1.3"
+          PACKAGE = "com.negresco.finance"
+          VERSION_CODE = 34
+          SDK = "54.0.0"
+          PROJECT_ID = "a506611f-a159-4341-bed7-28dcbd47bf95"
+          ENDPOINT = "https://u.expo.dev/" + PROJECT_ID
+          CHANNEL = "preview"
+          MAX_APK = 1024 * 1024 * 1024
+          MAX_CONFIG = 65536
+
+          def block(message: str):
+              raise ValueError("BLOCK: packaged Expo OTA config: " + message)
+
+          def unique_json(pairs):
+              obj = {}
+              for name, value in pairs:
+                  if name in obj:
+                      block("duplicated JSON key in packaged Expo config")
+                  obj[name] = value
+              return obj
+
+          def fail_json_constant(value):
+              block("non-finite JSON number in packaged Expo config")
+
+          def read_config(apk: Path):
+              if apk.is_symlink() or not apk.is_file() or not 8 <= apk.stat().st_size <= MAX_APK:
+                  block("APK is missing, linked or oversized")
+              try:
+                  with zipfile.ZipFile(apk) as archive:
+                      entries = [item for item in archive.infolist() if item.filename == ASSET]
+                      if len(entries) != 1:
+                          block("APK must have one unique assets/app.config")
+                      entry = entries[0]
+                      mode = stat.S_IFMT((entry.external_attr >> 16) & 0xFFFF) if entry.create_system == 3 else 0
+                      if entry.flag_bits & 1 or mode not in (0, stat.S_IFREG) or not 2 <= entry.file_size <= MAX_CONFIG:
+                          block("packaged Expo config ZIP entry is unsafe")
+                      with archive.open(entry) as stream:
+                          raw = stream.read(MAX_CONFIG + 1)
+                      if len(raw) != entry.file_size:
+                          block("packaged Expo config is incomplete or oversized")
+              except (OSError, zipfile.BadZipFile, RuntimeError, EOFError, zipfile.LargeZipFile):
+                  block("APK config ZIP is invalid")
+              try:
+                  return json.loads(raw.decode("utf-8", "strict"),
+                                    object_pairs_hook=unique_json,
+                                    parse_constant=fail_json_constant)
+              except (ValueError, TypeError, UnicodeError) as exc:
+                  block("invalid JSON encoding or structure: " + str(exc))
+
+          def verify(expo):
+              if not isinstance(expo, dict):
+                  block("packaged Expo config must be an object")
+              if expo.get("version") != APP_VERSION or expo.get("runtimeVersion") != {"policy": "appVersion"}:
+                  block("packaged version/runtimeVersion is not pinned to appVersion 3.1.3")
+              if expo.get("sdkVersion") != SDK or expo.get("platforms") != ["ios", "android"]:
+                  block("packaged Expo SDK/platforms differ from trusted laboratory policy")
+              if expo.get("owner") != "negresco-finance":
+                  block("packaged Expo owner changed")
+              extra = expo.get("extra")
+              eas = extra.get("eas") if isinstance(extra, dict) else None
+              if not isinstance(eas, dict) or eas.get("projectId") != PROJECT_ID:
+                  block("packaged EAS project identity differs from pinned endpoint")
+              android = expo.get("android")
+              if not isinstance(android, dict) or android.get("package") != PACKAGE or \
+                      android.get("versionCode") != VERSION_CODE or android.get("allowBackup") is not False:
+                  block("packaged Android identity/version/backup policy changed")
+              updates = expo.get("updates")
+              if not isinstance(updates, dict) or set(updates) != {
+                  "enabled", "checkAutomatically", "fallbackToCacheTimeout", "url", "requestHeaders"
+              }:
+                  block("packaged OTA updates keys are missing or unexpected")
+              if updates["enabled"] is not True or updates["checkAutomatically"] != "ON_LOAD" or \
+                      type(updates["fallbackToCacheTimeout"]) is not int or updates["fallbackToCacheTimeout"] != 0:
+                  block("packaged preview OTA enabling/check/fallback policy drift")
+              if updates["url"] != ENDPOINT:
+                  block("packaged OTA endpoint differs from trusted preview endpoint")
+              if updates["requestHeaders"] != {"expo-channel-name": CHANNEL}:
+                  block("packaged OTA channel must be preview only with no extra headers")
+              # Preview intentionally has no Expo OTA code-signing keys. A stable release
+              # MUST instead have independently signed OTA or updates.enabled=false.
+              print("PASS: downloaded APK packaged Expo config agrees with pinned preview OTA lab policy")
+
+          def main(argv):
+              if len(argv) != 2:
+                  print("Usage: verify_packaged_expo_config.py <downloaded.apk>", file=sys.stderr)
+                  return 2
+              try:
+                  verify(read_config(Path(argv[1])))
+                  return 0
+              except (OSError, ValueError, UnicodeError) as exc:
+                  print(str(exc), file=sys.stderr)
+                  return 1
+
+          if __name__ == "__main__":
+              raise SystemExit(main(sys.argv))
+
+          PY
+
+  publish-test-prerelease:
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.publish_release && inputs.stable_signing }}
+    needs: build-test-apk
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download verified Release candidate artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: negresco-finance-v313-security-preview
+          path: release-payload
+      - name: Verify downloaded candidate contents before publication
+        working-directory: release-payload
+        run: |
+          set -euo pipefail
+          # The checksum file is input from a downloaded build artifact.
+          # sha256sum -c accepts arbitrary listed paths, so parse and bound
+          # the manifest before it can open any file.
+          node <<'NODE'
+          const fs = require("node:fs");
+          const expectedHashes = [
+            "Negresco-Finance-V3.1.3-preview.apk",
+            "Negresco-Finance-V3.1.3-preview.zip",
+            "APK-SIGNATURE.txt"
+          ];
+          const expectedFiles = [...expectedHashes, "SHA256-release.txt", "RELEASE_NOTES.md"];
+          function block(message) {
+            console.error("BLOCK: invalid release payload manifest: " + message);
+            process.exit(1);
+          }
+          const actual = fs.readdirSync(".");
+          if (actual.length !== expectedFiles.length ||
+              actual.some(name => !expectedFiles.includes(name))) {
+            block("unexpected, hidden or missing downloaded files");
+          }
+          for (const name of expectedFiles) {
+            const stat = fs.lstatSync(name);
+            if (!stat.isFile() || stat.isSymbolicLink() || stat.size === 0)
+              block("missing, empty, linked or nonregular artifact: " + name);
+          }
+          const raw = fs.readFileSync("SHA256-release.txt");
+          if (raw.length > 4096 || raw.includes(0) || raw.includes(13))
+            block("manifest is too large or contains NUL/CR bytes");
+          const lines = raw.toString("utf8").split("\n");
+          if (lines.length !== expectedHashes.length + 1 || lines.at(-1) !== "")
+            block("manifest must contain exactly three newline-terminated entries");
+          for (let i = 0; i < expectedHashes.length; i++) {
+            const match = /^([a-f0-9]{64})  (.+)$/.exec(lines[i]);
+            if (!match || match[2] !== expectedHashes[i])
+              block("unexpected, duplicate or unsafe checksum path");
+          }
+          console.log("PASS: checksum manifest and payload contain exactly the approved files");
+          NODE
+          sha256sum --strict --check SHA256-release.txt
+      - name: Reverify downloaded release certificate and ZIP identity
+        working-directory: release-payload
+        env:
+          NEGRESCO_EXPECTED_CERT_SHA256: ${{ vars.NEGRESCO_EXPECTED_CERT_SHA256 }}
+        run: |
+          set -euo pipefail
+          EXPECTED="$(printf '%s' "$NEGRESCO_EXPECTED_CERT_SHA256" | tr '[:upper:]' '[:lower:]')"
+          [[ "$EXPECTED" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::Release certificate pin is missing or malformed."; exit 1; }
+          test -d "${ANDROID_HOME:?Android SDK unavailable}"
+          BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+          test -x "$BUILD_TOOLS/apksigner"
+          # Re-parse the downloaded APK, never just the build job's claims.
+          # These checks run in the separate privileged publisher without a checkout.
+          test -x "$BUILD_TOOLS/aapt"
+          "$BUILD_TOOLS/aapt" dump badging Negresco-Finance-V3.1.3-preview.apk > verified-apk-badging.txt
+          "$BUILD_TOOLS/aapt" dump permissions Negresco-Finance-V3.1.3-preview.apk > verified-apk-permissions.txt
+          "$BUILD_TOOLS/aapt" dump xmltree Negresco-Finance-V3.1.3-preview.apk AndroidManifest.xml > verified-apk-manifest.txt
+          node <<'NODE'
+          const fs = require("node:fs");
+          function reject(message) {
+            console.error("BLOCK: unexpected signed APK identity: " + message);
+            process.exit(1);
+          }
+          const badging = fs.readFileSync("verified-apk-badging.txt", "utf8");
+          const packageLines = badging.split(/\r?\n/).filter(line => line.startsWith("package:"));
+          if (packageLines.length !== 1) reject("exactly one package declaration is required");
+          const match = /^package: name='([^']+)' versionCode='([^']+)' versionName='([^']+)'(?: .*)?$/.exec(packageLines[0]);
+          if (!match || match[1] !== "com.negresco.finance" ||
+              match[2] !== "34" || match[3] !== "3.1.3")
+            reject("package name, versionCode or versionName differs");
+          const permissions = fs.readFileSync("verified-apk-permissions.txt", "utf8");
+          const biometric = permissions.split(/\r?\n/)
+            .filter(line => /^uses-permission: name='android\.permission\.USE_BIOMETRIC'(?: |$)/.test(line));
+          if (biometric.length !== 1) reject("expected single USE_BIOMETRIC permission is absent or duplicated");
+          // Android defaults allowBackup to true, so an absent flag is unsafe.
+          // Read the compiled APK manifest rather than trusting Expo config.
+          const tree = fs.readFileSync("verified-apk-manifest.txt", "utf8").split(/\r?\n/);
+          const application = tree.map((line, i) => ({line, i}))
+            .filter(item => /^\s*E: application(?:\s|$)/.test(item.line));
+          if (application.length !== 1) reject("exactly one compiled application element is required");
+          const top = application[0].i;
+          const attrs = [];
+          for (let i = top + 1; i < tree.length; i++) {
+            if (/^\s*E: /.test(tree[i])) break; // do not inspect nested components
+            if (/^\s*A: /.test(tree[i])) attrs.push(tree[i]);
+          }
+          function attribute(name, required) {
+            const matches = attrs.filter(line => new RegExp("^\\s*A: android:" + name + "\\(").test(line));
+            if (matches.length > 1 || (required && matches.length !== 1))
+              reject("missing or duplicate application android:" + name);
+            if (matches.length && !new RegExp("^\\s*A: android:" + name +
+              "\\(0x[0-9a-fA-F]{8}\\)=\\(type 0x12\\)0x0+\\s*$").test(matches[0]))
+              reject("application android:" + name + " must be false");
+          }
+          attribute("allowBackup", true);
+          attribute("debuggable", false);
+          attribute("testOnly", false);
+          // The privileged publisher must independently prove the downloaded
+          // APK carries BOTH Android 12+ and legacy backup policy references.
+          // Resource IDs can be remapped by AAPT; require typed references,
+          // not a guessed res/xml file path.
+          function policyResource(name) {
+            const found=attrs.filter(line=>
+              new RegExp("^\\s*A: android:"+name+"\\(").test(line));
+            if(found.length!==1 ||
+               !new RegExp("^\\s*A: android:"+name+
+                  "\\(0x[0-9a-fA-F]{8}\\)=@0x([0-9a-fA-F]{1,8})\\s*$").test(found[0])){
+              reject("missing, duplicate or invalid backup policy resource: "+name);
+            }
+            return found[0].match(/=@0x([0-9a-fA-F]{1,8})\s*$/)[1].toLowerCase();
+          }
+          const modernPolicyId=policyResource("dataExtractionRules");
+          const legacyPolicyId=policyResource("fullBackupContent");
+          const networkPolicyId=policyResource("networkSecurityConfig");
+          if(new Set([modernPolicyId,legacyPolicyId,networkPolicyId]).size!==3)
+            reject("backup and network policies must use distinct resource IDs");
+          attribute("usesCleartextTraffic", true);
+          if (badging.split(/\r?\n/).some(line => /^application-debuggable(?:\s|$)/.test(line)))
+            reject("aapt badging identifies a debuggable APK");
+          console.log("PASS: downloaded APK package, biometric permission, backup and debug flags verified");
+          NODE
+          "$BUILD_TOOLS/apksigner" verify --verbose --print-certs Negresco-Finance-V3.1.3-preview.apk > verified-apk-signer.txt
+          mapfile -t CERT_HASHES < <(sed -nE 's/.*certificate SHA-256 digest: ([0-9a-fA-F]{64}).*/\1/p' verified-apk-signer.txt | tr '[:upper:]' '[:lower:]')
+          mapfile -t REPORT_HASHES < <(sed -nE 's/.*certificate SHA-256 digest: ([0-9a-fA-F]{64}).*/\1/p' APK-SIGNATURE.txt | tr '[:upper:]' '[:lower:]')
+          [[ ${#CERT_HASHES[@]} -eq 1 && ${#REPORT_HASHES[@]} -eq 1 ]] || { echo "::error::Exactly one APK signing identity is required."; exit 1; }
+          [[ "${CERT_HASHES[0]}" == "$EXPECTED" && "${REPORT_HASHES[0]}" == "$EXPECTED" ]] || { echo "::error::Downloaded APK certificate does not match pinned release identity."; exit 1; }
+          if grep -Eqi 'CN[[:space:]]*=[[:space:]]*Android Debug' verified-apk-signer.txt APK-SIGNATURE.txt; then
+            echo "::error::Debug certificate is not a publishing identity."
+            exit 1
+          fi
+          python3 - <<'PY'
+          import hashlib
+          import re
+          import stat
+          import zipfile
+          from pathlib import Path
+
+          apk = 'Negresco-Finance-V3.1.3-preview.apk'
+          names = {apk, 'APK-SIGNATURE.txt', 'SHA256-original-apk.txt', 'LEIA-ME.txt'}
+          bounds = {apk: 1024**3, 'APK-SIGNATURE.txt': 1024**2,
+                    'SHA256-original-apk.txt': 512, 'LEIA-ME.txt': 1024**2}
+
+          def digest(path):
+              sha = hashlib.sha256()
+              with path.open('rb') as stream:
+                  for chunk in iter(lambda: stream.read(1024 * 1024), b''):
+                      sha.update(chunk)
+              return sha.hexdigest()
+
+          def zipped_digest(archive, name):
+              sha = hashlib.sha256()
+              with archive.open(name) as stream:
+                  for chunk in iter(lambda: stream.read(1024 * 1024), b''):
+                      sha.update(chunk)
+              return sha.hexdigest()
+
+          for name in (apk, 'Negresco-Finance-V3.1.3-preview.zip', 'APK-SIGNATURE.txt'):
+              path = Path(name)
+              if path.is_symlink() or not path.is_file() or not path.stat().st_size:
+                  raise SystemExit('BLOCK: missing or symlinked release artifact: ' + name)
+
+          original = digest(Path(apk))
+          with zipfile.ZipFile('Negresco-Finance-V3.1.3-preview.zip') as archive:
+              members = archive.infolist()
+              if len(members) != len(names) or {item.filename for item in members} != names:
+                  raise SystemExit('BLOCK: ZIP has missing, duplicated or unexpected members')
+              for member in members:
+                  kind = stat.S_IFMT((member.external_attr >> 16) & 0xffff) if member.create_system == 3 else 0
+                  if member.is_dir() or kind not in (0, stat.S_IFREG):
+                      raise SystemExit('BLOCK: ZIP contains a link or special file')
+                  if member.flag_bits & 1 or member.compress_type not in (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED):
+                      raise SystemExit('BLOCK: ZIP compression/encryption is unsupported')
+                  if not 0 < member.file_size <= bounds[member.filename] or not member.compress_size:
+                      raise SystemExit('BLOCK: ZIP member exceeds size limits')
+                  if member.file_size > 200 * member.compress_size:
+                      raise SystemExit('BLOCK: suspicious compression ratio')
+              if zipped_digest(archive, apk) != original:
+                  raise SystemExit('BLOCK: ZIP APK differs from signed standalone APK')
+              if zipped_digest(archive, 'APK-SIGNATURE.txt') != digest(Path('APK-SIGNATURE.txt')):
+                  raise SystemExit('BLOCK: ZIP signing report differs from standalone report')
+              with archive.open('SHA256-original-apk.txt') as stream:
+                  record = stream.read().decode('utf-8')
+              match = re.fullmatch(r'([a-fA-F0-9]{64})  android/app/build/outputs/apk/release/app-release\.apk\n?', record)
+              if not match or match.group(1).lower() != original:
+                  raise SystemExit('BLOCK: ZIP original APK checksum mismatch')
+              with archive.open('LEIA-ME.txt') as stream:
+                  if not stream.read(1):
+                      raise SystemExit('BLOCK: release readme is empty')
+          print('PASS: downloaded APK signing certificate and ZIP identity independently verified')
+          PY
+
+      - name: Independently audit downloaded compiled network XML
+        working-directory: release-payload
+        run: |
+          set -euo pipefail
+          test -d "${ANDROID_HOME:?Android SDK unavailable}"
+          BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+          test -x "$BUILD_TOOLS/aapt2"
+          python3 - "$BUILD_TOOLS/aapt2" Negresco-Finance-V3.1.3-preview.apk <<'PY'
+          import re, stat, subprocess, sys, zipfile
+          
+          tool, apk = sys.argv[1:]
+          def block(why):
+              raise SystemExit("BLOCK: privileged compiled network XML: " + why)
+          def dump(kind, file=None):
+              cmd = [tool, "dump", kind, apk]
+              if file: cmd += ["--file", file]
+              try:
+                  result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+              except (OSError, subprocess.TimeoutExpired):
+                  block("aapt2 unavailable")
+              if result.returncode or len(result.stdout) > 4 * 1024 * 1024:
+                  block("aapt2 failed or exceeded output bound")
+              return result.stdout.splitlines()
+          
+          manifest = dump("xmltree", "AndroidManifest.xml")
+          apps = [i for i, x in enumerate(manifest) if re.match(r"^\s*E: application(?:\s|$)", x)]
+          if len(apps) != 1: block("expected exactly one application")
+          attrs = []
+          for line in manifest[apps[0] + 1:]:
+              if re.match(r"^\s*E: ", line): break
+              if re.match(r"^\s*A: ", line): attrs.append(line)
+          policy = [x for x in attrs if re.search(r"\bnetworkSecurityConfig\(", x)]
+          if len(policy) != 1: block("missing or duplicate networkSecurityConfig")
+          ref = re.search(r"android:networkSecurityConfig\(0x[0-9a-fA-F]{8}\)=@(0x[0-9a-fA-F]{8})(?:\s|$)", policy[0])
+          if not ref: block("invalid networkSecurityConfig reference")
+          resource_id = ref.group(1).lower()
+          
+          resources = dump("resources")
+          heading = re.compile(r"^\s*resource\s+(0x[0-9a-fA-F]{8})\s+(?:[^\s:]+:)?(xml/[^\s]+)")
+          paths = []
+          for index, line in enumerate(resources):
+              header = heading.match(line)
+              if not header or header.group(1).lower() != resource_id: continue
+              if header.group(2) != "xml/negresco_network_security":
+                  block("policy resource name differs")
+              next_lines = []
+              for nxt in resources[index+1:]:
+                  if heading.match(nxt): break
+                  next_lines.append(nxt)
+              hits = set(re.findall(r"\bres/[a-zA-Z0-9_./-]+\.xml\b", "\n".join(next_lines)))
+              if len(hits) != 1: block("resource path missing or ambiguous")
+              paths.extend(hits)
+          if len(paths) != 1: block("policy resource ID missing or duplicated")
+          path = paths[0]
+          if not re.fullmatch(r"res/[a-zA-Z0-9_./-]+\.xml", path) or ".." in path.split("/"):
+              block("unsafe XML path")
+          try:
+              with zipfile.ZipFile(apk) as z:
+                  members = [m for m in z.infolist() if m.filename == path]
+                  if len(members) != 1: block("XML missing or duplicated in APK")
+                  m = members[0]
+                  mode = stat.S_IFMT((m.external_attr >> 16) & 0xffff) if m.create_system == 3 else 0
+                  if mode not in (0, stat.S_IFREG) or not 0 < m.file_size <= 65536:
+                      block("XML invalid, linked or oversized")
+          except (OSError, zipfile.BadZipFile):
+              block("invalid APK ZIP structure")
+          
+          tree = dump("xmltree", path)
+          elements, atts = [], []
+          for index, line in enumerate(tree):
+              e = re.match(r"^(\s*)E: ([a-zA-Z0-9_-]+)(?:\s|$)", line)
+              if e: elements.append((len(e.group(1)), e.group(2), index))
+              a = re.match(r"^\s*A: ([a-zA-Z0-9_-]+)(?:\(0x[0-9a-fA-F]{8}\))?=(.*)$", line)
+              if a: atts.append((a.group(1), a.group(2), index))
+          if [e[1] for e in elements] != ["network-security-config", "base-config", "trust-anchors", "certificates"]:
+              block("unexpected elements or exceptions")
+          if any(elements[i+1][0] <= elements[i][0] for i in range(3)):
+              block("invalid XML nesting")
+          if len(atts) != 2: block("expected only cleartext and certificate attributes")
+          clear = [a for a in atts if a[0] == "cleartextTrafficPermitted"]
+          cert = [a for a in atts if a[0] == "src"]
+          if len(clear) != 1 or not elements[1][2] < clear[0][2] < elements[2][2]:
+              block("cleartext attribute outside base-config")
+          if not (re.fullmatch(r"\(type 0x12\)0x0+", clear[0][1])
+                  or re.fullmatch(r'(?:false|"false"(?: \(Raw: "false"\))?)', clear[0][1])
+                  or re.fullmatch(r'\(type 0x03\)0x[0-9a-fA-F]+ \(Raw: "false"\)', clear[0][1])):
+              block("cleartextTrafficPermitted is not false")
+          if len(cert) != 1 or not elements[3][2] < cert[0][2]:
+              block("certificate source outside certificates element")
+          if not (re.fullmatch(r'(?:system|"system"(?:\s+\(Raw: "system"\))?)', cert[0][1])
+                  or re.fullmatch(r'\(type 0x03\)0x[0-9a-fA-F]+\s+\(Raw: "system"\)', cert[0][1])):
+              block("certificate authority other than system")
+          print("PASS: privileged downloaded APK compiled network policy forbids HTTP and user CAs")
+          PY
+      - name: Independently audit downloaded compiled backup XML
+        working-directory: release-payload
+        run: |
+          set -euo pipefail
+          test -d "${ANDROID_HOME:?Android SDK unavailable}"
+          BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+          test -x "$BUILD_TOOLS/aapt2"
+          python3 - "$BUILD_TOOLS/aapt2" Negresco-Finance-V3.1.3-preview.apk <<'PY'
+          #!/usr/bin/env python3
+          """Fail closed if compiled Android backup/transfer XML allows data extraction.
+          
+          Analyze the signed APK rather than trusting the Expo XML source. Resource IDs
+          are resolved through resources.arsc, so AAPT2 resource path obfuscation is safe.
+          """
+          from __future__ import annotations
+          
+          import re
+          import stat
+          import subprocess
+          import sys
+          import zipfile
+          from pathlib import Path
+          
+          DOMAINS = frozenset((
+              "root", "file", "database", "sharedpref", "external",
+              "device_root", "device_file", "device_database", "device_sharedpref"
+          ))
+          POLICIES = (
+              ("dataExtractionRules", "xml/negresco_no_data_extraction", "modern"),
+              ("fullBackupContent", "xml/negresco_legacy_no_backup", "legacy"),
+          )
+          RESOURCE = re.compile(r"^\s*resource\s+(0x[0-9a-fA-F]{8})\s+(?:[^\s:]+:)?(xml/[^\s]+)")
+          MAX_DUMP = 4 * 1024 * 1024
+          MAX_XML = 64 * 1024
+          
+          
+          def deny(reason: str) -> None:
+              raise ValueError("BLOCK: compiled Android backup policy: " + reason)
+          
+          
+          def dump(tool: str, apk: Path, category: str, filename: str | None = None) -> str:
+              args = [tool, "dump", category, str(apk)]
+              if filename is not None:
+                  args += ["--file", filename]
+              try:
+                  proc = subprocess.run(args, text=True, capture_output=True, timeout=30)
+              except (OSError, subprocess.TimeoutExpired):
+                  deny("aapt2 resource inspection unavailable")
+              if proc.returncode or len(proc.stdout) > MAX_DUMP:
+                  deny("aapt2 inspection failed or exceeded size limit")
+              return proc.stdout
+          
+          
+          def manifest_ids(raw: str) -> dict[str, str]:
+              lines = raw.splitlines()
+              found = [(idx, line) for idx, line in enumerate(lines)
+                       if re.match(r"^\s*E: application(?:\s|$)", line)]
+              if len(found) != 1:
+                  deny("exactly one compiled application required")
+              app_attrs = []
+              for line in lines[found[0][0] + 1:]:
+                  if re.match(r"^\s*E: ", line):
+                      break
+                  if re.match(r"^\s*A: ", line):
+                      app_attrs.append(line)
+              refs = {}
+              for name, _, _ in POLICIES:
+                  matches = [a for a in app_attrs if re.search(r"\bandroid:" + name + r"\(", a)]
+                  if len(matches) != 1:
+                      deny("missing or duplicate " + name + " reference")
+                  match = re.search(r"android:" + name +
+                                    r"\(0x[0-9a-fA-F]{8}\)=@(0x[0-9a-fA-F]{8})(?:\s|$)",
+                                    matches[0])
+                  if not match:
+                      deny("invalid compiled " + name + " resource ID")
+                  refs[name] = match.group(1).lower()
+              if len(set(refs.values())) != len(refs):
+                  deny("modern and legacy backup rules share one compiled resource")
+              return refs
+          
+          
+          def compiled_path(resources: str, resource_id: str, expected: str) -> str:
+              lines = resources.splitlines()
+              results = []
+              for i, line in enumerate(lines):
+                  header = RESOURCE.match(line)
+                  if not header or header.group(1).lower() != resource_id:
+                      continue
+                  if header.group(2) != expected:
+                      deny("backup resource name changed: " + expected)
+                  following = []
+                  for nxt in lines[i + 1:]:
+                      if RESOURCE.match(nxt):
+                          break
+                      following.append(nxt)
+                  locations = set(re.findall(r"\bres/[a-zA-Z0-9_./-]+\.xml\b",
+                                             "\n".join(following)))
+                  if len(locations) != 1:
+                      deny("missing or ambiguous resource table path: " + expected)
+                  results.extend(locations)
+              if len(results) != 1:
+                  deny("missing or duplicate resource ID: " + expected)
+              file = results[0]
+              if not re.fullmatch(r"res/[a-zA-Z0-9_./-]+\.xml", file) or ".." in file.split("/"):
+                  deny("unsafe compiled backup XML path")
+              return file
+          
+          
+          def parse_tree(raw: str) -> dict:
+              roots = []
+              stack = []
+              for line in raw.splitlines():
+                  e = re.match(r"^(\s*)E: ([a-zA-Z0-9_-]+)(?:\s|$)", line)
+                  if e:
+                      depth = len(e.group(1))
+                      node = {"tag": e.group(2), "depth": depth, "attrs": {}, "children": []}
+                      while stack and stack[-1]["depth"] >= depth:
+                          stack.pop()
+                      if stack:
+                          stack[-1]["children"].append(node)
+                      else:
+                          roots.append(node)
+                      stack.append(node)
+                      continue
+                  a = re.match(r"^\s*A: ([a-zA-Z0-9_-]+)(?:\(0x[0-9a-fA-F]{8}\))?=(.*)$", line)
+                  if a:
+                      if not stack or a.group(1) in stack[-1]["attrs"]:
+                          deny("orphan or duplicate compiled XML attribute")
+                      stack[-1]["attrs"][a.group(1)] = a.group(2)
+              if len(roots) != 1:
+                  deny("backup XML must have exactly one root element")
+              return roots[0]
+          
+          
+          def literal(value: str, expected: str) -> bool:
+              esc = re.escape(expected)
+              return bool(
+                  re.fullmatch(r'(?:' + esc + r'|"' + esc +
+                               r'")(?: \(Raw: "' + esc + r'"\))?', value) or
+                  re.fullmatch(r'\(type 0x03\)0x[0-9a-fA-F]+ \(Raw: "' +
+                               esc + r'"\)', value)
+              )
+          
+          
+          def boolean_true(value: str) -> bool:
+              return bool(
+                  literal(value, "true") or
+                  re.fullmatch(r"\(type 0x12\)0x(?:1|ffffffff)", value)
+              )
+          
+          
+          def exclusions(section: dict, label: str) -> None:
+              if len(section["children"]) != len(DOMAINS):
+                  deny(label + " must contain exactly nine exclusions")
+              seen = set()
+              for child in section["children"]:
+                  if child["tag"] != "exclude" or child["children"]:
+                      deny(label + " contains an inclusion or nested exception")
+                  if set(child["attrs"]) != {"domain", "path"}:
+                      deny(label + " exclusion requires only domain and path")
+                  domain = next((d for d in DOMAINS
+                                 if literal(child["attrs"]["domain"], d)), None)
+                  if domain is None or domain in seen:
+                      deny(label + " domain is missing, duplicated or unexpected")
+                  if not literal(child["attrs"]["path"], "."):
+                      deny(label + " contains a partial/unsafe exclusion path")
+                  seen.add(domain)
+              if seen != DOMAINS:
+                  deny(label + " has incomplete domain coverage")
+          
+          
+          def validate(tree: str, kind: str) -> None:
+              root = parse_tree(tree)
+              if kind == "modern":
+                  if root["tag"] != "data-extraction-rules" or root["attrs"] or len(root["children"]) != 2:
+                      deny("modern extraction policy root or sections changed")
+                  cloud, transfer = root["children"]
+                  if cloud["tag"] != "cloud-backup" or transfer["tag"] != "device-transfer":
+                      deny("cloud/transfer rules changed or reordered")
+                  if set(cloud["attrs"]) != {"disableIfNoEncryptionCapabilities"} or not boolean_true(
+                          cloud["attrs"]["disableIfNoEncryptionCapabilities"]):
+                      deny("cloud encryption capability requirement missing")
+                  if transfer["attrs"]:
+                      deny("device-transfer has unexpected attributes")
+                  exclusions(cloud, "cloud-backup")
+                  exclusions(transfer, "device-transfer")
+              elif kind == "legacy":
+                  if root["tag"] != "full-backup-content" or root["attrs"]:
+                      deny("legacy backup policy root or attributes changed")
+                  exclusions(root, "legacy full-backup")
+              else:
+                  deny("unknown backup policy category")
+          
+          
+          def inspect(apk: Path, tool: str) -> None:
+              if not apk.is_file() or not apk.stat().st_size:
+                  deny("APK is missing or empty")
+              ids = manifest_ids(dump(tool, apk, "xmltree", "AndroidManifest.xml"))
+              resources = dump(tool, apk, "resources")
+              paths = [(kind, compiled_path(resources, ids[name], resource))
+                       for name, resource, kind in POLICIES]
+              if len(set(path for _, path in paths)) != len(paths):
+                  deny("two backup resource IDs point to the same packaged XML")
+              try:
+                  with zipfile.ZipFile(apk) as archive:
+                      for kind, path in paths:
+                          members = [m for m in archive.infolist() if m.filename == path]
+                          if len(members) != 1:
+                              deny(kind + " policy XML missing or duplicated in APK")
+                          item = members[0]
+                          mode = stat.S_IFMT((item.external_attr >> 16) & 0xffff) if item.create_system == 3 else 0
+                          if mode not in (0, stat.S_IFREG) or not 0 < item.file_size <= MAX_XML:
+                              deny(kind + " XML empty, linked, special or oversized")
+              except (OSError, zipfile.BadZipFile):
+                  deny("APK ZIP structure is invalid")
+              for kind, path in paths:
+                  validate(dump(tool, apk, "xmltree", path), kind)
+              print("PASS: compiled APK denies cloud backup, device transfer and legacy full backup")
+          
+          
+          def main(argv: list[str]) -> int:
+              if len(argv) != 3:
+                  print("Usage: verify_compiled_backup_policy.py <apk> <aapt2>", file=sys.stderr)
+                  return 2
+              try:
+                  inspect(Path(argv[1]).resolve(), argv[2])
+              except (OSError, ValueError, subprocess.TimeoutExpired, zipfile.BadZipFile) as error:
+                  print(str(error), file=sys.stderr)
+                  return 1
+              return 0
+          
+          
+          if __name__ == "__main__":
+              raise SystemExit(main([sys.argv[0], sys.argv[2], sys.argv[1]]))
+          PY
+      - name: Independently audit downloaded compiled OTA policy
+        working-directory: release-payload
+        env:
+          NEGRESCO_OTA_CERT_DER_SHA256: ${{ vars.NEGRESCO_OTA_CERT_DER_SHA256 }}
+          NEGRESCO_OTA_KEYID: ${{ vars.NEGRESCO_OTA_KEYID }}
+        run: |
+          set -euo pipefail
+          # Independently inspect the final downloaded APK using workflow-owned
+          # Python code. Never checkout the repo or run artifact-supplied scripts.
+          python3 - Negresco-Finance-V3.1.3-preview.apk <<'PY'
+          import hashlib
+          import json
+          import os
+          import re
+          import ssl
+          import stat
+          import struct
+          import sys
+          import zipfile
+          from pathlib import Path
+
+          # Trusted verifier is embedded in this privileged workflow. Never checkout
+          # untrusted source or execute scripts supplied by the downloaded artifact.
+          ANDROID = "http://schemas.android.com/apk/res/android"
+          PREFIX = "expo.modules.updates."
+          ENABLED = PREFIX + "ENABLED"
+          CERT = PREFIX + "CODE_SIGNING_CERTIFICATE"
+          META = PREFIX + "CODE_SIGNING_METADATA"
+          UPDATE_URL = PREFIX + "EXPO_UPDATE_URL"
+          REQUEST_HEADERS = PREFIX + "UPDATES_CONFIGURATION_REQUEST_HEADERS_KEY"
+          PINNED_ENDPOINT = "https://u.expo.dev/a506611f-a159-4341-bed7-28dcbd47bf95"
+          NIL = 0xffffffff
+          MAX_XML = 2 * 1024 * 1024
+
+          def block(message):
+              raise SystemExit("BLOCK: privileged compiled OTA policy: " + message)
+
+          def word(b, at):
+              if at < 0 or at + 4 > len(b): block("truncated binary XML word")
+              return struct.unpack_from("<I", b, at)[0]
+
+          def half(b, at):
+              if at < 0 or at + 2 > len(b): block("truncated binary XML short")
+              return struct.unpack_from("<H", b, at)[0]
+
+          def length(b, p, e, wide):
+              if wide:
+                  value = half(b, p)
+                  p += 2
+                  if value & 0x8000:
+                      if p + 2 > e: block("truncated long UTF-16 string")
+                      return ((value & 0x7fff) << 16) | half(b, p), p + 2
+                  return value, p
+              if p >= e: block("truncated UTF-8 string")
+              value = b[p]
+              p += 1
+              if value & 0x80:
+                  if p >= e: block("truncated long UTF-8 string")
+                  return ((value & 0x7f) << 8) | b[p], p + 1
+              return value, p
+
+          def pool(b, p, end, header):
+              if header < 28: block("invalid string pool")
+              count, styles, flags = word(b, p+8), word(b, p+12), word(b, p+16)
+              base = word(b, p+20)
+              if count > 65536 or styles > 65536 or flags & ~0x107:
+                  block("string pool is too large or malformed")
+              if header + 4*(count+styles) > end-p or base < header + 4*(count+styles):
+                  block("string table offsets are outside pool")
+              values = []
+              for i in range(count):
+                  pos = p + base + word(b, p+header+4*i)
+                  if pos >= end: block("out-of-range string pool entry")
+                  if flags & 0x100:
+                      char_count, pos = length(b, pos, end, False)
+                      size, pos = length(b, pos, end, False)
+                      if size > MAX_XML or pos+size+1 > end or b[pos+size] != 0:
+                          block("malformed UTF-8 pool entry")
+                      value = b[pos:pos+size].decode("utf-8")
+                      if len(value.encode("utf-16le"))//2 != char_count:
+                          block("inconsistent UTF-8 string length")
+                  else:
+                      size, pos = length(b, pos, end, True)
+                      if size > MAX_XML//2 or pos+2*size+2 > end or b[pos+2*size:pos+2*size+2] != b"\x00\x00":
+                          block("malformed UTF-16 pool entry")
+                      value = b[pos:pos+2*size].decode("utf-16le")
+                  values.append(value)
+              return values
+
+          def compiled_metadata(apk):
+              target = Path(apk)
+              if target.is_symlink() or not target.is_file() or target.stat().st_size == 0:
+                  block("release APK missing, empty or symlinked")
+              try:
+                  with zipfile.ZipFile(target) as archive:
+                      items = [item for item in archive.infolist() if item.filename == "AndroidManifest.xml"]
+                      if len(items) != 1: block("APK compiled manifest is absent or duplicated")
+                      item = items[0]
+                      kind = stat.S_IFMT((item.external_attr >> 16) & 65535) if item.create_system == 3 else 0
+                      if item.flag_bits & 1 or kind not in (0, stat.S_IFREG) or not 8 <= item.file_size <= MAX_XML:
+                          block("APK compiled manifest has unsafe ZIP attributes")
+                      with archive.open(item) as f:
+                          xml = f.read(MAX_XML+1)
+                      if len(xml) != item.file_size: block("APK manifest size mismatch")
+              except (OSError, zipfile.BadZipFile, RuntimeError):
+                  block("unreadable release APK ZIP")
+
+              if half(xml,0) != 3 or half(xml,2) != 8 or word(xml,4) != len(xml):
+                  block("APK manifest is not complete Android binary XML")
+              values = None
+              stack = []
+              application_count = root_count = 0
+              seen = {}
+              offset = 8
+
+              def value(index):
+                  if index == NIL: return None
+                  if values is None or index >= len(values): block("invalid binary string index")
+                  return values[index]
+
+              while offset < len(xml):
+                  if offset+8 > len(xml): block("trailing binary XML")
+                  chunk, header = half(xml,offset), half(xml,offset+2)
+                  end = offset + word(xml,offset+4)
+                  if header < 8 or end < offset+header or end > len(xml):
+                      block("binary XML chunk is malformed")
+                  if chunk == 0x0001:
+                      if values is not None or stack: block("duplicate or late string pool")
+                      values = pool(xml,offset,end,header)
+                  elif chunk in (0x0180,0x0100,0x0101):
+                      if values is None or header < (8 if chunk == 0x0180 else 16):
+                          block("invalid resource/namespace header")
+                  elif chunk == 0x0102:
+                      if values is None or header < 16 or end-offset < 36:
+                          block("invalid start element")
+                      element, namespace = value(word(xml,offset+20)), value(word(xml,offset+16))
+                      if namespace is not None or not element: block("invalid XML element name")
+                      astart, asize, acount = half(xml,offset+24),half(xml,offset+26),half(xml,offset+28)
+                      apos = offset+16+astart
+                      if astart < 20 or asize != 20 or acount > 2048 or apos+acount*asize > end:
+                          block("binary XML attributes out of bounds")
+                      attrs = {}
+                      for i in range(acount):
+                          pos = apos + i*asize
+                          key = (value(word(xml,pos)),value(word(xml,pos+4)))
+                          raw, typ, data = word(xml,pos+8),xml[pos+15],word(xml,pos+16)
+                          if not key[1] or key in attrs or half(xml,pos+12) != 8:
+                              block("duplicate or malformed XML attribute")
+                          if typ == 0x03:
+                              val = value(data)
+                              if raw != NIL and value(raw) != val: block("raw and typed string differ")
+                          elif typ == 0x12:
+                              if data not in (0,1,0xffffffff): block("malformed boolean attribute")
+                              val = data != 0
+                          else:
+                              val = data
+                          attrs[key] = (typ,val)
+                      if not stack:
+                          root_count += 1
+                          if element != "manifest": block("unexpected compiled XML root")
+                      if stack == ["manifest"] and element == "application":
+                          application_count += 1
+                      if stack == ["manifest","application"] and element == "meta-data":
+                          named = attrs.get((ANDROID,"name"))
+                          if named is None or named[0] != 0x03 or not isinstance(named[1],str):
+                              block("malformed application meta-data name")
+                          key = named[1]
+                          if key in seen: block("duplicate application metadata")
+                          attr = attrs.get((ANDROID,"value"))
+                          if key.startswith(PREFIX) and (attr is None or (ANDROID,"resource") in attrs):
+                              block("Expo OTA metadata must use literal value")
+                          if attr is not None:
+                              seen[key] = attr
+                      stack.append(element)
+                  elif chunk == 0x0103:
+                      if header < 16 or end-offset < 24 or not stack:
+                          block("invalid binary XML end element")
+                      if stack.pop() != value(word(xml,offset+20)):
+                          block("unbalanced binary XML elements")
+                  elif chunk == 0x0104:
+                      if header < 16: block("invalid binary CDATA")
+                  else:
+                      block("unrecognized binary XML chunk")
+                  offset = end
+              if values is None or stack or root_count != 1 or application_count != 1:
+                  block("expected exactly one closed application")
+              return seen
+
+          def inspect(apk):
+              data = compiled_metadata(apk)
+              keys = {key for key in data if key.startswith(PREFIX+"CODE_SIGNING_")}
+              if not keys.issubset({CERT,META}):
+                  block("unexpected compiled code signing metadata")
+              enabled = data.get(ENABLED)
+              if enabled == (0x12,False):
+                  if keys: block("embedded-only APK retains code signing metadata")
+                  print("PASS: privileged downloaded APK embeds updates.ENABLED=false")
+                  return
+              if enabled != (0x12,True) or keys != {CERT,META}:
+                  block("unsigned or ambiguous enabled Expo Updates in release APK")
+              # Independent trust policy: production-signed APKs must not fetch
+              # code from a preview channel or a substituted Expo project URL.
+              if data.get(UPDATE_URL) != (0x03, PINNED_ENDPOINT):
+                  block("signed OTA APK has an unexpected compiled update endpoint")
+              routing = data.get(REQUEST_HEADERS)
+              if not routing or routing[0] != 0x03 or not isinstance(routing[1],str):
+                  block("signed OTA routing headers must be literal JSON")
+              try:
+                  headers = json.loads(routing[1])
+              except (TypeError, ValueError):
+                  block("malformed signed OTA channel JSON")
+              if headers != {"expo-channel-name":"production"}:
+                  block("signed OTA APK must use only the production channel")
+              algorithm = data[META]
+              if algorithm[0] != 0x03 or not isinstance(algorithm[1],str):
+                  block("code signing metadata must be literal JSON")
+              try: info = json.loads(algorithm[1])
+              except ValueError: block("invalid signing metadata JSON")
+              expected_keyid = os.environ.get("NEGRESCO_OTA_KEYID","")
+              if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}",expected_keyid):
+                  block("trusted OTA keyid pin missing or invalid")
+              if (not isinstance(info,dict) or set(info) != {"alg","keyid"}
+                      or info["alg"] != "rsa-v1_5-sha256" or info["keyid"] != expected_keyid):
+                  block("APK OTA signing algorithm/keyid does not match trusted release policy")
+              expected_cert = os.environ.get("NEGRESCO_OTA_CERT_DER_SHA256","").lower()
+              if not re.fullmatch(r"[0-9a-f]{64}",expected_cert):
+                  block("trusted OTA certificate fingerprint missing or invalid")
+              cert = data[CERT]
+              if cert[0] != 0x03 or not isinstance(cert[1],str):
+                  block("OTA certificate must be compiled literal PEM")
+              pem = cert[1]
+              if not re.fullmatch(r"-----BEGIN CERTIFICATE-----\r?\n(?:[A-Za-z0-9+/=]+\r?\n)+-----END CERTIFICATE-----\r?\n?",pem):
+                  block("APK certificate must be exactly one PEM certificate")
+              try: der = ssl.PEM_cert_to_DER_cert(pem)
+              except ValueError: block("invalid PEM certificate encoding")
+              if hashlib.sha256(der).hexdigest() != expected_cert:
+                  block("APK OTA public certificate differs from independently pinned certificate")
+              print("PASS: privileged downloaded APK OTA certificate DER SHA256 and signing keyid match trusted policy")
+
+          if len(sys.argv) != 2:
+              block("expected one downloaded APK path")
+          try:
+              inspect(sys.argv[1])
+          except (OSError, UnicodeError, ValueError, struct.error, zipfile.LargeZipFile) as ex:
+              block(str(ex))
+
+          PY
+      - name: Independently audit downloaded compiled OTA runtime resource
+        working-directory: release-payload
+        run: |
+          set -euo pipefail
+          # Inline workflow-owned verifier. No checkout or artifact-supplied scripts.
+          test -d "${ANDROID_HOME:?Android SDK unavailable}"
+          BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
+          test -x "$BUILD_TOOLS/aapt2"
+          python3 - Negresco-Finance-V3.1.3-preview.apk "$BUILD_TOOLS/aapt2" 3.1.3 <<'PY'
+          #!/usr/bin/env python3
+          """Fail-closed check of the compiled OTA runtimeVersion resource in an APK.
+
+          Reads the compiled manifest and resources.arsc through Android's AAPT2 rather
+          than trusting generated XML files or a plaintext occurrence in a ZIP.
+          """
+          from __future__ import annotations
+
+          import re
+          import struct
+          import stat
+          import subprocess
+          import sys
+          import zipfile
+          from pathlib import Path
+
+          NAME = "expo.modules.updates.EXPO_RUNTIME_VERSION"
+          RESOURCE = "string/expo_runtime_version"
+          MAX_DUMP = 32 * 1024 * 1024
+          MAX_APK = 1024 * 1024 * 1024
+          MAX_TABLE = 48 * 1024 * 1024
+          ANDROID = "http://schemas.android.com/apk/res/android"
+          PREFIX = "expo.modules.updates."
+          NO_INDEX = 0xFFFFFFFF
+          MAX_XML = 2 * 1024 * 1024
+          MAX_STRINGS = 65536
+          RE_ID = r"0x[0-9a-fA-F]{8}"
+          RE_HEADER = re.compile(r"^\s*resource\s+(0x[0-9a-fA-F]{8})\s+(?:[^\s:]+:)?(string/[^\s:]+)")
+          RE_ELEMENT = re.compile(r"^(\s*)E:\s+([a-zA-Z0-9_-]+)(?:\s|$)")
+          RE_ATTRIBUTE = re.compile(r"^\s*A:\s+android:(name|value)\(0x[0-9a-fA-F]{8}\)=(.*)$")
+          RE_VERSION = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?")
+
+
+          def block(reason):
+              raise ValueError("BLOCK: compiled Android OTA runtime resource: " + reason)
+
+
+          def run_dump(aapt2: str, apk: Path, what: str, file: str | None = None) -> str:
+              args = [aapt2, "dump", what, str(apk)]
+              if file is not None:
+                  args += ["--file", file]
+              try:
+                  p = subprocess.run(args, capture_output=True, text=True,
+                                     timeout=35, encoding="utf-8", errors="strict")
+              except (OSError, subprocess.TimeoutExpired, UnicodeError):
+                  block("AAPT2 parser is unavailable")
+              if p.returncode != 0 or not p.stdout or len(p.stdout.encode("utf-8")) > MAX_DUMP:
+                  block("AAPT2 failed or inspection output exceeds bounds")
+              return p.stdout
+
+
+          def apk_contents(apk: Path) -> None:
+              if apk.is_symlink() or not apk.is_file() or not 0 < apk.stat().st_size <= MAX_APK:
+                  block("APK is missing, linked or oversized")
+              try:
+                  with zipfile.ZipFile(apk) as archive:
+                      for name, limit in (("AndroidManifest.xml", 2 * 1024 * 1024),
+                                          ("resources.arsc", MAX_TABLE)):
+                          items = [item for item in archive.infolist() if item.filename == name]
+                          if len(items) != 1:
+                              block(name + " must be unique inside APK")
+                          item = items[0]
+                          kind = stat.S_IFMT((item.external_attr >> 16) & 0xffff) if item.create_system == 3 else 0
+                          if item.flag_bits & 1 or kind not in (0, stat.S_IFREG) or not 8 <= item.file_size <= limit:
+                              block(name + " has unsafe ZIP attributes")
+              except (OSError, zipfile.BadZipFile):
+                  block("APK ZIP cannot be inspected")
+
+
+          def u16(raw: bytes, pos: int) -> int:
+              if pos < 0 or pos + 2 > len(raw):
+                  block("truncated binary XML short")
+              return struct.unpack_from("<H", raw, pos)[0]
+
+
+          def u32(raw: bytes, pos: int) -> int:
+              if pos < 0 or pos + 4 > len(raw):
+                  block("truncated binary XML word")
+              return struct.unpack_from("<I", raw, pos)[0]
+
+
+          def length8(raw: bytes, pos: int, end: int) -> tuple[int, int]:
+              if pos >= end:
+                  block("invalid UTF-8 string length")
+              first = raw[pos]
+              pos += 1
+              if first & 0x80:
+                  if pos >= end:
+                      block("invalid two-byte string length")
+                  return ((first & 0x7f) << 8) | raw[pos], pos + 1
+              return first, pos
+
+
+          def length16(raw: bytes, pos: int, end: int) -> tuple[int, int]:
+              if pos + 2 > end:
+                  block("invalid UTF-16 string length")
+              first = u16(raw, pos)
+              pos += 2
+              if first & 0x8000:
+                  if pos + 2 > end:
+                      block("invalid extended UTF-16 string length")
+                  return ((first & 0x7fff) << 16) | u16(raw, pos), pos + 2
+              return first, pos
+
+
+          def string_pool(raw: bytes, start: int, end: int, header: int) -> list[str]:
+              if header < 28:
+                  block("invalid binary XML string pool")
+              count, style_count, flags = u32(raw, start + 8), u32(raw, start + 12), u32(raw, start + 16)
+              string_start, style_start = u32(raw, start + 20), u32(raw, start + 24)
+              if count > MAX_STRINGS or style_count > MAX_STRINGS or flags & ~0x107:
+                  block("unexpected string pool count or flags")
+              if header + 4 * (count + style_count) > end - start:
+                  block("string pool offset table truncated")
+              if string_start < header + 4 * (count + style_count) or start + string_start > end:
+                  block("string pool data starts outside chunk")
+              strings = []
+              for i in range(count):
+                  offset = u32(raw, start + header + 4 * i)
+                  pos = start + string_start + offset
+                  if pos >= end or (style_start and pos >= start + style_start):
+                      block("string offset outside pool")
+                  if flags & 0x100:
+                      utf16_len, pos = length8(raw, pos, end)
+                      size, pos = length8(raw, pos, end)
+                      if size > MAX_XML or pos + size + 1 > end or raw[pos + size] != 0:
+                          block("UTF-8 string malformed")
+                      data = raw[pos:pos + size].decode("utf-8", "strict")
+                      if len(data.encode("utf-16le")) // 2 != utf16_len:
+                          block("inconsistent UTF-8 string length")
+                  else:
+                      size, pos = length16(raw, pos, end)
+                      if size > MAX_XML // 2 or pos + size * 2 + 2 > end or raw[pos + size * 2:pos + size * 2 + 2] != b"\x00\x00":
+                          block("UTF-16 string malformed")
+                      data = raw[pos:pos + size * 2].decode("utf-16le", "strict")
+                  strings.append(data)
+              return strings
+
+
+          def parsed_manifest(raw: bytes) -> dict[str, tuple[int, object]]:
+              if not (8 <= len(raw) <= MAX_XML) or u16(raw, 0) != 0x0003 or u16(raw, 2) != 8 or u32(raw, 4) != len(raw):
+                  block("not a complete Android compiled binary manifest")
+              strings: list[str] | None = None
+              stack: list[str] = []
+              application_count = 0
+              root_count = 0
+              metadata: dict[str, tuple[int, object]] = {}
+              p = 8
+
+              def string(index: int) -> str | None:
+                  if index == NO_INDEX:
+                      return None
+                  if strings is None or index >= len(strings):
+                      block("invalid compiled string index")
+                  return strings[index]
+
+              while p < len(raw):
+                  if p + 8 > len(raw):
+                      block("trailing incomplete binary XML chunk")
+                  kind, header, size = struct.unpack_from("<HHI", raw, p)
+                  end = p + size
+                  if header < 8 or size < header or end > len(raw):
+                      block("binary XML chunk overflows document")
+                  if kind == 0x0001:
+                      if strings is not None or stack:
+                          block("duplicate or out-of-place string pool")
+                      strings = string_pool(raw, p, end, header)
+                  elif kind in (0x0180, 0x0100, 0x0101):
+                      if strings is None or header < (8 if kind == 0x0180 else 16):
+                          block("bad resource or namespace chunk")
+                  elif kind == 0x0102:
+                      if strings is None or header < 16 or size < 36:
+                          block("invalid start element")
+                      name = string(u32(raw, p + 20))
+                      ns = string(u32(raw, p + 16))
+                      if not name or ns:
+                          block("unexpected namespace or empty XML element")
+                      attr_start, attr_size, attr_count = (u16(raw, p + 24), u16(raw, p + 26), u16(raw, p + 28))
+                      if attr_start < 20 or attr_size != 20 or attr_count > 2048:
+                          block("invalid attribute layout")
+                      first = p + 16 + attr_start
+                      if first + attr_count * attr_size > end:
+                          block("attribute list exceeds node")
+                      attrs: dict[tuple[str | None, str], tuple[int, object]] = {}
+                      for i in range(attr_count):
+                          a = first + i * 20
+                          namespace, key = string(u32(raw, a)), string(u32(raw, a + 4))
+                          raw_index = u32(raw, a + 8)
+                          value_size, data_type, data = u16(raw, a + 12), raw[a + 15], u32(raw, a + 16)
+                          if value_size != 8 or not key or (namespace, key) in attrs:
+                              block("malformed or duplicate binary XML attribute")
+                          if data_type == 0x03:
+                              value = string(data)
+                              if raw_index != NO_INDEX and string(raw_index) != value:
+                                  block("raw/typed compiled string mismatch")
+                          elif data_type == 0x12:
+                              if data not in (0, 1, 0xffffffff):
+                                  block("malformed compiled boolean")
+                              value = bool(data)
+                          else:
+                              value = data
+                          attrs[(namespace, key)] = (data_type, value)
+                      if not stack:
+                          root_count += 1
+                          if name != "manifest":
+                              block("compiled root must be manifest")
+                      if name == "application" and stack == ["manifest"]:
+                          application_count += 1
+                      if name == "meta-data" and stack == ["manifest", "application"]:
+                          id_attr = attrs.get((ANDROID, "name"))
+                          if not id_attr or id_attr[0] != 0x03 or not isinstance(id_attr[1], str):
+                              block("invalid application metadata name")
+                          key = id_attr[1]
+                          if key in metadata:
+                              block("duplicate application metadata: " + key)
+                          value = attrs.get((ANDROID, "value"))
+                          if key.startswith(PREFIX) and (value is None or (ANDROID, "resource") in attrs):
+                              block("Expo updates metadata is missing literal android:value")
+                          if value is not None:
+                              metadata[key] = value
+                      stack.append(name)
+                  elif kind == 0x0103:
+                      if header < 16 or size < 24 or not stack:
+                          block("invalid compiled end element")
+                      name = string(u32(raw, p + 20))
+                      if name != stack.pop():
+                          block("unbalanced compiled XML elements")
+                  elif kind == 0x0104:
+                      if header < 16:
+                          block("invalid CDATA")
+                  else:
+                      block("unknown compiled XML chunk")
+                  p = end
+              if strings is None or stack or root_count != 1 or application_count != 1:
+                  block("exactly one closed manifest/application required")
+              return metadata
+
+
+          def read_apk(apk: Path) -> bytes:
+              if apk.is_symlink() or not apk.is_file() or not apk.stat().st_size:
+                  block("missing, linked or empty APK")
+              try:
+                  with zipfile.ZipFile(apk) as archive:
+                      entries = [m for m in archive.infolist() if m.filename == "AndroidManifest.xml"]
+                      if len(entries) != 1:
+                          block("compiled AndroidManifest must be unique in APK")
+                      member = entries[0]
+                      mode = stat.S_IFMT((member.external_attr >> 16) & 0xffff) if member.create_system == 3 else 0
+                      if member.flag_bits & 1 or mode not in (0, stat.S_IFREG) or not 8 <= member.file_size <= MAX_XML:
+                          block("compiled AndroidManifest has unsafe ZIP attributes")
+                      with archive.open(member) as stream:
+                          xml = stream.read(MAX_XML + 1)
+                      if len(xml) != member.file_size:
+                          block("compiled AndroidManifest is truncated or oversized")
+                      return xml
+              except (OSError, zipfile.BadZipFile, RuntimeError):
+                  block("cannot read APK ZIP safely")
+
+
+
+          def binary_manifest_reference(apk: Path) -> str:
+              # Read the actual compiled AXML bytes. AAPT2 text output varies between SDKs.
+              # Only a typed TYPE_REFERENCE may drive the OTA runtime compatibility.
+              metadata = parsed_manifest(read_apk(apk))
+              runtime = metadata.get(NAME)
+              if runtime is None or runtime[0] != 0x01 or not isinstance(runtime[1], int) or runtime[1] in (0, 0xffffffff):
+                  block("expected exactly one typed binary application OTA runtime reference")
+              return f"0x{runtime[1]:08x}"
+
+
+          def table_runtime(raw: str, ref: str, version: str) -> None:
+              lines = raw.splitlines()
+              found = []
+              # AAPT2 prints every possible resource configuration beneath its header.
+              for i, line in enumerate(lines):
+                  heading = RE_HEADER.match(line)
+                  if not heading:
+                      continue
+                  res_id, name = heading.groups()
+                  if name == RESOURCE or res_id.lower() == ref:
+                      if name != RESOURCE or res_id.lower() != ref:
+                          block("OTA runtime string name and manifest resource ID disagree")
+                      values = []
+                      for entry in lines[i+1:]:
+                          if RE_HEADER.match(entry) or re.match(r"^\s*type\s+\w+\s+id=", entry) or re.match(r"^Package name=", entry):
+                              break
+                          if not entry.strip():
+                              continue
+                          value = re.fullmatch(r'\s*(\([^)]*\))\s+(?:(?:\(string8\)|\(string16\))\s+)?\"([^\"]*)\"\s*', entry)
+                          if value:
+                              values.append((value.group(1), value.group(2)))
+                          elif entry.strip().startswith("("):
+                              block("unexpected or indirect OTA runtime table value")
+                      found.append(values)
+              if len(found) != 1:
+                  block("missing, ambiguous or duplicated compiled OTA runtime resource")
+              if found[0] != [("()", version)]:
+                  block("OTA runtime must have exactly one default nonlocalized value matching appVersion")
+
+
+          def inspect(apk: Path, tool: str, version: str) -> None:
+              if not RE_VERSION.fullmatch(version):
+                  block("explicit pinned appVersion required")
+              apk_contents(apk)
+              rid = binary_manifest_reference(apk)
+              table_runtime(run_dump(tool, apk, "resources"), rid, version)
+              print("PASS: compiled APK OTA runtime resource " + version +
+                    " has exactly one nonlocalized value and manifest reference")
+
+
+          def main(argv):
+              if len(argv) != 4:
+                  print("Usage: verify_compiled_ota_runtime.py <apk> <aapt2> <appVersion>",
+                        file=sys.stderr)
+                  return 2
+              try:
+                  inspect(Path(argv[1]), argv[2], argv[3])
+                  return 0
+              except (ValueError, OSError, UnicodeError) as error:
+                  print(str(error), file=sys.stderr)
+                  return 1
+
+
+          if __name__ == "__main__":
+              raise SystemExit(main(sys.argv))
+
+          PY
+      - name: Stage private draft and publish only after complete verified upload
+        working-directory: release-payload
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_POLICY_READ_TOKEN: ${{ secrets.NEGRESCO_RELEASE_POLICY_READ_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="v3.1.3-preview-${GITHUB_SHA:0:7}"
+          export RELEASE_TAG="$TAG"
+          [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::Invalid GitHub commit SHA for release tag."; exit 1; }
+          # Read the administrative setting with a DIFFERENT, read-only credential.
+          # The normal GITHUB_TOKEN retains contents:write for tag/draft creation.
+          # A dedicated GitHub App/PAT secret must have Administration:read only.
+          verify_immutable_policy() {
+            if [[ -z "${RELEASE_POLICY_READ_TOKEN:-}" ]]; then
+              echo "::error::Read-only release policy token is missing; publication is blocked before any tag or release."
+              exit 1
+            fi
+            if [[ "$RELEASE_POLICY_READ_TOKEN" == "${GH_TOKEN:-}" ]]; then
+              echo "::error::Release policy credential must not reuse the publishing token."
+              exit 1
+            fi
+            local policy_file
+            policy_file="$(mktemp)"
+            if ! GH_TOKEN="$RELEASE_POLICY_READ_TOKEN" gh api "repos/${GH_REPO}/immutable-releases" >"$policy_file" 2>/dev/null; then
+              rm -f "$policy_file"
+              echo "::error::Cannot verify enabled GitHub immutable releases using Administration:read. No publication permitted."
+              exit 1
+            fi
+            if ! node - "$policy_file" <<'NODE'
+          const fs = require("node:fs");
+          let policy;
+          try { policy = JSON.parse(fs.readFileSync(process.argv[2], "utf8")); }
+          catch {
+            console.error("BLOCK: GitHub release immutability response is invalid JSON");
+            process.exit(1);
+          }
+          if (!policy || policy.enabled !== true) {
+            console.error("BLOCK: immutable releases must be enabled before creating a release tag");
+            process.exit(1);
+          }
+          console.log("PASS: GitHub immutable releases are enabled");
+          NODE
+            then
+              rm -f "$policy_file"
+              return 1
+            fi
+            rm -f "$policy_file"
+          }
+          verify_immutable_policy
+          # Fail closed unless remote Git ref resolves directly to the authorized commit.
+          verify_exact_tag() {
+            gh api "repos/${GH_REPO}/git/ref/tags/${TAG}" | node -e '
+              let raw = "";
+              process.stdin.on("data", part => raw += part);
+              process.stdin.on("end", () => {
+                const ref = JSON.parse(raw);
+                if (ref.ref !== "refs/tags/" + process.env.RELEASE_TAG ||
+                    ref.object?.type !== "commit" ||
+                    ref.object.sha !== process.env.GITHUB_SHA) {
+                  console.error("BLOCK: git tag does not resolve to the exact authorized commit");
+                  process.exit(1);
+                }
+              });
+            '
+          }
+          # REST get-by-tag excludes drafts. List EVERY page with the
+          # publishing token, which has push access and can see private drafts.
+          # A failed/incomplete listing must never mean "safe to create".
+          RELEASES_PREFLIGHT="$(mktemp)"
+          if ! gh api --paginate --slurp "repos/${GH_REPO}/releases?per_page=100" >"$RELEASES_PREFLIGHT" 2>/dev/null; then
+            rm -f "$RELEASES_PREFLIGHT"
+            echo "::error::Cannot enumerate existing public or draft releases; refusing to create a tag."
+            exit 1
+          fi
+          if ! node - "$RELEASES_PREFLIGHT" <<'NODE'
+          const fs = require("node:fs");
+          let pages;
+          try { pages = JSON.parse(fs.readFileSync(process.argv[2], "utf8")); }
+          catch {
+            console.error("BLOCK: release listing is not valid JSON");
+            process.exit(1);
+          }
+          if (!Array.isArray(pages) || pages.length === 0 ||
+              pages.some(page => !Array.isArray(page) ||
+                page.some(release => !release ||
+                  typeof release.tag_name !== "string" ||
+                  typeof release.draft !== "boolean"))) {
+            console.error("BLOCK: release listing is incomplete or malformed");
+            process.exit(1);
+          }
+          if (pages.some(page => page.some(release => release.tag_name === process.env.RELEASE_TAG))) {
+            console.error("BLOCK: release already exists (draft or published); refusing to overwrite");
+            process.exit(1);
+          }
+          console.log("PASS: no conflicting release, including private drafts, in paginated GitHub listing");
+          NODE
+          then
+            rm -f "$RELEASES_PREFLIGHT"
+            exit 1
+          fi
+          rm -f "$RELEASES_PREFLIGHT"
+          # GitHub ignores --target if the git tag already exists. A 404 is the
+          # only acceptable response; API failure, auth errors and timeouts BLOCK.
+          TAG_LOOKUP="$(mktemp)"
+          if gh api --include "repos/${GH_REPO}/git/ref/tags/${TAG}" >"$TAG_LOOKUP" 2>&1; then
+            echo "::error::Git tag already exists; refusing to reuse an unknown target."
+            exit 1
+          fi
+          if ! grep -Eq '^HTTP/[^[:space:]]+ 404([[:space:]]|$)' "$TAG_LOOKUP"; then
+            echo "::error::Cannot prove git tag is absent (preflight API failure)."
+            exit 1
+          fi
+          rm -f "$TAG_LOOKUP"
+          # Draft releases may not create backing tags until published.
+          # Explicitly create the lightweight tag first; creation fails on conflicts.
+          gh api -X POST "repos/${GH_REPO}/git/refs" -f "ref=refs/tags/${TAG}" -f "sha=${GITHUB_SHA}" | node -e '
+            let raw = "";
+            process.stdin.on("data", part => raw += part);
+            process.stdin.on("end", () => {
+              const ref = JSON.parse(raw);
+              if (ref.ref !== "refs/tags/" + process.env.RELEASE_TAG ||
+                  ref.object?.type !== "commit" ||
+                  ref.object.sha !== process.env.GITHUB_SHA) {
+                console.error("BLOCK: tag creation response has wrong ref or SHA");
+                process.exit(1);
+              }
+            });
+          '
+          verify_exact_tag
+          # Drafts are not publicly listed. On an upload failure, leave the
+          # incomplete candidate as a draft for manual review, never publish it.
+          gh release create "$TAG" --verify-tag --title "Negresco Finance V3.1.3 - PREVIA de testes" --notes-file RELEASE_NOTES.md --draft --prerelease --latest=false
+          if ! gh release upload "$TAG" Negresco-Finance-V3.1.3-preview.apk Negresco-Finance-V3.1.3-preview.zip SHA256-release.txt APK-SIGNATURE.txt; then
+            echo "::error::Release upload failed. The incomplete release remains a draft; preserved Actions artifacts can be reviewed safely."
+            exit 1
+          fi
+          # Confirm the remote draft contains exactly the expected assets/sizes.
+          # A successful upload command alone does not prove a complete release.
+          export RELEASE_DRAFT_ID_FILE
+          RELEASE_DRAFT_ID_FILE="$(mktemp)"
+          # CLI only supplies draft identity. Its assets representation is NOT
+          # authoritative for the remote SHA256 or upload state.
+          gh release view "$TAG" --json isDraft,isPrerelease,tagName,databaseId | node -e '
+            const fs = require("node:fs");
+            let raw = "";
+            process.stdin.on("data", chunk => raw += chunk);
+            process.stdin.on("end", () => {
+              const release = JSON.parse(raw);
+              if (release.isDraft !== true ||
+                  release.isPrerelease !== true ||
+                  release.tagName !== process.env.RELEASE_TAG ||
+                  !Number.isSafeInteger(release.databaseId) || release.databaseId < 1 ||
+                  !/^[a-f0-9]{40}$/.test(process.env.GITHUB_SHA || "")) {
+                console.error("BLOCK: draft release identity or target SHA differs");
+                process.exit(1);
+              }
+              fs.writeFileSync(process.env.RELEASE_DRAFT_ID_FILE, String(release.databaseId));
+              console.log("PASS: CLI draft identity confirmed, REST asset proof required next");
+            });
+          '
+          # REST is the SOLE authority for GitHub-uploaded SHA256 and asset state.
+          # Do not promote any draft without proving all four uploaded REST assets.
+          gh api "repos/${GH_REPO}/releases/$(cat "$RELEASE_DRAFT_ID_FILE")" | node -e '
+            const fs = require("node:fs");
+            const crypto = require("node:crypto");
+            const required = [
+              "Negresco-Finance-V3.1.3-preview.apk",
+              "Negresco-Finance-V3.1.3-preview.zip",
+              "SHA256-release.txt",
+              "APK-SIGNATURE.txt"
+            ];
+            let raw = "";
+            process.stdin.on("data", chunk => raw += chunk);
+            process.stdin.on("end", () => {
+              const release = JSON.parse(raw);
+              const expectedId = Number(fs.readFileSync(process.env.RELEASE_DRAFT_ID_FILE,"utf8").trim());
+              if (!Number.isSafeInteger(expectedId) || expectedId < 1 ||
+                  release.id !== expectedId ||
+                  release.tag_name !== process.env.RELEASE_TAG ||
+                  release.draft !== true || release.prerelease !== true) {
+                console.error("BLOCK: REST draft release identity differs from verified CLI draft");
+                process.exit(1);
+              }
+              if (!Array.isArray(release.assets) ||
+                  release.assets.length !== required.length) {
+                console.error("BLOCK: REST draft asset count differs");
+                process.exit(1);
+              }
+              const names = new Set();
+              for (const asset of release.assets) {
+                if (!asset || names.has(asset.name) || !required.includes(asset.name) ||
+                    !Number.isSafeInteger(asset.size) || asset.size < 1 ||
+                    asset.size !== fs.statSync(asset.name).size ||
+                    asset.state !== "uploaded" ||
+                    typeof asset.digest !== "string" ||
+                    !/^sha256:[a-f0-9]{64}$/.test(asset.digest) ||
+                    asset.digest !== ("sha256:" +
+                      crypto.createHash("sha256").update(fs.readFileSync(asset.name)).digest("hex"))) {
+                  console.error("BLOCK: REST draft asset SHA256 or metadata differs");
+                  process.exit(1);
+                }
+                names.add(asset.name);
+              }
+              if (required.some(name => !names.has(name))) {
+                console.error("BLOCK: REST draft missing required asset");
+                process.exit(1);
+              }
+              console.log("PASS: GitHub REST draft agrees with original four SHA256 assets");
+            });
+          '
+          # This is the *only* step which can make the release publicly visible.
+          verify_exact_tag
+          # Recheck after upload in case an administrator disabled protection.
+          verify_immutable_policy
+          gh release edit "$TAG" --draft=false --prerelease --latest=false
+          # Post-publication is an AUDIT, not an atomic prevention mechanism.
+          # If a published release differs, fail the run and demand human action;
+          # do not attempt to remove an immutable release or delete its Git tag.
+          verify_exact_tag
+          gh api "repos/${GH_REPO}/releases/tags/${TAG}" | node -e '
+            const fs = require("node:fs");
+            const crypto = require("node:crypto");
+            const required = [
+              "Negresco-Finance-V3.1.3-preview.apk",
+              "Negresco-Finance-V3.1.3-preview.zip",
+              "SHA256-release.txt",
+              "APK-SIGNATURE.txt"
+            ];
+            let raw = "";
+            process.stdin.on("data", chunk => raw += chunk);
+            process.stdin.on("end", () => {
+              const release = JSON.parse(raw);
+              const expectedId = Number(fs.readFileSync(process.env.RELEASE_DRAFT_ID_FILE,"utf8").trim());
+              if (release.id !== expectedId ||
+                  release.tag_name !== process.env.RELEASE_TAG ||
+                  release.draft !== false || release.prerelease !== true ||
+                  release.immutable !== true) {
+                console.error("ALERT: published release identity or immutable state differs; manual incident review required");
+                process.exit(1);
+              }
+              if (!Array.isArray(release.assets) ||
+                  release.assets.length !== required.length) {
+                console.error("ALERT: published asset count differs; manual incident review required");
+                process.exit(1);
+              }
+              const names = new Set();
+              for (const asset of release.assets) {
+                if (names.has(asset.name) || !required.includes(asset.name) ||
+                    !Number.isSafeInteger(asset.size) || asset.size < 1 ||
+                    asset.size !== fs.statSync(asset.name).size ||
+                    asset.state !== "uploaded" ||
+                    typeof asset.digest !== "string" ||
+                    asset.digest !== ("sha256:" +
+                      crypto.createHash("sha256").update(fs.readFileSync(asset.name)).digest("hex"))) {
+                  console.error("ALERT: published asset digest differs; manual incident review required");
+                  process.exit(1);
+                }
+                names.add(asset.name);
+              }
+              if (required.some(name => !names.has(name))) {
+                console.error("ALERT: published asset is missing; manual incident review required");
+                process.exit(1);
+              }
+              console.log("PASS: published immutable prerelease retains original release ID and four assets");
+            });
+          '
+          rm -f "$RELEASE_DRAFT_ID_FILE"

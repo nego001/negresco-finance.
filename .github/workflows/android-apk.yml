@@ -77,7 +77,7 @@ permissions:
   contents: read
 jobs:
   build-test-apk:
-    if: ${{ github.ref != 'refs/heads/lab/p01-guardiao-active-integration-m149-v1' }}
+    if: ${{ github.ref != 'refs/heads/lab/p01-guardiao-active-integration-m149-v1' && github.ref != 'refs/heads/lab/p01-guardiao-distribution-rehearsal-m159-v1' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     defaults:
@@ -87,7 +87,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '22.23.5'
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -104,17 +104,27 @@ jobs:
       - name: Validate P0 repository contracts
         working-directory: .
         run: npm test
+      - name: Detect tracked mobile lock before installation
+        id: mobile_lock
+        run: |
+          set -euo pipefail
+          if git ls-files --error-unmatch package-lock.json >/dev/null 2>&1; then
+            echo 'tracked=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'tracked=false' >> "$GITHUB_OUTPUT"
+          fi
       - name: Require reviewed npm lockfile before any stable Android candidate
         if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.publish_release || inputs.stable_signing) }}
         run: |
           set -euo pipefail
           # Fail before installing dependencies or exposing signing secrets.
+          test "${{ steps.mobile_lock.outputs.tracked }}" = true
           node ../../tooling/android/verify_stable_npm_lock.cjs package.json package-lock.json
       - name: Install JS dependencies
-        if: ${{ !(github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.publish_release || inputs.stable_signing)) }}
+        if: ${{ !(github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.publish_release || inputs.stable_signing)) && steps.mobile_lock.outputs.tracked == 'false' }}
         run: npm install --no-audit --no-fund
       - name: Reject known npm vulnerabilities before stable dependency installation
-        if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.publish_release || inputs.stable_signing) }}
+        if: ${{ (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.publish_release || inputs.stable_signing)) || steps.mobile_lock.outputs.tracked == 'true' }}
         run: |
           set -euo pipefail
           # The registry query uses the reviewed package-lock.json.
@@ -131,17 +141,21 @@ jobs:
             exit 1
           fi
       - name: Install reviewed stable JS dependencies without resolving changes
-        if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && (inputs.publish_release || inputs.stable_signing) }}
-        run: npm ci --no-audit --no-fund
+        if: ${{ steps.mobile_lock.outputs.tracked == 'true' }}
+        run: node ../../tooling/android/guardiao_ci_locked_install_m148.mjs install
       - name: Validate TypeScript
-        run: npx tsc --noEmit
+        run: node ./node_modules/typescript/bin/tsc --noEmit
       - name: Audit production app OTA runtime override boundary
         run: |
           set -euo pipefail
           # Static source boundary only; compiled APK policy is checked separately.
           node ../../tooling/android/verify_no_ota_runtime_override.cjs .
       - name: Generate native Android project
+        if: ${{ steps.mobile_lock.outputs.tracked == 'false' }}
         run: npx expo prebuild --platform android --non-interactive --no-install
+      - name: Generate reviewed native Android project
+        if: ${{ steps.mobile_lock.outputs.tracked == 'true' }}
+        run: node ../../tooling/android/guardiao_ci_locked_install_m148.mjs prebuild
       # Expo SDK 54 includes Kotlin/KSP-heavy modules (expo-updates, expo-modules-core).
       # The default 512 MiB Gradle Metaspace caused OutOfMemoryError on hosted runners.
       - name: Configure Gradle memory and Kotlin compilation
