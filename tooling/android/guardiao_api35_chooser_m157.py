@@ -32,7 +32,32 @@ def inspect(nodes,w,h):
             return "target-disabled",None,None
         ancestors={n.get("_tap_bounds","") for n in matches}
         if len(ancestors)!=1:
-            return "target-ambiguous",None,None
+            # M162: multiple exact labels may occupy distinct chooser regions.
+            # Exclude a group only with valid parent and wholly out-of-band
+            # label geometry; never choose between two touchable groups.
+            band_top,band_bottom=int(h*.13),int(h*.88)
+            in_band=[]
+            for raw_group in ancestors:
+                group_bounds=rect(raw_group,w,h)
+                group_parents=[n for n in nodes if n.get("package") in PACKAGES and n.get("clickable")=="true" and n.get("enabled")=="true" and n.get("bounds")==raw_group and n.get("_tap_bounds")==raw_group]
+                if group_bounds is None or len(group_parents)!=1:
+                    return "target-ambiguous",None,None
+                gx1,gy1,gx2,gy2=group_bounds
+                if gx2-gx1<16 or gy2-gy1<16 or (gx2-gx1)*(gy2-gy1)>w*h//2:
+                    return "target-ambiguous",None,None
+                group=[n for n in matches if n.get("_tap_bounds")==raw_group]
+                label_rects=[rect(n.get("bounds"),w,h) for n in group]
+                if any(b is None or not (gx1<=b[0]<b[2]<=gx2 and gy1<=b[1]<b[3]<=gy2) for b in label_rects):
+                    return "target-ambiguous",None,None
+                if all(b[3]<=band_top or b[1]>=band_bottom for b in label_rects):
+                    continue
+                if any(not (band_top<b[1]<b[3]<band_bottom) for b in label_rects):
+                    return "target-ambiguous",None,None
+                in_band.append(raw_group)
+            if len(in_band)!=1:
+                return "target-ambiguous",None,None
+            matches=[n for n in matches if n.get("_tap_bounds")==in_band[0]]
+            ancestors={in_band[0]}
         raw=next(iter(ancestors))
         bounds=rect(raw,w,h)
         parents=[n for n in nodes if n.get("package") in PACKAGES and n.get("clickable")=="true" and n.get("enabled")=="true" and n.get("bounds")==raw and n.get("_tap_bounds")==raw]
