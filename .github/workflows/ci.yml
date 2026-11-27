@@ -113,6 +113,11 @@ jobs:
           cd android
           ./gradlew --no-daemon --stacktrace -I "$GITHUB_WORKSPACE/tooling/android/guardiao_native_release_dependency_m164.gradle" :negresco-finance-security:verifyDiagnosticDependencyIsolationM164
 
+      - name: Exercise native dependency guard against offline synthetic graphs (NO APK)
+        run: |
+          set -euo pipefail
+          python3 "$GITHUB_WORKSPACE/tooling/android/guardiao_native_dependency_negative_m166.py" "$PWD/android/gradlew"
+
   expo-native-diagnostic-emulator:
     # Test-only AndroidKeyStore scenario in an isolated CI emulator.
     # Builds only an instrumentation APK, never the app release APK.
