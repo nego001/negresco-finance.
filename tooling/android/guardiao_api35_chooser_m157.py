@@ -104,6 +104,17 @@ def inspect(nodes,w,h,*, on_ambiguity=None):
     regions={r for n in nodes if n.get("package") in PACKAGES and n.get("scrollable")=="true" and n.get("enabled")=="true" and (r:=rect(n.get("bounds"),w,h)) is not None and r[2]-r[0]>=w//3 and r[3]-r[1]>=h//8}
     return category,None,next(iter(regions)) if len(regions)==1 else None
 
+def ambiguity_scroll_region(nodes,w,h,reason):
+    """M167: observe exactly one scrollable chooser node, never a tap target."""
+    if reason!="multiple-in-band-groups":
+        return None
+    if type(nodes) is not list or len(nodes)>2500 or any(type(n) is not dict for n in nodes):
+        return None
+    regions=[r for n in nodes if n.get("package") in PACKAGES and
+        n.get("scrollable")=="true" and n.get("enabled")=="true" and
+        (r:=rect(n.get("bounds"),w,h)) is not None and r[2]-r[0]>=w//3 and r[3]-r[1]>=h//8]
+    return regions[0] if len(regions)==1 else None
+
 def receiver_registered():
     raw=base.adb("shell","cmd","package","query-activities","--brief","-a","android.intent.action.SEND","-t","application/pdf",timeout=15)
     return any(line.strip() in (COMPONENT,"com.negresco.pdfreceiver.lab/com.negresco.pdfreceiver.lab.ReceiverActivity") for line in raw.splitlines())
@@ -117,13 +128,19 @@ def find_receiver():
     print("ENV (LAB): API35 PDF receiver registered",flush=True)
     scrolls=0
     previous=None
+    ambiguity_scrolls=0
     for _ in range(12):
         if not base.chooser_present():
             raise RuntimeError("chooser foreground lost")
+        reasons=[]
         try:
             w,h=base.screen_size()
-            category,target,region=inspect(base.xml_nodes(),w,h,
-                on_ambiguity=lambda reason: print("ENV (LAB): API35 duplicate detail "+reason,flush=True))
+            nodes=base.xml_nodes()
+            category,target,region=inspect(nodes,w,h,on_ambiguity=reasons.append)
+            for reason in reasons:
+                print("ENV (LAB): API35 duplicate detail "+reason,flush=True)
+            if category=="target-ambiguous" and reasons==["multiple-in-band-groups"]:
+                region=ambiguity_scroll_region(nodes,w,h,reasons[0])
         except (RuntimeError,ET.ParseError,subprocess.TimeoutExpired):
             category,target,region="snapshot-unavailable",None,None
         print("ENV (LAB): API35 chooser "+category,flush=True)
@@ -134,7 +151,12 @@ def find_receiver():
             previous=identity
         else:
             previous=None
-            if category in ("target-ambiguous","target-disabled","target-parent-unconfirmed","target-parent-unsafe","target-label-ambiguous","target-overlapped"):
+            # Only the diagnosed duplicate case may receive a bounded
+            # scroll-only retry. No ambiguous target is ever returned.
+            recovering=(category=="target-ambiguous" and
+                reasons==["multiple-in-band-groups"] and region is not None and
+                scrolls<3 and ambiguity_scrolls<2)
+            if category in ("target-ambiguous","target-disabled","target-parent-unconfirmed","target-parent-unsafe","target-label-ambiguous","target-overlapped") and not recovering:
                 raise RuntimeError("unsafe chooser target")
             if region is not None and scrolls<3:
                 if not base.chooser_present():
@@ -143,8 +165,19 @@ def find_receiver():
                 x=(x1+x2)//2
                 y0=y1+3*(y2-y1)//4
                 y1=y1+(y2-y1)//4
+                if recovering:
+                    # A short first forward exploration, then reverse once.
+                    # Both gestures remain within the observed scroll region.
+                    middle=(y0+y1)//2
+                    delta=max(1,(y0-y1)//4)
+                    y0,y1=middle+delta,middle-delta
+                    if ambiguity_scrolls==1:
+                        y0,y1=y1,y0
+                    ambiguity_scrolls+=1
                 base.adb("shell","input","swipe",str(x),str(y0),str(x),str(y1),"300")
                 scrolls+=1
                 print("ENV (LAB): API35 chooser observed-scroll-region gesture",flush=True)
+                if recovering:
+                    print("ENV (LAB): M167 duplicate-only bounded exploration",flush=True)
         time.sleep(.65)
     raise RuntimeError("API35 exact chooser receiver not confirmed")
